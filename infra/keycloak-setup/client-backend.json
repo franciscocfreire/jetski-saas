@@ -1,0 +1,34 @@
+{
+  "clientId": "jetski-backend",
+  "name": "Jetski Backend API (Resource Server)",
+  "description": "Spring Boot backend API protected by OAuth2",
+  "enabled": true,
+  "alwaysDisplayInConsole": false,
+  "protocol": "openid-connect",
+  "publicClient": false,
+  "bearerOnly": true,
+  "standardFlowEnabled": false,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "serviceAccountsEnabled": false,
+  "authorizationServicesEnabled": false,
+  "fullScopeAllowed": true,
+  "attributes": {
+    "access.token.lifespan": "900",
+    "use.refresh.tokens": "false",
+    "token.endpoint.auth.signing.alg": "RS256"
+  },
+  "defaultClientScopes": [
+    "web-origins",
+    "acr",
+    "profile",
+    "roles",
+    "email"
+  ],
+  "optionalClientScopes": [
+    "address",
+    "phone",
+    "offline_access",
+    "microprofile-jwt"
+  ]
+}

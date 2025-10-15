@@ -2,12 +2,12 @@
 story_id: STORY-001
 epic: EPIC-01
 title: Implementar TenantContext e TenantFilter
-status: TODO
+status: DONE
 priority: CRITICAL
 estimate: 5
-assignee: Unassigned
-started_at: null
-completed_at: null
+assignee: Claude
+started_at: 2025-01-15
+completed_at: 2025-01-15
 tags: [backend, multi-tenant, security, spring-boot]
 dependencies: []
 ---

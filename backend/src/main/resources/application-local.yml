@@ -1,0 +1,99 @@
+spring:
+  application:
+    name: jetski-api
+
+  datasource:
+    url: jdbc:postgresql://localhost:5433/jetski_local
+    username: jetski
+    password: dev123
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: public
+        jdbc:
+          time_zone: America/Sao_Paulo
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8081/realms/jetski-saas
+          jwk-set-uri: http://localhost:8081/realms/jetski-saas/protocol/openid-connect/certs
+          # Keycloak LOCAL realm jetski-saas (porta 8081)
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000  # 1 hour
+
+server:
+  port: 8090
+  servlet:
+    context-path: /api
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param
+
+logging:
+  level:
+    root: INFO
+    com.jetski: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+
+# Custom application properties
+jetski:
+  tenant:
+    header-name: X-Tenant-Id
+    default-tenant-id: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
+  security:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:3001

@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:tc:postgresql:16:///test
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+    clean-disabled: false
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/jetski-saas
+          jwk-set-uri: http://localhost:8080/realms/jetski-saas/protocol/openid-connect/certs
+
+logging:
+  level:
+    root: WARN
+    com.jetski: DEBUG
+    org.testcontainers: INFO

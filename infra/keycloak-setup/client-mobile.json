@@ -1,0 +1,84 @@
+{
+  "clientId": "jetski-mobile",
+  "name": "Jetski Mobile App (Android/iOS)",
+  "description": "Kotlin Multiplatform Mobile app with PKCE",
+  "enabled": true,
+  "alwaysDisplayInConsole": false,
+  "protocol": "openid-connect",
+  "publicClient": true,
+  "bearerOnly": false,
+  "standardFlowEnabled": true,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "serviceAccountsEnabled": false,
+  "authorizationServicesEnabled": false,
+  "fullScopeAllowed": true,
+  "redirectUris": [
+    "com.jetski.app:/oauth2redirect",
+    "jetski://oauth2callback",
+    "http://localhost:3000/*"
+  ],
+  "webOrigins": [
+    "com.jetski.app",
+    "jetski",
+    "http://localhost:3000"
+  ],
+  "attributes": {
+    "pkce.code.challenge.method": "S256",
+    "post.logout.redirect.uris": "com.jetski.app:/logout+##jetski://logout",
+    "oauth2.device.authorization.grant.enabled": "false",
+    "oidc.ciba.grant.enabled": "false",
+    "backchannel.logout.session.required": "true",
+    "backchannel.logout.revoke.offline.tokens": "false",
+    "access.token.lifespan": "900",
+    "refresh.token.max.reuse": "0",
+    "use.refresh.tokens": "true",
+    "id.token.as.detached.signature": "false",
+    "token.endpoint.auth.signing.alg": "RS256"
+  },
+  "protocolMappers": [
+    {
+      "name": "tenant-id-mapper",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-attribute-mapper",
+      "consentRequired": false,
+      "config": {
+        "user.attribute": "tenant_id",
+        "claim.name": "tenant_id",
+        "jsonType.label": "String",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "true",
+        "multivalued": "false",
+        "aggregate.attrs": "false"
+      }
+    },
+    {
+      "name": "tenant-roles-mapper",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-realm-role-mapper",
+      "consentRequired": false,
+      "config": {
+        "claim.name": "roles",
+        "jsonType.label": "String",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "true",
+        "multivalued": "true"
+      }
+    }
+  ],
+  "defaultClientScopes": [
+    "web-origins",
+    "acr",
+    "profile",
+    "roles",
+    "email"
+  ],
+  "optionalClientScopes": [
+    "address",
+    "phone",
+    "offline_access",
+    "microprofile-jwt"
+  ]
+}

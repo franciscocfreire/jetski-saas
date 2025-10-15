@@ -1,0 +1,112 @@
+{
+  "realm": "jetski-saas",
+  "displayName": "Jetski SaaS Multi-Tenant Platform",
+  "displayNameHtml": "<div class=\"kc-logo-text\"><span>Jetski SaaS</span></div>",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "defaultSignatureAlgorithm": "RS256",
+  "revokeRefreshToken": false,
+  "refreshTokenMaxReuse": 0,
+  "accessTokenLifespan": 900,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "ssoSessionIdleTimeoutRememberMe": 0,
+  "ssoSessionMaxLifespanRememberMe": 0,
+  "offlineSessionIdleTimeout": 2592000,
+  "offlineSessionMaxLifespanEnabled": false,
+  "offlineSessionMaxLifespan": 5184000,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "actionTokenGeneratedByAdminLifespan": 43200,
+  "actionTokenGeneratedByUserLifespan": 300,
+  "enabled": true,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["pt-BR", "en"],
+  "defaultLocale": "pt-BR",
+  "smtpServer": {},
+  "eventsEnabled": true,
+  "eventsListeners": ["jboss-logging"],
+  "enabledEventTypes": [
+    "LOGIN",
+    "LOGIN_ERROR",
+    "LOGOUT",
+    "LOGOUT_ERROR",
+    "REGISTER",
+    "REGISTER_ERROR",
+    "UPDATE_EMAIL",
+    "UPDATE_EMAIL_ERROR",
+    "UPDATE_PASSWORD",
+    "UPDATE_PASSWORD_ERROR",
+    "UPDATE_PROFILE",
+    "UPDATE_PROFILE_ERROR"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "ADMIN_TENANT",
+        "description": "Tenant Administrator - Full permissions within tenant",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "GERENTE",
+        "description": "Manager - Operations manager, authorizes discounts, closes day",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "OPERADOR",
+        "description": "Pier Operator - Check-in/out, fuel logs, photos",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "VENDEDOR",
+        "description": "Seller/Partner - Creates reservations, earns commission",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "MECANICO",
+        "description": "Mechanic - Receives maintenance orders",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "FINANCEIRO",
+        "description": "Finance - Reconciles closures, billing, commission payouts",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "CLIENTE",
+        "description": "Customer - Books, signs terms, pays, reviews",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
+  "groups": [],
+  "users": [],
+  "clients": []
+}

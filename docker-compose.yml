@@ -5,12 +5,14 @@ services:
     image: postgres:16
     container_name: jetski-postgres
     ports:
-      - "5432:5432"
+      - "0.0.0.0:5432:5432"
     environment:
       POSTGRES_USER: jetski
       POSTGRES_PASSWORD: dev123
       POSTGRES_DB: jetski_dev
-      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=pt_BR.UTF-8"
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C.UTF-8 --auth-host=trust"
+      POSTGRES_HOST_AUTH_METHOD: trust
+    command: postgres -c listen_addresses='*'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
@@ -26,8 +28,8 @@ services:
     image: redis:7-alpine
     container_name: jetski-redis
     ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes
+      - "0.0.0.0:6379:6379"
+    command: redis-server --appendonly yes --bind 0.0.0.0 --protected-mode no
     volumes:
       - redis_data:/data
     healthcheck:
@@ -43,7 +45,7 @@ services:
     container_name: jetski-keycloak
     command: start-dev
     ports:
-      - "8080:8080"
+      - "0.0.0.0:8080:8080"
     environment:
       # Admin credentials
       KEYCLOAK_ADMIN: admin
@@ -79,6 +81,28 @@ services:
       timeout: 10s
       retries: 10
       start_period: 60s
+    networks:
+      - jetski-network
+
+  opa:
+    image: openpolicyagent/opa:0.70.0
+    container_name: jetski-opa
+    ports:
+      - "0.0.0.0:8181:8181"
+    command:
+      - "run"
+      - "--server"
+      - "--log-level=debug"
+      - "--log-format=json-pretty"
+      - "/policies"
+    volumes:
+      - ./policies:/policies
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8181/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     networks:
       - jetski-network
 
