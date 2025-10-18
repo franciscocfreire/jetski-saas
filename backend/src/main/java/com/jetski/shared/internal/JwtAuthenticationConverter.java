@@ -45,7 +45,8 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
      * 1. Default authorities (scopes) do Spring
      * 2. Realm roles do Keycloak (claim "roles")
      *
-     * As roles são prefixadas com "ROLE_" para compatibilidade com @PreAuthorize("hasRole('...')")
+     * As roles são prefixadas com "ROLE_" para compatibilidade com Spring Security.
+     * Usado por ABACAuthorizationInterceptor para extrair role do usuário e enviar ao OPA.
      */
     private Collection<GrantedAuthority> extractAuthorities(Jwt jwt) {
         // Authorities padrão do Spring (scopes)

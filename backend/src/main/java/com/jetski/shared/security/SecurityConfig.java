@@ -27,18 +27,20 @@ import java.util.List;
  * Arquitetura de Segurança:
  * 1. OAuth2 Resource Server (JWT) - valida tokens do Keycloak
  * 2. TenantFilter (custom) - valida tenant_id do JWT vs header X-Tenant-Id
- * 3. RBAC - autorização baseada em roles (OPERADOR, GERENTE, etc.)
+ * 3. ABAC (Attribute-Based Access Control) - autorização via OPA com ABACAuthorizationInterceptor
  * 4. CORS configurado para permitir origins por tenant
  * 5. Stateless - sem sessões HTTP, apenas JWT
  *
  * Fluxo de Autenticação/Autorização:
- * Request → CORS → OAuth2 (valida JWT) → TenantFilter (valida tenant) → Authorization (check roles) → Controller
+ * Request → CORS → OAuth2 (valida JWT) → TenantFilter (valida tenant) → ABACAuthorizationInterceptor (OPA) → Controller
+ *
+ * Nota: @EnableMethodSecurity DESABILITADO - não usamos mais @PreAuthorize, apenas ABAC via OPA.
  *
  * @author Jetski Team
  */
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity(prePostEnabled = true, securedEnabled = true)
+// @EnableMethodSecurity - DESABILITADO: migrado para ABAC via ABACAuthorizationInterceptor
 public class SecurityConfig {
 
     private final JwtAuthenticationConverter jwtAuthenticationConverter;

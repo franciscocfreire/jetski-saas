@@ -7,7 +7,6 @@ import com.jetski.shared.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -20,14 +19,17 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Controller de teste para validar configuração de autenticação/autorização OAuth2.
+ * Controller de teste para validar configuração de autenticação/autorização OAuth2 + ABAC.
  *
  * Endpoints para testar:
  * - Extração de claims do JWT (tenant_id, roles, etc.)
  * - Validação de tenant_id vs header X-Tenant-Id
- * - RBAC (Role-Based Access Control)
- * - Method-level security (@PreAuthorize)
+ * - ABAC (Attribute-Based Access Control) via OPA
+ * - Autorização baseada em roles, contexto, tenant e operação
  * - OPA (Open Policy Agent) integration
+ *
+ * Todos os endpoints (exceto /public) passam por ABACAuthorizationInterceptor
+ * que consulta OPA para decisão de autorização.
  *
  * TODO: Remover este controller em produção (apenas para testes de segurança)
  *
@@ -99,9 +101,11 @@ public class AuthTestController {
 
     /**
      * Endpoint que requer role OPERADOR
-     * Testa @PreAuthorize com single role
+     *
+     * Autorização via ABAC: ABACAuthorizationInterceptor → OPA
+     * Action extraída: "auth-test:operador-only" (ou "operador-only:view" dependendo do padrão)
+     * OPA valida via rbac.rego se role OPERADOR tem permissão para esta action.
      */
-    @PreAuthorize("hasRole('OPERADOR')")
     @GetMapping("/operador-only")
     public ResponseEntity<Map<String, Object>> operadorOnly(Authentication authentication) {
         return ResponseEntity.ok(Map.of(
@@ -113,9 +117,11 @@ public class AuthTestController {
 
     /**
      * Endpoint que requer role GERENTE ou ADMIN_TENANT
-     * Testa @PreAuthorize com múltiplas roles
+     *
+     * Autorização via ABAC: ABACAuthorizationInterceptor → OPA
+     * OPA valida via rbac.rego se role do usuário (GERENTE ou ADMIN_TENANT) tem permissão.
+     * ADMIN_TENANT tem wildcard "*" e sempre passa.
      */
-    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN_TENANT')")
     @GetMapping("/manager-only")
     public ResponseEntity<Map<String, Object>> managerOnly(Authentication authentication) {
         return ResponseEntity.ok(Map.of(
@@ -127,9 +133,10 @@ public class AuthTestController {
 
     /**
      * Endpoint que requer role FINANCEIRO
-     * Testa restrição mais específica
+     *
+     * Autorização via ABAC: ABACAuthorizationInterceptor → OPA
+     * OPA valida via rbac.rego se role FINANCEIRO tem permissão.
      */
-    @PreAuthorize("hasRole('FINANCEIRO')")
     @GetMapping("/finance-only")
     public ResponseEntity<Map<String, Object>> financeOnly(Authentication authentication) {
         return ResponseEntity.ok(Map.of(
