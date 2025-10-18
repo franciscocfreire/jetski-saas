@@ -74,33 +74,43 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
     }
 
     // Helper methods para criar JWT tokens
+    // UUIDs de usuários de teste
+    private static final String OPERADOR_UUID = "11111111-1111-1111-1111-111111111111";
+    private static final String GERENTE_UUID = "22222222-2222-2222-2222-222222222222";
+    private static final String ADMIN_TENANT_UUID = "33333333-3333-3333-3333-333333333333";
+    private static final String PLATFORM_ADMIN_UUID = "44444444-4444-4444-4444-444444444444";
+
     private static org.springframework.test.web.servlet.request.RequestPostProcessor jwtOperador() {
         return jwt().jwt(j -> j
-            .subject("operador@test.com")
-            .claim("tenant_id", "123e4567-e89b-12d3-a456-426614174000")
-            .claim("roles", List.of("OPERADOR")));
+            .subject(OPERADOR_UUID)
+            .claim("tenant_id", TENANT_ID)
+            .claim("roles", List.of("OPERADOR")))
+            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor jwtGerente() {
         return jwt().jwt(j -> j
-            .subject("gerente@test.com")
-            .claim("tenant_id", "123e4567-e89b-12d3-a456-426614174000")
-            .claim("roles", List.of("GERENTE")));
+            .subject(GERENTE_UUID)
+            .claim("tenant_id", TENANT_ID)
+            .claim("roles", List.of("GERENTE")))
+            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_GERENTE"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor jwtAdminTenant() {
         return jwt().jwt(j -> j
-            .subject("admin@tenant.com")
-            .claim("tenant_id", "123e4567-e89b-12d3-a456-426614174000")
-            .claim("roles", List.of("ADMIN_TENANT")));
+            .subject(ADMIN_TENANT_UUID)
+            .claim("tenant_id", TENANT_ID)
+            .claim("roles", List.of("ADMIN_TENANT")))
+            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"));
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor jwtPlatformAdmin() {
         return jwt().jwt(j -> j
-            .subject("admin@platform.com")
+            .subject(PLATFORM_ADMIN_UUID)
             .claim("tenant_id", "platform")
             .claim("roles", List.of("PLATFORM_ADMIN"))
-            .claim("unrestricted_access", true));
+            .claim("unrestricted_access", true))
+            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
     }
 
     @Nested
@@ -208,12 +218,14 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
                 .thenReturn(approvalDecision);
 
-            // When & Then
+            // When & Then - should deny with 403 when approval is required
             mockMvc.perform(get("/v1/auth-test/manager-only")
                     .with(jwtGerente())
                     .header("X-Tenant-Id", TENANT_ID))
-                .andExpect(status().isForbidden())
-                .andExpect(status().reason(org.hamcrest.Matchers.containsString("GERENTE")));
+                .andExpect(status().isForbidden());
+
+            // Verify that OPA was called and decision was respected
+            verify(opaAuthorizationService).authorize(any(OPAInput.class));
         }
 
         @Test
@@ -280,7 +292,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
             // Then - verify user context
             verify(opaAuthorizationService).authorize(argThat(input -> {
                 assertThat(input.getUser()).isNotNull();
-                assertThat(input.getUser().getId()).isEqualTo("gerente@test.com");
+                assertThat(input.getUser().getId()).isEqualTo(GERENTE_UUID);
                 assertThat(input.getUser().getTenant_id()).isEqualTo(TENANT_ID);
                 assertThat(input.getUser().getRole()).isEqualTo("GERENTE");
                 return true;

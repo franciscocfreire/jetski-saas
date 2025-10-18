@@ -165,13 +165,36 @@ public class ActionExtractor {
         Map<String, String> pathVariables =
             (Map<String, String>) request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
 
-        if (pathVariables == null) {
-            return null;
+        // Tenta extrair dos path variables primeiro (disponível após handler mapping)
+        if (pathVariables != null && !pathVariables.isEmpty()) {
+            String id = pathVariables.getOrDefault("id",
+                    pathVariables.getOrDefault("locacaoId",
+                            pathVariables.getOrDefault("jetskiId", null)));
+            if (id != null) {
+                return id;
+            }
         }
 
-        // Tenta extrair ID comum (id, locacaoId, jetskiId, etc.)
-        return pathVariables.getOrDefault("id",
-                pathVariables.getOrDefault("locacaoId",
-                        pathVariables.getOrDefault("jetskiId", null)));
+        // Fallback: extrai UUID do path usando regex (para interceptor antes do handler mapping)
+        return extractIdFromPath(request.getRequestURI());
+    }
+
+    /**
+     * Extrai UUID do path usando regex.
+     * Busca padrão UUID no path: /v1/locacoes/{uuid}/... ou /v1/locacoes/{uuid}
+     *
+     * @param path URI path
+     * @return UUID string ou null
+     */
+    private String extractIdFromPath(String path) {
+        // Pattern para UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        Pattern uuidPattern = Pattern.compile("/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})");
+        Matcher matcher = uuidPattern.matcher(path);
+
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+
+        return null;
     }
 }

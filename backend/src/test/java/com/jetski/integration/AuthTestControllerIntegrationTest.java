@@ -76,6 +76,14 @@ class AuthTestControllerIntegrationTest extends AbstractIntegrationTest {
         // Specific behavior for super admin (use eq() for specific UUID)
         when(tenantAccessService.validateAccess(org.mockito.ArgumentMatchers.eq(SUPER_ADMIN_ID), any(UUID.class)))
                 .thenReturn(superAdminAccess);
+
+        // Mock OPA to allow all requests by default (tests can override with specific mocks)
+        OPADecision allowDecision = OPADecision.builder()
+                .allow(true)
+                .tenantIsValid(true)
+                .build();
+        when(opaAuthorizationService.authorize(any(OPAInput.class)))
+                .thenReturn(allowDecision);
     }
 
     @Test
@@ -164,6 +172,14 @@ class AuthTestControllerIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void shouldDenyGerenteAccessToOperadorEndpoint() throws Exception {
+        // Mock OPA to deny GERENTE access to OPERADOR-only endpoint
+        OPADecision denyDecision = OPADecision.builder()
+                .allow(false)
+                .tenantIsValid(true)
+                .build();
+        when(opaAuthorizationService.authorize(any(OPAInput.class)))
+                .thenReturn(denyDecision);
+
         mockMvc.perform(get("/v1/auth-test/operador-only")
                         .header("X-Tenant-Id", TENANT_ID.toString())
                         .with(jwt()

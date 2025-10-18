@@ -1,6 +1,9 @@
 package com.jetski.usuarios.api;
 
 import com.jetski.integration.AbstractIntegrationTest;
+import com.jetski.shared.authorization.OPAAuthorizationService;
+import com.jetski.shared.authorization.dto.OPADecision;
+import com.jetski.shared.authorization.dto.OPAInput;
 import com.jetski.usuarios.api.dto.UserTenantsResponse;
 import com.jetski.usuarios.domain.Membro;
 import com.jetski.usuarios.internal.TenantAccessService;
@@ -46,9 +49,23 @@ class UserTenantsControllerTest extends AbstractIntegrationTest {
     @MockBean
     private TenantAccessService tenantAccessService;
 
+    @MockBean
+    private OPAAuthorizationService opaAuthorizationService;
+
     private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID TENANT_ID_1 = UUID.fromString("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
     private static final UUID TENANT_ID_2 = UUID.fromString("b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22");
+
+    @BeforeEach
+    void setUp() {
+        // Mock OPA to allow all requests by default
+        OPADecision allowDecision = OPADecision.builder()
+                .allow(true)
+                .tenantIsValid(true)
+                .build();
+        when(opaAuthorizationService.authorize(any(OPAInput.class)))
+                .thenReturn(allowDecision);
+    }
 
     // ========================================================================
     // Happy Path Tests

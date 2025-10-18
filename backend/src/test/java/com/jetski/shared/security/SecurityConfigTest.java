@@ -1,8 +1,12 @@
 package com.jetski.shared.security;
 
 import com.jetski.integration.AbstractIntegrationTest;
+import com.jetski.shared.authorization.OPAAuthorizationService;
+import com.jetski.shared.authorization.dto.OPADecision;
+import com.jetski.shared.authorization.dto.OPAInput;
 import com.jetski.usuarios.internal.TenantAccessService;
 import com.jetski.shared.security.TenantAccessInfo;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +20,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -41,6 +46,20 @@ class SecurityConfigTest extends AbstractIntegrationTest {
 
     @MockBean
     private TenantAccessService tenantAccessService;
+
+    @MockBean
+    private OPAAuthorizationService opaAuthorizationService;
+
+    @BeforeEach
+    void setUp() {
+        // Mock OPA to allow all requests by default
+        OPADecision allowDecision = OPADecision.builder()
+                .allow(true)
+                .tenantIsValid(true)
+                .build();
+        when(opaAuthorizationService.authorize(any(OPAInput.class)))
+                .thenReturn(allowDecision);
+    }
 
     // ========================================================================
     // Public Filter Chain Tests (@Order(1))

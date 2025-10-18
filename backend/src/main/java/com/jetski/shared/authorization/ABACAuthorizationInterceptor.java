@@ -80,6 +80,14 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
         // Consulta OPA para decisão
         OPADecision decision = opaService.authorize(input);
 
+        // Se OPA retornar null, trata como negação (fail-safe)
+        if (decision == null) {
+            log.error("OPA returned null decision for action: {}", action);
+            throw new AccessDeniedException(String.format(
+                "Acesso negado para ação '%s': OPA retornou null", action
+            ));
+        }
+
         // Log da decisão
         logDecision(action, decision);
 
