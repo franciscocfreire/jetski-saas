@@ -1,12 +1,12 @@
 package com.jetski.shared.authorization;
 
+import com.jetski.integration.AbstractIntegrationTest;
 import com.jetski.shared.authorization.dto.OPADecision;
 import com.jetski.shared.authorization.dto.OPAInput;
 import com.jetski.shared.security.TenantContext;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -34,10 +34,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * @author Jetski Team
  */
-@SpringBootTest
 @AutoConfigureMockMvc
 @DisplayName("ABACAuthorizationInterceptor Integration Tests")
-class ABACAuthorizationInterceptorTest {
+class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
