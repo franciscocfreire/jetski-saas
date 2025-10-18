@@ -8,15 +8,16 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -56,12 +57,41 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         TenantContext.clear();
     }
 
+    // Helper methods para criar JWT tokens
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor jwtOperador() {
+        return jwt().jwt(j -> j
+            .subject("operador@test.com")
+            .claim("tenant_id", "123e4567-e89b-12d3-a456-426614174000")
+            .claim("roles", List.of("OPERADOR")));
+    }
+
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor jwtGerente() {
+        return jwt().jwt(j -> j
+            .subject("gerente@test.com")
+            .claim("tenant_id", "123e4567-e89b-12d3-a456-426614174000")
+            .claim("roles", List.of("GERENTE")));
+    }
+
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor jwtAdminTenant() {
+        return jwt().jwt(j -> j
+            .subject("admin@tenant.com")
+            .claim("tenant_id", "123e4567-e89b-12d3-a456-426614174000")
+            .claim("roles", List.of("ADMIN_TENANT")));
+    }
+
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor jwtPlatformAdmin() {
+        return jwt().jwt(j -> j
+            .subject("admin@platform.com")
+            .claim("tenant_id", "platform")
+            .claim("roles", List.of("PLATFORM_ADMIN"))
+            .claim("unrestricted_access", true));
+    }
+
     @Nested
     @DisplayName("Request Interception")
     class RequestInterception {
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Should intercept protected endpoint and call OPA")
         void shouldInterceptProtectedEndpoint() throws Exception {
             // Given
@@ -75,6 +105,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             // When & Then
             mockMvc.perform(get("/v1/auth-test/me")
+                    .with(jwtOperador())
                     .header("X-Tenant-Id", TENANT_ID))
                 .andExpect(status().isOk());
 
@@ -109,7 +140,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
     class OPADecisionHandling {
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Should allow request when OPA returns allow=true")
         void shouldAllowWhenOPAReturnsAllow() throws Exception {
             // Given
@@ -123,12 +153,12 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             // When & Then
             mockMvc.perform(get("/v1/auth-test/operador-only")
+                    .with(jwtOperador())
                     .header("X-Tenant-Id", TENANT_ID))
                 .andExpect(status().isOk());
         }
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Should deny request when OPA returns allow=false")
         void shouldDenyWhenOPAReturnsDeny() throws Exception {
             // Given
@@ -142,12 +172,12 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             // When & Then
             mockMvc.perform(get("/v1/auth-test/manager-only")
+                    .with(jwtGerente())
                     .header("X-Tenant-Id", TENANT_ID))
                 .andExpect(status().isForbidden());
         }
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Should deny with approval message when requer_aprovacao=true")
         void shouldDenyWithApprovalMessage() throws Exception {
             // Given
@@ -163,13 +193,13 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             // When & Then
             mockMvc.perform(get("/v1/auth-test/manager-only")
+                    .with(jwtGerente())
                     .header("X-Tenant-Id", TENANT_ID))
                 .andExpect(status().isForbidden())
                 .andExpect(status().reason(org.hamcrest.Matchers.containsString("GERENTE")));
         }
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Should deny when tenant_is_valid=false")
         void shouldDenyWhenTenantInvalid() throws Exception {
             // Given
@@ -183,6 +213,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             // When & Then
             mockMvc.perform(get("/v1/auth-test/me")
+                    .with(jwtOperador())
                     .header("X-Tenant-Id", "different-tenant-id"))
                 .andExpect(status().isForbidden());
         }
@@ -193,7 +224,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
     class OPAInputBuilding {
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Should build OPAInput with action extracted from request")
         void shouldBuildOPAInputWithAction() throws Exception {
             // Given
@@ -207,6 +237,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             // When
             mockMvc.perform(get("/v1/auth-test/operador-only")
+                    .with(jwtOperador())
                     .header("X-Tenant-Id", TENANT_ID))
                 .andExpect(status().isOk());
 
@@ -220,7 +251,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @WithMockUser(username = "gerente@test.com", roles = {"GERENTE"})
         @DisplayName("Should build OPAInput with user context (tenant_id, role)")
         void shouldBuildOPAInputWithUserContext() throws Exception {
             // Given
@@ -234,6 +264,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             // When
             mockMvc.perform(get("/v1/auth-test/manager-only")
+                    .with(jwtGerente())
                     .header("X-Tenant-Id", TENANT_ID))
                 .andExpect(status().isOk());
 
@@ -248,7 +279,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Should build OPAInput with resource context (tenant_id)")
         void shouldBuildOPAInputWithResourceContext() throws Exception {
             // Given
@@ -263,7 +293,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
             String locacaoId = UUID.randomUUID().toString();
 
             // When
-            mockMvc.perform(get("/v1/locacoes/" + locacaoId)
+            mockMvc.perform(get("/v1/locacoes/" + locacaoId).with(jwtOperador())
                     .header("X-Tenant-Id", TENANT_ID))
                 .andExpect(status().isNotFound()); // 404 porque endpoint não existe, mas interceptor rodou
 
@@ -278,7 +308,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Should build OPAInput with context attributes (timestamp, IP, device)")
         void shouldBuildOPAInputWithContextAttributes() throws Exception {
             // Given
@@ -292,6 +321,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             // When
             mockMvc.perform(get("/v1/auth-test/me")
+                    .with(jwtOperador())
                     .header("X-Tenant-Id", TENANT_ID)
                     .header("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)")
                     .header("X-Forwarded-For", "192.168.1.100"))
@@ -314,7 +344,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
     class ActionExtraction {
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("GET /v1/locacoes → action=locacao:list")
         void shouldExtractListAction() throws Exception {
             // Given
@@ -327,7 +356,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
                 .thenReturn(allowDecision);
 
             // When
-            mockMvc.perform(get("/v1/locacoes")
+            mockMvc.perform(get("/v1/locacoes").with(jwtOperador())
                     .header("X-Tenant-Id", TENANT_ID))
                 .andExpect(status().isNotFound()); // 404 porque endpoint não existe
 
@@ -338,7 +367,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("POST /v1/locacoes/{id}/checkin → action=locacao:checkin")
         void shouldExtractCheckinAction() throws Exception {
             // Given
@@ -353,7 +381,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
             String locacaoId = UUID.randomUUID().toString();
 
             // When
-            mockMvc.perform(post("/v1/locacoes/" + locacaoId + "/checkin")
+            mockMvc.perform(post("/v1/locacoes/" + locacaoId + "/checkin").with(jwtOperador())
                     .header("X-Tenant-Id", TENANT_ID)
                     .contentType("application/json")
                     .content("{}"))
@@ -366,7 +394,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @WithMockUser(username = "gerente@test.com", roles = {"GERENTE"})
         @DisplayName("POST /v1/locacoes/{id}/desconto → action=locacao:desconto")
         void shouldExtractDescontoAction() throws Exception {
             // Given
@@ -381,7 +408,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
             String locacaoId = UUID.randomUUID().toString();
 
             // When
-            mockMvc.perform(post("/v1/locacoes/" + locacaoId + "/desconto")
+            mockMvc.perform(post("/v1/locacoes/" + locacaoId + "/desconto").with(jwtGerente())
                     .header("X-Tenant-Id", TENANT_ID)
                     .contentType("application/json")
                     .content("{\"percentual\": 10}"))
@@ -399,7 +426,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
     class MultiTenantScenarios {
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Should validate tenant_id matches between user and resource")
         void shouldValidateTenantId() throws Exception {
             // Given - OPA should deny because tenant_is_valid=false
@@ -415,6 +441,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             // When & Then
             mockMvc.perform(get("/v1/auth-test/me")
+                    .with(jwtOperador())
                     .header("X-Tenant-Id", differentTenantId))
                 .andExpect(status().isForbidden());
 
@@ -429,7 +456,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @WithMockUser(username = "admin@platform.com", roles = {"PLATFORM_ADMIN"})
         @DisplayName("Platform admin should bypass tenant validation")
         void platformAdminShouldBypassTenantValidation() throws Exception {
             // Given - Platform admin unrestricted
@@ -443,6 +469,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             // When & Then
             mockMvc.perform(get("/v1/auth-test/me")
+                    .with(jwtPlatformAdmin())
                     .header("X-Tenant-Id", UUID.randomUUID().toString()))
                 .andExpect(status().isOk());
         }
@@ -453,7 +480,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
     class ErrorHandling {
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Should handle OPA service timeout gracefully")
         void shouldHandleOPATimeout() throws Exception {
             // Given
@@ -462,12 +488,12 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             // When & Then
             mockMvc.perform(get("/v1/auth-test/me")
+                    .with(jwtOperador())
                     .header("X-Tenant-Id", TENANT_ID))
                 .andExpect(status().is5xxServerError());
         }
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Should deny when OPA returns null decision")
         void shouldDenyWhenOPAReturnsNull() throws Exception {
             // Given
@@ -476,6 +502,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             // When & Then - should be treated as deny
             mockMvc.perform(get("/v1/auth-test/me")
+                    .with(jwtOperador())
                     .header("X-Tenant-Id", TENANT_ID))
                 .andExpect(status().isForbidden());
         }
@@ -486,7 +513,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
     class RealWorldScenarios {
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Operador can list locações")
         void operadorCanListLocacoes() throws Exception {
             // Given
@@ -499,7 +525,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
                 .thenReturn(allowDecision);
 
             // When & Then
-            mockMvc.perform(get("/v1/locacoes")
+            mockMvc.perform(get("/v1/locacoes").with(jwtOperador())
                     .header("X-Tenant-Id", TENANT_ID))
                 .andExpect(status().isNotFound()); // 404 porque endpoint não existe, mas passou ABAC
 
@@ -510,7 +536,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @WithMockUser(username = "operador@test.com", roles = {"OPERADOR"})
         @DisplayName("Operador cannot apply 15% discount (requires GERENTE)")
         void operadorCannotApplyLargeDiscount() throws Exception {
             // Given - OPA should deny and require GERENTE approval
@@ -527,7 +552,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
             String locacaoId = UUID.randomUUID().toString();
 
             // When & Then
-            mockMvc.perform(post("/v1/locacoes/" + locacaoId + "/desconto")
+            mockMvc.perform(post("/v1/locacoes/" + locacaoId + "/desconto").with(jwtOperador())
                     .header("X-Tenant-Id", TENANT_ID)
                     .contentType("application/json")
                     .content("{\"percentual\": 15}"))
@@ -535,7 +560,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @WithMockUser(username = "gerente@test.com", roles = {"GERENTE"})
         @DisplayName("Gerente can apply 15% discount")
         void gerenteCanApplyDiscount() throws Exception {
             // Given
@@ -550,7 +574,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
             String locacaoId = UUID.randomUUID().toString();
 
             // When & Then
-            mockMvc.perform(post("/v1/locacoes/" + locacaoId + "/desconto")
+            mockMvc.perform(post("/v1/locacoes/" + locacaoId + "/desconto").with(jwtGerente())
                     .header("X-Tenant-Id", TENANT_ID)
                     .contentType("application/json")
                     .content("{\"percentual\": 15}"))
@@ -558,7 +582,6 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @WithMockUser(username = "admin@tenant.com", roles = {"ADMIN_TENANT"})
         @DisplayName("ADMIN_TENANT has wildcard access to all actions")
         void adminTenantHasWildcardAccess() throws Exception {
             // Given
@@ -571,7 +594,7 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
                 .thenReturn(allowDecision);
 
             // When & Then - should allow any action
-            mockMvc.perform(post("/v1/fechamentos/mensal")
+            mockMvc.perform(post("/v1/fechamentos/mensal").with(jwtAdminTenant())
                     .header("X-Tenant-Id", TENANT_ID)
                     .contentType("application/json")
                     .content("{}"))
