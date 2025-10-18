@@ -1,0 +1,969 @@
+{
+	"info": {
+		"_postman_id": "jetski-saas-api-v1",
+		"name": "Jetski SaaS API",
+		"description": "Collection para testes manuais da API Jetski SaaS multi-tenant.\n\n## Configuração Inicial\n\n1. Importe os 4 ambientes (local, dev, hml, prd) disponíveis na pasta `postman/environments/`\n2. Selecione o ambiente desejado no dropdown do Postman\n3. Execute o request \"Get Access Token\" para obter o JWT\n4. O token será automaticamente salvo na variável `access_token` do ambiente\n5. Todos os requests protegidos usarão automaticamente este token\n\n## Multi-tenancy\n\nTodos os endpoints (exceto públicos e autenticação) requerem:\n- **Authorization**: Bearer token JWT\n- **X-Tenant-Id**: UUID do tenant (configurado na variável `tenant_id` do ambiente)\n\n## Estrutura\n\n- **Auth**: Obtenção de tokens JWT e testes de autenticação\n- **User**: Gerenciamento de usuários e listagem de tenants\n- **Auth Tests**: Endpoints de teste para validação de segurança (RBAC, OPA)\n- **Health**: Health checks e métricas\n\n## Versionamento\n\nEsta collection é **viva** e será atualizada conforme novos endpoints forem adicionados.\n\nVersão: 1.0.0\nÚltima atualização: 2025-10-18",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "jetski-team"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"description": "Endpoints de autenticação via Keycloak OAuth2/OIDC",
+			"item": [
+				{
+					"name": "Get Access Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Salva o access_token na variável de ambiente",
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.environment.set(\"access_token\", jsonData.access_token);",
+									"    pm.environment.set(\"refresh_token\", jsonData.refresh_token);",
+									"    pm.environment.set(\"token_expires_in\", jsonData.expires_in);",
+									"    ",
+									"    console.log(\"✅ Access token obtido com sucesso!\");",
+									"    console.log(\"Expira em:\", jsonData.expires_in, \"segundos\");",
+									"} else {",
+									"    console.error(\"❌ Erro ao obter token:\", pm.response.text());",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Validação de variáveis necessárias",
+									"const requiredVars = [\"keycloak_url\", \"keycloak_realm\", \"client_id\", \"username\", \"password\"];",
+									"const missing = requiredVars.filter(v => !pm.environment.get(v));",
+									"",
+									"if (missing.length > 0) {",
+									"    console.error(\"❌ Variáveis de ambiente ausentes:\", missing);",
+									"    throw new Error(\"Configure as variáveis: \" + missing.join(\", \"));",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "password",
+									"type": "text"
+								},
+								{
+									"key": "client_id",
+									"value": "{{client_id}}",
+									"type": "text"
+								},
+								{
+									"key": "username",
+									"value": "{{username}}",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "{{password}}",
+									"type": "text"
+								},
+								{
+									"key": "scope",
+									"value": "openid profile email",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
+							"host": [
+								"{{keycloak_url}}"
+							],
+							"path": [
+								"realms",
+								"{{keycloak_realm}}",
+								"protocol",
+								"openid-connect",
+								"token"
+							]
+						},
+						"description": "Obtém um access token JWT do Keycloak usando Resource Owner Password Credentials.\n\n**Variáveis necessárias:**\n- `keycloak_url`: URL base do Keycloak\n- `keycloak_realm`: Nome do realm\n- `client_id`: Client ID configurado no Keycloak\n- `username`: Usuário para login\n- `password`: Senha do usuário\n\n**Resposta:**\nO token JWT será salvo automaticamente na variável `access_token`."
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.environment.set(\"access_token\", jsonData.access_token);",
+									"    pm.environment.set(\"refresh_token\", jsonData.refresh_token);",
+									"    pm.environment.set(\"token_expires_in\", jsonData.expires_in);",
+									"    console.log(\"✅ Token renovado com sucesso!\");",
+									"} else {",
+									"    console.error(\"❌ Erro ao renovar token:\", pm.response.text());",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "refresh_token",
+									"type": "text"
+								},
+								{
+									"key": "client_id",
+									"value": "{{client_id}}",
+									"type": "text"
+								},
+								{
+									"key": "refresh_token",
+									"value": "{{refresh_token}}",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
+							"host": [
+								"{{keycloak_url}}"
+							],
+							"path": [
+								"realms",
+								"{{keycloak_realm}}",
+								"protocol",
+								"openid-connect",
+								"token"
+							]
+						},
+						"description": "Renova o access token usando o refresh token.\n\nUse quando o access token expirar (geralmente após 5-15 minutos)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "User",
+			"description": "Endpoints relacionados a usuários e tenants",
+			"item": [
+				{
+					"name": "List User Tenants",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has access_type\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property(\"access_type\");",
+									"    pm.expect(jsonData.access_type).to.be.oneOf([\"LIMITED\", \"UNRESTRICTED\"]);",
+									"});",
+									"",
+									"pm.test(\"If LIMITED, should have tenants array\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.access_type === \"LIMITED\") {",
+									"        pm.expect(jsonData).to.have.property(\"tenants\");",
+									"        pm.expect(jsonData.tenants).to.be.an(\"array\");",
+									"        pm.expect(jsonData).to.have.property(\"total_count\");",
+									"    }",
+									"});",
+									"",
+									"// Salva o primeiro tenant_id para uso em outros requests",
+									"const jsonData = pm.response.json();",
+									"if (jsonData.access_type === \"LIMITED\" && jsonData.tenants && jsonData.tenants.length > 0) {",
+									"    const firstTenantId = jsonData.tenants[0].tenant.id;",
+									"    pm.environment.set(\"tenant_id\", firstTenantId);",
+									"    console.log(\"✅ Primeiro tenant_id salvo:\", firstTenantId);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{api_url}}/v1/user/tenants",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"v1",
+								"user",
+								"tenants"
+							]
+						},
+						"description": "Lista todos os tenants que o usuário autenticado pode acessar.\n\n**Tipos de resposta:**\n- `LIMITED`: Retorna lista de tenants (máx 100)\n- `UNRESTRICTED`: Usuário é admin de plataforma, pode acessar qualquer tenant\n\n**Uso:**\n- Mobile app: Exibir seletor de tenant no login\n- Web app: Exibir dropdown de tenants"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Auth Tests",
+			"description": "Endpoints de teste para validação de segurança (RBAC, OPA, multi-tenancy)\n\n⚠️ **IMPORTANTE**: Estes endpoints são apenas para testes e devem ser removidos em produção.",
+			"item": [
+				{
+					"name": "Public Endpoint",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has message\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property(\"message\");",
+									"    pm.expect(jsonData.message).to.include(\"Public endpoint\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{api_url}}/v1/auth-test/public",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"v1",
+								"auth-test",
+								"public"
+							]
+						},
+						"description": "Endpoint público sem autenticação.\n\nUse para testar conectividade com a API."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User (Me)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has authenticated=true\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.authenticated).to.be.true;",
+									"});",
+									"",
+									"pm.test(\"Response has JWT claims\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property(\"jwt\");",
+									"    pm.expect(jsonData.jwt).to.have.property(\"sub\");",
+									"    pm.expect(jsonData.jwt).to.have.property(\"email\");",
+									"});",
+									"",
+									"pm.test(\"Response has tenantId\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property(\"tenantId\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenant_id}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{api_url}}/v1/auth-test/me",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"v1",
+								"auth-test",
+								"me"
+							]
+						},
+						"description": "Retorna informações do usuário autenticado extraídas do JWT.\n\n**Valida:**\n- Extração de claims do JWT (sub, email, roles, tenant_id)\n- Validação de tenant_id vs header X-Tenant-Id\n- Authorities (roles) do Spring Security"
+					},
+					"response": []
+				},
+				{
+					"name": "Operador Only",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Se o usuário tem role OPERADOR, deve retornar 200",
+									"// Caso contrário, deve retornar 403 Forbidden",
+									"",
+									"if (pm.response.code === 200) {",
+									"    pm.test(\"User has OPERADOR role - Access granted\", function () {",
+									"        const jsonData = pm.response.json();",
+									"        pm.expect(jsonData.message).to.include(\"OPERADOR\");",
+									"    });",
+									"} else if (pm.response.code === 403) {",
+									"    pm.test(\"User does NOT have OPERADOR role - Access denied (expected)\", function () {",
+									"        pm.expect(pm.response.code).to.equal(403);",
+									"    });",
+									"} else {",
+									"    pm.test(\"Unexpected status code\", function () {",
+									"        pm.expect.fail(\"Expected 200 or 403, got \" + pm.response.code);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenant_id}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{api_url}}/v1/auth-test/operador-only",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"v1",
+								"auth-test",
+								"operador-only"
+							]
+						},
+						"description": "Endpoint protegido que requer role **OPERADOR**.\n\n**Valida:**\n- @PreAuthorize com single role\n- 403 Forbidden se usuário não tem a role"
+					},
+					"response": []
+				},
+				{
+					"name": "Manager Only",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    pm.test(\"User has GERENTE or ADMIN_TENANT role - Access granted\", function () {",
+									"        const jsonData = pm.response.json();",
+									"        pm.expect(jsonData.message).to.include(\"GERENTE\");",
+									"    });",
+									"} else if (pm.response.code === 403) {",
+									"    pm.test(\"User does NOT have required roles - Access denied (expected)\", function () {",
+									"        pm.expect(pm.response.code).to.equal(403);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenant_id}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{api_url}}/v1/auth-test/manager-only",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"v1",
+								"auth-test",
+								"manager-only"
+							]
+						},
+						"description": "Endpoint protegido que requer role **GERENTE** ou **ADMIN_TENANT**.\n\n**Valida:**\n- @PreAuthorize com múltiplas roles (hasAnyRole)"
+					},
+					"response": []
+				},
+				{
+					"name": "Finance Only",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    pm.test(\"User has FINANCEIRO role - Access granted\", function () {",
+									"        const jsonData = pm.response.json();",
+									"        pm.expect(jsonData.message).to.include(\"FINANCEIRO\");",
+									"    });",
+									"} else if (pm.response.code === 403) {",
+									"    pm.test(\"User does NOT have FINANCEIRO role - Access denied (expected)\", function () {",
+									"        pm.expect(pm.response.code).to.equal(403);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenant_id}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{api_url}}/v1/auth-test/finance-only",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"v1",
+								"auth-test",
+								"finance-only"
+							]
+						},
+						"description": "Endpoint protegido que requer role **FINANCEIRO**."
+					},
+					"response": []
+				},
+				{
+					"name": "OPA RBAC Test",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has decision\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property(\"decision\");",
+									"    pm.expect(jsonData.decision).to.have.property(\"allow\");",
+									"    pm.expect(jsonData.decision).to.have.property(\"tenant_is_valid\");",
+									"});",
+									"",
+									"// Log resultado",
+									"const decision = pm.response.json().decision;",
+									"if (decision.allow) {",
+									"    console.log(\"✅ OPA RBAC: Access ALLOWED\");",
+									"} else {",
+									"    console.log(\"❌ OPA RBAC: Access DENIED\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenant_id}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{api_url}}/v1/auth-test/opa/rbac?action=locacao:checkin&role=OPERADOR",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"v1",
+								"auth-test",
+								"opa",
+								"rbac"
+							],
+							"query": [
+								{
+									"key": "action",
+									"value": "locacao:checkin",
+									"description": "Ação a validar (ex: modelo:list, locacao:checkin)"
+								},
+								{
+									"key": "role",
+									"value": "OPERADOR",
+									"description": "Papel do usuário (ex: OPERADOR, GERENTE)"
+								},
+								{
+									"key": "resourceTenantId",
+									"value": "",
+									"description": "Tenant do recurso (opcional, usa tenantId do user se omitido)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Testa autorização RBAC via OPA (Open Policy Agent).\n\n**Parâmetros:**\n- `action`: Ação a validar (ex: modelo:list, locacao:checkin)\n- `role`: Papel do usuário (ex: OPERADOR, GERENTE)\n- `resourceTenantId`: Tenant do recurso (opcional)\n\n**Exemplos de ações:**\n- `modelo:list` - Listar modelos\n- `locacao:checkin` - Check-in de locação\n- `locacao:checkout` - Check-out de locação\n- `os:criar` - Criar ordem de serviço"
+					},
+					"response": []
+				},
+				{
+					"name": "OPA Alçada Test",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has decision with alcada fields\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.decision).to.have.property(\"allow\");",
+									"    pm.expect(jsonData.decision).to.have.property(\"requer_aprovacao\");",
+									"});",
+									"",
+									"// Log resultado",
+									"const decision = pm.response.json().decision;",
+									"console.log(\"OPA Alçada:\");",
+									"console.log(\"  Allow:\", decision.allow);",
+									"console.log(\"  Requer Aprovação:\", decision.requer_aprovacao);",
+									"if (decision.aprovador_requerido !== \"N/A\") {",
+									"    console.log(\"  Aprovador Requerido:\", decision.aprovador_requerido);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenant_id}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{api_url}}/v1/auth-test/opa/alcada?action=desconto:aplicar&role=OPERADOR&percentualDesconto=15",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"v1",
+								"auth-test",
+								"opa",
+								"alcada"
+							],
+							"query": [
+								{
+									"key": "action",
+									"value": "desconto:aplicar",
+									"description": "Ação (ex: desconto:aplicar, os:aprovar)"
+								},
+								{
+									"key": "role",
+									"value": "OPERADOR",
+									"description": "Papel do usuário"
+								},
+								{
+									"key": "percentualDesconto",
+									"value": "15",
+									"description": "Percentual de desconto (para desconto:aplicar)"
+								},
+								{
+									"key": "valorOs",
+									"value": "",
+									"description": "Valor da OS (para os:aprovar)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Testa política de Alçada (autoridade de aprovação) via OPA.\n\n**Casos de uso:**\n- Aplicar desconto: Valida se usuário pode aplicar X% de desconto\n- Aprovar OS: Valida se usuário pode aprovar OS de R$ X\n\n**Parâmetros:**\n- `action`: desconto:aplicar ou os:aprovar\n- `role`: Papel do usuário\n- `percentualDesconto`: % de desconto (para desconto:aplicar)\n- `valorOs`: Valor da OS em reais (para os:aprovar)\n\n**Exemplos:**\n1. OPERADOR aplicar 10% desconto → allow=true\n2. OPERADOR aplicar 25% desconto → allow=false, requer_aprovacao=true, aprovador=GERENTE\n3. GERENTE aprovar OS de R$ 5.000 → allow=true\n4. GERENTE aprovar OS de R$ 15.000 → allow=false, requer_aprovacao=true, aprovador=ADMIN_TENANT"
+					},
+					"response": []
+				},
+				{
+					"name": "OPA Generic Authorize",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has decision\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property(\"decision\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenant_id}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"locacao:checkin\",\n  \"user\": {\n    \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"tenant_id\": \"{{tenant_id}}\",\n    \"role\": \"OPERADOR\"\n  },\n  \"resource\": {\n    \"id\": \"123e4567-e89b-12d3-a456-426614174000\",\n    \"tenant_id\": \"{{tenant_id}}\"\n  },\n  \"operation\": {\n    \"percentual_desconto\": null,\n    \"valor_os\": null\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{api_url}}/v1/auth-test/opa/authorize",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"v1",
+								"auth-test",
+								"opa",
+								"authorize"
+							]
+						},
+						"description": "Testa autorização genérica (RBAC + Alçada) via OPA.\n\nEste endpoint combina:\n1. Validação RBAC (role tem permissão?)\n2. Se sim e há contexto de operação, valida Alçada\n\n**Body:**\n```json\n{\n  \"action\": \"locacao:checkin\",\n  \"user\": {\n    \"id\": \"user-uuid\",\n    \"tenant_id\": \"tenant-uuid\",\n    \"role\": \"OPERADOR\"\n  },\n  \"resource\": {\n    \"id\": \"resource-uuid\",\n    \"tenant_id\": \"tenant-uuid\"\n  },\n  \"operation\": {\n    \"percentual_desconto\": 10,\n    \"valor_os\": 5000.00\n  }\n}\n```"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Health",
+			"description": "Health checks e métricas de observabilidade",
+			"item": [
+				{
+					"name": "Health Check",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Status is UP\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.equal(\"UP\");",
+									"});",
+									"",
+									"pm.test(\"Has components\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property(\"components\");",
+									"});",
+									"",
+									"// Verifica se PostgreSQL está UP",
+									"const components = pm.response.json().components;",
+									"if (components.db) {",
+									"    pm.test(\"Database is UP\", function () {",
+									"        pm.expect(components.db.status).to.equal(\"UP\");",
+									"    });",
+									"}",
+									"",
+									"// Verifica se Redis está UP (se configurado)",
+									"if (components.redis) {",
+									"    pm.test(\"Redis is UP\", function () {",
+									"        pm.expect(components.redis.status).to.equal(\"UP\");",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{api_url}}/actuator/health",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"actuator",
+								"health"
+							]
+						},
+						"description": "Health check da aplicação.\n\nRetorna status da aplicação e seus componentes (database, redis, etc.)."
+					},
+					"response": []
+				},
+				{
+					"name": "Metrics",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Has metrics\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property(\"names\");",
+									"    pm.expect(jsonData.names).to.be.an(\"array\");",
+									"    pm.expect(jsonData.names.length).to.be.greaterThan(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{api_url}}/actuator/metrics",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"actuator",
+								"metrics"
+							]
+						},
+						"description": "Lista todas as métricas disponíveis.\n\nPara ver detalhes de uma métrica específica:\n`GET /actuator/metrics/{metric.name}`\n\nExemplos:\n- `/actuator/metrics/jvm.memory.used`\n- `/actuator/metrics/http.server.requests`"
+					},
+					"response": []
+				},
+				{
+					"name": "Prometheus Metrics",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{api_url}}/actuator/prometheus",
+							"host": [
+								"{{api_url}}"
+							],
+							"path": [
+								"actuator",
+								"prometheus"
+							]
+						},
+						"description": "Endpoint de métricas no formato Prometheus.\n\nUse para integração com Prometheus/Grafana."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Script global executado antes de cada request",
+					"// Valida se as variáveis essenciais estão configuradas",
+					"",
+					"const currentRequest = pm.request;",
+					"const authType = currentRequest.auth ? currentRequest.auth.type : 'noauth';",
+					"",
+					"// Se o request requer autenticação, valida token",
+					"if (authType === 'bearer') {",
+					"    const token = pm.environment.get('access_token');",
+					"    if (!token) {",
+					"        console.warn('⚠️  Token não encontrado. Execute \"Get Access Token\" primeiro.');",
+					"    }",
+					"}",
+					"",
+					"// Log do request sendo executado",
+					"console.log('🚀 Executando:', pm.request.name);"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Script global executado após cada response",
+					"",
+					"// Log do resultado",
+					"const statusCode = pm.response.code;",
+					"const responseTime = pm.response.responseTime;",
+					"",
+					"if (statusCode >= 200 && statusCode < 300) {",
+					"    console.log('✅ Success:', statusCode, '| Response time:', responseTime + 'ms');",
+					"} else if (statusCode >= 400 && statusCode < 500) {",
+					"    console.warn('⚠️  Client error:', statusCode, '| Response time:', responseTime + 'ms');",
+					"} else if (statusCode >= 500) {",
+					"    console.error('❌ Server error:', statusCode, '| Response time:', responseTime + 'ms');",
+					"}",
+					"",
+					"// Valida tempo de resposta",
+					"pm.test('Response time is acceptable (< 5000ms)', function () {",
+					"    pm.expect(responseTime).to.be.below(5000);",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "collection_version",
+			"value": "1.0.0",
+			"type": "string"
+		}
+	]
+}

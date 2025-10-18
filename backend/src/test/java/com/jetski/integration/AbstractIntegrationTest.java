@@ -1,6 +1,6 @@
 package com.jetski.integration;
 
-import com.jetski.security.TenantContext;
+import com.jetski.shared.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;

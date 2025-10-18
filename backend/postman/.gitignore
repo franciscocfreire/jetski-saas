@@ -1,0 +1,29 @@
+# Postman Collection - GitIgnore
+# Evita que credenciais sensíveis sejam versionadas
+
+# ⚠️ NUNCA VERSIONE estes arquivos se contiverem credenciais reais:
+# (Apenas se você sobrescrever os environments com credenciais de HML/PRD)
+
+# Descomente as linhas abaixo se você estiver usando credenciais reais:
+# environments/Homolog.postman_environment.json
+# environments/Production.postman_environment.json
+
+# Backups do Postman
+*.backup
+*_backup.json
+
+# Arquivos temporários
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Postman cache
+.postman/
+
+# Logs de execução do Runner
+newman-*.json
+newman-*.html
+
+# Variáveis locais que não devem ser versionadas
+local-secrets.json
+.env.local

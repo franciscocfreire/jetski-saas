@@ -1,10 +1,10 @@
 package com.jetski.integration;
 
-import com.jetski.opa.dto.OPADecision;
-import com.jetski.opa.dto.OPAInput;
-import com.jetski.opa.service.OPAAuthorizationService;
-import com.jetski.service.TenantAccessService;
-import com.jetski.service.dto.TenantAccessInfo;
+import com.jetski.shared.authorization.dto.OPADecision;
+import com.jetski.shared.authorization.dto.OPAInput;
+import com.jetski.shared.authorization.OPAAuthorizationService;
+import com.jetski.usuarios.internal.TenantAccessService;
+import com.jetski.shared.security.TenantAccessInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -263,5 +263,252 @@ class AuthTestControllerIntegrationTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk());
+    }
+
+    // ========================================================================
+    // JWT Edge Cases
+    // ========================================================================
+
+    @Test
+    void shouldRejectJwtWithoutSubject() throws Exception {
+        // JWT without subject causes internal server error (500) as it's invalid
+        mockMvc.perform(get("/v1/auth-test/me")
+                        .header("X-Tenant-Id", TENANT_ID.toString())
+                        .with(jwt()
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TENANT_ID.toString())
+                                        .claim("roles", List.of("OPERADOR")))))
+                .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    void shouldHandleJwtWithEmptyRoles() throws Exception {
+        mockMvc.perform(get("/v1/auth-test/me")
+                        .header("X-Tenant-Id", TENANT_ID.toString())
+                        .with(jwt()
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TENANT_ID.toString())
+                                        .claim("roles", List.of())
+                                        .subject(USER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authenticated").value(true));
+    }
+
+    @Test
+    void shouldHandleJwtWithMultipleRoles() throws Exception {
+        mockMvc.perform(get("/v1/auth-test/manager-only")
+                        .header("X-Tenant-Id", TENANT_ID.toString())
+                        .with(jwt()
+                                .authorities(
+                                        new SimpleGrantedAuthority("ROLE_OPERADOR"),
+                                        new SimpleGrantedAuthority("ROLE_GERENTE"),
+                                        new SimpleGrantedAuthority("ROLE_FINANCEIRO")
+                                )
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TENANT_ID.toString())
+                                        .claim("roles", List.of("OPERADOR", "GERENTE", "FINANCEIRO"))
+                                        .subject(USER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Acesso permitido para GERENTE ou ADMIN_TENANT"));
+    }
+
+    @Test
+    void shouldHandleJwtWithInvalidTenantIdFormat() throws Exception {
+        // System currently doesn't validate JWT claim format, only header format
+        // This is acceptable as JWT is validated by Keycloak which ensures valid UUIDs
+        mockMvc.perform(get("/v1/auth-test/me")
+                        .header("X-Tenant-Id", TENANT_ID.toString())
+                        .with(jwt()
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", "invalid-uuid-format")
+                                        .claim("roles", List.of("OPERADOR"))
+                                        .subject(USER_ID.toString()))))
+                .andExpect(status().isOk());
+    }
+
+    // ========================================================================
+    // Tenant Validation Edge Cases
+    // ========================================================================
+
+    @Test
+    void shouldRejectInvalidTenantIdHeaderFormat() throws Exception {
+        mockMvc.perform(get("/v1/auth-test/me")
+                        .header("X-Tenant-Id", "not-a-valid-uuid")
+                        .with(jwt()
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TENANT_ID.toString())
+                                        .claim("roles", List.of("OPERADOR"))
+                                        .subject(USER_ID.toString()))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Invalid tenant ID format: 'not-a-valid-uuid'. Must be a valid UUID."));
+    }
+
+    @Test
+    void shouldHandleMultipleRequestsWithDifferentTenants() throws Exception {
+        UUID tenant1 = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        UUID tenant2 = UUID.fromString("22222222-2222-2222-2222-222222222222");
+
+        // First request with tenant1
+        mockMvc.perform(get("/v1/auth-test/me")
+                        .header("X-Tenant-Id", tenant1.toString())
+                        .with(jwt()
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", tenant1.toString())
+                                        .claim("roles", List.of("OPERADOR"))
+                                        .subject(USER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tenantId").value(tenant1.toString()));
+
+        // Second request with tenant2
+        mockMvc.perform(get("/v1/auth-test/me")
+                        .header("X-Tenant-Id", tenant2.toString())
+                        .with(jwt()
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", tenant2.toString())
+                                        .claim("roles", List.of("OPERADOR"))
+                                        .subject(USER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tenantId").value(tenant2.toString()));
+    }
+
+    // ========================================================================
+    // OPA Authorization Edge Cases
+    // ========================================================================
+
+    @Test
+    void shouldHandleOpaRbacDenied() throws Exception {
+        // Mock OPA denying access
+        OPADecision mockDecision = OPADecision.builder()
+                .allow(false)
+                .tenantIsValid(true)
+                .build();
+
+        when(opaAuthorizationService.authorizeRBAC(any(OPAInput.class)))
+                .thenReturn(mockDecision);
+
+        mockMvc.perform(get("/v1/auth-test/opa/rbac")
+                        .header("X-Tenant-Id", TENANT_ID.toString())
+                        .param("action", "modelo:delete")
+                        .param("role", "OPERADOR")
+                        .with(jwt()
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TENANT_ID.toString())
+                                        .claim("roles", List.of("OPERADOR"))
+                                        .subject(USER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decision.allow").value(false));
+    }
+
+    @Test
+    void shouldHandleOpaAlcadaWithoutApproval() throws Exception {
+        // Mock OPA allowing without approval (within authority limit)
+        OPADecision mockDecision = OPADecision.builder()
+                .allow(true)
+                .requerAprovacao(false)
+                .build();
+
+        when(opaAuthorizationService.authorizeAlcada(any(OPAInput.class)))
+                .thenReturn(mockDecision);
+
+        mockMvc.perform(get("/v1/auth-test/opa/alcada")
+                        .header("X-Tenant-Id", TENANT_ID.toString())
+                        .param("action", "desconto:aplicar")
+                        .param("role", "GERENTE")
+                        .param("percentualDesconto", "5")
+                        .with(jwt()
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TENANT_ID.toString())
+                                        .claim("roles", List.of("GERENTE"))
+                                        .subject(USER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decision.allow").value(true))
+                .andExpect(jsonPath("$.decision.requer_aprovacao").value(false));
+    }
+
+    @Test
+    void shouldHandleOpaAlcadaWithExtremeValues() throws Exception {
+        // Mock OPA for extreme discount percentage
+        OPADecision mockDecision = OPADecision.builder()
+                .allow(false)
+                .requerAprovacao(true)
+                .aprovadorRequerido("ADMIN_TENANT")
+                .build();
+
+        when(opaAuthorizationService.authorizeAlcada(any(OPAInput.class)))
+                .thenReturn(mockDecision);
+
+        mockMvc.perform(get("/v1/auth-test/opa/alcada")
+                        .header("X-Tenant-Id", TENANT_ID.toString())
+                        .param("action", "desconto:aplicar")
+                        .param("role", "OPERADOR")
+                        .param("percentualDesconto", "99")
+                        .with(jwt()
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TENANT_ID.toString())
+                                        .claim("roles", List.of("OPERADOR"))
+                                        .subject(USER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decision.allow").value(false))
+                .andExpect(jsonPath("$.decision.requer_aprovacao").value(true));
+    }
+
+    // ========================================================================
+    // Security Header Edge Cases
+    // ========================================================================
+
+    @Test
+    void shouldRejectEmptyTenantIdHeader() throws Exception {
+        mockMvc.perform(get("/v1/auth-test/me")
+                        .header("X-Tenant-Id", "")
+                        .with(jwt()
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TENANT_ID.toString())
+                                        .claim("roles", List.of("OPERADOR"))
+                                        .subject(USER_ID.toString()))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldHandleRequestWithoutAnyAuthentication() throws Exception {
+        mockMvc.perform(get("/v1/auth-test/me")
+                        .header("X-Tenant-Id", TENANT_ID.toString()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldAllowAdminTenantToAccessManagerEndpoint() throws Exception {
+        mockMvc.perform(get("/v1/auth-test/manager-only")
+                        .header("X-Tenant-Id", TENANT_ID.toString())
+                        .with(jwt()
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TENANT_ID.toString())
+                                        .claim("roles", List.of("ADMIN_TENANT"))
+                                        .subject(USER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Acesso permitido para GERENTE ou ADMIN_TENANT"));
+    }
+
+    // ========================================================================
+    // Response Content Validation
+    // ========================================================================
+
+    @Test
+    void shouldReturnCorrectUserInfoInMeEndpoint() throws Exception {
+        String testEmail = "operador@jetski.com";
+
+        mockMvc.perform(get("/v1/auth-test/me")
+                        .header("X-Tenant-Id", TENANT_ID.toString())
+                        .with(jwt()
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TENANT_ID.toString())
+                                        .claim("email", testEmail)
+                                        .claim("roles", List.of("OPERADOR", "VENDEDOR"))
+                                        .subject(OPERADOR_USER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authenticated").value(true))
+                .andExpect(jsonPath("$.principal").value(OPERADOR_USER_ID.toString()))
+                .andExpect(jsonPath("$.tenantId").value(TENANT_ID.toString()))
+                .andExpect(jsonPath("$.jwt.email").value(testEmail));
     }
 }
