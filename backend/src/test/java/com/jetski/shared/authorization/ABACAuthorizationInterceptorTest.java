@@ -4,6 +4,8 @@ import com.jetski.integration.AbstractIntegrationTest;
 import com.jetski.shared.authorization.dto.OPADecision;
 import com.jetski.shared.authorization.dto.OPAInput;
 import com.jetski.shared.security.TenantContext;
+import com.jetski.shared.security.TenantAccessInfo;
+import com.jetski.usuarios.internal.TenantAccessService;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -16,6 +18,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -45,11 +48,24 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
     @MockBean
     private OPAAuthorizationService opaAuthorizationService;
 
+    @MockBean
+    private TenantAccessService tenantAccessService;  // This implements TenantAccessValidator
+
     private static final String TENANT_ID = "123e4567-e89b-12d3-a456-426614174000";
 
     @BeforeEach
     void setUp() {
         TenantContext.setTenantId(UUID.fromString(TENANT_ID));
+
+        // Mock TenantAccessService to allow access by default
+        TenantAccessInfo allowAccess = TenantAccessInfo.builder()
+                .hasAccess(true)
+                .roles(List.of("OPERADOR", "GERENTE", "ADMIN_TENANT"))
+                .unrestricted(false)
+                .build();
+
+        when(tenantAccessService.validateAccess(any(UUID.class), any(UUID.class)))
+                .thenReturn(allowAccess);
     }
 
     @AfterEach
@@ -124,10 +140,11 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         }
 
         @Test
-        @DisplayName("Should bypass unauthenticated requests (handled by Spring Security)")
+        @DisplayName("Should return 401 for unauthenticated requests with valid tenant")
         void shouldBypassUnauthenticatedRequests() throws Exception {
-            // When & Then - Spring Security should return 401 before ABAC interceptor
-            mockMvc.perform(get("/v1/auth-test/me"))
+            // When & Then - With X-Tenant-Id but no JWT, Spring Security should return 401
+            mockMvc.perform(get("/v1/auth-test/me")
+                    .header("X-Tenant-Id", TENANT_ID))
                 .andExpect(status().isUnauthorized());
 
             // OPA should NOT be called for unauthenticated requests
@@ -202,20 +219,12 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("Should deny when tenant_is_valid=false")
         void shouldDenyWhenTenantInvalid() throws Exception {
-            // Given
-            OPADecision invalidTenantDecision = OPADecision.builder()
-                .allow(false)
-                .tenantIsValid(false)
-                .build();
-
-            when(opaAuthorizationService.authorize(any(OPAInput.class)))
-                .thenReturn(invalidTenantDecision);
-
-            // When & Then
+            // Given - invalid UUID format in header
+            // When & Then - TenantFilter should return 400 Bad Request for invalid UUID format
             mockMvc.perform(get("/v1/auth-test/me")
                     .with(jwtOperador())
-                    .header("X-Tenant-Id", "different-tenant-id"))
-                .andExpect(status().isForbidden());
+                    .header("X-Tenant-Id", "invalid-tenant-id"))
+                .andExpect(status().isBadRequest());
         }
     }
 
@@ -428,31 +437,25 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
         @Test
         @DisplayName("Should validate tenant_id matches between user and resource")
         void shouldValidateTenantId() throws Exception {
-            // Given - OPA should deny because tenant_is_valid=false
-            OPADecision denyDecision = OPADecision.builder()
-                .allow(false)
-                .tenantIsValid(false)
-                .build();
-
-            when(opaAuthorizationService.authorize(any(OPAInput.class)))
-                .thenReturn(denyDecision);
-
+            // Given - TenantAccessService should deny access for different tenant
             String differentTenantId = UUID.randomUUID().toString();
 
-            // When & Then
+            TenantAccessInfo denyAccess = TenantAccessInfo.builder()
+                    .hasAccess(false)
+                    .reason("User is not a member of this tenant")
+                    .build();
+
+            when(tenantAccessService.validateAccess(any(UUID.class), eq(UUID.fromString(differentTenantId))))
+                    .thenReturn(denyAccess);
+
+            // When & Then - TenantFilter should throw AccessDeniedException (403)
             mockMvc.perform(get("/v1/auth-test/me")
                     .with(jwtOperador())
                     .header("X-Tenant-Id", differentTenantId))
                 .andExpect(status().isForbidden());
 
-            // Verify OPA was called with mismatched tenant_ids
-            verify(opaAuthorizationService).authorize(argThat(input -> {
-                // User tenant_id should be from TenantContext (TENANT_ID)
-                // Resource tenant_id should be from header (differentTenantId)
-                assertThat(input.getUser().getTenant_id()).isEqualTo(TENANT_ID);
-                // Resource tenant_id might be different based on implementation
-                return true;
-            }));
+            // OPA should NOT be called because TenantFilter denies first
+            verify(opaAuthorizationService, never()).authorize(any(OPAInput.class));
         }
 
         @Test
