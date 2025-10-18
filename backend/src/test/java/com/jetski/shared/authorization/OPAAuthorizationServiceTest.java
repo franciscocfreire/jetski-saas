@@ -273,7 +273,11 @@ class OPAAuthorizationServiceTest {
                         .build())
                 .build();
 
-        OPAResponse<Boolean> mockResponse = new OPAResponse<>(true);
+        OPADecision mockDecision = OPADecision.builder()
+                .allow(true)
+                .tenantIsValid(true)
+                .build();
+        OPAResponse<OPADecision> mockResponse = new OPAResponse<>(mockDecision);
 
         when(responseSpec.bodyToMono(any(ParameterizedTypeReference.class)))
                 .thenReturn(Mono.just(mockResponse));
@@ -285,9 +289,8 @@ class OPAAuthorizationServiceTest {
         assertThat(decision).isNotNull();
         assertThat(decision.isAllowed()).isTrue();
 
-        // Should only call RBAC endpoint
-        verify(requestBodyUriSpec, times(1)).uri("/v1/data/jetski/authz/rbac/allow");
-        verify(requestBodyUriSpec, never()).uri("/v1/data/jetski/authz/alcada");
+        // Should call authorization endpoint
+        verify(requestBodyUriSpec, times(1)).uri("/v1/data/jetski/authorization/result");
     }
 
     @Test
@@ -308,19 +311,16 @@ class OPAAuthorizationServiceTest {
                         .build())
                 .build();
 
-        // First call (RBAC) returns true
-        OPAResponse<Boolean> rbacResponse = new OPAResponse<>(true);
-
-        // Second call (Alçada) returns decision
-        OPADecision alcadaDecision = OPADecision.builder()
+        // Authorization endpoint returns complete decision
+        OPADecision mockDecision = OPADecision.builder()
                 .allow(true)
+                .tenantIsValid(true)
                 .requerAprovacao(false)
                 .build();
-        OPAResponse<OPADecision> alcadaResponse = new OPAResponse<>(alcadaDecision);
+        OPAResponse<OPADecision> mockResponse = new OPAResponse<>(mockDecision);
 
         when(responseSpec.bodyToMono(any(ParameterizedTypeReference.class)))
-                .thenReturn(Mono.just(rbacResponse))
-                .thenReturn(Mono.just(alcadaResponse));
+                .thenReturn(Mono.just(mockResponse));
 
         // When
         OPADecision decision = opaService.authorize(input);
@@ -329,9 +329,8 @@ class OPAAuthorizationServiceTest {
         assertThat(decision).isNotNull();
         assertThat(decision.isAllowed()).isTrue();
 
-        // Should call both RBAC and Alçada endpoints
-        verify(requestBodyUriSpec, times(1)).uri("/v1/data/jetski/authz/rbac/allow");
-        verify(requestBodyUriSpec, times(1)).uri("/v1/data/jetski/authz/alcada");
+        // Should call authorization endpoint
+        verify(requestBodyUriSpec, times(1)).uri("/v1/data/jetski/authorization/result");
     }
 
     @Test
@@ -352,11 +351,15 @@ class OPAAuthorizationServiceTest {
                         .build())
                 .build();
 
-        // RBAC returns false
-        OPAResponse<Boolean> rbacResponse = new OPAResponse<>(false);
+        // Authorization endpoint returns deny decision
+        OPADecision mockDecision = OPADecision.builder()
+                .allow(false)
+                .tenantIsValid(true)
+                .build();
+        OPAResponse<OPADecision> mockResponse = new OPAResponse<>(mockDecision);
 
         when(responseSpec.bodyToMono(any(ParameterizedTypeReference.class)))
-                .thenReturn(Mono.just(rbacResponse));
+                .thenReturn(Mono.just(mockResponse));
 
         // When
         OPADecision decision = opaService.authorize(input);
@@ -365,9 +368,8 @@ class OPAAuthorizationServiceTest {
         assertThat(decision).isNotNull();
         assertThat(decision.isAllowed()).isFalse();
 
-        // Should only call RBAC endpoint (no point checking Alçada if RBAC denied)
-        verify(requestBodyUriSpec, times(1)).uri("/v1/data/jetski/authz/rbac/allow");
-        verify(requestBodyUriSpec, never()).uri("/v1/data/jetski/authz/alcada");
+        // Should call authorization endpoint
+        verify(requestBodyUriSpec, times(1)).uri("/v1/data/jetski/authorization/result");
     }
 
     // ========== Edge Case Tests ==========
