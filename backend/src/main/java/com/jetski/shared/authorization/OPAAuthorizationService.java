@@ -29,6 +29,7 @@ public class OPAAuthorizationService {
 
     private static final String RBAC_ENDPOINT = "/v1/data/jetski/authz/rbac/allow";
     private static final String ALCADA_ENDPOINT = "/v1/data/jetski/authz/alcada";
+    private static final String AUTHORIZATION_ENDPOINT = "/v1/data/jetski/authorization/result";
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(5);
 
     private final WebClient opaWebClient;
@@ -137,31 +138,56 @@ public class OPAAuthorizationService {
     }
 
     /**
-     * Versão genérica para autorização (tenta RBAC, depois Alçada se necessário).
+     * Versão genérica para autorização ABAC completa (RBAC + Alçada + Business + Context + Multi-tenant).
      *
-     * Use este método quando a ação pode ter regras tanto de RBAC quanto de Alçada.
+     * Consulta endpoint principal: /v1/data/jetski/authorization/result
+     * que combina todas as políticas (rbac.rego, alcada.rego, business_rules.rego, context.rego, multi_tenant.rego)
      *
-     * @param input Contexto da autorização
-     * @return OPADecision consolidada
+     * @param input Contexto completo da autorização (user, resource, operation, context)
+     * @return OPADecision consolidada com todas as validações
      */
     public OPADecision authorize(OPAInput input) {
-        // Primeiro tenta RBAC
-        OPADecision rbacDecision = authorizeRBAC(input);
+        log.debug("Autorizando ABAC: action={}, user.role={}, tenant={}, context={}",
+            input.getAction(),
+            input.getUser() != null ? input.getUser().getRole() : "null",
+            input.getUser() != null ? input.getUser().getTenant_id() : "null",
+            input.getContext() != null ? input.getContext().getTimestamp() : "null");
 
-        // Se negado por RBAC, não adianta checar alçada
-        if (!rbacDecision.isAllowed()) {
-            log.debug("Negado por RBAC, pulando verificação de Alçada");
-            return rbacDecision;
+        try {
+            OPAResponse<OPADecision> response = opaWebClient
+                .post()
+                .uri(AUTHORIZATION_ENDPOINT)
+                .bodyValue(OPARequest.of(input))
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<OPAResponse<OPADecision>>() {})
+                .timeout(DEFAULT_TIMEOUT)
+                .block();
+
+            OPADecision decision = response != null ? response.getResult() : null;
+
+            if (decision == null) {
+                log.warn("OPA retornou decisão nula para Authorization");
+                return denyDecision("OPA returned null decision");
+            }
+
+            log.info("ABAC Decision: action={}, allow={}, tenant_valid={}, requer_aprovacao={}, aprovador={}",
+                input.getAction(),
+                decision.isAllowed(),
+                decision.isTenantValid(),
+                decision.requiresApproval(),
+                decision.getAprovadorRequerido());
+
+            return decision;
+
+        } catch (WebClientResponseException e) {
+            log.error("Erro ao consultar OPA Authorization: status={}, body={}",
+                e.getStatusCode(), e.getResponseBodyAsString(), e);
+            return denyDecision("OPA request failed: " + e.getMessage());
+
+        } catch (Exception e) {
+            log.error("Erro inesperado ao consultar OPA Authorization", e);
+            return denyDecision("Unexpected error: " + e.getMessage());
         }
-
-        // Se ação envolve valores/limites, verifica alçada
-        if (input.getOperation() != null) {
-            log.debug("Operação com contexto, verificando Alçada");
-            return authorizeAlcada(input);
-        }
-
-        // Permitido por RBAC sem necessidade de alçada
-        return rbacDecision;
     }
 
     /**

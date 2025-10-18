@@ -46,6 +46,11 @@ public class OPAInput {
     private OperationContext operation;
 
     /**
+     * Contexto da requisição (timestamp, IP, device, etc)
+     */
+    private ContextAttributes context;
+
+    /**
      * Contexto do usuário
      */
     @Data
@@ -102,6 +107,51 @@ public class OPAInput {
         private String justificativa;
 
         // Atributos extras
+        private Map<String, Object> extra;
+    }
+
+    /**
+     * Atributos de contexto da requisição
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ContextAttributes {
+        /**
+         * Timestamp da requisição (ISO-8601)
+         */
+        private String timestamp;
+
+        /**
+         * Endereço IP do cliente
+         */
+        private String ip;
+
+        /**
+         * Tipo de device (mobile, web, api)
+         */
+        private String device;
+
+        /**
+         * User agent
+         */
+        private String user_agent;
+
+        /**
+         * Ambiente (production, staging, development)
+         */
+        private String environment;
+
+        /**
+         * Geolocalização (cidade, estado, país) - futuro
+         */
+        private Map<String, String> location;
+
+        /**
+         * Atributos extras de contexto
+         */
         private Map<String, Object> extra;
     }
 
