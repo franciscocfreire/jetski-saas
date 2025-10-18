@@ -68,7 +68,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -116,7 +116,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -135,7 +135,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision denyDecision = OPADecision.builder()
                 .allow(false)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -154,9 +154,9 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision approvalDecision = OPADecision.builder()
                 .allow(false)
-                .requer_aprovacao(true)
-                .aprovador_requerido("GERENTE")
-                .tenant_is_valid(true)
+                .requerAprovacao(true)
+                .aprovadorRequerido("GERENTE")
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -176,7 +176,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision invalidTenantDecision = OPADecision.builder()
                 .allow(false)
-                .tenant_is_valid(false)
+                .tenantIsValid(false)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -200,7 +200,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -227,7 +227,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -255,7 +255,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -285,7 +285,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -321,7 +321,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -345,7 +345,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -373,7 +373,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -406,7 +406,7 @@ class ABACAuthorizationInterceptorTest {
             // Given - OPA should deny because tenant_is_valid=false
             OPADecision denyDecision = OPADecision.builder()
                 .allow(false)
-                .tenant_is_valid(false)
+                .tenantIsValid(false)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -436,7 +436,7 @@ class ABACAuthorizationInterceptorTest {
             // Given - Platform admin unrestricted
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true) // Platform admin always valid
+                .tenantIsValid(true) // Platform admin always valid
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -493,7 +493,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -517,9 +517,9 @@ class ABACAuthorizationInterceptorTest {
             // Given - OPA should deny and require GERENTE approval
             OPADecision denyDecision = OPADecision.builder()
                 .allow(false)
-                .requer_aprovacao(true)
-                .aprovador_requerido("GERENTE")
-                .tenant_is_valid(true)
+                .requerAprovacao(true)
+                .aprovadorRequerido("GERENTE")
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -542,7 +542,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
@@ -565,7 +565,7 @@ class ABACAuthorizationInterceptorTest {
             // Given
             OPADecision allowDecision = OPADecision.builder()
                 .allow(true)
-                .tenant_is_valid(true)
+                .tenantIsValid(true)
                 .build();
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
