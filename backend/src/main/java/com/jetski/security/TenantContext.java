@@ -2,6 +2,7 @@ package com.jetski.security;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -31,6 +32,7 @@ import java.util.UUID;
 public class TenantContext {
 
     private static final ThreadLocal<UUID> TENANT_ID = new ThreadLocal<>();
+    private static final ThreadLocal<List<String>> USER_ROLES = new ThreadLocal<>();
 
     /**
      * Private constructor to prevent instantiation
@@ -77,7 +79,27 @@ public class TenantContext {
     }
 
     /**
-     * Clear the tenant ID from the current thread
+     * Set the user roles for the current thread
+     *
+     * @param roles the list of roles for this user in this tenant
+     */
+    public static void setUserRoles(List<String> roles) {
+        log.debug("Setting user roles: {}", roles);
+        USER_ROLES.set(roles);
+    }
+
+    /**
+     * Get the user roles for the current thread
+     *
+     * @return the list of roles, or empty list if not set
+     */
+    public static List<String> getUserRoles() {
+        List<String> roles = USER_ROLES.get();
+        return roles != null ? roles : List.of();
+    }
+
+    /**
+     * Clear the tenant ID and roles from the current thread
      *
      * MUST be called in a finally block to prevent memory leaks
      */
@@ -87,6 +109,7 @@ public class TenantContext {
             log.debug("Clearing tenant ID: {}", tenantId);
         }
         TENANT_ID.remove();
+        USER_ROLES.remove();  // Clear roles as well
     }
 
     /**

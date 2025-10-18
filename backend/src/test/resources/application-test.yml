@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: jetski-api-test
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        default_schema: public
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    clean-disabled: false
+
+  # Use embedded Redis for tests (via Testcontainers or embedded-redis)
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+
+  cache:
+    type: simple  # Use simple cache for tests (in-memory, not Redis)
+
+  # Security - OAuth2 disabled for integration tests (configured in AbstractIntegrationTest)
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9999
+          jwk-set-uri: http://localhost:9999/certs
+
+server:
+  port: 0  # Random port for tests
+  servlet:
+    context-path: /api
+
+logging:
+  level:
+    root: WARN
+    com.jetski: INFO
+    org.springframework: WARN
+    org.hibernate: WARN
+
+# Disable metrics for tests
+management:
+  endpoints:
+    enabled-by-default: false
+  endpoint:
+    health:
+      enabled: true
+
+# Custom application properties
+jetski:
+  tenant:
+    header-name: X-Tenant-Id
+    default-tenant-id: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11

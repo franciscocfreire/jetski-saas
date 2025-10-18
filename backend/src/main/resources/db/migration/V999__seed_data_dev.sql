@@ -241,4 +241,37 @@ VALUES
  'preventiva', 'media', NOW() - INTERVAL '1 day',
  'Revisão preventiva 50 horas - verificar velas, óleo, filtros', 45.7, 'em_andamento');
 
-COMMENT ON DATABASE jetski_dev IS 'Jetski SaaS - Development database with seed data';
+-- =====================================================
+-- Multi-Tenant User (Simulate 10+ tenants)
+-- =====================================================
+INSERT INTO usuario (id, email, nome, ativo) VALUES
+('00000000-0000-0000-0000-000000000002', 'gerente.multi@example.com', 'Gerente Multi-Tenant', TRUE);
+
+-- Additional Test Tenants
+INSERT INTO tenant (id, slug, razao_social, status) VALUES
+('b0000000-0000-0000-0000-000000000001', 'marina-bay', 'Marina Bay Club', 'ativo'),
+('b0000000-0000-0000-0000-000000000002', 'copa-jet', 'Copacabana Jet Ski', 'ativo'),
+('b0000000-0000-0000-0000-000000000003', 'ipanema-beach', 'Ipanema Beach Rentals', 'ativo'),
+('b0000000-0000-0000-0000-000000000004', 'guaruja-waters', 'Guarujá Waters', 'ativo'),
+('b0000000-0000-0000-0000-000000000005', 'buzios-jet', 'Búzios Jet Adventures', 'ativo'),
+('b0000000-0000-0000-0000-000000000006', 'ilhabela-sports', 'Ilhabela Water Sports', 'ativo'),
+('b0000000-0000-0000-0000-000000000007', 'balneario-waves', 'Balneário Waves', 'ativo'),
+('b0000000-0000-0000-0000-000000000008', 'floripa-jet', 'Floripa Jet Rentals', 'ativo'),
+('b0000000-0000-0000-0000-000000000009', 'angra-paradise', 'Angra Paradise Jets', 'ativo'),
+('b0000000-0000-0000-0000-000000000010', 'paraty-bay', 'Paraty Bay Adventures', 'ativo');
+
+-- Multi-tenant memberships (same user in 10+ tenants with different roles)
+INSERT INTO membro (tenant_id, usuario_id, papeis, ativo) VALUES
+('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '00000000-0000-0000-0000-000000000002', ARRAY['ADMIN_TENANT'], TRUE),
+('b0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', ARRAY['GERENTE'], TRUE),
+('b0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', ARRAY['OPERADOR'], TRUE),
+('b0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000002', ARRAY['GERENTE', 'OPERADOR'], TRUE),
+('b0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000002', ARRAY['GERENTE'], TRUE),
+('b0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000002', ARRAY['ADMIN_TENANT'], TRUE),
+('b0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000002', ARRAY['OPERADOR'], TRUE),
+('b0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000002', ARRAY['GERENTE'], TRUE),
+('b0000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000002', ARRAY['GERENTE', 'FINANCEIRO'], TRUE),
+('b0000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000002', ARRAY['OPERADOR'], TRUE),
+('b0000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000002', ARRAY['GERENTE'], TRUE);
+
+COMMENT ON DATABASE jetski_dev IS 'Jetski SaaS - Development database with seed data including multi-tenant test users';

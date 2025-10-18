@@ -1,15 +1,20 @@
 package com.jetski.security;
 
 import com.jetski.exception.InvalidTenantException;
+import com.jetski.service.TenantAccessService;
+import com.jetski.service.dto.TenantAccessInfo;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -26,21 +31,24 @@ import java.util.UUID;
  * 2. Subdomain (e.g., acme.jetski.com → acme)
  *
  * Validation (if user is authenticated):
- * - Checks if tenant ID matches JWT claim 'tenant_id'
- * - Throws InvalidTenantException if mismatch
- *
- * NOTE: This filter is NOT a @Component - it's added programmatically
- * to the protected SecurityFilterChain in SecurityConfig.
+ * - Validates tenant access via database (TenantAccessService)
+ * - Checks if user is a member of the tenant OR has unrestricted access
+ * - Stores roles in TenantContext for @PreAuthorize
+ * - Throws AccessDeniedException if access is denied
  *
  * @author Jetski Team
- * @since 0.1.0
+ * @since 0.2.0 - Updated to use database validation instead of JWT claim
  * @see TenantContext
- * @see InvalidTenantException
+ * @see TenantAccessService
  */
 @Slf4j
+@Component
+@RequiredArgsConstructor
 public class TenantFilter extends OncePerRequestFilter {
 
     private static final String TENANT_HEADER_NAME = "X-Tenant-Id";
+
+    private final TenantAccessService tenantAccessService;
 
     @Override
     protected void doFilterInternal(
@@ -64,16 +72,25 @@ public class TenantFilter extends OncePerRequestFilter {
             // 2. Validate format (must be valid UUID)
             UUID tenantId = parseTenantId(tenantIdStr);
 
-            // 3. Validate against JWT (if authenticated)
-            validateAgainstJwt(tenantId, request);
+            // 3. Extract user ID from JWT
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() &&
+                !auth.getPrincipal().equals("anonymousUser") &&
+                auth.getPrincipal() instanceof Jwt jwt) {
 
-            // 4. Store in context
+                UUID usuarioId = UUID.fromString(jwt.getSubject());
+
+                // 4. Validate access via database
+                validateAccessViaDatabase(usuarioId, tenantId);
+            }
+
+            // 5. Store tenant in context
             TenantContext.setTenantId(tenantId);
 
             log.debug("Tenant context set successfully: tenantId={}, path={}, method={}",
                     tenantId, requestPath, request.getMethod());
 
-            // 5. Continue filter chain
+            // 6. Continue filter chain
             filterChain.doFilter(request, response);
 
         } finally {
@@ -135,53 +152,51 @@ public class TenantFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Validate tenant ID against JWT claim (if user is authenticated)
+     * Validate tenant access via database
      *
-     * @param tenantId tenant ID from header/subdomain
-     * @param request HTTP request
-     * @throws InvalidTenantException if mismatch
+     * Queries TenantAccessService to check if user can access this tenant.
+     * Stores roles in TenantContext for @PreAuthorize.
+     *
+     * @param usuarioId User UUID from JWT
+     * @param tenantId Tenant UUID from header
+     * @throws AccessDeniedException if access is denied
      */
-    private void validateAgainstJwt(UUID tenantId, HttpServletRequest request) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    private void validateAccessViaDatabase(UUID usuarioId, UUID tenantId) {
+        TenantAccessInfo accessInfo = tenantAccessService.validateAccess(usuarioId, tenantId);
 
-        // Skip validation if not authenticated yet
-        if (auth == null || !auth.isAuthenticated() ||
-            "anonymousUser".equals(auth.getPrincipal())) {
-            log.debug("Skipping JWT validation - user not authenticated");
-            return;
+        if (!accessInfo.isHasAccess()) {
+            log.error("Access denied: user={}, tenant={}, reason={}",
+                usuarioId, tenantId, accessInfo.getReason());
+            throw new AccessDeniedException("No access to tenant: " + tenantId);
         }
 
-        // Extract tenant_id from JWT
-        if (auth.getPrincipal() instanceof Jwt jwt) {
-            String jwtTenantId = jwt.getClaimAsString("tenant_id");
+        // Store roles in context for @PreAuthorize
+        TenantContext.setUserRoles(accessInfo.getRoles());
 
-            if (jwtTenantId == null) {
-                log.warn("JWT does not contain tenant_id claim");
-                return;  // Allow for now, maybe user is super admin
-            }
-
-            // Validate match
-            if (!tenantId.toString().equals(jwtTenantId)) {
-                log.error("Tenant ID mismatch: header={}, JWT={}", tenantId, jwtTenantId);
-                throw InvalidTenantException.mismatch(tenantId.toString(), jwtTenantId);
-            }
-
-            log.debug("Tenant ID validated successfully against JWT: {}", tenantId);
-        }
+        log.debug("Access validated: user={}, tenant={}, roles={}, unrestricted={}",
+            usuarioId, tenantId, accessInfo.getRoles(), accessInfo.isUnrestricted());
     }
 
     /**
      * Check if endpoint is public (no tenant required)
      *
+     * Handles paths both with and without context-path prefix:
+     * - Runtime: /api/actuator/health
+     * - Tests (MockMvc): /actuator/health
+     *
      * @param path request path
      * @return true if public endpoint
      */
     private boolean isPublicEndpoint(String path) {
-        return path.startsWith("/api/actuator/") ||
-               path.startsWith("/api/v3/api-docs") ||
-               path.startsWith("/api/swagger-ui") ||
-               path.equals("/api/health") ||
-               path.equals("/api/") ||
-               path.startsWith("/api/v1/auth-test/public");  // Test endpoint
+        // Remove context-path if present for consistent matching
+        String normalizedPath = path.startsWith("/api/") ? path.substring(4) : path;
+
+        return normalizedPath.startsWith("/actuator/") ||
+               normalizedPath.startsWith("/v3/api-docs") ||
+               normalizedPath.startsWith("/swagger-ui") ||
+               normalizedPath.equals("/health") ||
+               normalizedPath.equals("/") ||
+               normalizedPath.startsWith("/v1/auth-test/public") ||  // Test endpoint
+               normalizedPath.equals("/v1/user/tenants");  // User tenants list (no tenant needed)
     }
 }

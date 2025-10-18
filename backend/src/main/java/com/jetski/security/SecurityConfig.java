@@ -39,9 +39,16 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationConverter jwtAuthenticationConverter;
+    private final com.jetski.service.TenantAccessService tenantAccessService;
+    private final FilterChainExceptionFilter filterChainExceptionFilter;
 
-    public SecurityConfig(JwtAuthenticationConverter jwtAuthenticationConverter) {
+    public SecurityConfig(
+            JwtAuthenticationConverter jwtAuthenticationConverter,
+            com.jetski.service.TenantAccessService tenantAccessService,
+            FilterChainExceptionFilter filterChainExceptionFilter) {
         this.jwtAuthenticationConverter = jwtAuthenticationConverter;
+        this.tenantAccessService = tenantAccessService;
+        this.filterChainExceptionFilter = filterChainExceptionFilter;
     }
 
     /**
@@ -49,7 +56,7 @@ public class SecurityConfig {
      */
     @Bean
     public TenantFilter tenantFilter() {
-        return new TenantFilter();
+        return new TenantFilter(tenantAccessService);
     }
 
     /**
@@ -72,6 +79,9 @@ public class SecurityConfig {
                 new AntPathRequestMatcher("/v3/api-docs/**"),
                 new AntPathRequestMatcher("/v1/auth-test/public")
             ))
+
+            // Exception filter FIRST to catch all downstream exceptions
+            .addFilterBefore(filterChainExceptionFilter, UsernamePasswordAuthenticationFilter.class)
 
             // CORS configuration
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -107,6 +117,9 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain protectedFilterChain(HttpSecurity http) throws Exception {
         http
+            // Exception filter FIRST to catch all downstream exceptions
+            .addFilterBefore(filterChainExceptionFilter, UsernamePasswordAuthenticationFilter.class)
+
             // CORS configuration
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
