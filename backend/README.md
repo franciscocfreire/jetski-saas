@@ -505,14 +505,15 @@ curl http://localhost:8090/api/v1/user/tenants \
 - `GET /api/swagger-ui.html` - Swagger UI
 - `GET /api/v3/api-docs` - OpenAPI spec
 - `GET /api/v1/auth-test/public` - Endpoint público de teste
+- `POST /api/v1/auth/complete-activation` - Ativação com senha temporária (Option 2) ✨ NEW
+- `POST /api/v1/auth/magic-activate` - Ativação via Magic Link JWT (Option 1) ✨ NEW
 
 ### Protegidos (requerem JWT + X-Tenant-Id)
 
 **Usuários e Membros:**
-- `GET /api/v1/user/tenants` - Listar tenants do usuário
-- `GET /api/v1/user/tenants/count` - Contar tenants do usuário
+- `GET /api/v1/user/tenants` - Listar tenants do usuário (requer JWT)
+- `GET /api/v1/user/tenants/count` - Contar tenants do usuário (requer JWT)
 - `POST /api/v1/tenants/{tenantId}/users/invite` - Convidar novo usuário (ADMIN_TENANT) ✨ NEW
-- `POST /api/v1/auth/activate` - Ativar conta com token (PÚBLICO) ✨ NEW
 - `GET /api/v1/tenants/{tenantId}/members?includeInactive={bool}` - Listar membros do tenant ✨ NEW
 - `DELETE /api/v1/tenants/{tenantId}/members/{usuarioId}` - Desativar membro ✨ NEW
 
@@ -747,6 +748,6 @@ Proprietary - Jetski SaaS Project
 ---
 
 **Versão:** 0.5.0-SNAPSHOT
-**Última atualização:** 2025-10-21
+**Última atualização:** 2025-10-23
 **Testes:** 60 integration tests passing ✅
 **Coverage:** 80.5% lines | 56.6% branches ✅
