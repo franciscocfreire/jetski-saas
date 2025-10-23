@@ -61,3 +61,21 @@ jetski:
   tenant:
     header-name: X-Tenant-Id
     default-tenant-id: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
+  security:
+    allowed-origins:
+      - http://localhost:3000
+  frontend:
+    url: http://localhost:3000
+  email:
+    from: test@jetski.test
+    from-name: Jetski SaaS (TEST)
+
+# Keycloak Admin API Configuration (dummy values for tests)
+keycloak:
+  admin:
+    server-url: http://localhost:9999
+    realm: master
+    client-id: admin-cli
+    username: test-admin
+    password: test-password
+    target-realm: jetski-saas-test

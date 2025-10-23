@@ -78,28 +78,45 @@ public class ActionExtractor {
      * Extrai o resource name do URI.
      *
      * Exemplo: /v1/locacoes/{id}/checkin → "locacao"
+     * Exemplo: /v1/tenants/{id}/users/invite → "user"
      */
     private String extractResource(String uri) {
+        // Trata nested resources: /v1/tenants/{id}/users/... → "user"
+        Pattern nestedPattern = Pattern.compile("/tenants/[^/]+/([^/]+)");
+        Matcher nestedMatcher = nestedPattern.matcher(uri);
+        if (nestedMatcher.find()) {
+            String nestedResource = nestedMatcher.group(1);
+            return singularize(nestedResource);
+        }
+
+        // Extração padrão do primeiro segmento
         Matcher matcher = RESOURCE_PATTERN.matcher(uri);
         if (matcher.find()) {
             String resource = matcher.group(1);
-            // Remove plural (heurística para português)
-            // Padrões: locacoes → locacao, reservas → reserva, jetskis → jetski
-            if (resource.endsWith("oes")) {
-                // locacoes → locacao, reservacoes → reservacao
-                // Replace "oes" with "ao"
-                return resource.substring(0, resource.length() - 3) + "ao";
-            } else if (resource.endsWith("aes")) {
-                // manutencaes → manutencao (caso exista)
-                // Replace "aes" with "ao"
-                return resource.substring(0, resource.length() - 3) + "ao";
-            } else if (resource.endsWith("s")) {
-                // jetskis → jetski, modelos → modelo, reservas → reserva
-                return resource.substring(0, resource.length() - 1);
-            }
-            return resource;
+            return singularize(resource);
         }
         return null;
+    }
+
+    /**
+     * Converte plural para singular (heurística para português).
+     */
+    private String singularize(String resource) {
+        // Remove plural (heurística para português)
+        // Padrões: locacoes → locacao, reservas → reserva, jetskis → jetski
+        if (resource.endsWith("oes")) {
+            // locacoes → locacao, reservacoes → reservacao
+            // Replace "oes" with "ao"
+            return resource.substring(0, resource.length() - 3) + "ao";
+        } else if (resource.endsWith("aes")) {
+            // manutencaes → manutencao (caso exista)
+            // Replace "aes" with "ao"
+            return resource.substring(0, resource.length() - 3) + "ao";
+        } else if (resource.endsWith("s")) {
+            // jetskis → jetski, modelos → modelo, reservas → reserva, users → user
+            return resource.substring(0, resource.length() - 1);
+        }
+        return resource;
     }
 
     /**
@@ -142,7 +159,7 @@ public class ActionExtractor {
         String[] knownSubActions = {
             "checkin", "checkout", "desconto", "aprovar", "fechar", "cancelar",
             "criar", "list", "view", "update", "delete", "registrar", "upload",
-            "calcular", "diario", "mensal"
+            "calcular", "diario", "mensal", "invite", "activate"
         };
 
         for (String subAction : knownSubActions) {

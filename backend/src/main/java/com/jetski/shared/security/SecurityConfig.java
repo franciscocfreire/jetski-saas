@@ -82,7 +82,9 @@ public class SecurityConfig {
                 new AntPathRequestMatcher("/swagger-ui.html"),
                 new AntPathRequestMatcher("/swagger-ui/**"),
                 new AntPathRequestMatcher("/v3/api-docs/**"),
-                new AntPathRequestMatcher("/v1/auth-test/public")
+                new AntPathRequestMatcher("/v1/auth-test/public"),
+                new AntPathRequestMatcher("/v1/auth/complete-activation"),  // Account activation (Option 2: temp password flow)
+                new AntPathRequestMatcher("/v1/auth/magic-activate")        // Account activation (Magic link JWT - one-click UX)
             ))
 
             // Exception filter FIRST to catch all downstream exceptions

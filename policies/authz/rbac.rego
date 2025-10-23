@@ -1,152 +1,214 @@
-# =============================================================================
-# JETSKI SaaS - RBAC Policy (Role-Based Access Control)
-# =============================================================================
-#
-# Esta política implementa controle de acesso baseado em roles.
-#
-# Conceitos importantes de Rego:
-# 1. package: Define o namespace da política (similar a Java package)
-# 2. import: Importa bibliotecas (future.keywords para sintaxe moderna)
-# 3. default: Define valor padrão para uma regra
-# 4. if: Condição para ativar uma regra
-# 5. input: Dados enviados pelo Spring Boot (JSON)
-# 6. data: Dados estáticos carregados do disco (configurações)
-#
-# =============================================================================
+package jetski.rbac
 
-package jetski.authz.rbac
-
-# Import keywords modernos do Rego
 import future.keywords.if
 import future.keywords.in
-import future.keywords.every
 
 # =============================================================================
-# SEÇÃO 1: DEFAULTS
-# =============================================================================
-#
-# No Rego, se uma regra não é satisfeita, ela retorna undefined.
-# Usamos 'default' para garantir um valor padrão (negado por padrão).
-#
-
-default allow := false
-default deny := true
-
-# =============================================================================
-# SEÇÃO 2: VALIDAÇÃO MULTI-TENANT
+# RBAC (Role-Based Access Control) Policies
 # =============================================================================
 #
-# CRÍTICO: Sempre validar que user.tenant_id == resource.tenant_id
-# Previne acesso cross-tenant (vazamento de dados)
+# Define permissões baseadas em roles para o sistema Jetski SaaS.
+# Cada role tem um conjunto de actions permitidas.
 #
+# Roles disponíveis:
+# - OPERADOR: Operações do pier (check-in/out, abastecimento, fotos)
+# - GERENTE: Gestão operacional (descontos, OS, fechamentos diários)
+# - FINANCEIRO: Gestão financeira (comissões, fechamentos mensais)
+# - MECANICO: Manutenção (criar/fechar OS)
+# - VENDEDOR: Vendas (criar reservas, ganhar comissão)
+# - ADMIN_TENANT: Administrador do tenant (acesso total ao tenant)
+#
+# =============================================================================
 
-# Regra auxiliar: verifica se tenant é válido
-tenant_is_valid if {
-    input.user.tenant_id
-    input.resource.tenant_id
-    input.user.tenant_id == input.resource.tenant_id
+# Mapeamento de permissões por role
+role_permissions := {
+    "OPERADOR": [
+        "locacao:list",
+        "locacao:view",
+        "locacao:checkin",
+        "locacao:checkout",
+        "abastecimento:registrar",
+        "abastecimento:view",
+        "foto:upload",
+        "foto:view",
+        "jetski:view",
+        "jetski:list",
+        "modelo:view",
+        "modelo:list",
+        "cliente:view",
+        "cliente:list",
+        "reserva:view",
+        "reserva:list"
+    ],
+
+    "GERENTE": [
+        # Todas as permissões de OPERADOR
+        "locacao:*",
+        "abastecimento:*",
+        "foto:*",
+        "jetski:*",
+        "modelo:*",
+        "cliente:*",
+        "reserva:*",
+
+        # Permissões específicas de GERENTE
+        "desconto:aplicar",
+        "desconto:aprovar",
+        "os:view",
+        "os:aprovar",
+        "fechamento:diario",
+        "relatorio:operacional",
+        "vendedor:view",
+        "vendedor:list",
+        "member:list",
+        "member:view",
+        "member:deactivate"
+    ],
+
+    "FINANCEIRO": [
+        "locacao:view",
+        "locacao:list",
+        "fechamento:mensal",
+        "fechamento:diario:view",
+        "comissao:calcular",
+        "comissao:aprovar",
+        "comissao:view",
+        "relatorio:financeiro",
+        "relatorio:comissoes",
+        "vendedor:view",
+        "vendedor:list",
+        "cliente:view",
+        "cliente:list"
+    ],
+
+    "MECANICO": [
+        "jetski:view",
+        "jetski:list",
+        "os:criar",
+        "os:fechar",
+        "os:view",
+        "os:list",
+        "os:update",
+        "abastecimento:view",
+        "foto:upload",
+        "foto:view"
+    ],
+
+    "VENDEDOR": [
+        "reserva:criar",
+        "reserva:view",
+        "reserva:list",
+        "reserva:update",
+        "cliente:criar",
+        "cliente:view",
+        "cliente:list",
+        "cliente:update",
+        "modelo:view",
+        "modelo:list",
+        "jetski:view",
+        "jetski:list",
+        "comissao:view:own"  # Apenas suas próprias comissões
+    ],
+
+    "ADMIN_TENANT": [
+        "*"  # Acesso total ao tenant
+    ]
+}
+
+# Permissões de plataforma (super admin)
+platform_permissions := [
+    "tenant:*",
+    "plano:*",
+    "assinatura:*",
+    "usuario:*",
+    "membro:*",
+    "platform:*"
+]
+
+# =============================================================================
+# RBAC Authorization Rules
+# =============================================================================
+
+# Verifica se ação corresponde a uma permissão
+action_matches_permission(action, permission) if {
+    permission == "*"
+}
+
+action_matches_permission(action, permission) if {
+    permission == action
+}
+
+action_matches_permission(action, permission) if {
+    # Wildcard pattern: "locacao:*" matches "locacao:checkin"
+    parts_permission := split(permission, ":")
+    parts_action := split(action, ":")
+
+    count(parts_permission) == 2
+    count(parts_action) == 2
+
+    parts_permission[0] == parts_action[0]
+    parts_permission[1] == "*"
+}
+
+# Usuário tem permissão baseada em sua role
+has_permission(user_role, action) if {
+    permissions := role_permissions[user_role]
+    some permission in permissions
+    action_matches_permission(action, permission)
+}
+
+# ADMIN_TENANT tem acesso total (wildcard)
+has_permission("ADMIN_TENANT", _action) := true
+
+# Regra principal: permite acesso se usuário tem a permissão
+# Verifica role único (backward compatibility)
+allow_rbac if {
+    user_role := input.user.role
+    action := input.action
+    has_permission(user_role, action)
+}
+
+# Verifica array de roles (modo multi-role)
+allow_rbac if {
+    user_role := input.user.roles[_]
+    action := input.action
+    has_permission(user_role, action)
 }
 
 # =============================================================================
-# SEÇÃO 3: RBAC BÁSICO - ENDPOINTS PÚBLICOS
+# Platform Admin (Unrestricted Access)
 # =============================================================================
 
-# Endpoint público: não requer autenticação
-allow if {
-    input.action == "public:access"
+# Usuário com unrestricted_access=true (platform admin)
+is_platform_admin if {
+    input.user.unrestricted_access == true
+}
+
+# Platform admin bypassa RBAC para recursos de plataforma
+allow_platform if {
+    is_platform_admin
+    startswith(input.action, "tenant:")
+}
+
+allow_platform if {
+    is_platform_admin
+    startswith(input.action, "plano:")
+}
+
+allow_platform if {
+    is_platform_admin
+    startswith(input.action, "assinatura:")
+}
+
+allow_platform if {
+    is_platform_admin
+    startswith(input.action, "platform:")
 }
 
 # =============================================================================
-# SEÇÃO 4: RBAC - LISTAR RECURSOS
+# Exports
 # =============================================================================
 
-# OPERADOR pode listar modelos do seu tenant
-allow if {
-    input.action == "modelo:list"
-    input.user.role == "OPERADOR"
-    tenant_is_valid
-}
-
-# GERENTE pode listar modelos do seu tenant
-allow if {
-    input.action == "modelo:list"
-    input.user.role == "GERENTE"
-    tenant_is_valid
-}
-
-# ADMIN_TENANT pode listar modelos do seu tenant
-allow if {
-    input.action == "modelo:list"
-    input.user.role == "ADMIN_TENANT"
-    tenant_is_valid
-}
-
-# =============================================================================
-# SEÇÃO 5: RBAC - CRIAR RECURSOS
-# =============================================================================
-
-# Apenas GERENTE e ADMIN_TENANT podem criar modelos
-allow if {
-    input.action == "modelo:create"
-    input.user.role in ["GERENTE", "ADMIN_TENANT"]
-    tenant_is_valid
-}
-
-# =============================================================================
-# SEÇÃO 6: RBAC - LOCAÇÕES
-# =============================================================================
-
-# OPERADOR, GERENTE e ADMIN podem fazer check-in
-allow if {
-    input.action == "locacao:checkin"
-    input.user.role in ["OPERADOR", "GERENTE", "ADMIN_TENANT"]
-    tenant_is_valid
-}
-
-# OPERADOR, GERENTE e ADMIN podem fazer check-out
-allow if {
-    input.action == "locacao:checkout"
-    input.user.role in ["OPERADOR", "GERENTE", "ADMIN_TENANT"]
-    tenant_is_valid
-}
-
-# =============================================================================
-# SEÇÃO 7: RBAC - FECHAMENTOS
-# =============================================================================
-
-# Apenas GERENTE e FINANCEIRO podem fechar caixa
-allow if {
-    input.action == "fechamento:diario"
-    input.user.role in ["GERENTE", "FINANCEIRO", "ADMIN_TENANT"]
-    tenant_is_valid
-}
-
-# Apenas FINANCEIRO pode fechar mensal
-allow if {
-    input.action == "fechamento:mensal"
-    input.user.role in ["FINANCEIRO", "ADMIN_TENANT"]
-    tenant_is_valid
-}
-
-# =============================================================================
-# SEÇÃO 8: DECISÃO FINAL
-# =============================================================================
-
-# Negar se não passou por nenhuma regra allow
-deny if {
-    not allow
-}
-
-# =============================================================================
-# SEÇÃO 9: METADATA (opcional - para auditoria)
-# =============================================================================
-
-# Retorna metadata sobre a decisão (útil para logs)
-decision := {
-    "allow": allow,
-    "deny": deny,
-    "tenant_valid": tenant_is_valid,
-    "user": input.user.id,
-    "action": input.action,
-    "timestamp": time.now_ns()
-}
+# Exporta decisões para o pacote principal
+rbac_allow := allow_rbac
+platform_allow := allow_platform

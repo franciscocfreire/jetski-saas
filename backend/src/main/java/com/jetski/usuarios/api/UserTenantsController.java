@@ -2,6 +2,7 @@ package com.jetski.usuarios.api;
 
 import com.jetski.usuarios.api.dto.UserTenantsResponse;
 import com.jetski.usuarios.domain.Membro;
+import com.jetski.usuarios.internal.IdentityProviderMappingService;
 import com.jetski.usuarios.internal.TenantAccessService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -37,6 +38,7 @@ import java.util.UUID;
 public class UserTenantsController {
 
     private final TenantAccessService tenantAccessService;
+    private final IdentityProviderMappingService identityMappingService;
 
     /**
      * GET /api/v1/user/tenants
@@ -62,7 +64,9 @@ public class UserTenantsController {
     public ResponseEntity<UserTenantsResponse> listUserTenants(
             @AuthenticationPrincipal Jwt jwt) {
 
-        UUID usuarioId = UUID.fromString(jwt.getSubject());
+        // Resolve Keycloak UUID to PostgreSQL UUID using identity provider mapping
+        String providerUserId = jwt.getSubject();
+        UUID usuarioId = identityMappingService.resolveUsuarioId("keycloak", providerUserId);
 
         // Count total tenants
         long count = tenantAccessService.countUserTenants(usuarioId);

@@ -73,16 +73,18 @@ public class TenantFilter extends OncePerRequestFilter {
             // 2. Validate format (must be valid UUID)
             UUID tenantId = parseTenantId(tenantIdStr);
 
-            // 3. Extract user ID from JWT
+            // 3. Extract user identity from JWT (provider + providerUserId)
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.isAuthenticated() &&
                 !auth.getPrincipal().equals("anonymousUser") &&
                 auth.getPrincipal() instanceof Jwt jwt) {
 
-                UUID usuarioId = UUID.fromString(jwt.getSubject());
+                // Extract identity provider info from JWT
+                String provider = JwtAuthenticationConverter.extractProvider(jwt);
+                String providerUserId = JwtAuthenticationConverter.extractProviderUserId(jwt);
 
-                // 4. Validate access via database
-                validateAccessViaDatabase(usuarioId, tenantId);
+                // 4. Validate access via database (resolves internal usuario_id via mapping)
+                validateAccessViaDatabase(provider, providerUserId, tenantId);
             }
 
             // 5. Store tenant in context
@@ -153,29 +155,37 @@ public class TenantFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Validate tenant access via database
+     * Validate tenant access via database using identity provider mapping
      *
      * Queries TenantAccessService to check if user can access this tenant.
+     * Resolves internal usuario_id from (provider, providerUserId) mapping.
      * Stores roles in TenantContext for @PreAuthorize.
      *
-     * @param usuarioId User UUID from JWT
+     * @param provider Identity provider name (e.g., 'keycloak', 'google')
+     * @param providerUserId External user ID from provider (JWT sub claim)
      * @param tenantId Tenant UUID from header
-     * @throws AccessDeniedException if access is denied
+     * @throws AccessDeniedException if access is denied or mapping not found
      */
-    private void validateAccessViaDatabase(UUID usuarioId, UUID tenantId) {
-        TenantAccessInfo accessInfo = tenantAccessValidator.validateAccess(usuarioId, tenantId);
+    private void validateAccessViaDatabase(String provider, String providerUserId, UUID tenantId) {
+        // Resolve internal usuario_id and validate access in one call
+        TenantAccessInfo accessInfo = tenantAccessValidator.validateAccess(provider, providerUserId, tenantId);
 
         if (!accessInfo.isHasAccess()) {
-            log.error("Access denied: user={}, tenant={}, reason={}",
-                usuarioId, tenantId, accessInfo.getReason());
+            log.error("Access denied: provider={}, providerUserId={}, tenant={}, reason={}",
+                provider, providerUserId, tenantId, accessInfo.getReason());
             throw new AccessDeniedException("No access to tenant: " + tenantId);
         }
 
-        // Store roles in context for @PreAuthorize
+        // Store roles and usuarioId in context for @PreAuthorize and controllers
         TenantContext.setUserRoles(accessInfo.getRoles());
 
-        log.debug("Access validated: user={}, tenant={}, roles={}, unrestricted={}",
-            usuarioId, tenantId, accessInfo.getRoles(), accessInfo.isUnrestricted());
+        // Store resolved PostgreSQL usuario.id (NOT Keycloak UUID!)
+        if (accessInfo.getUsuarioId() != null) {
+            TenantContext.setUsuarioId(accessInfo.getUsuarioId());
+        }
+
+        log.debug("Access validated: provider={}, providerUserId={}, tenant={}, roles={}, unrestricted={}, usuarioId={}",
+            provider, providerUserId, tenantId, accessInfo.getRoles(), accessInfo.isUnrestricted(), accessInfo.getUsuarioId());
     }
 
     /**
@@ -198,6 +208,8 @@ public class TenantFilter extends OncePerRequestFilter {
                normalizedPath.equals("/health") ||
                normalizedPath.equals("/") ||
                normalizedPath.startsWith("/v1/auth-test/public") ||  // Test endpoint
-               normalizedPath.equals("/v1/user/tenants");  // User tenants list (no tenant needed)
+               normalizedPath.equals("/v1/user/tenants") ||  // User tenants list (no tenant needed)
+               normalizedPath.equals("/v1/auth/complete-activation") ||  // Account activation (Option 2: temp password)
+               normalizedPath.equals("/v1/auth/magic-activate");  // Account activation (Magic link JWT - one-click UX)
     }
 }

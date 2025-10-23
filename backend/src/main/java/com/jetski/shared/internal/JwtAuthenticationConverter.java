@@ -98,4 +98,42 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
     public static String extractTenantId(Jwt jwt) {
         return jwt.getClaimAsString("tenant_id");
     }
+
+    /**
+     * Extrai o identity provider name do JWT token.
+     *
+     * Strategy:
+     * 1. Tenta ler claim "provider" (se configurado no Keycloak)
+     * 2. Fallback: "keycloak" (padrão para desenvolvimento)
+     * 3. Future: Detectar automaticamente via "iss" (issuer)
+     *
+     * @param jwt o token JWT
+     * @return nome do provider (e.g., "keycloak", "google", "azure-ad")
+     */
+    public static String extractProvider(Jwt jwt) {
+        // Try explicit provider claim first
+        String provider = jwt.getClaimAsString("provider");
+        if (provider != null && !provider.isBlank()) {
+            return provider;
+        }
+
+        // TODO: Future - detect provider from issuer URL
+        // String issuer = jwt.getIssuer().toString();
+        // if (issuer.contains("accounts.google.com")) return "google";
+        // if (issuer.contains("login.microsoftonline.com")) return "azure-ad";
+
+        // Default: Keycloak (for development)
+        return "keycloak";
+    }
+
+    /**
+     * Extrai o provider user ID do JWT token.
+     * Este é o ID externo do usuário no identity provider.
+     *
+     * @param jwt o token JWT
+     * @return o provider user ID (geralmente o claim "sub")
+     */
+    public static String extractProviderUserId(Jwt jwt) {
+        return jwt.getSubject(); // "sub" claim contém o UUID do Keycloak/Google/etc
+    }
 }

@@ -33,6 +33,7 @@ public class TenantContext {
 
     private static final ThreadLocal<UUID> TENANT_ID = new ThreadLocal<>();
     private static final ThreadLocal<List<String>> USER_ROLES = new ThreadLocal<>();
+    private static final ThreadLocal<UUID> USUARIO_ID = new ThreadLocal<>();
 
     /**
      * Private constructor to prevent instantiation
@@ -99,7 +100,39 @@ public class TenantContext {
     }
 
     /**
-     * Clear the tenant ID and roles from the current thread
+     * Set the usuario ID (PostgreSQL UUID) for the current thread
+     *
+     * This is the resolved PostgreSQL usuario.id, NOT the Keycloak UUID.
+     * Used to track who performed actions (e.g., created_by fields).
+     *
+     * @param usuarioId the PostgreSQL usuario UUID
+     * @throws IllegalArgumentException if usuarioId is null
+     */
+    public static void setUsuarioId(UUID usuarioId) {
+        if (usuarioId == null) {
+            throw new IllegalArgumentException("Usuario ID cannot be null");
+        }
+        log.debug("Setting usuario ID: {}", usuarioId);
+        USUARIO_ID.set(usuarioId);
+    }
+
+    /**
+     * Get the usuario ID (PostgreSQL UUID) for the current thread
+     *
+     * This returns the resolved PostgreSQL usuario.id, NOT the Keycloak UUID.
+     *
+     * @return the PostgreSQL usuario UUID, or null if not set
+     */
+    public static UUID getUsuarioId() {
+        UUID usuarioId = USUARIO_ID.get();
+        if (usuarioId == null) {
+            log.warn("Usuario ID requested but not set in context");
+        }
+        return usuarioId;
+    }
+
+    /**
+     * Clear the tenant ID, roles, and usuario ID from the current thread
      *
      * MUST be called in a finally block to prevent memory leaks
      */
@@ -109,7 +142,8 @@ public class TenantContext {
             log.debug("Clearing tenant ID: {}", tenantId);
         }
         TENANT_ID.remove();
-        USER_ROLES.remove();  // Clear roles as well
+        USER_ROLES.remove();
+        USUARIO_ID.remove();
     }
 
     /**

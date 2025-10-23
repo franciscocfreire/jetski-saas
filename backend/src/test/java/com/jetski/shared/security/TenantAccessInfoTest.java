@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 
 /**
@@ -15,6 +16,8 @@ import static org.assertj.core.api.Assertions.*;
  */
 @DisplayName("TenantAccessInfo Tests")
 class TenantAccessInfoTest {
+    // Test UUID for factory methods
+    private static final UUID TEST_USUARIO_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     // ========================================================================
     // Factory Method Tests
@@ -44,7 +47,7 @@ class TenantAccessInfoTest {
         List<String> roles = List.of("GERENTE", "OPERADOR");
 
         // When
-        TenantAccessInfo info = TenantAccessInfo.allowed(roles);
+        TenantAccessInfo info = TenantAccessInfo.allowed(roles, TEST_USUARIO_ID);
 
         // Then
         assertThat(info).isNotNull();
@@ -61,7 +64,7 @@ class TenantAccessInfoTest {
         List<String> globalRoles = List.of("PLATFORM_ADMIN");
 
         // When
-        TenantAccessInfo info = TenantAccessInfo.unrestricted(globalRoles);
+        TenantAccessInfo info = TenantAccessInfo.unrestricted(globalRoles, TEST_USUARIO_ID);
 
         // Then
         assertThat(info).isNotNull();
@@ -116,7 +119,7 @@ class TenantAccessInfoTest {
     @DisplayName("should handle empty roles list")
     void shouldHandleEmptyRolesList() {
         // When
-        TenantAccessInfo info = TenantAccessInfo.allowed(List.of());
+        TenantAccessInfo info = TenantAccessInfo.allowed(List.of(), TEST_USUARIO_ID);
 
         // Then
         assertThat(info.getRoles()).isEmpty();
@@ -127,7 +130,7 @@ class TenantAccessInfoTest {
     @DisplayName("should handle single role")
     void shouldHandleSingleRole() {
         // When
-        TenantAccessInfo info = TenantAccessInfo.allowed(List.of("VENDEDOR"));
+        TenantAccessInfo info = TenantAccessInfo.allowed(List.of("VENDEDOR"), TEST_USUARIO_ID);
 
         // Then
         assertThat(info.getRoles()).containsExactly("VENDEDOR");
@@ -147,7 +150,7 @@ class TenantAccessInfoTest {
         );
 
         // When
-        TenantAccessInfo info = TenantAccessInfo.allowed(multipleRoles);
+        TenantAccessInfo info = TenantAccessInfo.allowed(multipleRoles, TEST_USUARIO_ID);
 
         // Then
         assertThat(info.getRoles()).hasSize(6);
@@ -180,7 +183,7 @@ class TenantAccessInfoTest {
     @DisplayName("unrestricted() should handle empty global roles")
     void unrestrictedShouldHandleEmptyGlobalRoles() {
         // When
-        TenantAccessInfo info = TenantAccessInfo.unrestricted(List.of());
+        TenantAccessInfo info = TenantAccessInfo.unrestricted(List.of(), TEST_USUARIO_ID);
 
         // Then
         assertThat(info.isUnrestricted()).isTrue();
@@ -234,7 +237,8 @@ class TenantAccessInfoTest {
             true,
             roles,
             false,
-            "All args constructor test"
+            "All args constructor test",
+            TEST_USUARIO_ID
         );
 
         // Then
@@ -252,8 +256,8 @@ class TenantAccessInfoTest {
     @DisplayName("equals() should return true for identical objects")
     void equalsShouldReturnTrueForIdenticalObjects() {
         // Given
-        TenantAccessInfo info1 = TenantAccessInfo.allowed(List.of("ROLE1"));
-        TenantAccessInfo info2 = TenantAccessInfo.allowed(List.of("ROLE1"));
+        TenantAccessInfo info1 = TenantAccessInfo.allowed(List.of("ROLE1"), TEST_USUARIO_ID);
+        TenantAccessInfo info2 = TenantAccessInfo.allowed(List.of("ROLE1"), TEST_USUARIO_ID);
 
         // Then
         assertThat(info1).isEqualTo(info2);
@@ -264,7 +268,7 @@ class TenantAccessInfoTest {
     @DisplayName("equals() should return false for different objects")
     void equalsShouldReturnFalseForDifferentObjects() {
         // Given
-        TenantAccessInfo info1 = TenantAccessInfo.allowed(List.of("ROLE1"));
+        TenantAccessInfo info1 = TenantAccessInfo.allowed(List.of("ROLE1"), TEST_USUARIO_ID);
         TenantAccessInfo info2 = TenantAccessInfo.denied("Access denied");
 
         // Then
@@ -275,7 +279,7 @@ class TenantAccessInfoTest {
     @DisplayName("toString() should return string representation")
     void toStringShouldReturnStringRepresentation() {
         // Given
-        TenantAccessInfo info = TenantAccessInfo.allowed(List.of("GERENTE"));
+        TenantAccessInfo info = TenantAccessInfo.allowed(List.of("GERENTE"), TEST_USUARIO_ID);
 
         // When
         String str = info.toString();
@@ -310,7 +314,8 @@ class TenantAccessInfoTest {
     void shouldRepresentTypicalManagerAccessScenario() {
         // When
         TenantAccessInfo info = TenantAccessInfo.allowed(
-            List.of("GERENTE", "OPERADOR")
+            List.of("GERENTE", "OPERADOR"),
+            TEST_USUARIO_ID
         );
 
         // Then
@@ -324,7 +329,8 @@ class TenantAccessInfoTest {
     void shouldRepresentPlatformAdminScenario() {
         // When
         TenantAccessInfo info = TenantAccessInfo.unrestricted(
-            List.of("PLATFORM_ADMIN", "SUPER_USER")
+            List.of("PLATFORM_ADMIN", "SUPER_USER"),
+            TEST_USUARIO_ID
         );
 
         // Then

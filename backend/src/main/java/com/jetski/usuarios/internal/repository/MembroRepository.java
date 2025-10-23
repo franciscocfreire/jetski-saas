@@ -73,4 +73,64 @@ public interface MembroRepository extends JpaRepository<Membro, Integer> {
           AND m.ativo = true
     """)
     long countActiveByUsuario(@Param("usuarioId") UUID usuarioId);
+
+    /**
+     * Check if email already exists as member in tenant.
+     * Used for invitation validation.
+     *
+     * @param tenantId Tenant UUID
+     * @param email User email
+     * @return true if email is already member
+     */
+    @Query("""
+        SELECT CASE WHEN COUNT(m) > 0 THEN true ELSE false END
+        FROM Membro m
+        JOIN Usuario u ON m.usuarioId = u.id
+        WHERE m.tenantId = :tenantId AND u.email = :email
+    """)
+    boolean existsByTenantIdAndEmail(
+        @Param("tenantId") UUID tenantId,
+        @Param("email") String email
+    );
+
+    /**
+     * Count active members in a tenant.
+     * Used to validate plan limits.
+     *
+     * @param tenantId Tenant UUID
+     * @param ativo Active status
+     * @return Count of active members
+     */
+    long countByTenantIdAndAtivo(UUID tenantId, Boolean ativo);
+
+    /**
+     * Find member by tenant and user ID (regardless of active status).
+     * Used for member management.
+     *
+     * @param tenantId Tenant UUID
+     * @param usuarioId User UUID
+     * @return Optional<Membro>
+     */
+    Optional<Membro> findByTenantIdAndUsuarioId(UUID tenantId, UUID usuarioId);
+
+    /**
+     * Count members with specific role in tenant.
+     * Used to validate if we can deactivate the last admin.
+     *
+     * @param tenantId Tenant UUID
+     * @param role Role to search in papeis array (e.g., "ADMIN_TENANT")
+     * @param ativo Active status
+     * @return Count of members with this role
+     */
+    @Query(value = """
+        SELECT COUNT(*) FROM membro m
+        WHERE m.tenant_id = :tenantId
+          AND :role = ANY(m.papeis)
+          AND m.ativo = :ativo
+    """, nativeQuery = true)
+    long countByTenantIdAndPapeisContainingAndAtivo(
+        @Param("tenantId") UUID tenantId,
+        @Param("role") String role,
+        @Param("ativo") Boolean ativo
+    );
 }

@@ -3,6 +3,7 @@ package com.jetski.shared.security;
 import lombok.*;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * DTO: TenantAccessInfo
@@ -48,6 +49,13 @@ public class TenantAccessInfo {
     private String reason;
 
     /**
+     * Resolved PostgreSQL usuario.id
+     * This is the internal user ID, NOT the Keycloak UUID
+     * Null if access is denied or user not resolved
+     */
+    private UUID usuarioId;
+
+    /**
      * Factory method: Access denied
      */
     public static TenantAccessInfo denied(String reason) {
@@ -62,24 +70,26 @@ public class TenantAccessInfo {
     /**
      * Factory method: Access granted via Membro table
      */
-    public static TenantAccessInfo allowed(List<String> roles) {
+    public static TenantAccessInfo allowed(List<String> roles, UUID usuarioId) {
         return TenantAccessInfo.builder()
             .hasAccess(true)
             .roles(roles)
             .unrestricted(false)
             .reason("Access granted via membro table")
+            .usuarioId(usuarioId)
             .build();
     }
 
     /**
      * Factory method: Unrestricted platform access
      */
-    public static TenantAccessInfo unrestricted(List<String> globalRoles) {
+    public static TenantAccessInfo unrestricted(List<String> globalRoles, UUID usuarioId) {
         return TenantAccessInfo.builder()
             .hasAccess(true)
             .roles(globalRoles)
             .unrestricted(true)
             .reason("Unrestricted platform access")
+            .usuarioId(usuarioId)
             .build();
     }
 }

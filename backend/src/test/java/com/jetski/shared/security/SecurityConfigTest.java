@@ -4,6 +4,7 @@ import com.jetski.integration.AbstractIntegrationTest;
 import com.jetski.shared.authorization.OPAAuthorizationService;
 import com.jetski.shared.authorization.dto.OPADecision;
 import com.jetski.shared.authorization.dto.OPAInput;
+import com.jetski.usuarios.internal.IdentityProviderMappingService;
 import com.jetski.usuarios.internal.TenantAccessService;
 import com.jetski.shared.security.TenantAccessInfo;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +22,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -48,6 +50,9 @@ class SecurityConfigTest extends AbstractIntegrationTest {
     private TenantAccessService tenantAccessService;
 
     @MockBean
+    private IdentityProviderMappingService identityMappingService;
+
+    @MockBean
     private OPAAuthorizationService opaAuthorizationService;
 
     @BeforeEach
@@ -59,6 +64,10 @@ class SecurityConfigTest extends AbstractIntegrationTest {
                 .build();
         when(opaAuthorizationService.authorize(any(OPAInput.class)))
                 .thenReturn(allowDecision);
+
+        // Mock identity provider mapping to return the same UUID passed as providerUserId
+        when(identityMappingService.resolveUsuarioId(anyString(), anyString()))
+                .thenAnswer(invocation -> UUID.fromString(invocation.getArgument(1)));
     }
 
     // ========================================================================
@@ -130,21 +139,23 @@ class SecurityConfigTest extends AbstractIntegrationTest {
     @DisplayName("Should enforce role-based access for /v1/auth-test/me endpoint")
     void shouldEnforceRoleBasedAccessForMeEndpoint() throws Exception {
         UUID tenantId = UUID.randomUUID();
-        UUID usuarioId = UUID.randomUUID();
+        String providerUserId = UUID.randomUUID().toString();
+        String provider = "keycloak";
 
-        // Mock tenant access validation
+        // Mock tenant access validation (using new provider-based signature)
         TenantAccessInfo accessInfo = TenantAccessInfo.builder()
             .hasAccess(true)
             .roles(List.of("GERENTE"))
             .unrestricted(false)
             .build();
-        when(tenantAccessService.validateAccess(usuarioId, tenantId)).thenReturn(accessInfo);
+        when(tenantAccessService.validateAccess(provider, providerUserId, tenantId)).thenReturn(accessInfo);
 
         // With valid authentication and tenant header, should work
         mockMvc.perform(get("/v1/auth-test/me")
                 .header("X-Tenant-Id", tenantId.toString())
                 .with(jwt().jwt(jwt -> jwt
-                    .subject(usuarioId.toString())
+                    .subject(providerUserId)
+                    .claim("provider", provider)
                     .claim("tenant_id", tenantId.toString()))))
             .andExpect(status().isOk());
     }
@@ -355,21 +366,23 @@ class SecurityConfigTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Should accept valid tenant header matching JWT claim")
     void shouldAcceptValidTenantHeader() throws Exception {
-        UUID usuarioId = UUID.randomUUID();
+        String providerUserId = UUID.randomUUID().toString();
+        String provider = "keycloak";
         UUID tenantId = UUID.randomUUID();
 
-        // Mock tenant access validation
+        // Mock tenant access validation (using new provider-based signature)
         TenantAccessInfo accessInfo = TenantAccessInfo.builder()
             .hasAccess(true)
             .roles(List.of("OPERADOR"))
             .unrestricted(false)
             .build();
-        when(tenantAccessService.validateAccess(usuarioId, tenantId)).thenReturn(accessInfo);
+        when(tenantAccessService.validateAccess(provider, providerUserId, tenantId)).thenReturn(accessInfo);
 
         mockMvc.perform(get("/v1/auth-test/me")
                 .header("X-Tenant-Id", tenantId.toString())
                 .with(jwt().jwt(jwt -> jwt
-                    .subject(usuarioId.toString())
+                    .subject(providerUserId)
+                    .claim("provider", provider)
                     .claim("tenant_id", tenantId.toString()))))
             .andExpect(status().isOk());
     }

@@ -218,19 +218,36 @@ com.jetski/
 ├── usuarios/                            # 🟦 MÓDULO: Users and Members
 │   ├── api/                             # ✅ API pública
 │   │   ├── UserTenantsController.java
+│   │   ├── UserInvitationController.java         # ✨ NEW (v0.5.0)
+│   │   ├── AccountActivationController.java      # ✨ NEW (v0.5.0)
+│   │   ├── TenantMemberController.java           # ✨ NEW (v0.5.0)
 │   │   └── dto/
 │   │       ├── TenantSummary.java
-│   │       └── UserTenantsResponse.java
+│   │       ├── UserTenantsResponse.java
+│   │       ├── InviteUserRequest.java            # ✨ NEW
+│   │       ├── InviteUserResponse.java           # ✨ NEW
+│   │       ├── ActivateAccountRequest.java       # ✨ NEW
+│   │       ├── ActivateAccountResponse.java      # ✨ NEW
+│   │       ├── ListMembersResponse.java          # ✨ NEW
+│   │       ├── MemberSummaryDTO.java             # ✨ NEW
+│   │       └── DeactivateMemberResponse.java     # ✨ NEW
 │   │
 │   ├── domain/                          # Entidades de domínio
 │   │   ├── Usuario.java
-│   │   └── Membro.java
+│   │   ├── Membro.java
+│   │   ├── Convite.java                          # ✨ NEW (v0.5.0)
+│   │   └── event/
+│   │       └── UserAccountActivatedEvent.java    # ✨ NEW (v0.5.0)
 │   │
 │   ├── internal/                        # 🔒 PRIVADO - Não acessível
 │   │   ├── TenantAccessService.java     # Implementa TenantAccessValidator
+│   │   ├── UserInvitationService.java            # ✨ NEW (v0.5.0)
+│   │   ├── MemberManagementService.java          # ✨ NEW (v0.5.0)
+│   │   ├── UserActivationEmailListener.java      # ✨ NEW (v0.5.0)
 │   │   ├── UsuarioGlobalRoles.java
 │   │   └── repository/
 │   │       ├── MembroRepository.java
+│   │       ├── ConviteRepository.java            # ✨ NEW (v0.5.0)
 │   │       └── UsuarioGlobalRolesRepository.java
 │   │
 │   └── package-info.java                # @ApplicationModule(allowedDependencies = "shared::security")
@@ -406,6 +423,122 @@ public class ReservaService {
     }
 }
 ```
+
+### Novas Funcionalidades (v0.5.0)
+
+#### 1. User Invitation Flow (OIDC)
+
+Fluxo completo de convite e ativação de usuários integrado com Keycloak:
+
+```mermaid
+sequenceDiagram
+    participant Admin as ADMIN_TENANT
+    participant API as UserInvitationController
+    participant Service as UserInvitationService
+    participant DB as PostgreSQL
+    participant Email as EmailService
+    participant User as New User
+    participant KC as Keycloak
+
+    Admin->>API: POST /v1/tenants/{id}/users/invite
+    API->>Service: inviteUser(request)
+    Service->>DB: Validate plan limits
+    Service->>DB: Create Convite (48h token)
+    Service->>Email: Send invitation email
+    Email-->>User: Email with activation link
+
+    User->>API: POST /v1/auth/activate (token)
+    API->>Service: activateAccount(token)
+    Service->>DB: Create Usuario + Membro
+    Service->>KC: Create user (required action: UPDATE_PASSWORD)
+    Service->>Email: Send login link
+    Email-->>User: Login link with email
+
+    User->>KC: Login (Authorization Code Flow)
+    KC-->>User: Redirect to password setup
+    User->>KC: Set password
+    KC-->>User: Authenticated!
+```
+
+**Endpoints:**
+- `POST /v1/tenants/{tenantId}/users/invite` - Convida novo usuário
+- `POST /v1/auth/activate` - Ativa conta (público, sem autenticação)
+
+**Validações:**
+- Limite de usuários do plano não atingido
+- Email não possui convite pendente
+- Token válido e não expirado (48h)
+
+**Coverage:**
+- `UserInvitationService`: 97.8% linhas
+- 18 testes de integração
+
+#### 2. Member Management
+
+Gerenciamento completo de membros do tenant:
+
+```mermaid
+graph LR
+    A[TenantMemberController] --> B[MemberManagementService]
+    B --> C[MembroRepository]
+    B --> D[Plan Limit Calculation]
+    B --> E[Last Admin Protection]
+
+    style B fill:#90EE90
+    style E fill:#FFB6C1
+```
+
+**Endpoints:**
+- `GET /v1/tenants/{tenantId}/members?includeInactive=false` - Lista membros
+- `DELETE /v1/tenants/{tenantId}/members/{usuarioId}` - Desativa membro
+
+**Features:**
+- Listagem de membros (ativos/inativos)
+- Informações de limite do plano (maxUsuarios, currentActive, available, limitReached)
+- Desativação de membros (soft delete)
+- Proteção: não pode desativar último ADMIN_TENANT
+
+**Coverage:**
+- `MemberManagementService`: 97.0% linhas (foi de 4.6% → 97.0%!)
+- 10 testes de integração
+
+#### 3. Event-Driven Architecture
+
+Comunicação assíncrona via Spring Events:
+
+```java
+// usuarios/internal/UserInvitationService.java
+@Service
+public class UserInvitationService {
+
+    private final ApplicationEventPublisher eventPublisher;
+
+    public void activateAccount(String token) {
+        // ... ativa conta
+
+        // ✅ Publica evento - desacoplado
+        eventPublisher.publishEvent(
+            new UserAccountActivatedEvent(usuario, membro, tenantId)
+        );
+    }
+}
+
+// usuarios/internal/UserActivationEmailListener.java
+@Component
+public class UserActivationEmailListener {
+
+    // ✅ Escuta evento - desacoplado
+    @EventListener
+    public void onUserAccountActivated(UserAccountActivatedEvent event) {
+        emailService.sendActivationEmail(event.getEmail(), ...);
+    }
+}
+```
+
+**Benefícios:**
+- Desacoplamento entre componentes
+- Fácil adicionar novos listeners
+- Preparado para migração futura para mensageria distribuída (Kafka)
 
 ### Regras de Dependência Validadas
 
@@ -632,25 +765,31 @@ com.jetski.usuarios/
 | Testes de arquitetura | 0 | ❌ |
 | Preparação p/ microserviços | Complexa (6 semanas) | ❌ |
 
-### TO BE (v0.2.0)
+### TO BE (v0.5.0)
 
 | Métrica | Valor | Status |
 |---------|-------|--------|
-| Módulos lógicos | 3 (shared, usuarios, locacoes) | ✅ |
+| Módulos lógicos | 2 (shared, usuarios) + 1 planejado (locacoes) | ✅ |
 | Dependências circulares | 0 (validado) | ✅ |
 | Acoplamento | Baixo (<5 deps/módulo) | ✅ |
-| Cobertura de testes | 60% | ⚠️ |
+| **Cobertura de testes - Linhas** | **80.5%** (825/1094) | ✅ |
+| **Cobertura de testes - Branches** | **56.6%** (199/385) | ✅ |
 | Testes de arquitetura | 6 testes (Spring Modulith) | ✅ |
+| **Testes de integração** | **60 testes (100% passing)** | ✅ |
 | Preparação p/ microserviços | Simples (1-2 semanas) | ✅ |
 
 ---
 
 ## Próximos Passos
 
-### Fase 1: Consolidação (Atual)
+### Fase 1: Consolidação (Atual - v0.5.0)
 - [x] Criar módulos `shared` e `usuarios`
 - [x] Aplicar Dependency Inversion Principle
 - [x] Adicionar testes de arquitetura
+- [x] **Implementar User Invitation flow (OIDC)**
+- [x] **Implementar Account Activation**
+- [x] **Implementar Member Management (list/deactivate)**
+- [x] **Aumentar cobertura de testes para 80.5%**
 - [ ] Criar módulo `locacoes`
 - [ ] Implementar comunicação via eventos
 
@@ -684,6 +823,24 @@ com.jetski.usuarios/
 
 ---
 
-**Versão:** 1.0
-**Data:** 2025-10-18
+## Changelog
+
+### v1.1 (2025-10-21)
+- ✅ Adicionadas funcionalidades de User Invitation (OIDC)
+- ✅ Adicionadas funcionalidades de Member Management
+- ✅ Implementada Event-Driven Architecture (Spring Events)
+- ✅ Cobertura de testes aumentada de 60% → 80.5% linhas
+- ✅ Adicionados 28 novos testes de integração (total: 60)
+- ✅ Documentação atualizada com diagramas mermaid
+
+### v1.0 (2025-10-18)
+- Versão inicial da arquitetura modular
+- Módulos `shared` e `usuarios` criados
+- Dependency Inversion Principle aplicado
+- Testes de arquitetura adicionados
+
+---
+
+**Versão:** 1.1
+**Data:** 2025-10-21
 **Autor:** Jetski Development Team

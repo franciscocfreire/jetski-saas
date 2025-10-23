@@ -4,8 +4,9 @@
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-green.svg)](https://spring.io/projects/spring-boot)
 [![Spring Modulith](https://img.shields.io/badge/Spring%20Modulith-1.1.3-green.svg)](https://spring.io/projects/spring-modulith)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
-[![Tests](https://img.shields.io/badge/tests-89%20passing-brightgreen.svg)]()
-[![Coverage](https://img.shields.io/badge/coverage-60%25-yellow.svg)]()
+[![Tests](https://img.shields.io/badge/tests-60%20passing-brightgreen.svg)]()
+[![Coverage - Lines](https://img.shields.io/badge/coverage--lines-80.5%25-brightgreen.svg)]()
+[![Coverage - Branches](https://img.shields.io/badge/coverage--branches-56.6%25-green.svg)]()
 
 API REST multi-tenant para gestão de locações de jetski, implementada como **Monolito Modular** usando Spring Modulith.
 
@@ -201,14 +202,26 @@ com.jetski/
 ├── usuarios/                      # Módulo: Users and Members
 │   ├── api/                       # ✅ API pública
 │   │   ├── UserTenantsController
+│   │   ├── UserInvitationController    # ✨ NEW (v0.5.0)
+│   │   ├── AccountActivationController # ✨ NEW (v0.5.0)
+│   │   ├── TenantMemberController      # ✨ NEW (v0.5.0)
 │   │   └── dto/
 │   ├── domain/                    # Entidades de domínio
 │   │   ├── Usuario
-│   │   └── Membro
+│   │   ├── Membro
+│   │   ├── Convite                     # ✨ NEW (v0.5.0)
+│   │   └── event/
+│   │       └── UserAccountActivatedEvent # ✨ NEW (v0.5.0)
 │   └── internal/                  # 🔒 Implementação privada
 │       ├── TenantAccessService    # Implementa TenantAccessValidator
+│       ├── UserInvitationService        # ✨ NEW (v0.5.0)
+│       ├── MemberManagementService      # ✨ NEW (v0.5.0)
+│       ├── UserActivationEmailListener  # ✨ NEW (v0.5.0)
 │       ├── UsuarioGlobalRoles
 │       └── repository/
+│           ├── MembroRepository
+│           ├── ConviteRepository        # ✨ NEW (v0.5.0)
+│           └── UsuarioGlobalRolesRepository
 │
 └── locacoes/                      # Módulo: Rentals (futuro)
     ├── api/
@@ -380,9 +393,15 @@ open target/site/jacoco/index.html
 ```
 
 **Métricas atuais:**
-- 89 testes passando
-- ~60% line coverage
-- ~50% branch coverage
+- **60 testes de integração passando** (100%)
+- **80.5% line coverage** (target: 60%) ✅
+- **56.6% branch coverage** (target: 50%) ✅
+
+**Breakdown por suite:**
+- `UserInvitationIntegrationTest`: 18 testes ✅
+- `AccountActivationIntegrationTest`: 21 testes ✅
+- `UserActivationEventFlowIntegrationTest`: 11 testes ✅
+- `MemberManagementIntegrationTest`: 10 testes ✅ (NEW)
 
 ### Tipos de Testes
 
@@ -492,6 +511,10 @@ curl http://localhost:8090/api/v1/user/tenants \
 **Usuários e Membros:**
 - `GET /api/v1/user/tenants` - Listar tenants do usuário
 - `GET /api/v1/user/tenants/count` - Contar tenants do usuário
+- `POST /api/v1/tenants/{tenantId}/users/invite` - Convidar novo usuário (ADMIN_TENANT) ✨ NEW
+- `POST /api/v1/auth/activate` - Ativar conta com token (PÚBLICO) ✨ NEW
+- `GET /api/v1/tenants/{tenantId}/members?includeInactive={bool}` - Listar membros do tenant ✨ NEW
+- `DELETE /api/v1/tenants/{tenantId}/members/{usuarioId}` - Desativar membro ✨ NEW
 
 **AuthTest (endpoints de teste):**
 - `GET /api/v1/auth-test/me` - Info do usuário autenticado
@@ -581,7 +604,12 @@ src/main/resources/db/migration/
 ├── V1000__create_global_roles_table.sql # Global roles
 ├── V1001__create_tenant_access_tables.sql
 ├── V1002__tenant_access_indexes.sql
-└── V1003__seed_platform_admin.sql       # Platform admin user
+├── V1003__seed_platform_admin.sql       # Platform admin user
+├── V1004__create_user_invitation_tables.sql # ✨ NEW (v0.5.0)
+├── V1005__add_email_tracking_to_convite.sql # ✨ NEW (v0.5.0)
+├── V1006__fix_convite_unique_constraint.sql # ✨ NEW (v0.5.0)
+├── V1007__remove_restrictive_email_format_constraint.sql # ✨ NEW (v0.5.0)
+└── V9999__test_data.sql                 # Test data para integration tests
 ```
 
 ### Comandos
@@ -685,12 +713,17 @@ package com.jetski.locacoes;
 - [x] **Modular architecture (Spring Modulith)**
 - [x] **Architecture tests**
 - [x] **Module documentation generation**
+- [x] **User Invitation flow (OIDC)** ✨ NEW
+- [x] **Account Activation** ✨ NEW
+- [x] **Member Management (list/deactivate)** ✨ NEW
+- [x] **Event-Driven Architecture (Spring Events)** ✨ NEW
+- [x] **80.5% test coverage** ✨ NEW
 
 ### 🚧 Em Progresso
 
 - [ ] Módulo `locacoes` (Reserva, Locação, Modelo, Jetski)
-- [ ] Comunicação via eventos entre módulos
-- [ ] API endpoints de domínio
+- [ ] Comunicação via mensageria distribuída (Kafka)
+- [ ] API endpoints de domínio core business
 
 ### 📋 Backlog
 
@@ -713,6 +746,7 @@ Proprietary - Jetski SaaS Project
 
 ---
 
-**Versão:** 0.2.0-SNAPSHOT
-**Última atualização:** 2025-10-18
-**Testes:** 89 passing ✅
+**Versão:** 0.5.0-SNAPSHOT
+**Última atualização:** 2025-10-21
+**Testes:** 60 integration tests passing ✅
+**Coverage:** 80.5% lines | 56.6% branches ✅

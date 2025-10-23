@@ -6,6 +6,7 @@ import com.jetski.shared.authorization.dto.OPADecision;
 import com.jetski.shared.authorization.dto.OPAInput;
 import com.jetski.usuarios.api.dto.UserTenantsResponse;
 import com.jetski.usuarios.domain.Membro;
+import com.jetski.usuarios.internal.IdentityProviderMappingService;
 import com.jetski.usuarios.internal.TenantAccessService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -50,6 +52,9 @@ class UserTenantsControllerTest extends AbstractIntegrationTest {
     private TenantAccessService tenantAccessService;
 
     @MockBean
+    private IdentityProviderMappingService identityMappingService;
+
+    @MockBean
     private OPAAuthorizationService opaAuthorizationService;
 
     private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -65,6 +70,10 @@ class UserTenantsControllerTest extends AbstractIntegrationTest {
                 .build();
         when(opaAuthorizationService.authorize(any(OPAInput.class)))
                 .thenReturn(allowDecision);
+
+        // Mock identity provider mapping to return USER_ID for any Keycloak user
+        when(identityMappingService.resolveUsuarioId(anyString(), anyString()))
+                .thenReturn(USER_ID);
     }
 
     // ========================================================================

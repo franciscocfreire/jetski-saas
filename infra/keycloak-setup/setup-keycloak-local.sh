@@ -1,13 +1,27 @@
 #!/usr/bin/env bash
 #
-# Keycloak Setup Script - Jetski SaaS
+# Keycloak Setup Script - Jetski SaaS (LOCAL)
 #
 # Configura Keycloak com:
 # - Realm jetski-saas
 # - Client jetski-api (Resource Server para Spring Boot)
-# - Roles (OPERADOR, GERENTE, FINANCEIRO, ADMIN_TENANT)
-# - Usuário de teste com tenant_id claim
-# - Protocol mapper para tenant_id
+# - Roles (OPERADOR, GERENTE, FINANCEIRO, ADMIN_TENANT, PLATFORM_ADMIN)
+# - Usuários de teste com tenant_id claim
+# - Protocol mappers para tenant_id, roles, groups
+#
+# IMPORTANTE - Sincronização PostgreSQL:
+# Os UUIDs dos usuários criados pelo Keycloak são ALEATÓRIOS.
+# Para desenvolvimento, os UUIDs fixos estão definidos em:
+# /backend/src/main/resources/db/migration/V999__seed_data_dev.sql
+#
+# UUIDs documentados (extraídos do Keycloak atual):
+# - admin@acme.com:      b0cd6005-a7c0-4915-a08f-abae4364ae46
+# - operador@acme.com:   820cd5a2-4a6e-4f02-9193-e745b99c4f5e
+# - admin@plataforma.com: 00000000-0000-0000-0000-000000000001 (fixo no V1003)
+#
+# Se você apagar Keycloak e recriar, os UUIDs serão DIFERENTES.
+# Solução DEV: Aceitar divergência (não impacta funcionalidade)
+# Solução PROD: Usar User Provisioning automático (POST /invite)
 #
 
 set -e
@@ -18,9 +32,17 @@ ADMIN_PASS="admin"
 REALM="jetski-saas"
 CLIENT_ID="jetski-api"
 CLIENT_SECRET="jetski-secret"
-TEST_USER="operador@tenant1.com"
-TEST_PASS="senha123"
-TENANT_ID="550e8400-e29b-41d4-a716-446655440001"
+
+# Tenant ACME (padrão - seed data do banco)
+TENANT_ID="a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+
+# Usuários do tenant ACME
+ADMIN_ACME_USER="admin@acme.com"
+ADMIN_ACME_PASS="admin123"
+OPERADOR_ACME_USER="operador@acme.com"
+OPERADOR_ACME_PASS="operador123"
+
+# Platform admin (acesso irrestrito)
 PLATFORM_ADMIN_USER="admin@plataforma.com"
 PLATFORM_ADMIN_PASS="admin123"
 
@@ -30,7 +52,7 @@ echo "========================================"
 echo ""
 
 # 1. Obter token admin
-echo "[1/12] Obtendo token de administrador..."
+echo "[1/14] Obtendo token de administrador..."
 ADMIN_TOKEN=$(curl -s -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "username=${ADMIN_USER}" \
@@ -46,7 +68,7 @@ echo "✓ Token obtido com sucesso"
 
 # 2. Criar realm jetski-saas
 echo ""
-echo "[2/12] Criando realm ${REALM}..."
+echo "[2/14] Criando realm ${REALM}..."
 CREATE_REALM=$(curl -s -w "%{http_code}" -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" \
   -H "Content-Type: application/json" \
@@ -66,7 +88,7 @@ fi
 
 # 3. Criar roles no realm
 echo ""
-echo "[3/12] Criando roles no realm..."
+echo "[3/14] Criando roles no realm..."
 for ROLE in OPERADOR GERENTE FINANCEIRO ADMIN_TENANT PLATFORM_ADMIN; do
   curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/roles" \
     -H "Authorization: Bearer ${ADMIN_TOKEN}" \
@@ -77,7 +99,7 @@ done
 
 # 4. Criar client jetski-api
 echo ""
-echo "[4/12] Criando client ${CLIENT_ID}..."
+echo "[4/14] Criando client ${CLIENT_ID}..."
 curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/clients" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" \
   -H "Content-Type: application/json" \
@@ -97,7 +119,7 @@ echo "✓ Client ${CLIENT_ID} criado"
 
 # 5. Obter CLIENT UUID
 echo ""
-echo "[5/12] Obtendo UUID do client..."
+echo "[5/14] Obtendo UUID do client..."
 CLIENT_UUID=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/clients?clientId=${CLIENT_ID}" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
 
@@ -109,7 +131,7 @@ echo "✓ Client UUID: ${CLIENT_UUID}"
 
 # 6. Adicionar protocol mappers
 echo ""
-echo "[6/12] Configurando protocol mappers..."
+echo "[6/14] Configurando protocol mappers..."
 
 # 6.1. Mapper para tenant_id
 curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CLIENT_UUID}/protocol-mappers/models" \
@@ -167,50 +189,88 @@ curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CL
   }"
 echo "  ✓ Mapper groups configurado"
 
-# 7. Criar usuário de teste
+# 7. Criar usuário admin@acme.com
 echo ""
-echo "[7/12] Criando usuário de teste..."
+echo "[7/14] Criando usuário admin@acme.com..."
 curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" \
   -H "Content-Type: application/json" \
   -d "{
-    \"username\": \"${TEST_USER}\",
-    \"email\": \"${TEST_USER}\",
-    \"firstName\": \"Operador\",
-    \"lastName\": \"Tenant 1\",
+    \"username\": \"${ADMIN_ACME_USER}\",
+    \"email\": \"${ADMIN_ACME_USER}\",
+    \"firstName\": \"Admin\",
+    \"lastName\": \"ACME\",
     \"enabled\": true,
     \"emailVerified\": true,
     \"credentials\": [{
       \"type\": \"password\",
-      \"value\": \"${TEST_PASS}\",
+      \"value\": \"${ADMIN_ACME_PASS}\",
       \"temporary\": false
     }],
     \"requiredActions\": []
   }"
-echo "✓ Usuário ${TEST_USER} criado com senha"
+echo "✓ Usuário ${ADMIN_ACME_USER} criado"
 
-# 8. Obter USER UUID e configurar roles
+# 8. Configurar roles do admin@acme.com
 echo ""
-echo "[8/12] Configurando roles do usuário..."
-USER_UUID=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/users?username=${TEST_USER}" \
+echo "[8/14] Configurando roles do admin@acme.com..."
+ADMIN_ACME_UUID=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/users?username=${ADMIN_ACME_USER}" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
 
-# Atribuir roles
-for ROLE in OPERADOR GERENTE; do
+# Atribuir roles ADMIN_TENANT e GERENTE
+for ROLE in ADMIN_TENANT GERENTE; do
   ROLE_JSON=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/roles/${ROLE}" \
     -H "Authorization: Bearer ${ADMIN_TOKEN}")
 
-  curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${USER_UUID}/role-mappings/realm" \
+  curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${ADMIN_ACME_UUID}/role-mappings/realm" \
     -H "Authorization: Bearer ${ADMIN_TOKEN}" \
     -H "Content-Type: application/json" \
     -d "[${ROLE_JSON}]"
-  echo "  ✓ Role ${ROLE} atribuída ao usuário"
+  echo "  ✓ Role ${ROLE} atribuída"
 done
 
-# 9. Criar grupo com tenant_id e adicionar usuário
+# 9. Criar usuário operador@acme.com
 echo ""
-echo "[9/12] Configurando tenant via grupo..."
-GROUP_NAME="tenant-${TENANT_ID}"
+echo "[9/14] Criando usuário operador@acme.com..."
+curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"username\": \"${OPERADOR_ACME_USER}\",
+    \"email\": \"${OPERADOR_ACME_USER}\",
+    \"firstName\": \"Operador\",
+    \"lastName\": \"ACME\",
+    \"enabled\": true,
+    \"emailVerified\": true,
+    \"credentials\": [{
+      \"type\": \"password\",
+      \"value\": \"${OPERADOR_ACME_PASS}\",
+      \"temporary\": false
+    }],
+    \"requiredActions\": []
+  }"
+echo "✓ Usuário ${OPERADOR_ACME_USER} criado"
+
+# 10. Configurar roles do operador@acme.com
+echo ""
+echo "[10/14] Configurando roles do operador@acme.com..."
+OPERADOR_ACME_UUID=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/users?username=${OPERADOR_ACME_USER}" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+
+# Atribuir role OPERADOR
+ROLE_JSON=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/roles/OPERADOR" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}")
+
+curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${OPERADOR_ACME_UUID}/role-mappings/realm" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "[${ROLE_JSON}]"
+echo "  ✓ Role OPERADOR atribuída"
+
+# 11. Criar grupo ACME com tenant_id e adicionar usuários
+echo ""
+echo "[11/14] Configurando tenant ACME via grupo..."
+GROUP_NAME="tenant-acme"
 
 # Criar grupo com attribute tenant_id
 curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/groups" \
@@ -222,20 +282,25 @@ curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/groups" \
       \"tenant_id\": [\"${TENANT_ID}\"]
     }
   }"
-echo "  ✓ Grupo ${GROUP_NAME} criado com attribute tenant_id"
+echo "  ✓ Grupo ${GROUP_NAME} criado com tenant_id=${TENANT_ID}"
 
 # Obter GROUP UUID
 GROUP_UUID=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/groups" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" | grep -o "\"id\":\"[^\"]*\".*\"name\":\"${GROUP_NAME}\"" | grep -o "\"id\":\"[^\"]*\"" | head -1 | cut -d'"' -f4)
 
-# Adicionar usuário ao grupo
-curl -s -o /dev/null -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${USER_UUID}/groups/${GROUP_UUID}" \
+# Adicionar admin@acme.com ao grupo
+curl -s -o /dev/null -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${ADMIN_ACME_UUID}/groups/${GROUP_UUID}" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}"
-echo "  ✓ Usuário adicionado ao grupo (tenant_id será lido do group attribute)"
+echo "  ✓ Usuário ${ADMIN_ACME_USER} adicionado ao grupo"
 
-# 10. Criar grupo platform-admins com unrestricted_access
+# Adicionar operador@acme.com ao grupo
+curl -s -o /dev/null -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${OPERADOR_ACME_UUID}/groups/${GROUP_UUID}" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}"
+echo "  ✓ Usuário ${OPERADOR_ACME_USER} adicionado ao grupo"
+
+# 12. Criar grupo platform-admins com unrestricted_access
 echo ""
-echo "[10/12] Criando grupo platform-admins..."
+echo "[12/14] Criando grupo platform-admins..."
 PLATFORM_GROUP_NAME="platform-admins"
 
 curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/groups" \
@@ -249,9 +314,9 @@ curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/groups" \
   }"
 echo "  ✓ Grupo ${PLATFORM_GROUP_NAME} criado com unrestricted_access=true"
 
-# 11. Criar usuário platform admin
+# 13. Criar usuário platform admin
 echo ""
-echo "[11/12] Criando usuário platform admin..."
+echo "[13/14] Criando usuário platform admin..."
 curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" \
   -H "Content-Type: application/json" \
@@ -293,9 +358,9 @@ curl -s -o /dev/null -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${PLATF
   -H "Authorization: Bearer ${ADMIN_TOKEN}"
 echo "  ✓ Platform admin adicionado ao grupo ${PLATFORM_GROUP_NAME}"
 
-# 12. Adicionar mapper para global_roles (lê unrestricted_access do grupo)
+# 14. Adicionar mapper para global_roles (lê unrestricted_access do grupo)
 echo ""
-echo "[12/12] Configurando mapper para global_roles..."
+echo "[14/14] Configurando mapper para global_roles..."
 curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/clients/${CLIENT_UUID}/protocol-mappers/models" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" \
   -H "Content-Type: application/json" \
@@ -325,14 +390,21 @@ echo "  Realm: ${REALM}"
 echo "  Client ID: ${CLIENT_ID}"
 echo "  Client Secret: ${CLIENT_SECRET}"
 echo ""
-echo "Usuário Tenant (operador@tenant1.com):"
-echo "  Username: ${TEST_USER}"
-echo "  Password: ${TEST_PASS}"
-echo "  Tenant ID: ${TENANT_ID}"
-echo "  Roles: OPERADOR, GERENTE"
-echo "  Grupo: tenant-${TENANT_ID}"
+echo "Tenant ACME (${TENANT_ID}):"
 echo ""
-echo "Usuário Platform Admin (admin@plataforma.com):"
+echo "  Admin do Tenant (admin@acme.com):"
+echo "    Username: ${ADMIN_ACME_USER}"
+echo "    Password: ${ADMIN_ACME_PASS}"
+echo "    Roles: ADMIN_TENANT, GERENTE"
+echo "    Grupo: tenant-acme"
+echo ""
+echo "  Operador (operador@acme.com):"
+echo "    Username: ${OPERADOR_ACME_USER}"
+echo "    Password: ${OPERADOR_ACME_PASS}"
+echo "    Roles: OPERADOR"
+echo "    Grupo: tenant-acme"
+echo ""
+echo "Platform Admin (admin@plataforma.com):"
 echo "  Username: ${PLATFORM_ADMIN_USER}"
 echo "  Password: ${PLATFORM_ADMIN_PASS}"
 echo "  Roles: PLATFORM_ADMIN"
@@ -341,11 +413,20 @@ echo "  Acesso: IRRESTRITO - pode acessar qualquer tenant"
 echo ""
 echo "Para obter um token JWT de teste:"
 echo ""
-echo "# Usuário tenant (operador@tenant1.com):"
+echo "# Admin ACME (admin@acme.com):"
 echo "curl -X POST '${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/token' \\"
 echo "  -H 'Content-Type: application/x-www-form-urlencoded' \\"
-echo "  -d 'username=${TEST_USER}' \\"
-echo "  -d 'password=${TEST_PASS}' \\"
+echo "  -d 'username=${ADMIN_ACME_USER}' \\"
+echo "  -d 'password=${ADMIN_ACME_PASS}' \\"
+echo "  -d 'grant_type=password' \\"
+echo "  -d 'client_id=${CLIENT_ID}' \\"
+echo "  -d 'client_secret=${CLIENT_SECRET}'"
+echo ""
+echo "# Operador ACME (operador@acme.com):"
+echo "curl -X POST '${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/token' \\"
+echo "  -H 'Content-Type: application/x-www-form-urlencoded' \\"
+echo "  -d 'username=${OPERADOR_ACME_USER}' \\"
+echo "  -d 'password=${OPERADOR_ACME_PASS}' \\"
 echo "  -d 'grant_type=password' \\"
 echo "  -d 'client_id=${CLIENT_ID}' \\"
 echo "  -d 'client_secret=${CLIENT_SECRET}'"

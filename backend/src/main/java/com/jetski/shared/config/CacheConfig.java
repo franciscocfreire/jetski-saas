@@ -1,5 +1,8 @@
 package com.jetski.shared.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,12 +42,22 @@ public class CacheConfig {
      * Configure Redis Cache Manager
      *
      * Features:
-     * - JSON serialization (portable across languages)
+     * - JSON serialization with type information (handles UUIDs correctly)
      * - String keys (human-readable in Redis CLI)
      * - 5-minute TTL (security vs performance)
      */
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+        // Create ObjectMapper with polymorphic type handling for UUIDs
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        // Configure polymorphic type validator to allow UUIDs and other java.* types
+        PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
+            .allowIfBaseType(Object.class)
+            .build();
+
+        // Enable default typing to preserve UUID type information
+        objectMapper.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL);
 
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
             .entryTtl(Duration.ofMinutes(5))  // 5 minutes TTL
@@ -55,7 +68,7 @@ public class CacheConfig {
             )
             .serializeValuesWith(
                 RedisSerializationContext.SerializationPair.fromSerializer(
-                    new GenericJackson2JsonRedisSerializer()
+                    new GenericJackson2JsonRedisSerializer(objectMapper)
                 )
             )
             .disableCachingNullValues();  // Don't cache null results

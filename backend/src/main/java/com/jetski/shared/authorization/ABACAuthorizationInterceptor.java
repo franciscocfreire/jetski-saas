@@ -59,9 +59,10 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
         // Obtém autenticação do contexto Spring Security
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        // Se não autenticado, deixa o SecurityConfig lidar (401)
-        if (authentication == null || !authentication.isAuthenticated()) {
-            log.debug("Request não autenticado, delegando para SecurityConfig");
+        // Se não autenticado ou anônimo, deixa o SecurityConfig lidar (401)
+        if (authentication == null || !authentication.isAuthenticated() ||
+            authentication.getPrincipal().equals("anonymousUser")) {
+            log.debug("Request não autenticado ou anônimo, delegando para SecurityConfig");
             return true;
         }
 
@@ -220,7 +221,10 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
         return action.startsWith("auth-test:public") ||
                action.startsWith("actuator:") ||
                action.startsWith("health:") ||
-               action.startsWith("metrics:");
+               action.startsWith("metrics:") ||
+               action.equals("user:list") ||   // Listar tenants não requer tenant específico
+               action.equals("user:invite") ||   // Convidar usuário - validação por Spring Security roles
+               action.equals("auth:create");   // Complete activation - endpoint público (Option 2: temp password)
     }
 
     /**

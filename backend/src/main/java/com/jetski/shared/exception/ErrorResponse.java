@@ -56,4 +56,10 @@ public class ErrorResponse {
      * Can include validation errors, field-specific messages, etc.
      */
     private Map<String, Object> details;
+
+    /**
+     * Validation errors (optional)
+     * Maps field names to error messages for validation failures
+     */
+    private Map<String, String> errors;
 }

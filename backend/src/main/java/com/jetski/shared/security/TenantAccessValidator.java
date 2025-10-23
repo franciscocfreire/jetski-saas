@@ -20,9 +20,21 @@ import java.util.UUID;
 public interface TenantAccessValidator {
 
     /**
-     * Valida se um usuário tem acesso a um tenant específico.
+     * Valida se um usuário tem acesso a um tenant específico usando identity provider.
+     * **MÉTODO PREFERIDO** - Desacopla PostgreSQL UUIDs dos provider UUIDs
      *
-     * @param usuarioId ID do usuário
+     * @param provider Nome do identity provider (e.g., 'keycloak', 'google')
+     * @param providerUserId ID externo do usuário no provider (JWT sub claim)
+     * @param tenantId ID do tenant
+     * @return informações sobre o acesso (se permitido, roles, etc.)
+     */
+    TenantAccessInfo validateAccess(String provider, String providerUserId, UUID tenantId);
+
+    /**
+     * Valida se um usuário tem acesso a um tenant específico usando UUID interno.
+     * **MÉTODO LEGADO** - Usar validateAccess(String, String, UUID) em código novo
+     *
+     * @param usuarioId ID do usuário (PostgreSQL UUID interno)
      * @param tenantId ID do tenant
      * @return informações sobre o acesso (se permitido, roles, etc.)
      */

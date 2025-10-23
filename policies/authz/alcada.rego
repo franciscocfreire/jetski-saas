@@ -1,198 +1,231 @@
-# =============================================================================
-# JETSKI SaaS - Alçadas Policy (Approval Authority Limits)
-# =============================================================================
-#
-# Esta política implementa alçadas (limites de aprovação) baseadas em:
-# - Role do usuário
-# - Tipo de operação
-# - Valor da operação
-# - Contexto temporal
-#
-# Casos de uso:
-# 1. Desconto em locações (OPERADOR: até 5%, GERENTE: até 20%)
-# 2. Aprovação de OS de manutenção (por valor)
-# 3. Fechamento de caixa (por valor e período)
-# 4. Cancelamento de locações (por tempo restante)
-#
-# =============================================================================
-
-package jetski.authz.alcada
+package jetski.alcada
 
 import future.keywords.if
 import future.keywords.in
 
 # =============================================================================
-# DEFAULTS
+# Alçada (Approval Authority) Policies
+# =============================================================================
+#
+# Define regras de alçada para operações que exigem autorização baseada em:
+# - Percentual de desconto
+# - Valor de ordem de serviço (OS)
+# - Valor de transação
+# - Nível do usuário
+#
+# Hierarquia de aprovação:
+# 1. OPERADOR: Descontos até 10%, OS até R$ 2.000
+# 2. GERENTE: Descontos até 25%, OS até R$ 10.000
+# 3. ADMIN_TENANT: Descontos até 50%, OS sem limite
+#
 # =============================================================================
 
-default allow := false
-default requer_aprovacao := false
-
 # =============================================================================
-# ALÇADA 1: DESCONTO EM LOCAÇÕES
+# Alçada de Desconto
 # =============================================================================
 
-# OPERADOR pode dar até 5% desconto
-allow if {
-    input.action == "desconto:aplicar"
+# OPERADOR pode aplicar desconto até 10%
+allow_desconto_operador if {
     input.user.role == "OPERADOR"
-    input.operation.percentual_desconto <= 5
-    tenant_is_valid
+    input.action == "desconto:aplicar"
+    input.operation.percentual_desconto <= 10
 }
 
-# GERENTE pode dar até 20% desconto
-allow if {
-    input.action == "desconto:aplicar"
+# GERENTE pode aplicar desconto até 25%
+allow_desconto_gerente if {
     input.user.role == "GERENTE"
-    input.operation.percentual_desconto <= 20
-    tenant_is_valid
+    input.action == "desconto:aplicar"
+    input.operation.percentual_desconto <= 25
 }
 
-# ADMIN_TENANT pode dar qualquer desconto
-allow if {
-    input.action == "desconto:aplicar"
+# ADMIN_TENANT pode aplicar desconto até 50%
+allow_desconto_admin if {
     input.user.role == "ADMIN_TENANT"
-    tenant_is_valid
+    input.action == "desconto:aplicar"
+    input.operation.percentual_desconto <= 50
 }
 
-# Desconto acima de 20% requer aprovação de ADMIN_TENANT
-requer_aprovacao if {
-    input.action == "desconto:aplicar"
-    input.operation.percentual_desconto > 20
-    input.user.role != "ADMIN_TENANT"
-}
-
-# Determinar quem deve aprovar
-aprovador_requerido := "ADMIN_TENANT" if {
-    input.action == "desconto:aplicar"
-    input.operation.percentual_desconto > 20
-}
+# Decisão final de desconto
+allow_desconto if allow_desconto_operador
+allow_desconto if allow_desconto_gerente
+allow_desconto if allow_desconto_admin
 
 # =============================================================================
-# ALÇADA 2: APROVAÇÃO DE ORDEM DE SERVIÇO (MANUTENÇÃO)
+# Alçada de Ordem de Serviço (Manutenção)
 # =============================================================================
 
-# MECANICO pode abrir OS até R$ 5.000
-allow if {
-    input.action == "manutencao:aprovar_os"
+# MECANICO pode criar qualquer OS
+allow_os_criar if {
     input.user.role == "MECANICO"
-    input.operation.valor_os <= 5000
-    tenant_is_valid
+    input.action == "os:criar"
 }
 
-# GERENTE pode aprovar OS de R$ 5.001 até R$ 20.000
-allow if {
-    input.action == "manutencao:aprovar_os"
+# GERENTE pode criar qualquer OS
+allow_os_criar if {
     input.user.role == "GERENTE"
-    input.operation.valor_os > 5000
-    input.operation.valor_os <= 20000
-    tenant_is_valid
+    input.action == "os:criar"
+}
+
+# OPERADOR pode aprovar OS até R$ 2.000
+allow_os_aprovar_operador if {
+    input.user.role == "OPERADOR"
+    input.action == "os:aprovar"
+    input.operation.valor_os <= 2000
+}
+
+# GERENTE pode aprovar OS até R$ 10.000
+allow_os_aprovar_gerente if {
+    input.user.role == "GERENTE"
+    input.action == "os:aprovar"
+    input.operation.valor_os <= 10000
 }
 
 # ADMIN_TENANT pode aprovar qualquer OS
-allow if {
-    input.action == "manutencao:aprovar_os"
+allow_os_aprovar_admin if {
     input.user.role == "ADMIN_TENANT"
-    tenant_is_valid
+    input.action == "os:aprovar"
 }
 
-# OS acima de R$ 20.000 requer aprovação de ADMIN_TENANT
-requer_aprovacao if {
-    input.action == "manutencao:aprovar_os"
-    input.operation.valor_os > 20000
-    input.user.role in ["MECANICO", "GERENTE"]
-}
+# Decisão final de OS
+allow_os if allow_os_criar
+allow_os if allow_os_aprovar_operador
+allow_os if allow_os_aprovar_gerente
+allow_os if allow_os_aprovar_admin
 
 # =============================================================================
-# ALÇADA 3: FECHAMENTO DE CAIXA
+# Alçada de Fechamento
 # =============================================================================
 
-# GERENTE pode fechar caixa diário até R$ 50.000
-allow if {
+# GERENTE pode fazer fechamento diário
+allow_fechamento_diario if {
+    input.user.role == "GERENTE"
     input.action == "fechamento:diario"
-    input.user.role == "GERENTE"
-    input.operation.valor_total <= 50000
-    tenant_is_valid
 }
 
-# FINANCEIRO pode fechar qualquer valor (diário ou mensal)
-allow if {
-    input.action in ["fechamento:diario", "fechamento:mensal"]
+# ADMIN_TENANT pode fazer fechamento diário
+allow_fechamento_diario if {
+    input.user.role == "ADMIN_TENANT"
+    input.action == "fechamento:diario"
+}
+
+# FINANCEIRO pode fazer fechamento mensal
+allow_fechamento_mensal if {
     input.user.role == "FINANCEIRO"
-    tenant_is_valid
+    input.action == "fechamento:mensal"
 }
 
-# ADMIN_TENANT pode reabrir fechamento (auditoria)
-allow if {
-    input.action == "fechamento:reabrir"
+# ADMIN_TENANT pode fazer fechamento mensal
+allow_fechamento_mensal if {
     input.user.role == "ADMIN_TENANT"
-    tenant_is_valid
+    input.action == "fechamento:mensal"
 }
 
+allow_fechamento if allow_fechamento_diario
+allow_fechamento if allow_fechamento_mensal
+
 # =============================================================================
-# ALÇADA 4: CANCELAMENTO DE LOCAÇÃO (baseado em tempo)
+# Determina Aprovador Necessário
 # =============================================================================
 
-# OPERADOR pode cancelar até 1h antes do início
-allow if {
-    input.action == "locacao:cancelar"
+# Se OPERADOR tenta desconto > 10% e <= 25%, precisa de GERENTE
+aprovador_requerido := "GERENTE" if {
     input.user.role == "OPERADOR"
-    horas_ate_inicio >= 1
-    tenant_is_valid
+    input.action == "desconto:aplicar"
+    input.operation.percentual_desconto > 10
+    input.operation.percentual_desconto <= 25
 }
 
-# GERENTE pode cancelar até o início da locação
-allow if {
-    input.action == "locacao:cancelar"
+# Se OPERADOR tenta desconto > 25%, precisa de ADMIN_TENANT
+aprovador_requerido := "ADMIN_TENANT" if {
+    input.user.role == "OPERADOR"
+    input.action == "desconto:aplicar"
+    input.operation.percentual_desconto > 25
+    input.operation.percentual_desconto <= 50
+}
+
+# Se GERENTE tenta desconto > 25%, precisa de ADMIN_TENANT
+aprovador_requerido := "ADMIN_TENANT" if {
     input.user.role == "GERENTE"
-    horas_ate_inicio >= 0
-    tenant_is_valid
+    input.action == "desconto:aplicar"
+    input.operation.percentual_desconto > 25
+    input.operation.percentual_desconto <= 50
 }
 
-# ADMIN_TENANT pode cancelar locação em andamento (com justificativa)
-allow if {
-    input.action == "locacao:cancelar"
-    input.user.role == "ADMIN_TENANT"
-    input.operation.justificativa
-    tenant_is_valid
+# Se OPERADOR tenta OS > R$ 2.000 e <= R$ 10.000, precisa de GERENTE
+aprovador_requerido := "GERENTE" if {
+    input.user.role == "OPERADOR"
+    input.action == "os:aprovar"
+    input.operation.valor_os > 2000
+    input.operation.valor_os <= 10000
 }
 
-# Calcular horas até início da locação
-horas_ate_inicio := diff_horas if {
-    # timestamp_inicio vem em Unix nanoseconds
-    inicio_ns := input.operation.locacao_inicio_timestamp
-    agora_ns := time.now_ns()
-
-    # Converter para horas
-    diff_ns := inicio_ns - agora_ns
-    diff_horas := diff_ns / (1000000000 * 3600)  # ns -> horas
+# Se OPERADOR tenta OS > R$ 10.000, precisa de ADMIN_TENANT
+aprovador_requerido := "ADMIN_TENANT" if {
+    input.user.role == "OPERADOR"
+    input.action == "os:aprovar"
+    input.operation.valor_os > 10000
 }
 
-# =============================================================================
-# HELPERS
-# =============================================================================
-
-# Validação multi-tenant (compartilhado)
-tenant_is_valid if {
-    input.user.tenant_id
-    input.resource.tenant_id
-    input.user.tenant_id == input.resource.tenant_id
+# Se GERENTE tenta OS > R$ 10.000, precisa de ADMIN_TENANT
+aprovador_requerido := "ADMIN_TENANT" if {
+    input.user.role == "GERENTE"
+    input.action == "os:aprovar"
+    input.operation.valor_os > 10000
 }
 
 # =============================================================================
-# METADATA PARA AUDITORIA
+# Decisão de Alçada
 # =============================================================================
 
-decision := {
-    "allow": allow,
-    "requer_aprovacao": requer_aprovacao,
-    "aprovador_requerido": aprovador_requerido,
-    "tenant_valid": tenant_is_valid,
-    "user_id": input.user.id,
-    "user_role": input.user.role,
-    "action": input.action,
-    "valor": object.get(input.operation, "valor_os",
-               object.get(input.operation, "valor_total",
-               object.get(input.operation, "percentual_desconto", 0))),
-    "timestamp": time.now_ns()
+# Ações que NÃO requerem validação de alçada (operações de leitura e gestão)
+actions_no_alcada := {
+    "modelo:list", "modelo:view",
+    "jetski:list", "jetski:view",
+    "cliente:list", "cliente:view",
+    "reserva:list", "reserva:view",
+    "locacao:list", "locacao:view",
+    "locacao:checkin", "locacao:checkout",
+    "abastecimento:view", "abastecimento:registrar",
+    "foto:view", "foto:upload",
+    "vendedor:list", "vendedor:view",
+    "member:list", "member:view", "member:deactivate",
+    "relatorio:operacional", "relatorio:financeiro", "relatorio:comissoes",
+    "comissao:view", "comissao:calcular",
+    "user:list"
+}
+
+# Permite se é uma ação que não requer alçada
+default allow_alcada := false
+
+allow_alcada if {
+    actions_no_alcada[input.action]
+}
+
+# Permite se passou na alçada de desconto
+allow_alcada if allow_desconto
+
+# Permite se passou na alçada de OS
+allow_alcada if allow_os
+
+# Permite se passou na alçada de fechamento
+allow_alcada if allow_fechamento
+
+# Requer aprovação se tentou mas não tem alçada
+default requer_aprovacao := false
+
+requer_aprovacao if {
+    not allow_alcada
+    aprovador_requerido  # Existe um aprovador definido
+}
+
+# =============================================================================
+# Exports
+# =============================================================================
+
+alcada_allow := allow_alcada
+alcada_requer_aprovacao := requer_aprovacao
+
+default alcada_aprovador_requerido := null
+alcada_aprovador_requerido := aprovador_requerido if {
+    aprovador_requerido
 }

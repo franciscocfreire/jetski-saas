@@ -57,14 +57,14 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
     void setUp() {
         TenantContext.setTenantId(UUID.fromString(TENANT_ID));
 
-        // Mock TenantAccessService to allow access by default
+        // Mock TenantAccessService to allow access by default (using new provider-based signature)
         TenantAccessInfo allowAccess = TenantAccessInfo.builder()
                 .hasAccess(true)
                 .roles(List.of("OPERADOR", "GERENTE", "ADMIN_TENANT"))
                 .unrestricted(false)
                 .build();
 
-        when(tenantAccessService.validateAccess(any(UUID.class), any(UUID.class)))
+        when(tenantAccessService.validateAccess(any(String.class), any(String.class), any(UUID.class)))
                 .thenReturn(allowAccess);
     }
 
@@ -457,7 +457,8 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
                     .reason("User is not a member of this tenant")
                     .build();
 
-            when(tenantAccessService.validateAccess(any(UUID.class), eq(UUID.fromString(differentTenantId))))
+            // Mock using new provider-based signature (provider, providerUserId, tenantId)
+            when(tenantAccessService.validateAccess(any(String.class), any(String.class), eq(UUID.fromString(differentTenantId))))
                     .thenReturn(denyAccess);
 
             // When & Then - TenantFilter should throw AccessDeniedException (403)

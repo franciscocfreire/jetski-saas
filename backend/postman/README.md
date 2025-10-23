@@ -372,6 +372,8 @@ A collection usa **semantic versioning** na variável `collection_version`:
 ```
 
 **Changelog**:
+- `1.2.1` (2025-10-20) - Atualização de infraestrutura: OPA v1.9.0 com políticas Rego v1
+- `1.2.0` (2025-10-18) - Fluxo OIDC de ativação de conta (sem senha no activate)
 - `1.0.0` (2025-10-18) - Versão inicial com Auth, User, Auth Tests e Health
 
 ---
@@ -441,9 +443,33 @@ Em caso de dúvidas ou problemas:
 - 🏢 **Multi-tenancy**: Sempre valide que `X-Tenant-Id` corresponde ao tenant do usuário
 - 📊 **Testes**: Todos os requests possuem testes automatizados (aba Tests)
 - 🌐 **CORS**: Ambientes local/dev possuem CORS habilitado para `localhost:3000` e `localhost:3001`
+- 🔐 **OPA**: Authorization policies via Open Policy Agent v1.9.0 (Rego v1 syntax)
 
 ---
 
-**Versão da Collection**: 1.0.0
-**Última Atualização**: 2025-10-18
+## 📋 Infraestrutura
+
+### OPA (Open Policy Agent)
+
+**Versão**: 1.9.0
+**Policies**: Rego v1 (modernizadas em 2025-10-20)
+
+Os endpoints de `Auth Tests → OPA *` testam a integração com OPA para:
+- **RBAC**: Role-based access control
+- **Alçada**: Approval authority (descontos, OS)
+- **Multi-tenancy**: Isolamento lógico de tenants
+- **Business rules**: Regras de negócio específicas
+
+**Como iniciar OPA local:**
+```bash
+cd /home/franciscocfreire/repos/jetski
+./infra/start-opa-local.sh
+```
+
+OPA estará disponível em `http://localhost:8181`
+
+---
+
+**Versão da Collection**: 1.2.1
+**Última Atualização**: 2025-10-20
 **Mantido por**: Jetski Team

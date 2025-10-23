@@ -41,16 +41,50 @@ public class TenantAccessService implements TenantAccessValidator {
 
     private final MembroRepository membroRepository;
     private final UsuarioGlobalRolesRepository globalRolesRepository;
+    private final IdentityProviderMappingService identityMappingService;
 
     /**
-     * Validates user access to tenant
+     * Validates user access to tenant using identity provider mapping
+     * **PREFERRED METHOD** - Decouples from provider-specific UUIDs
+     *
+     * Algorithm:
+     * 1. Resolve internal usuario_id from (provider, providerUserId) mapping
+     * 2. Delegate to validateAccess(UUID, UUID)
+     *
+     * @param provider Identity provider name (e.g., 'keycloak', 'google')
+     * @param providerUserId External user ID from provider (JWT sub claim)
+     * @param tenantId Tenant UUID (from X-Tenant-Id header)
+     * @return TenantAccessInfo with access decision and roles
+     */
+    @Cacheable(
+        value = "tenant-access",
+        key = "#provider + ':' + #providerUserId + ':' + #tenantId",
+        unless = "#result == null"
+    )
+    @Transactional(readOnly = true)
+    public TenantAccessInfo validateAccess(String provider, String providerUserId, UUID tenantId) {
+        log.debug("Validating access via provider: provider={}, providerUserId={}, tenant={}",
+            provider, providerUserId, tenantId);
+
+        // Resolve internal usuario_id from identity provider mapping
+        UUID usuarioId = identityMappingService.resolveUsuarioId(provider, providerUserId);
+
+        log.debug("Resolved usuario_id={} for provider={}", usuarioId, provider);
+
+        // Delegate to existing validation logic
+        return validateAccess(usuarioId, tenantId);
+    }
+
+    /**
+     * Validates user access to tenant using internal usuario_id
+     * **LEGACY METHOD** - Use validateAccess(String, String, UUID) for new code
      *
      * Algorithm:
      * 1. Check if user has unrestricted platform access (global roles)
      * 2. If not, check if user is a member of the tenant
      * 3. Return access info with roles
      *
-     * @param usuarioId User UUID (from JWT sub claim)
+     * @param usuarioId User UUID (internal PostgreSQL UUID)
      * @param tenantId Tenant UUID (from X-Tenant-Id header)
      * @return TenantAccessInfo with access decision and roles
      */
@@ -71,7 +105,8 @@ public class TenantAccessService implements TenantAccessValidator {
             log.info("Unrestricted access granted: user={}, tenant={}",
                 usuarioId, tenantId);
             return TenantAccessInfo.unrestricted(
-                Arrays.asList(globalRoles.get().getRoles())
+                Arrays.asList(globalRoles.get().getRoles()),
+                usuarioId
             );
         }
 
@@ -83,7 +118,7 @@ public class TenantAccessService implements TenantAccessValidator {
             List<String> roles = Arrays.asList(membro.get().getPapeis());
             log.debug("Access granted: user={}, tenant={}, roles={}",
                 usuarioId, tenantId, roles);
-            return TenantAccessInfo.allowed(roles);
+            return TenantAccessInfo.allowed(roles, usuarioId);
         }
 
         // 3. Access denied

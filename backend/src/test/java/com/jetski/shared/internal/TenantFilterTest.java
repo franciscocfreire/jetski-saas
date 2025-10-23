@@ -190,13 +190,15 @@ class TenantFilterTest {
     void shouldAllowRequestWhenUserHasAccessToTenant() throws ServletException, IOException {
         // Given
         UUID tenantId = UUID.randomUUID();
-        UUID usuarioId = UUID.randomUUID();
+        String providerUserId = UUID.randomUUID().toString();
+        String provider = "keycloak";
         request.addHeader("X-Tenant-Id", tenantId.toString());
         request.setRequestURI("/api/v1/modelos");
 
-        // Mock authenticated JWT
+        // Mock authenticated JWT with provider info
         Jwt jwt = mock(Jwt.class);
-        when(jwt.getSubject()).thenReturn(usuarioId.toString());
+        when(jwt.getSubject()).thenReturn(providerUserId);
+        when(jwt.getClaimAsString("provider")).thenReturn(provider);
 
         Authentication auth = mock(Authentication.class);
         when(auth.isAuthenticated()).thenReturn(true);
@@ -206,19 +208,19 @@ class TenantFilterTest {
         when(securityContext.getAuthentication()).thenReturn(auth);
         SecurityContextHolder.setContext(securityContext);
 
-        // Mock database validation - user HAS access
+        // Mock database validation - user HAS access (using new provider-based signature)
         TenantAccessInfo accessInfo = TenantAccessInfo.builder()
                 .hasAccess(true)
                 .roles(List.of("GERENTE", "OPERADOR"))
                 .unrestricted(false)
                 .build();
-        when(tenantAccessService.validateAccess(usuarioId, tenantId)).thenReturn(accessInfo);
+        when(tenantAccessService.validateAccess(provider, providerUserId, tenantId)).thenReturn(accessInfo);
 
         // When
         tenantFilter.doFilterInternal(request, response, filterChain);
 
         // Then
-        verify(tenantAccessService).validateAccess(usuarioId, tenantId);
+        verify(tenantAccessService).validateAccess(provider, providerUserId, tenantId);
         verify(filterChain).doFilter(request, response);
     }
 
@@ -226,14 +228,16 @@ class TenantFilterTest {
     void shouldDenyAccessWhenUserHasNoAccessToTenant() {
         // Given
         UUID tenantId = UUID.randomUUID();
-        UUID usuarioId = UUID.randomUUID();
+        String providerUserId = UUID.randomUUID().toString();
+        String provider = "keycloak";
 
         request.addHeader("X-Tenant-Id", tenantId.toString());
         request.setRequestURI("/api/v1/modelos");
 
-        // Mock authenticated JWT
+        // Mock authenticated JWT with provider info
         Jwt jwt = mock(Jwt.class);
-        when(jwt.getSubject()).thenReturn(usuarioId.toString());
+        when(jwt.getSubject()).thenReturn(providerUserId);
+        when(jwt.getClaimAsString("provider")).thenReturn(provider);
 
         Authentication auth = mock(Authentication.class);
         when(auth.isAuthenticated()).thenReturn(true);
@@ -243,12 +247,12 @@ class TenantFilterTest {
         when(securityContext.getAuthentication()).thenReturn(auth);
         SecurityContextHolder.setContext(securityContext);
 
-        // Mock database validation - user DOES NOT have access
+        // Mock database validation - user DOES NOT have access (using new provider-based signature)
         TenantAccessInfo accessInfo = TenantAccessInfo.builder()
                 .hasAccess(false)
                 .reason("User is not a member of this tenant")
                 .build();
-        when(tenantAccessService.validateAccess(usuarioId, tenantId)).thenReturn(accessInfo);
+        when(tenantAccessService.validateAccess(provider, providerUserId, tenantId)).thenReturn(accessInfo);
 
         // When / Then
         assertThatThrownBy(() ->
@@ -257,7 +261,7 @@ class TenantFilterTest {
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("No access to tenant");
 
-        verify(tenantAccessService).validateAccess(usuarioId, tenantId);
+        verify(tenantAccessService).validateAccess(provider, providerUserId, tenantId);
         verifyNoInteractions(filterChain);
     }
 
@@ -265,13 +269,15 @@ class TenantFilterTest {
     void shouldAllowRequestWhenUserHasUnrestrictedAccess() throws ServletException, IOException {
         // Given
         UUID tenantId = UUID.randomUUID();
-        UUID usuarioId = UUID.randomUUID();
+        String providerUserId = UUID.randomUUID().toString();
+        String provider = "keycloak";
         request.addHeader("X-Tenant-Id", tenantId.toString());
         request.setRequestURI("/api/v1/modelos");
 
-        // Mock authenticated JWT (platform admin)
+        // Mock authenticated JWT (platform admin) with provider info
         Jwt jwt = mock(Jwt.class);
-        when(jwt.getSubject()).thenReturn(usuarioId.toString());
+        when(jwt.getSubject()).thenReturn(providerUserId);
+        when(jwt.getClaimAsString("provider")).thenReturn(provider);
 
         Authentication auth = mock(Authentication.class);
         when(auth.isAuthenticated()).thenReturn(true);
@@ -281,19 +287,19 @@ class TenantFilterTest {
         when(securityContext.getAuthentication()).thenReturn(auth);
         SecurityContextHolder.setContext(securityContext);
 
-        // Mock database validation - user has UNRESTRICTED access (platform admin)
+        // Mock database validation - user has UNRESTRICTED access (platform admin, using new provider-based signature)
         TenantAccessInfo accessInfo = TenantAccessInfo.builder()
                 .hasAccess(true)
                 .roles(List.of("PLATFORM_ADMIN"))
                 .unrestricted(true)
                 .build();
-        when(tenantAccessService.validateAccess(usuarioId, tenantId)).thenReturn(accessInfo);
+        when(tenantAccessService.validateAccess(provider, providerUserId, tenantId)).thenReturn(accessInfo);
 
         // When
         tenantFilter.doFilterInternal(request, response, filterChain);
 
         // Then
-        verify(tenantAccessService).validateAccess(usuarioId, tenantId);
+        verify(tenantAccessService).validateAccess(provider, providerUserId, tenantId);
         verify(filterChain).doFilter(request, response);
     }
 
