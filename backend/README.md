@@ -4,9 +4,9 @@
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3-green.svg)](https://spring.io/projects/spring-boot)
 [![Spring Modulith](https://img.shields.io/badge/Spring%20Modulith-1.1.3-green.svg)](https://spring.io/projects/spring-modulith)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
-[![Tests](https://img.shields.io/badge/tests-60%20passing-brightgreen.svg)]()
-[![Coverage - Lines](https://img.shields.io/badge/coverage--lines-80.5%25-brightgreen.svg)]()
-[![Coverage - Branches](https://img.shields.io/badge/coverage--branches-56.6%25-green.svg)]()
+[![Tests](https://img.shields.io/badge/tests-341%20passing-brightgreen.svg)]()
+[![Coverage - Lines](https://img.shields.io/badge/coverage--lines-62%25-brightgreen.svg)]()
+[![Coverage - Branches](https://img.shields.io/badge/coverage--branches-48%25-yellow.svg)]()
 
 API REST multi-tenant para gestão de locações de jetski, implementada como **Monolito Modular** usando Spring Modulith.
 
@@ -75,9 +75,9 @@ graph TB
         style Usuarios fill:#90EE90,stroke:#2d5016,stroke-width:3px
     end
 
-    subgraph "🚧 EM PROGRESSO: locacoes"
+    subgraph "🚧 EM PROGRESSO: locacoes (80%)"
         direction LR
-        Locacoes[locacoes<br/>───────────<br/>api: Modelos, Jetskis, Reservas, Locacoes<br/>domain: Modelo, Jetski, Vendedor, Cliente, Reserva, Locacao<br/>internal: Services, Repositories<br/>events: ReservaCreated, LocacaoConcluida]
+        Locacoes[locacoes<br/>───────────<br/>✅ api: Modelos, Jetskis, Reservas<br/>✅ domain: Modelo, Jetski, Vendedor, Cliente, Reserva<br/>✅ Sistema prioridades + overbooking<br/>⏳ api: Locacoes (check-in/out)<br/>⏳ events: LocacaoConcluida]
 
         style Locacoes fill:#FFD700,stroke:#b8860b,stroke-width:3px
     end
@@ -161,7 +161,7 @@ graph TB
 **Módulos Planejados:**
 1. ✅ **shared** - Infraestrutura compartilhada (security, auth, config)
 2. ✅ **usuarios** - Gestão de usuários e membros multi-tenant
-3. 🚧 **locacoes** - Core business: Modelos, Jetskis, Reservas, Locações (70% completo)
+3. 🚧 **locacoes** - Core business: Modelos, Jetskis, Reservas, Locações (80% completo - Sprint 1 done)
 4. 📋 **combustivel** - Gestão de abastecimento e políticas de cobrança
 5. 📋 **manutencao** - Ordens de serviço e controle de disponibilidade
 6. 📋 **financeiro** - Fechamentos diário/mensal e comissões
@@ -393,15 +393,19 @@ open target/site/jacoco/index.html
 ```
 
 **Métricas atuais:**
-- **60 testes de integração passando** (100%)
-- **80.5% line coverage** (target: 60%) ✅
-- **56.6% branch coverage** (target: 50%) ✅
+- **341 testes passando** (100%)
+- **62% line coverage** (target: 60%) ✅
+- **48% branch coverage** (target: 48%) ✅
 
 **Breakdown por suite:**
-- `UserInvitationIntegrationTest`: 18 testes ✅
-- `AccountActivationIntegrationTest`: 21 testes ✅
-- `UserActivationEventFlowIntegrationTest`: 11 testes ✅
-- `MemberManagementIntegrationTest`: 10 testes ✅ (NEW)
+- `UserInvitationIntegrationTest`: 19 testes ✅
+- `AccountActivationIntegrationTest`: 25 testes ✅
+- `MemberManagementIntegrationTest`: 10 testes ✅
+- `ReservaControllerTest`: 25 testes ✅ (NEW - Sprint 1: Reservas v0.3.0)
+- `ModeloControllerTest`: 10 testes ✅
+- `JetskiControllerTest`: 10 testes ✅
+- `ClienteControllerTest`: 11 testes ✅
+- `VendedorControllerTest`: 9 testes ✅
 
 ### Tipos de Testes
 
@@ -714,15 +718,26 @@ package com.jetski.locacoes;
 - [x] **Modular architecture (Spring Modulith)**
 - [x] **Architecture tests**
 - [x] **Module documentation generation**
-- [x] **User Invitation flow (OIDC)** ✨ NEW
-- [x] **Account Activation** ✨ NEW
-- [x] **Member Management (list/deactivate)** ✨ NEW
-- [x] **Event-Driven Architecture (Spring Events)** ✨ NEW
-- [x] **80.5% test coverage** ✨ NEW
+- [x] **User Invitation flow (OIDC)**
+- [x] **Account Activation**
+- [x] **Member Management (list/deactivate)**
+- [x] **Event-Driven Architecture (Spring Events)**
+- [x] **Sprint 1: Reservas v0.3.0** ✨ NEW
+  - [x] Modelo-based booking (reserva por modelo, não jetski específico)
+  - [x] Sistema de prioridades (ALTA com sinal, BAIXA sem sinal)
+  - [x] Overbooking controlado (fator 1.5x configurável)
+  - [x] Endpoints: confirmar-sinal, alocar-jetski, disponibilidade
+  - [x] Expiração automática de reservas sem sinal
+  - [x] 25 testes de integração completos
+  - [x] Postman collection atualizada
 
 ### 🚧 Em Progresso
 
-- [ ] Módulo `locacoes` (Reserva, Locação, Modelo, Jetski)
+- [ ] Módulo `locacoes` - Sprint 2: Locações
+  - [ ] Check-in/check-out com validações
+  - [ ] Cálculo de valor (tolerância, arredondamento, horas extras)
+  - [ ] Gestão de fotos (S3 presigned URLs)
+  - [ ] Integração com abastecimento
 - [ ] Comunicação via mensageria distribuída (Kafka)
 - [ ] API endpoints de domínio core business
 
@@ -747,7 +762,7 @@ Proprietary - Jetski SaaS Project
 
 ---
 
-**Versão:** 0.5.0-SNAPSHOT
-**Última atualização:** 2025-10-23
-**Testes:** 60 integration tests passing ✅
-**Coverage:** 80.5% lines | 56.6% branches ✅
+**Versão:** 0.6.0-SNAPSHOT (Sprint 1: Reservas v0.3.0 completo)
+**Última atualização:** 2025-10-24
+**Testes:** 341 tests passing ✅
+**Coverage:** 62% lines | 48% branches ✅

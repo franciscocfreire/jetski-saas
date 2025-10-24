@@ -37,7 +37,7 @@ VALUES
 -- =====================================================
 INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, dt_fim, status, pagamento_cfg_json)
 VALUES
-('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 2, 'mensal', '2025-01-01', NULL, 'ativa',
+('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', (SELECT id FROM plano WHERE nome = 'Pro'), 'mensal', '2025-01-01', NULL, 'ativa',
  '{"metodo": "cartao", "ultimos_digitos": "4321", "vencimento_dia": 1}'::jsonb);
 
 -- =====================================================
@@ -130,51 +130,54 @@ VALUES
 -- =====================================================
 -- Vendedores (Sellers/Partners)
 -- =====================================================
-INSERT INTO vendedor (id, tenant_id, nome, documento, tipo, telefone, email,
-                      regra_comissao_json, ativo)
+INSERT INTO vendedor (id, tenant_id, nome, documento, tipo, regra_comissao_json, ativo)
 VALUES
 ('a1111111-1111-1111-1111-111111111111', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'Ana Vendedora Lima', '123.456.789-00', 'interno', '+55 11 91234-5678', 'vendedor@praiadosol.com.br',
+ 'Ana Vendedora Lima', '123.456.789-00', 'interno',
  '{"tipo": "percentual", "percentual": 10.0}'::jsonb, TRUE),
 
 ('a2222222-2222-2222-2222-222222222222', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'Roberto Parceiro Santos', '987.654.321-00', 'parceiro', '+55 21 98765-4321', 'roberto@parceiro.com.br',
+ 'Roberto Parceiro Santos', '987.654.321-00', 'parceiro',
  '{"tipo": "percentual", "percentual": 15.0}'::jsonb, TRUE),
 
 ('a3333333-3333-3333-3333-333333333333', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'Hotel Copacabana Beach', '11.222.333/0001-44', 'parceiro', '+55 21 3333-4444', 'vendas@hotelcopacabana.com.br',
+ 'Hotel Copacabana Beach', '11.222.333/0001-44', 'parceiro',
  '{"tipo": "fixo", "valor_fixo": 25.00}'::jsonb, TRUE);
 
 -- =====================================================
 -- Clientes (Customers)
 -- =====================================================
-INSERT INTO cliente (id, tenant_id, nome, documento, data_nascimento, telefone, email,
-                     endereco, termo_aceite, termo_aceite_data, ativo)
+INSERT INTO cliente (id, tenant_id, nome, documento, email, telefone, whatsapp, endereco, termo_aceite, ativo)
 VALUES
 ('c1111111-1111-1111-1111-111111111111', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'Ricardo Turista Silva', '111.222.333-44', '1985-03-15', '+55 11 99988-7766', 'ricardo@email.com',
- '{"rua": "Av. Paulista, 1000", "cidade": "São Paulo", "estado": "SP", "cep": "01310-100"}'::jsonb,
- TRUE, NOW(), TRUE),
+ 'Ricardo Turista Silva', '111.222.333-44',
+ 'ricardo@email.com', '+5511999887766', NULL,
+ '{"cep": "01310-100", "logradouro": "Av. Paulista", "numero": "1000", "cidade": "São Paulo", "estado": "SP"}'::jsonb,
+ TRUE, TRUE),
 
 ('c2222222-2222-2222-2222-222222222222', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'Juliana Costa Oliveira', '222.333.444-55', '1990-07-20', '+55 21 98877-6655', 'juliana@email.com',
- '{"rua": "Rua das Flores, 200", "cidade": "Rio de Janeiro", "estado": "RJ", "cep": "20000-000"}'::jsonb,
- TRUE, NOW(), TRUE),
+ 'Juliana Costa Oliveira', '222.333.444-55',
+ 'juliana@email.com', '+5521988776655', '+5521988776655',
+ '{"cep": "20000-000", "logradouro": "Rua das Flores", "numero": "200", "cidade": "Rio de Janeiro", "estado": "RJ"}'::jsonb,
+ TRUE, TRUE),
 
 ('c3333333-3333-3333-3333-333333333333', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'Fernando Santos Almeida', '333.444.555-66', '1988-11-10', '+55 11 97766-5544', 'fernando@email.com',
- '{"rua": "Av. Atlântica, 500", "cidade": "Rio de Janeiro", "estado": "RJ", "cep": "22000-000"}'::jsonb,
- TRUE, NOW(), TRUE),
+ 'Fernando Santos Almeida', '333.444.555-66',
+ 'fernando@email.com', '+5511977665544', NULL,
+ '{"cep": "22000-000", "logradouro": "Av. Atlântica", "numero": "500", "cidade": "Rio de Janeiro", "estado": "RJ"}'::jsonb,
+ TRUE, TRUE),
 
 ('c4444444-4444-4444-4444-444444444444', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'Patricia Rodrigues Lima', '444.555.666-77', '1992-02-28', '+55 21 96655-4433', 'patricia@email.com',
- '{"rua": "Rua do Comércio, 300", "cidade": "Niterói", "estado": "RJ", "cep": "24000-000"}'::jsonb,
- TRUE, NOW(), TRUE),
+ 'Patricia Rodrigues Lima', '444.555.666-77',
+ 'patricia@email.com', '+5521966554433', NULL,
+ '{"cep": "24000-000", "logradouro": "Rua do Comércio", "numero": "300", "cidade": "Niterói", "estado": "RJ"}'::jsonb,
+ TRUE, TRUE),
 
 ('c5555555-5555-5555-5555-555555555555', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'Marcos Vieira Costa', '555.666.777-88', '1983-09-05', '+55 11 95544-3322', 'marcos@email.com',
- '{"rua": "Av. Ipiranga, 1500", "cidade": "São Paulo", "estado": "SP", "cep": "01046-000"}'::jsonb,
- TRUE, NOW(), TRUE);
+ 'Marcos Vieira Costa', '555.666.777-88',
+ 'marcos@email.com', '+5511955443322', NULL,
+ '{"cep": "01046-000", "logradouro": "Av. Ipiranga", "numero": "1500", "cidade": "São Paulo", "estado": "SP"}'::jsonb,
+ TRUE, TRUE);
 
 -- =====================================================
 -- Fuel Policy (Default Configuration)
@@ -237,12 +240,11 @@ VALUES
 -- Sample Reserva (Upcoming reservation)
 -- =====================================================
 INSERT INTO reserva (id, tenant_id, cliente_id, jetski_id, vendedor_id,
-                     dt_inicio_prevista, dt_fim_prevista, duracao_prevista_min,
-                     valor_previsto, caucao, status)
+                     data_inicio, data_fim_prevista, status, observacoes, ativo)
 VALUES
 ('e1111111-1111-1111-1111-111111111111', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
  'c1111111-1111-1111-1111-111111111111', 'd1111111-1111-1111-1111-111111111111', 'a1111111-1111-1111-1111-111111111111',
- NOW() + INTERVAL '2 hours', NOW() + INTERVAL '3 hours', 60, 150.00, 300.00, 'confirmada');
+ NOW() + INTERVAL '2 hours', NOW() + INTERVAL '3 hours', 'CONFIRMADA', 'Reserva confirmada para turista', TRUE);
 
 -- =====================================================
 -- Sample Locacao (Active rental)

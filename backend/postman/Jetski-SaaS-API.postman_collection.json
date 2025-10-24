@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "jetski-saas-api-v1",
     "name": "Jetski SaaS API",
-    "description": "Collection para testes manuais da API Jetski SaaS multi-tenant.\n\n## Configuração Inicial\n\n1. Importe os 4 ambientes (local, dev, hml, prd) disponíveis na pasta `postman/environments/`\n2. Selecione o ambiente desejado no dropdown do Postman\n3. Execute o request \"Get Access Token\" para obter o JWT\n4. O token será automaticamente salvo na variável `access_token` do ambiente\n5. Todos os requests protegidos usarão automaticamente este token\n\n## Multi-tenancy\n\nTodos os endpoints (exceto públicos e autenticação) requerem:\n- **Authorization**: Bearer token JWT\n- **X-Tenant-Id**: UUID do tenant (configurado na variável `tenant_id` do ambiente)\n\n## Estrutura\n\n- **Auth**: Obtenção de tokens JWT via Keycloak\n- **User**: Gerenciamento de usuários e listagem de tenants\n- **User Invitation**: Convidar e ativar usuários (fluxo OIDC completo)\n- **Auth Tests**: Endpoints de teste para validação de segurança (RBAC, OPA)\n- **Health**: Health checks e métricas\n\n## User Invitation Flow (OIDC)\n\n**Novo fluxo com Keycloak OIDC:**\n1. ADMIN_TENANT convida usuário → gera token (48h)\n2. Usuário ativa conta (sem senha) → criado no Keycloak com required action UPDATE_PASSWORD\n3. Email enviado com link de login\n4. Usuário faz login → Keycloak solicita definição de senha\n5. Usuário define senha e está autenticado!\n\nVer documentação completa: `backend/OIDC_ACTIVATION_FLOW.md`\n\n## Infraestrutura\n\n**OPA (Open Policy Agent):** v1.9.0  \nPolicies modernizadas com sintaxe Rego v1 (upgrade em 2025-10-20)\n\n## Versionamento\n\nEsta collection é **viva** e será atualizada conforme novos endpoints forem adicionados.\n\nVersão: 1.2.1\nÚltima atualização: 2025-10-20",
+    "description": "Collection para testes manuais da API Jetski SaaS multi-tenant.\n\n## Configuração Inicial\n\n1. Importe os 4 ambientes (local, dev, hml, prd) disponíveis na pasta `postman/environments/`\n2. Selecione o ambiente desejado no dropdown do Postman\n3. Execute o request \"Get Access Token\" para obter o JWT\n4. O token será automaticamente salvo na variável `access_token` do ambiente\n5. Todos os requests protegidos usarão automaticamente este token\n\n## Multi-tenancy\n\nTodos os endpoints (exceto públicos e autenticação) requerem:\n- **Authorization**: Bearer token JWT\n- **X-Tenant-Id**: UUID do tenant (configurado na variável `tenant_id` do ambiente)\n\n## Estrutura\n\n- **Auth**: Obtenção de tokens JWT via Keycloak\n- **User**: Gerenciamento de usuários e listagem de tenants\n- **User Invitation**: Convidar e ativar usuários (fluxo OIDC completo)\n- **Tenant Members**: Gerenciamento de membros do tenant\n- **Locações (CRUD)**: Gestão completa de modelos, jetskis, vendedores, clientes e reservas\n  - **Modelos**: 6 endpoints para gestão de modelos de jetski\n  - **Jetskis**: 7 endpoints para gestão da frota (inclui status)\n  - **Vendedores**: 6 endpoints para gestão de parceiros/vendedores\n  - **Clientes**: 7 endpoints para gestão de clientes (inclui accept-terms RF03.4)\n  - **Reservas**: 9 endpoints para gestão de bookings (workflow com prioridades e modelo-based)\n- **Auth Tests**: Endpoints de teste para validação de segurança (RBAC, OPA)\n- **Health**: Health checks e métricas\n\n## User Invitation Flow (OIDC)\n\n**Novo fluxo com Keycloak OIDC:**\n1. ADMIN_TENANT convida usuário → gera token (48h)\n2. Usuário ativa conta (sem senha) → criado no Keycloak com required action UPDATE_PASSWORD\n3. Email enviado com link de login\n4. Usuário faz login → Keycloak solicita definição de senha\n5. Usuário define senha e está autenticado!\n\nVer documentação completa: `backend/OIDC_ACTIVATION_FLOW.md`\n\n## Infraestrutura\n\n**OPA (Open Policy Agent):** v1.9.0  \nPolicies modernizadas com sintaxe Rego v1 (upgrade em 2025-10-20)\n\n## Versionamento\n\nEsta collection é **viva** e será atualizada conforme novos endpoints forem adicionados.\n\nVersão: 1.5.0 - Modelo-based booking com sistema de prioridades\nÚltima atualização: 2025-10-24",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "jetski-team"
   },
@@ -835,6 +835,2135 @@
       ]
     },
     {
+      "name": "Locações (CRUD)",
+      "description": "Endpoints para gerenciamento de locações: modelos de jetski, frota (jetskis), vendedores/parceiros e clientes.\n\n**Módulo:** com.jetski.locacoes (Spring Modulith)\n\n**Funcionalidades:**\n- **Modelos**: Cadastro de modelos de jetski com precificação por hora/pacote\n- **Jetskis**: Gestão da frota com odômetro, status e disponibilidade\n- **Vendedores**: Cadastro de parceiros de venda com configuração de comissões\n- **Clientes**: Gestão de clientes/locatários com termo de responsabilidade (RF03.4)\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role (a maioria dos endpoints)\n\n**Multi-tenancy:**\n- Todos os endpoints requerem `X-Tenant-Id` header\n- Validação automática via TenantContext\n- Soft deletes (campo `ativo`)",
+      "item": [
+        {
+          "name": "Modelos",
+          "description": "Gestão de modelos de jetski (fabricante, modelo, ano, precificação).\n\n**Endpoints:**\n- GET: Listar modelos\n- GET /{id}: Obter modelo por ID\n- POST: Criar modelo\n- PUT /{id}: Atualizar modelo\n- DELETE /{id}: Desativar modelo\n- POST /{id}/reactivate: Reativar modelo",
+          "item": [
+            {
+              "name": "List Modelos",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response is array\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.be.an(\"array\");",
+                      "});",
+                      "",
+                      "// Save first modelo_id for other tests",
+                      "const modelos = pm.response.json();",
+                      "if (modelos.length > 0) {",
+                      "    pm.environment.set(\"modelo_id\", modelos[0].id);",
+                      "    console.log(\"✅ Modelos loaded:\", modelos.length);",
+                      "    console.log(\"   First modelo_id saved:\", modelos[0].id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/modelos?includeInactive=false",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "modelos"
+                  ],
+                  "query": [
+                    {
+                      "key": "includeInactive",
+                      "value": "false",
+                      "description": "Incluir modelos inativos (default: false)"
+                    }
+                  ]
+                },
+                "description": "Lista todos os modelos de jetski do tenant.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role\n\n**Query Parameters:**\n- `includeInactive`: boolean (default: false) - Incluir modelos inativos"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Modelo by ID",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has modelo fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData).to.have.property(\"tenantId\");",
+                      "    pm.expect(jsonData).to.have.property(\"fabricante\");",
+                      "    pm.expect(jsonData).to.have.property(\"modelo\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/modelos/{{modelo_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "modelos",
+                    "{{modelo_id}}"
+                  ]
+                },
+                "description": "Obtém detalhes de um modelo específico.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Modelo",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has created modelo\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData.fabricante).to.equal(\"Sea-Doo\");",
+                      "});",
+                      "",
+                      "// Save created modelo_id",
+                      "const created = pm.response.json();",
+                      "if (created.id) {",
+                      "    pm.environment.set(\"created_modelo_id\", created.id);",
+                      "    console.log(\"✅ Modelo created:\", created.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fabricante\": \"Sea-Doo\",\n  \"nome\": \"GTI SE 170\",\n  \"potenciaHp\": 170,\n  \"capacidadePessoas\": 3,\n  \"precoBaseHora\": 200.00,\n  \"toleranciaMin\": 5,\n  \"taxaHoraExtra\": 50.00,\n  \"incluiCombustivel\": false,\n  \"caucao\": 500.00,\n  \"fotoReferenciaUrl\": \"https://example.com/seadoo-gti.jpg\",\n  \"pacotesJson\": \"[{\\\"duracao_min\\\": 30, \\\"preco\\\": 180.00}, {\\\"duracao_min\\\": 60, \\\"preco\\\": 300.00}]\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/modelos",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "modelos"
+                  ]
+                },
+                "description": "Cria um novo modelo de jetski.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role\n\n**Validações:**\n- Fabricante e modelo são obrigatórios\n- Ano deve ser válido\n- Preços devem ser positivos"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Modelo",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has updated fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"precoBaseHora\": 250.00,\n  \"toleranciaMin\": 10,\n  \"taxaHoraExtra\": 75.00\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/modelos/{{modelo_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "modelos",
+                    "{{modelo_id}}"
+                  ]
+                },
+                "description": "Atualiza um modelo existente.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Deactivate Modelo",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Modelo is inactive\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.false;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/modelos/{{modelo_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "modelos",
+                    "{{modelo_id}}"
+                  ]
+                },
+                "description": "Desativa um modelo (soft delete).\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            },
+            {
+              "name": "Reactivate Modelo",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Modelo is active\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.true;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/modelos/{{modelo_id}}/reactivate",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "modelos",
+                    "{{modelo_id}}",
+                    "reactivate"
+                  ]
+                },
+                "description": "Reativa um modelo previamente desativado.\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Jetskis",
+          "description": "Gestão da frota de jetskis (unidades individuais, odômetro, status, disponibilidade).\n\n**Status disponíveis:**\n- DISPONIVEL: Jetski pronto para locação\n- LOCADO: Em operação de locação\n- MANUTENCAO: Em manutenção (bloqueado para reservas)\n- INDISPONIVEL: Temporariamente indisponível\n\n**Endpoints:**\n- GET: Listar jetskis\n- GET /{id}: Obter jetski por ID\n- POST: Criar jetski\n- PUT /{id}: Atualizar jetski\n- PATCH /{id}/status: Atualizar status\n- DELETE /{id}: Desativar jetski\n- POST /{id}/reactivate: Reativar jetski",
+          "item": [
+            {
+              "name": "List Jetskis",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response is array\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.be.an(\"array\");",
+                      "});",
+                      "",
+                      "// Save first jetski_id",
+                      "const jetskis = pm.response.json();",
+                      "if (jetskis.length > 0) {",
+                      "    pm.environment.set(\"jetski_id\", jetskis[0].id);",
+                      "    console.log(\"✅ Jetskis loaded:\", jetskis.length);",
+                      "    console.log(\"   First jetski_id saved:\", jetskis[0].id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis?includeInactive=false",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis"
+                  ],
+                  "query": [
+                    {
+                      "key": "includeInactive",
+                      "value": "false",
+                      "description": "Incluir jetskis inativos (default: false)"
+                    }
+                  ]
+                },
+                "description": "Lista todos os jetskis da frota do tenant.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Jetski by ID",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has jetski fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData).to.have.property(\"modeloId\");",
+                      "    pm.expect(jsonData).to.have.property(\"numeroSerie\");",
+                      "    pm.expect(jsonData).to.have.property(\"status\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis/{{jetski_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis",
+                    "{{jetski_id}}"
+                  ]
+                },
+                "description": "Obtém detalhes de um jetski específico.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Jetski",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has created jetski\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData.status).to.equal(\"DISPONIVEL\");",
+                      "});",
+                      "",
+                      "// Save created jetski_id",
+                      "const created = pm.response.json();",
+                      "if (created.id) {",
+                      "    pm.environment.set(\"created_jetski_id\", created.id);",
+                      "    console.log(\"✅ Jetski created:\", created.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"modeloId\": \"{{modelo_id}}\",\n  \"serie\": \"SDI-GTI-2024-001\",\n  \"ano\": 2024,\n  \"horimetroAtual\": 0,\n  \"status\": \"DISPONIVEL\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis"
+                  ]
+                },
+                "description": "Cria um novo jetski na frota.\n\n**Requer:** ADMIN_TENANT ou GERENTE role\n\n**Validações:**\n- modeloId deve existir\n- Número de série é obrigatório\n- Status inicial é DISPONIVEL"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Jetski",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has updated fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"horimetroAtual\": 150.5,\n  \"status\": \"MANUTENCAO\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis/{{jetski_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis",
+                    "{{jetski_id}}"
+                  ]
+                },
+                "description": "Atualiza um jetski existente.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Jetski Status",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Status updated\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.status).to.be.oneOf([\"DISPONIVEL\", \"LOCADO\", \"MANUTENCAO\", \"INDISPONIVEL\"]);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis/{{jetski_id}}/status?status=MANUTENCAO",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis",
+                    "{{jetski_id}}",
+                    "status"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "MANUTENCAO",
+                      "description": "Novo status do jetski"
+                    }
+                  ]
+                },
+                "description": "Atualiza o status de um jetski via query parameter.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role\n\n**Uso:** Enviar status como query parameter `?status=MANUTENCAO` (SEM body JSON)\n\n**Status válidos:**\n- DISPONIVEL\n- LOCADO\n- MANUTENCAO\n- INDISPONIVEL\n\n**Nota:** Para atualizar status + outros campos (horímetro, série, ano), use o endpoint PUT /jetskis/{id}"
+              },
+              "response": []
+            },
+            {
+              "name": "Deactivate Jetski",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Jetski is inactive\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.false;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis/{{jetski_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis",
+                    "{{jetski_id}}"
+                  ]
+                },
+                "description": "Desativa um jetski (soft delete).\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            },
+            {
+              "name": "Reactivate Jetski",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Jetski is active\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.true;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis/{{jetski_id}}/reactivate",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis",
+                    "{{jetski_id}}",
+                    "reactivate"
+                  ]
+                },
+                "description": "Reativa um jetski previamente desativado.\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Vendedores",
+          "description": "Gestão de vendedores/parceiros de venda (configuração de comissões por vendedor/parceiro).\n\n**Endpoints:**\n- GET: Listar vendedores\n- GET /{id}: Obter vendedor por ID\n- POST: Criar vendedor\n- PUT /{id}: Atualizar vendedor\n- DELETE /{id}: Desativar vendedor\n- POST /{id}/reactivate: Reativar vendedor",
+          "item": [
+            {
+              "name": "List Vendedores",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response is array\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.be.an(\"array\");",
+                      "});",
+                      "",
+                      "// Save first vendedor_id",
+                      "const vendedores = pm.response.json();",
+                      "if (vendedores.length > 0) {",
+                      "    pm.environment.set(\"vendedor_id\", vendedores[0].id);",
+                      "    console.log(\"✅ Vendedores loaded:\", vendedores.length);",
+                      "    console.log(\"   First vendedor_id saved:\", vendedores[0].id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/vendedores?includeInactive=false",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "vendedores"
+                  ],
+                  "query": [
+                    {
+                      "key": "includeInactive",
+                      "value": "false",
+                      "description": "Incluir vendedores inativos (default: false)"
+                    }
+                  ]
+                },
+                "description": "Lista todos os vendedores/parceiros do tenant.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Vendedor by ID",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has vendedor fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData).to.have.property(\"nome\");",
+                      "    pm.expect(jsonData).to.have.property(\"comissaoJson\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/vendedores/{{vendedor_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "vendedores",
+                    "{{vendedor_id}}"
+                  ]
+                },
+                "description": "Obtém detalhes de um vendedor específico.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Vendedor",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has created vendedor\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData.nome).to.equal(\"João Silva\");",
+                      "});",
+                      "",
+                      "// Save created vendedor_id",
+                      "const created = pm.response.json();",
+                      "if (created.id) {",
+                      "    pm.environment.set(\"created_vendedor_id\", created.id);",
+                      "    console.log(\"✅ Vendedor created:\", created.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"João Silva\",\n  \"documento\": \"123.456.789-00\",\n  \"tipo\": \"PARCEIRO\",\n  \"regraComissaoJson\": \"{\\\"tipo\\\": \\\"PERCENTUAL\\\", \\\"valor\\\": 10.0}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/vendedores",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "vendedores"
+                  ]
+                },
+                "description": "Cria um novo vendedor/parceiro.\n\n**Requer:** ADMIN_TENANT ou GERENTE role\n\n**Validações:**\n- Nome é obrigatório\n- Configuração de comissão (tipo: PERCENTUAL, FIXO, ESCALONADO)"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Vendedor",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has updated fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"regraComissaoJson\": \"{\\\"tipo\\\": \\\"PERCENTUAL\\\", \\\"valor\\\": 12.0}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/vendedores/{{vendedor_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "vendedores",
+                    "{{vendedor_id}}"
+                  ]
+                },
+                "description": "Atualiza um vendedor existente.\n\n**Requer:** ADMIN_TENANT ou GERENTE role"
+              },
+              "response": []
+            },
+            {
+              "name": "Deactivate Vendedor",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Vendedor is inactive\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.false;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/vendedores/{{vendedor_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "vendedores",
+                    "{{vendedor_id}}"
+                  ]
+                },
+                "description": "Desativa um vendedor (soft delete).\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            },
+            {
+              "name": "Reactivate Vendedor",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Vendedor is active\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.true;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/vendedores/{{vendedor_id}}/reactivate",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "vendedores",
+                    "{{vendedor_id}}",
+                    "reactivate"
+                  ]
+                },
+                "description": "Reativa um vendedor previamente desativado.\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Clientes",
+          "description": "Gestão de clientes/locatários (cadastro, contato, termo de responsabilidade RF03.4).\n\n**Endpoints:**\n- GET: Listar clientes\n- GET /{id}: Obter cliente por ID\n- POST: Criar cliente\n- PUT /{id}: Atualizar cliente\n- POST /{id}/accept-terms: Aceitar termo de responsabilidade (RF03.4)\n- DELETE /{id}: Desativar cliente\n- POST /{id}/reactivate: Reativar cliente",
+          "item": [
+            {
+              "name": "List Clientes",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response is array\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.be.an(\"array\");",
+                      "});",
+                      "",
+                      "// Save first cliente_id",
+                      "const clientes = pm.response.json();",
+                      "if (clientes.length > 0) {",
+                      "    pm.environment.set(\"cliente_id\", clientes[0].id);",
+                      "    console.log(\"✅ Clientes loaded:\", clientes.length);",
+                      "    console.log(\"   First cliente_id saved:\", clientes[0].id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes?includeInactive=false",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes"
+                  ],
+                  "query": [
+                    {
+                      "key": "includeInactive",
+                      "value": "false",
+                      "description": "Incluir clientes inativos (default: false)"
+                    }
+                  ]
+                },
+                "description": "Lista todos os clientes do tenant.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Cliente by ID",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has cliente fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData).to.have.property(\"nome\");",
+                      "    pm.expect(jsonData).to.have.property(\"termoAceite\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "{{cliente_id}}"
+                  ]
+                },
+                "description": "Obtém detalhes de um cliente específico.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Cliente",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has created cliente\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData.nome).to.equal(\"Maria Santos\");",
+                      "});",
+                      "",
+                      "// Save created cliente_id",
+                      "const created = pm.response.json();",
+                      "if (created.id) {",
+                      "    pm.environment.set(\"created_cliente_id\", created.id);",
+                      "    console.log(\"✅ Cliente created:\", created.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"Maria Santos\",\n  \"documento\": \"987.654.321-00\",\n  \"dataNascimento\": \"1990-05-15\",\n  \"genero\": \"FEMININO\",\n  \"email\": \"maria.santos@email.com\",\n  \"telefone\": \"+5511912345678\",\n  \"whatsapp\": \"+5511912345678\",\n  \"enderecoJson\": \"{\\\"cep\\\": \\\"01310-100\\\", \\\"logradouro\\\": \\\"Av. Paulista\\\", \\\"numero\\\": \\\"1000\\\", \\\"cidade\\\": \\\"São Paulo\\\", \\\"estado\\\": \\\"SP\\\"}\",\n  \"termoAceite\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes"
+                  ]
+                },
+                "description": "Cria um novo cliente.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role\n\n**Dados pessoais:**\n- nome: Nome completo (obrigatório)\n- documento: CPF ou CNPJ (opcional)\n- dataNascimento: Data no formato YYYY-MM-DD (opcional, útil para validação de idade)\n- genero: MASCULINO, FEMININO, OUTRO, NAO_INFORMADO (opcional)\n\n**Campos de contato:**\n- email: Email válido (opcional)\n- telefone: Formato E.164 internacional (+5511987654321) - opcional\n- whatsapp: Formato E.164 internacional - opcional\n- enderecoJson: Endereço em formato JSON (opcional)\n\n**Validações:**\n- Nome é obrigatório\n- Telefone/WhatsApp devem seguir formato E.164 se fornecidos\n- Cliente deve aceitar termo de responsabilidade antes da primeira locação (RF03.4)"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Cliente",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has updated fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"dataNascimento\": \"1990-06-20\",\n  \"genero\": \"FEMININO\",\n  \"email\": \"maria.santos.nova@email.com\",\n  \"telefone\": \"+5511912349999\",\n  \"whatsapp\": \"+5511912349999\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "{{cliente_id}}"
+                  ]
+                },
+                "description": "Atualiza um cliente existente.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role\n\n**Campos atualizáveis:**\n- nome: Nome do cliente\n- documento: CPF/CNPJ\n- dataNascimento: Data no formato YYYY-MM-DD\n- genero: MASCULINO, FEMININO, OUTRO, NAO_INFORMADO\n- email: Email (opcional)\n- telefone: Formato E.164 internacional (+5511987654321) - opcional\n- whatsapp: Formato E.164 internacional - opcional\n- enderecoJson: Endereço JSON - opcional\n- termoAceite: Aceite de termos\n\nApenas os campos fornecidos serão atualizados."
+              },
+              "response": []
+            },
+            {
+              "name": "Accept Terms (RF03.4)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Cliente accepted terms\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.termoAceite).to.be.true;",
+                      "});",
+                      "",
+                      "console.log(\"✅ Cliente accepted liability terms (RF03.4)\");"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}/accept-terms",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "{{cliente_id}}",
+                    "accept-terms"
+                  ]
+                },
+                "description": "Cliente aceita termo de responsabilidade (RF03.4).\n\n**Obrigatório antes da primeira locação.**\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Deactivate Cliente",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Cliente is inactive\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.false;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "{{cliente_id}}"
+                  ]
+                },
+                "description": "Desativa um cliente (soft delete).\n\nHistórico de locações é preservado para conformidade LGPD.\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            },
+            {
+              "name": "Reactivate Cliente",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Cliente is active\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.true;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}/reactivate",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "{{cliente_id}}",
+                    "reactivate"
+                  ]
+                },
+                "description": "Reativa um cliente previamente desativado.\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reservas",
+      "description": "Gestão de reservas de jetski (bookings) **com sistema de prioridades por modelo (v0.3.0)**\n\n**Novo Sistema (v0.3.0):**\n- Reserva é por MODELO (não jetski específico)\n- Alocação de jetski específico no check-in (FIFO)\n- Sistema de prioridades com/sem sinal\n- Overbooking controlado\n- Expiração automática de reservas sem sinal\n\n**Prioridades:**\n- **ALTA**: Reserva com sinal (garantida, bloqueia capacidade física, não expira)\n- **BAIXA**: Reserva sem sinal (permite overbooking, expira após grace period)\n\n**Workflow:**\n1. Cliente faz reserva → Status: PENDENTE, Prioridade: BAIXA\n2. (Opcional) Cliente paga sinal → confirmar-sinal → Prioridade: ALTA\n3. Operador/Gerente confirma → Status: CONFIRMADA\n4. No check-in → alocar-jetski → Jetski específico alocado\n5. Check-in converte reserva em locação → Status: FINALIZADA\n6. Ou reserva pode ser cancelada → Status: CANCELADA\n7. Ou reserva expira (sem sinal) → Status: EXPIRADA (automático)\n\n**Business Rules:**\n- Reserva por MODELO (jetskiId opcional)\n- Valida capacidade do modelo (garantidas vs regulares)\n- Fator de overbooking configurável por tenant\n- Grace period configurável (default: 30 min após horário início)\n- Expiração automática a cada 5 minutos (apenas BAIXA prioridade)\n- Detecta conflitos de agenda automaticamente\n- Data início deve ser antes da data fim\n- Data início não pode ser no passado\n\n**Roles:**\n- List/View/Disponibilidade: ADMIN_TENANT, GERENTE, OPERADOR, VENDEDOR\n- Create: ADMIN_TENANT, GERENTE, OPERADOR, VENDEDOR\n- Update/Confirm/Cancel/ConfirmarSinal/AlocarJetski: ADMIN_TENANT, GERENTE, OPERADOR\n\n**Endpoints (9 total):**\n- GET: Listar reservas\n- GET /{id}: Obter reserva por ID\n- POST: Criar reserva\n- PUT /{id}: Atualizar reserva\n- POST /{id}/confirmar: Confirmar reserva pendente\n- POST /{id}/confirmar-sinal: Confirmar pagamento de sinal (BAIXA → ALTA)\n- POST /{id}/alocar-jetski: Alocar jetski específico\n- GET /disponibilidade: Verificar disponibilidade detalhada\n- DELETE /{id}: Cancelar reserva",
+      "item": [
+        {
+          "name": "List Reservas",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas?status=PENDENTE&includeInactive=false",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDENTE",
+                  "description": "Filtrar por status: PENDENTE, CONFIRMADA, CANCELADA, FINALIZADA",
+                  "disabled": true
+                },
+                {
+                  "key": "includeInactive",
+                  "value": "false",
+                  "description": "Incluir reservas canceladas/finalizadas (padrão: false)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista todas as reservas do tenant.\n\n**Query params:**\n- `status` (opcional): Filtra por status específico\n- `includeInactive` (opcional): Incluir canceladas/finalizadas (padrão: false)\n\n**Retorna:** Por padrão, apenas reservas ativas (PENDENTE, CONFIRMADA)\n\n**Requer:** ADMIN_TENANT, GERENTE, OPERADOR ou VENDEDOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Reserva by ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}"
+              ]
+            },
+            "description": "Obtém os detalhes de uma reserva específica por ID.\n\n**Requer:** ADMIN_TENANT, GERENTE, OPERADOR ou VENDEDOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Reserva",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Salva o ID da reserva criada para uso posterior",
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set(\"reserva_id\", jsonData.id);",
+                  "    console.log(\"✅ Reserva criada:\", jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"modeloId\": \"{{modelo_id}}\",\n  \"jetskiId\": \"{{jetski_id}}\",\n  \"clienteId\": \"{{cliente_id}}\",\n  \"vendedorId\": \"{{vendedor_id}}\",\n  \"dataInicio\": \"2025-11-01T10:00:00\",\n  \"dataFimPrevista\": \"2025-11-01T12:00:00\",\n  \"observacoes\": \"Reserva de teste - modelo-based booking\"\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas"
+              ]
+            },
+            "description": "Cria uma nova reserva de jetski (modelo-based booking v0.3.0)\n\n**Campos obrigatórios:**\n- `modeloId`: UUID do modelo (OBRIGATÓRIO)\n- `clienteId`: UUID do cliente (OBRIGATÓRIO)\n- `dataInicio`: Data/hora início (OBRIGATÓRIO, formato ISO 8601)\n- `dataFimPrevista`: Data/hora fim (OBRIGATÓRIO, formato ISO 8601)\n\n**Campos opcionais:**\n- `jetskiId`: UUID do jetski específico (OPCIONAL - se não fornecido, alocação será no check-in)\n- `vendedorId`: UUID do vendedor/parceiro (OPCIONAL)\n- `observacoes`: Notas adicionais (OPCIONAL)\n\n**Comportamento (v0.3.0):**\n- Reserva criada com status PENDENTE\n- Prioridade inicial: BAIXA (sem sinal)\n- Se jetskiId não fornecido, será alocado no check-in via FIFO\n- Expira automaticamente após grace period se não houver sinal\n\n**Validações:**\n- Valida capacidade do modelo (física vs overbooking)\n- Detecta conflitos de agenda se jetskiId fornecido\n- Data início < data fim\n- Data início não pode ser no passado\n- Se jetskiId fornecido, jetski deve estar DISPONIVEL e pertencer ao modelo\n\n**Requer:** ADMIN_TENANT, GERENTE, OPERADOR ou VENDEDOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Reserva",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dataInicio\": \"2025-11-01T11:00:00\",\n  \"dataFimPrevista\": \"2025-11-01T14:00:00\",\n  \"observacoes\": \"Alterado horário - cliente solicitou estender período\"\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}"
+              ]
+            },
+            "description": "Atualiza informações de uma reserva existente.\n\n**Restrições:**\n- Apenas reservas PENDENTE ou CONFIRMADA podem ser atualizadas\n- Se datas forem alteradas, valida conflitos de agenda\n- Data início deve ser < data fim\n\n**Campos opcionais:** Todos os campos no body são opcionais\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Reserva",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/confirmar",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}",
+                "confirmar"
+              ]
+            },
+            "description": "Confirma uma reserva pendente.\n\n**Transição:** PENDENTE → CONFIRMADA\n\n**Validações:**\n- Re-valida disponibilidade do jetski\n- Re-valida conflitos de agenda\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Confirmar Sinal",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valorSinal\": 150.0\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/confirmar-sinal",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}",
+                "confirmar-sinal"
+              ]
+            },
+            "description": "Confirma pagamento de sinal e upgrade para prioridade ALTA (v0.3.0)\n\n**Transição:** BAIXA → ALTA priority\n\n**Efeitos:**\n- Marca sinal como pago (sinalPago=true)\n- Registra valor e timestamp do pagamento\n- Upgrade para prioridade ALTA (garantida)\n- Bloqueia capacidade física (não permite overbooking)\n- Remove risco de expiração automática\n\n**Validações:**\n- Reserva deve estar PENDENTE ou CONFIRMADA\n- Sinal não pode estar já pago\n- Capacidade física disponível (reservas garantidas < jetskis disponíveis)\n- Valor do sinal deve ser > 0\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Alocar Jetski",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jetskiId\": \"{{jetski_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/alocar-jetski",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}",
+                "alocar-jetski"
+              ]
+            },
+            "description": "Aloca jetski específico à reserva (v0.3.0)\n\n**Usado quando:**\n- Cliente chega para check-in (operador aloca FIFO)\n- Pré-alocação de jetski específico\n- Cliente solicitou unidade particular\n\n**Validações:**\n- Reserva deve estar CONFIRMADA\n- Jetski não deve estar já alocado (jetskiId = null)\n- Jetski deve pertencer ao mesmo modelo da reserva\n- Jetski deve estar DISPONIVEL\n- Sem conflitos de agenda para o jetski\n\n**Processo FIFO:**\n1. Listar reservas confirmadas para o período\n2. Ordenar por sinalPago DESC, dataInicio ASC\n3. Alocar jetskis disponíveis na ordem\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Verificar Disponibilidade",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/disponibilidade?modeloId={{modelo_id}}&dataInicio=2025-10-30T10:00:00&dataFimPrevista=2025-10-30T12:00:00",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "disponibilidade"
+              ],
+              "query": [
+                {
+                  "key": "modeloId",
+                  "value": "{{modelo_id}}",
+                  "description": "UUID do modelo de jetski"
+                },
+                {
+                  "key": "dataInicio",
+                  "value": "2025-10-30T10:00:00",
+                  "description": "Data/hora início (formato ISO 8601)"
+                },
+                {
+                  "key": "dataFimPrevista",
+                  "value": "2025-10-30T12:00:00",
+                  "description": "Data/hora fim (formato ISO 8601)"
+                }
+              ]
+            },
+            "description": "Verifica disponibilidade detalhada de um modelo para período (v0.3.0)\n\n**Retorna métricas:**\n- `totalJetskis`: Total de jetskis disponíveis do modelo\n- `reservasGarantidas`: Reservas ALTA (com sinal)\n- `totalReservas`: Total de reservas ativas (ALTA + BAIXA)\n- `maximoReservas`: Limite máximo baseado em overbooking\n- `aceitaComSinal`: Se aceita nova reserva com sinal (garantida)\n- `aceitaSemSinal`: Se aceita nova reserva sem sinal (regular)\n- `vagasGarantidas`: Slots restantes para reservas garantidas\n- `vagasRegulares`: Slots restantes para reservas regulares\n\n**Cálculo:**\n- `maximoReservas = ceil(totalJetskis × fatorOverbooking)`\n- Exemplo: 10 jetskis × 1.5 = 15 reservas max\n\n**Público:** Endpoint pode ser chamado sem autenticação (para consulta de clientes)\n\n**Uso típico:**\n- Frontend exibir disponibilidade antes de criar reserva\n- Validar capacidade em tempo real\n- Dashboard de ocupação"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Reserva",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}"
+              ]
+            },
+            "description": "Cancela uma reserva.\n\n**Soft delete:** Altera status para CANCELADA (não remove do banco)\n\n**Restrições:** Apenas reservas PENDENTE ou CONFIRMADA podem ser canceladas\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Auth Tests",
       "description": "Endpoints de teste para validação de segurança (RBAC, OPA, multi-tenancy)\n\n⚠️ **IMPORTANTE**: Estes endpoints são apenas para testes e devem ser removidos em produção.",
       "item": [
@@ -1549,9 +3678,9 @@
   "variable": [
     {
       "key": "collection_version",
-      "value": "1.2.1",
+      "value": "1.3.0",
       "type": "string",
-      "description": "Infrastructure update: OPA v1.9.0 with Rego v1 policies (2025-10-20)"
+      "description": "Feature: Added Locações CRUD endpoints - Modelos, Jetskis, Vendedores, Clientes (2025-10-23)"
     }
   ]
 }

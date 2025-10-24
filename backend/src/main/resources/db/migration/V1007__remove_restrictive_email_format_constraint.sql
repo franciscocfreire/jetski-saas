@@ -19,8 +19,9 @@
 -- Drop email format constraint from usuario table
 ALTER TABLE usuario DROP CONSTRAINT IF EXISTS email_format;
 
--- Drop email format constraint from cliente table
+-- Drop email format constraint from cliente table (if it exists)
+-- Note: V005 migration consolidates cliente contact fields into JSONB column
 ALTER TABLE cliente DROP CONSTRAINT IF EXISTS email_format;
 
 COMMENT ON COLUMN usuario.email IS 'User email (supports international characters per RFC 6531)';
-COMMENT ON COLUMN cliente.email IS 'Customer email (supports international characters per RFC 6531, nullable)';
+-- cliente.email column was consolidated into contato JSONB column in V005, so no comment needed here

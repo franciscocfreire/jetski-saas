@@ -2,6 +2,12 @@
 
 Histórias (User Stories) específicas do módulo **Backend** (API Spring Boot).
 
+## Status Geral
+
+- **Total concluído:** 39 story points (6 histórias)
+- **Épicos completos:** EPIC-01 (26 pts), EPIC-03 Sprint 1 (13 pts)
+- **Próximo:** Sprint 2 - Locações (check-in/check-out)
+
 ## Épicos Relacionados
 
 - [EPIC-01: Multi-tenant Foundation](../../stories/epics/epic-01-multi-tenant-foundation.md)
@@ -19,13 +25,17 @@ Histórias (User Stories) específicas do módulo **Backend** (API Spring Boot).
 - [STORY-004](./story-004-docker-compose-setup.md): Docker Compose Setup (3 pts)
 - [STORY-005](./story-005-flyway-migrations-base.md): Migrations Flyway Base (5 pts)
 
-**Total EPIC-01:** 26 story points
+**Total EPIC-01:** 26 story points ✅
 
-### Próximas Histórias (EPIC-02)
-- STORY-006: Modelo Entity + CRUD (8 pts)
-- STORY-007: Jetski Entity + CRUD (5 pts)
-- STORY-008: Vendedor Entity + CRUD (5 pts)
-- STORY-009: Cliente Entity + CRUD (3 pts)
+### EPIC-03: Reservas e Locações
+- [STORY-006](./story-006-reservas-modelo-based.md): Sistema de Reservas Modelo-based v0.3.0 (13 pts) ✅
+
+**Total EPIC-03:** 13 story points ✅
+
+### Próximas Histórias (Sprint 2)
+- STORY-007: Check-in de Locação (8 pts)
+- STORY-008: Check-out de Locação com Cálculo de Valor (8 pts)
+- STORY-009: Upload de Fotos (S3 presigned URLs) (5 pts)
 
 ## Como Buscar Histórias
 

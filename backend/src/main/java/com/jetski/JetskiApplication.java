@@ -4,6 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Jetski SaaS API - Multi-tenant jetski rental management system
@@ -17,6 +18,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 @SpringBootApplication
 @EnableCaching
 @EnableJpaAuditing
+@EnableScheduling
 public class JetskiApplication {
 
     public static void main(String[] args) {

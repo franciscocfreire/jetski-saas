@@ -658,7 +658,7 @@ role_permissions := {
 deny_transferencia contains msg if {
     input.action == "jetski:transferir"
     jetski := data.jetskis[input.resource.jetski_id]
-    jetski.status == "em_uso"
+    jetski.status == "locado"
     msg := "Jetski em uso não pode ser transferido"
 }
 ```

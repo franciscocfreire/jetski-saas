@@ -24,12 +24,12 @@ test_can_reserve_jetski_available if {
 }
 
 test_can_reserve_jetski_in_use if {
-    # "em_uso" is allowed for future reservations
+    # "locado" is allowed for future reservations
     count(deny_manutencao) == 0 with input as {
         "action": "reserva:criar",
         "resource": {"jetski_id": "jetski-123"}
     } with data.jetskis as {
-        "jetski-123": {"status": "em_uso"}
+        "jetski-123": {"status": "locado"}
     }
 }
 
@@ -337,7 +337,7 @@ test_all_business_rules_pass if {
     } with data.locacoes as {
         "locacao-123": {"checkin_realizado": true, "checkout_realizado": false}
     } with data.jetskis as {
-        "jetski-123": {"status": "em_uso"}
+        "jetski-123": {"status": "locado"}
     } with data.fechamentos_diarios as {}
 }
 
@@ -354,7 +354,7 @@ test_any_deny_blocks_request if {
     } with data.locacoes as {
         "locacao-123": {"checkin_realizado": true, "checkout_realizado": false}
     } with data.jetskis as {
-        "jetski-123": {"status": "em_uso"}
+        "jetski-123": {"status": "locado"}
     } with data.fechamentos_diarios as [
         {
             "tenant_id": "tenant-123",
