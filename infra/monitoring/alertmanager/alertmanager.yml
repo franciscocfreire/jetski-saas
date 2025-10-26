@@ -4,7 +4,7 @@
 global:
   resolve_timeout: 5m
   # Slack webhook (configure in production)
-  # slack_api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+  slack_api_url: 'https://hooks.slack.com/services/DUMMY/WEBHOOK/URL'
 
 # Templates for alert notifications
 templates:

@@ -74,21 +74,23 @@ services:
       - monitoring
 
   # Promtail - Log shipping to Loki
-  promtail:
-    image: grafana/promtail:2.9.2
-    container_name: jetski-promtail
-    restart: unless-stopped
-    ports:
-      - "9080:9080"
-    volumes:
-      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
-      - /var/log:/var/log:ro
-      - /tmp/backend-observability.log:/var/log/jetski/backend.log:ro
-    command: -config.file=/etc/promtail/config.yml
-    networks:
-      - monitoring
-    depends_on:
-      - loki
+  # Note: Disabled for now due to WSL2 file mount restrictions
+  # Will be enabled once backend logging is configured to write to Docker volume
+  # promtail:
+  #   image: grafana/promtail:2.9.2
+  #   container_name: jetski-promtail
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9080:9080"
+  #   volumes:
+  #     - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+  #     - /var/log:/var/log:ro
+  #     - /tmp:/var/log/jetski:ro
+  #   command: -config.file=/etc/promtail/config.yml
+  #   networks:
+  #     - monitoring
+  #   depends_on:
+  #     - loki
 
   # Alertmanager - Alert routing and notifications
   alertmanager:
