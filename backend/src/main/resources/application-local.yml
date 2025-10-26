@@ -80,6 +80,15 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+      environment: local
+  tracing:
+    sampling:
+      probability: 1.0  # 100% sampling for local development
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces  # Jaeger OTLP HTTP endpoint
+      timeout: 10s
+      compression: gzip
 
 springdoc:
   api-docs:

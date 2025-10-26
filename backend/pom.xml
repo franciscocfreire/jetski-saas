@@ -169,6 +169,17 @@
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
 
+        <!-- Observability - Distributed Tracing (OpenTelemetry + Jaeger) -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+        </dependency>
+
         <!-- Spring Modulith - Modular Monolith Support -->
         <dependency>
             <groupId>org.springframework.modulith</groupId>
