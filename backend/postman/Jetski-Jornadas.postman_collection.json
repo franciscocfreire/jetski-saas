@@ -511,6 +511,17 @@
           "name": "1.3. 👑 Admin cadastra Vendedor",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Usa o timestamp da execução para gerar nome e documento únicos",
+                  "const timestamp = pm.collectionVariables.get('run_timestamp') || Date.now();",
+                  "pm.collectionVariables.set('vendedor_nome', `João Silva ${timestamp}`);",
+                  "pm.collectionVariables.set('vendedor_documento', `${timestamp.toString().slice(-11)}`);"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "exec": [
@@ -558,7 +569,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nome\": \"João Silva - Beach Tours\",\n  \"tipo\": \"PARCEIRO\",\n  \"documento\": \"123.456.789-00\",\n  \"regraComissao\": {\n    \"tipo\": \"PERCENTUAL\",\n    \"valor\": 10.0\n  },\n  \"ativo\": true\n}"
+              "raw": "{\n  \"nome\": \"{{vendedor_nome}}\",\n  \"tipo\": \"PARCEIRO\",\n  \"documento\": \"{{vendedor_documento}}\",\n  \"regraComissao\": {\n    \"tipo\": \"PERCENTUAL\",\n    \"valor\": 10.0\n  },\n  \"ativo\": true\n}"
             },
             "url": {
               "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/vendedores",
@@ -571,6 +582,18 @@
         {
           "name": "1.4. 👑 Admin cadastra Cliente",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Usa o timestamp da execução para gerar dados únicos do cliente",
+                  "const timestamp = pm.collectionVariables.get('run_timestamp') || Date.now();",
+                  "pm.collectionVariables.set('cliente_nome', `Maria Oliveira ${timestamp}`);",
+                  "pm.collectionVariables.set('cliente_documento', `${timestamp.toString().slice(-11)}`);",
+                  "pm.collectionVariables.set('cliente_email', `maria.${timestamp}@example.com`);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -609,7 +632,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nome\": \"Maria Oliveira\",\n  \"documento\": \"987.654.321-00\",\n  \"email\": \"maria.oliveira@example.com\",\n  \"telefone\": \"+5511987654321\",\n  \"dataNascimento\": \"1990-05-15\",\n  \"genero\": \"FEMININO\",\n  \"ativo\": true\n}"
+              "raw": "{\n  \"nome\": \"{{cliente_nome}}\",\n  \"documento\": \"{{cliente_documento}}\",\n  \"email\": \"{{cliente_email}}\",\n  \"telefone\": \"+5511987654321\",\n  \"dataNascimento\": \"1990-05-15\",\n  \"genero\": \"FEMININO\",\n  \"ativo\": true\n}"
             },
             "url": {
               "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/clientes",
