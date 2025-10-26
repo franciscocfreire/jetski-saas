@@ -12,11 +12,19 @@ common:
   storage:
     filesystem:
       chunks_directory: /tmp/loki/chunks
-      rules_directory: /tmp/loki/rules
   replication_factor: 1
   ring:
+    instance_addr: 127.0.0.1
     kvstore:
       store: inmemory
+
+# Disable ruler completely (not needed - alerts via Prometheus)
+ruler:
+  enable_api: false
+  storage:
+    type: local
+    local:
+      directory: /tmp/loki/rules
 
 schema_config:
   configs:
