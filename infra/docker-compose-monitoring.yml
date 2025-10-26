@@ -2,14 +2,12 @@
 # Stack: Prometheus + Grafana + Loki
 #
 # Usage:
-#   docker-compose -f docker-compose-monitoring.yml up -d
+#   docker compose -f docker-compose-monitoring.yml up -d
 #
 # Access:
 #   - Grafana: http://localhost:3000 (admin/admin)
 #   - Prometheus: http://localhost:9090
 #   - Loki: http://localhost:3100
-
-version: '3.8'
 
 services:
   # Prometheus - Metrics collection and storage

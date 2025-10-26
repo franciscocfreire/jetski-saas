@@ -39,7 +39,7 @@ function start_stack() {
     print_header
     print_info "Starting monitoring stack..."
 
-    docker-compose -f "$COMPOSE_FILE" up -d
+    docker compose -f "$COMPOSE_FILE" up -d
 
     echo ""
     print_success "Monitoring stack started successfully!"
@@ -76,7 +76,7 @@ function stop_stack() {
     print_header
     print_info "Stopping monitoring stack..."
 
-    docker-compose -f "$COMPOSE_FILE" down
+    docker compose -f "$COMPOSE_FILE" down
 
     print_success "Monitoring stack stopped!"
 }
@@ -92,7 +92,7 @@ function status_stack() {
     print_info "Monitoring stack status:"
     echo ""
 
-    docker-compose -f "$COMPOSE_FILE" ps
+    docker compose -f "$COMPOSE_FILE" ps
 }
 
 function logs_stack() {
@@ -100,14 +100,14 @@ function logs_stack() {
     print_info "Following monitoring stack logs (Ctrl+C to exit)..."
     echo ""
 
-    docker-compose -f "$COMPOSE_FILE" logs -f
+    docker compose -f "$COMPOSE_FILE" logs -f
 }
 
 function clean_stack() {
     print_header
     print_info "Cleaning monitoring stack (removing volumes)..."
 
-    docker-compose -f "$COMPOSE_FILE" down -v
+    docker compose -f "$COMPOSE_FILE" down -v
 
     print_success "Monitoring stack cleaned (volumes removed)!"
 }
