@@ -136,45 +136,71 @@ else
     KEYCLOAK_SETUP_DONE=false
 fi
 
-# 9. Criar mapeamento padrão para admin@acme.com (se Keycloak foi configurado)
+# 9. Criar mapeamentos de identity provider para todos os 5 usuários (se Keycloak foi configurado)
 if [ "$KEYCLOAK_SETUP_DONE" = true ]; then
     echo ""
-    echo "9️⃣  Criando mapeamentos de identity provider..."
+    echo "9️⃣  Criando mapeamentos de identity provider para todos os usuários..."
 
-    # Buscar UUID do usuário admin@acme.com no PostgreSQL
-    POSTGRES_USER_ID=$(PGPASSWORD=$PG_PASSWORD psql -h $PG_HOST -p $PG_PORT -U $PG_USER -d $PG_DB_LOCAL -t -c "SELECT id FROM usuario WHERE email = 'admin@acme.com' LIMIT 1;" | xargs)
+    # Aguardar um pouco para Keycloak processar
+    sleep 2
 
-    if [ -n "$POSTGRES_USER_ID" ]; then
-        # Aguardar um pouco para Keycloak processar
-        sleep 2
+    # Obter token de admin uma vez
+    ADMIN_TOKEN=$(curl -s -X POST "http://${KC_HOST}:${KC_PORT}/realms/master/protocol/openid-connect/token" \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "username=${KC_ADMIN_USER}" \
+      -d "password=${KC_ADMIN_PASSWORD}" \
+      -d "grant_type=password" \
+      -d "client_id=admin-cli" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
 
-        # Buscar UUID do usuário no Keycloak
-        KC_USER_ID=$(curl -s -X POST "http://${KC_HOST}:${KC_PORT}/realms/master/protocol/openid-connect/token" \
-          -H "Content-Type: application/x-www-form-urlencoded" \
-          -d "username=${KC_ADMIN_USER}" \
-          -d "password=${KC_ADMIN_PASSWORD}" \
-          -d "grant_type=password" \
-          -d "client_id=admin-cli" | grep -o '"access_token":"[^"]*' | sed 's/"access_token":"//' | \
-          xargs -I {} curl -s "http://${KC_HOST}:${KC_PORT}/admin/realms/${KC_REALM}/users?email=admin@acme.com" \
-          -H "Authorization: Bearer {}" | grep -o '"id":"[^"]*' | head -1 | sed 's/"id":"//')
-
-        if [ -n "$KC_USER_ID" ]; then
-            # Inserir mapeamento
-            PGPASSWORD=$PG_PASSWORD psql -h $PG_HOST -p $PG_PORT -U $PG_USER -d $PG_DB_LOCAL << EOF > /dev/null
-INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id, linked_at, created_at, updated_at)
-VALUES ('${POSTGRES_USER_ID}', 'keycloak', '${KC_USER_ID}', NOW(), NOW(), NOW())
-ON CONFLICT (provider, provider_user_id) DO NOTHING;
-EOF
-            echo "   ✅ Mapeamento criado: admin@acme.com (PG: ${POSTGRES_USER_ID:0:8}...) -> (KC: ${KC_USER_ID:0:8}...)"
-        else
-            echo "   ⚠️  Usuário admin@acme.com não encontrado no Keycloak"
-            echo "   💡 Execute: bash infra/keycloak-setup/setup-keycloak-local.sh"
-        fi
+    if [ -z "$ADMIN_TOKEN" ]; then
+        echo "   ⚠️  Não foi possível obter token de admin do Keycloak"
+        echo "   💡 Execute manualmente: bash infra/keycloak-setup/update-keycloak-uuids.sh"
     else
-        echo "   ⚠️  Usuário admin@acme.com não encontrado no PostgreSQL"
+        # Array com os 5 usuários principais
+        USERS=("admin@acme.com" "gerente@acme.com" "operador@acme.com" "vendedor@acme.com" "mecanico@acme.com")
+
+        # Primeiro, deletar todos os mapeamentos antigos dos 5 usuários principais
+        for EMAIL in "${USERS[@]}"; do
+            PG_USER_ID=$(PGPASSWORD=$PG_PASSWORD psql -h $PG_HOST -p $PG_PORT -U $PG_USER -d $PG_DB_LOCAL -t -c "SELECT id FROM usuario WHERE email = '${EMAIL}' LIMIT 1;" | xargs)
+            if [ -n "$PG_USER_ID" ]; then
+                PGPASSWORD=$PG_PASSWORD psql -h $PG_HOST -p $PG_PORT -U $PG_USER -d $PG_DB_LOCAL -c "DELETE FROM usuario_identity_provider WHERE usuario_id = '${PG_USER_ID}' AND provider = 'keycloak';" > /dev/null
+            fi
+        done
+
+        # Agora criar os novos mapeamentos
+        for EMAIL in "${USERS[@]}"; do
+            # Buscar UUID no PostgreSQL
+            PG_USER_ID=$(PGPASSWORD=$PG_PASSWORD psql -h $PG_HOST -p $PG_PORT -U $PG_USER -d $PG_DB_LOCAL -t -c "SELECT id FROM usuario WHERE email = '${EMAIL}' LIMIT 1;" | xargs)
+
+            if [ -n "$PG_USER_ID" ]; then
+                # Buscar UUID no Keycloak
+                KC_USER_ID=$(curl -s -X GET "http://${KC_HOST}:${KC_PORT}/admin/realms/${KC_REALM}/users?username=${EMAIL}" \
+                  -H "Authorization: Bearer ${ADMIN_TOKEN}" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+
+                if [ -n "$KC_USER_ID" ]; then
+                    # Inserir mapeamento
+                    PGPASSWORD=$PG_PASSWORD psql -h $PG_HOST -p $PG_PORT -U $PG_USER -d $PG_DB_LOCAL << EOF > /dev/null
+INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id, linked_at, created_at, updated_at)
+VALUES ('${PG_USER_ID}', 'keycloak', '${KC_USER_ID}', NOW(), NOW(), NOW());
+EOF
+                    echo "   ✅ ${EMAIL} -> KC: ${KC_USER_ID:0:8}..."
+                else
+                    echo "   ⚠️  ${EMAIL} não encontrado no Keycloak"
+                fi
+            else
+                echo "   ⚠️  ${EMAIL} não encontrado no PostgreSQL"
+            fi
+        done
+
+        echo "   ✅ Mapeamentos de identity provider criados com sucesso!"
+
+        # Limpar cache do Redis novamente para garantir que os novos UUIDs sejam usados
+        if command -v redis-cli &> /dev/null; then
+            redis-cli FLUSHDB > /dev/null 2>&1 && echo "   ✅ Cache do Redis atualizado!" || echo "   ⚠️  Não foi possível limpar o cache"
+        fi
     fi
 else
-    echo "9️⃣  ⏭️  Pulando criação de mapeamento (Keycloak não foi configurado neste reset)"
+    echo "9️⃣  ⏭️  Pulando criação de mapeamentos (Keycloak não foi configurado neste reset)"
 fi
 
 # 10. Exibir dados seed

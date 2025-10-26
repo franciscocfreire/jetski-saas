@@ -75,11 +75,11 @@ graph TB
         style Usuarios fill:#90EE90,stroke:#2d5016,stroke-width:3px
     end
 
-    subgraph "🚧 EM PROGRESSO: locacoes (80%)"
+    subgraph "✅ PRONTO: locacoes (95%)"
         direction LR
-        Locacoes[locacoes<br/>───────────<br/>✅ api: Modelos, Jetskis, Reservas<br/>✅ domain: Modelo, Jetski, Vendedor, Cliente, Reserva<br/>✅ Sistema prioridades + overbooking<br/>⏳ api: Locacoes (check-in/out)<br/>⏳ events: LocacaoConcluida]
+        Locacoes[locacoes<br/>───────────<br/>✅ api: Modelos, Jetskis, Reservas, Locacoes<br/>✅ domain: Modelo, Jetski, Vendedor, Cliente, Reserva, Locacao, Foto<br/>✅ Sistema prioridades + overbooking<br/>✅ Check-in/out com RN01<br/>⏳ events: LocacaoConcluida]
 
-        style Locacoes fill:#FFD700,stroke:#b8860b,stroke-width:3px
+        style Locacoes fill:#90EE90,stroke:#2d5016,stroke-width:3px
     end
 
     subgraph "📋 PLANEJADO: combustivel"
@@ -161,7 +161,7 @@ graph TB
 **Módulos Planejados:**
 1. ✅ **shared** - Infraestrutura compartilhada (security, auth, config)
 2. ✅ **usuarios** - Gestão de usuários e membros multi-tenant
-3. 🚧 **locacoes** - Core business: Modelos, Jetskis, Reservas, Locações (80% completo - Sprint 1 done)
+3. ✅ **locacoes** - Core business: Modelos, Jetskis, Reservas, Locações (95% completo - Sprint 1 + 2 done)
 4. 📋 **combustivel** - Gestão de abastecimento e políticas de cobrança
 5. 📋 **manutencao** - Ordens de serviço e controle de disponibilidade
 6. 📋 **financeiro** - Fechamentos diário/mensal e comissões
@@ -722,7 +722,7 @@ package com.jetski.locacoes;
 - [x] **Account Activation**
 - [x] **Member Management (list/deactivate)**
 - [x] **Event-Driven Architecture (Spring Events)**
-- [x] **Sprint 1: Reservas v0.3.0** ✨ NEW
+- [x] **Sprint 1: Reservas v0.3.0**
   - [x] Modelo-based booking (reserva por modelo, não jetski específico)
   - [x] Sistema de prioridades (ALTA com sinal, BAIXA sem sinal)
   - [x] Overbooking controlado (fator 1.5x configurável)
@@ -730,13 +730,22 @@ package com.jetski.locacoes;
   - [x] Expiração automática de reservas sem sinal
   - [x] 25 testes de integração completos
   - [x] Postman collection atualizada
+- [x] **Sprint 2: Locações (Check-in/Check-out)** ✨ NEW
+  - [x] Check-in from reservation (conversão de reserva)
+  - [x] Walk-in check-in (sem reserva prévia)
+  - [x] Check-out com RN01 (tolerância + arredondamento 15min)
+  - [x] Validação de horímetro e cálculo de minutos
+  - [x] Gestão de status do jetski (DISPONIVEL ↔ LOCADO)
+  - [x] Entidades domain: Locacao, Foto, LocacaoStatus
+  - [x] 24 testes unitários (LocacaoCalculatorServiceTest) - 100% passing ✅
+  - [x] 5 endpoints REST para operações de locação
+  - [x] Migrations: V1009, V1010, V1011
 
 ### 🚧 Em Progresso
 
-- [ ] Módulo `locacoes` - Sprint 2: Locações
-  - [ ] Check-in/check-out com validações
-  - [ ] Cálculo de valor (tolerância, arredondamento, horas extras)
-  - [ ] Gestão de fotos (S3 presigned URLs)
+- [ ] Módulo `locacoes` - Sprint 3: Fotos e S3
+  - [ ] Upload de fotos com S3 presigned URLs
+  - [ ] Validação de fotos obrigatórias (4 no check-in)
   - [ ] Integração com abastecimento
 - [ ] Comunicação via mensageria distribuída (Kafka)
 - [ ] API endpoints de domínio core business
@@ -762,7 +771,7 @@ Proprietary - Jetski SaaS Project
 
 ---
 
-**Versão:** 0.6.0-SNAPSHOT (Sprint 1: Reservas v0.3.0 completo)
+**Versão:** 0.7.0-SNAPSHOT (Sprint 2: Locações Check-in/Check-out completo)
 **Última atualização:** 2025-10-24
-**Testes:** 341 tests passing ✅
+**Testes:** 365 tests passing ✅ (24 new unit tests for RN01)
 **Coverage:** 62% lines | 48% branches ✅

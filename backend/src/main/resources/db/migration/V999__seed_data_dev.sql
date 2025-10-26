@@ -48,18 +48,21 @@ VALUES
 -- Ver: /infra/keycloak-setup/setup-keycloak-local.sh
 -- =====================================================
 
--- Usuários que existem no Keycloak (PostgreSQL UUIDs independentes)
+-- 5 Usuarios principais do Keycloak (emails @acme.com para Postman collections)
 INSERT INTO usuario (id, email, nome, ativo) VALUES
 ('00000000-aaaa-aaaa-aaaa-000000000001', 'admin@acme.com', 'Admin ACME', TRUE),
-('00000000-aaaa-aaaa-aaaa-000000000002', 'operador@acme.com', 'Operador ACME', TRUE),
+('00000000-aaaa-aaaa-aaaa-000000000002', 'gerente@acme.com', 'Gerente ACME', TRUE),
+('00000000-aaaa-aaaa-aaaa-000000000003', 'operador@acme.com', 'Operador ACME', TRUE),
+('00000000-aaaa-aaaa-aaaa-000000000004', 'vendedor@acme.com', 'Vendedor ACME', TRUE),
+('00000000-aaaa-aaaa-aaaa-000000000005', 'mecanico@acme.com', 'Mecanico ACME', TRUE),
 
--- Usuários internos (não existem no Keycloak - apenas para testes)
-('11111111-1111-1111-1111-111111111111', 'admin@praiadosol.com.br', 'Carlos Admin Silva', TRUE),
-('22222222-2222-2222-2222-222222222222', 'gerente@praiadosol.com.br', 'Marina Santos Oliveira', TRUE),
-('33333333-3333-3333-3333-333333333333', 'operador@praiadosol.com.br', 'João Operador Costa', TRUE),
-('44444444-4444-4444-4444-444444444444', 'vendedor@praiadosol.com.br', 'Ana Vendedora Lima', TRUE),
-('55555555-5555-5555-5555-555555555555', 'mecanico@praiadosol.com.br', 'Pedro Mecânico Souza', TRUE),
-('66666666-6666-6666-6666-666666666666', 'financeiro@praiadosol.com.br', 'Luciana Financeira Pereira', TRUE);
+-- Usuários adicionais do tenant (internos - exemplo com emails @praiadosol)
+('11111111-1111-1111-1111-111111111111', 'carlos.admin@praiadosol.com.br', 'Carlos Admin Silva', TRUE),
+('22222222-2222-2222-2222-222222222222', 'marina.gerente@praiadosol.com.br', 'Marina Santos Oliveira', TRUE),
+('33333333-3333-3333-3333-333333333333', 'joao.operador@praiadosol.com.br', 'João Operador Costa', TRUE),
+('44444444-4444-4444-4444-444444444444', 'ana.vendedora@praiadosol.com.br', 'Ana Vendedora Lima', TRUE),
+('55555555-5555-5555-5555-555555555555', 'pedro.mecanico@praiadosol.com.br', 'Pedro Mecânico Souza', TRUE),
+('66666666-6666-6666-6666-666666666666', 'luciana.financeiro@praiadosol.com.br', 'Luciana Financeira Pereira', TRUE);
 
 -- =====================================================
 -- Identity Provider Mapping (Keycloak)
@@ -68,19 +71,27 @@ INSERT INTO usuario (id, email, nome, ativo) VALUES
 -- IMPORTANT: Keycloak UUIDs are from setup-keycloak-local.sh
 -- If Keycloak is reset, only this table needs to be updated
 -- =====================================================
+-- NOTE: Keycloak UUIDs will be updated by setup-keycloak-local.sh after user creation
+-- Placeholder UUIDs below - will be replaced on first Keycloak setup
 INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id, linked_at) VALUES
-('00000000-aaaa-aaaa-aaaa-000000000001', 'keycloak', 'b0cd6005-a7c0-4915-a08f-abae4364ae46', NOW()),
-('00000000-aaaa-aaaa-aaaa-000000000002', 'keycloak', '820cd5a2-4a6e-4f02-9193-e745b99c4f5e', NOW());
+('00000000-aaaa-aaaa-aaaa-000000000001', 'keycloak', '00000000-0000-0000-0000-000000000001', NOW()),
+('00000000-aaaa-aaaa-aaaa-000000000002', 'keycloak', '00000000-0000-0000-0000-000000000002', NOW()),
+('00000000-aaaa-aaaa-aaaa-000000000003', 'keycloak', '00000000-0000-0000-0000-000000000003', NOW()),
+('00000000-aaaa-aaaa-aaaa-000000000004', 'keycloak', '00000000-0000-0000-0000-000000000004', NOW()),
+('00000000-aaaa-aaaa-aaaa-000000000005', 'keycloak', '00000000-0000-0000-0000-000000000005', NOW());
 
 -- =====================================================
 -- Membros (User-Tenant Relationships with Roles)
 -- =====================================================
--- Membros do Keycloak (usando PostgreSQL UUIDs - mapeamento via usuario_identity_provider)
+-- 5 Membros principais do Keycloak (@acme.com)
 INSERT INTO membro (tenant_id, usuario_id, papeis, ativo) VALUES
-('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '00000000-aaaa-aaaa-aaaa-000000000001', ARRAY['ADMIN_TENANT', 'GERENTE'], TRUE),
-('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '00000000-aaaa-aaaa-aaaa-000000000002', ARRAY['OPERADOR'], TRUE),
+('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '00000000-aaaa-aaaa-aaaa-000000000001', ARRAY['ADMIN_TENANT'], TRUE),
+('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '00000000-aaaa-aaaa-aaaa-000000000002', ARRAY['GERENTE'], TRUE),
+('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '00000000-aaaa-aaaa-aaaa-000000000003', ARRAY['OPERADOR'], TRUE),
+('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '00000000-aaaa-aaaa-aaaa-000000000004', ARRAY['VENDEDOR'], TRUE),
+('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '00000000-aaaa-aaaa-aaaa-000000000005', ARRAY['MECANICO'], TRUE),
 
--- Membros internos (sem Keycloak)
+-- Membros adicionais do tenant (@praiadosol)
 ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '11111111-1111-1111-1111-111111111111', ARRAY['ADMIN_TENANT'], TRUE),
 ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '22222222-2222-2222-2222-222222222222', ARRAY['GERENTE'], TRUE),
 ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '33333333-3333-3333-3333-333333333333', ARRAY['OPERADOR'], TRUE),

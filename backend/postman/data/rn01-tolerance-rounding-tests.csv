@@ -1,0 +1,11 @@
+scenario,predicted_minutes,used_minutes,tolerance_minutes,base_price_per_hour,billable_minutes,expected_value,description
+RN01.1,60,60,5,100.00,60,100.00,Exato no tempo previsto - cobra valor base
+RN01.2,60,64,5,100.00,60,100.00,4min extra dentro da tolerância - não cobra adicional
+RN01.3,60,65,5,100.00,60,100.00,5min extra (limite exato) - não cobra adicional
+RN01.4,60,66,5,100.00,75,125.00,6min extra (1min acima tolerância) - arredonda p/ 75min
+RN01.5,60,70,5,100.00,75,125.00,10min extra - arredonda para próximo bloco de 15min
+RN01.6,60,80,5,100.00,90,150.00,20min extra - arredonda para 90min (2 blocos)
+RN01.7,120,135,5,80.00,150,200.00,15min extra - arredonda para 150min (2h30)
+RN01.8,90,100,5,120.00,105,210.00,10min extra - arredonda para 105min (1h45)
+RN01.9,60,90,5,100.00,105,175.00,30min extra - arredonda para 105min (1h45)
+RN01.10,180,200,5,60.00,210,210.00,20min extra - arredonda para 210min (3h30)

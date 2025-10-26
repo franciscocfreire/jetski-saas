@@ -36,11 +36,17 @@ CLIENT_SECRET="jetski-secret"
 # Tenant ACME (padrão - seed data do banco)
 TENANT_ID="a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
 
-# Usuários do tenant ACME
+# Usuários do tenant ACME (5 personas)
 ADMIN_ACME_USER="admin@acme.com"
 ADMIN_ACME_PASS="admin123"
+GERENTE_ACME_USER="gerente@acme.com"
+GERENTE_ACME_PASS="gerente123"
 OPERADOR_ACME_USER="operador@acme.com"
 OPERADOR_ACME_PASS="operador123"
+VENDEDOR_ACME_USER="vendedor@acme.com"
+VENDEDOR_ACME_PASS="vendedor123"
+MECANICO_ACME_USER="mecanico@acme.com"
+MECANICO_ACME_PASS="mecanico123"
 
 # Platform admin (acesso irrestrito)
 PLATFORM_ADMIN_USER="admin@plataforma.com"
@@ -88,8 +94,8 @@ fi
 
 # 3. Criar roles no realm
 echo ""
-echo "[3/14] Criando roles no realm..."
-for ROLE in OPERADOR GERENTE FINANCEIRO ADMIN_TENANT PLATFORM_ADMIN; do
+echo "[3/20] Criando roles no realm..."
+for ROLE in ADMIN_TENANT GERENTE OPERADOR VENDEDOR MECANICO FINANCEIRO PLATFORM_ADMIN; do
   curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/roles" \
     -H "Authorization: Bearer ${ADMIN_TOKEN}" \
     -H "Content-Type: application/json" \
@@ -267,9 +273,120 @@ curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${OPER
   -d "[${ROLE_JSON}]"
 echo "  ✓ Role OPERADOR atribuída"
 
-# 11. Criar grupo ACME com tenant_id e adicionar usuários
+# 11. Criar usuário gerente@acme.com
 echo ""
-echo "[11/14] Configurando tenant ACME via grupo..."
+echo "[11/17] Criando usuário gerente@acme.com..."
+curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"username\": \"${GERENTE_ACME_USER}\",
+    \"email\": \"${GERENTE_ACME_USER}\",
+    \"firstName\": \"Gerente\",
+    \"lastName\": \"ACME\",
+    \"enabled\": true,
+    \"emailVerified\": true,
+    \"credentials\": [{
+      \"type\": \"password\",
+      \"value\": \"${GERENTE_ACME_PASS}\",
+      \"temporary\": false
+    }],
+    \"requiredActions\": []
+  }"
+echo "✓ Usuário ${GERENTE_ACME_USER} criado"
+
+# 12. Configurar roles do gerente@acme.com
+echo ""
+echo "[12/17] Configurando roles do gerente@acme.com..."
+GERENTE_ACME_UUID=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/users?username=${GERENTE_ACME_USER}" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+
+ROLE_JSON=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/roles/GERENTE" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}")
+
+curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${GERENTE_ACME_UUID}/role-mappings/realm" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "[${ROLE_JSON}]"
+echo "  ✓ Role GERENTE atribuída"
+
+# 13. Criar usuário vendedor@acme.com
+echo ""
+echo "[13/17] Criando usuário vendedor@acme.com..."
+curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"username\": \"${VENDEDOR_ACME_USER}\",
+    \"email\": \"${VENDEDOR_ACME_USER}\",
+    \"firstName\": \"Vendedor\",
+    \"lastName\": \"ACME\",
+    \"enabled\": true,
+    \"emailVerified\": true,
+    \"credentials\": [{
+      \"type\": \"password\",
+      \"value\": \"${VENDEDOR_ACME_PASS}\",
+      \"temporary\": false
+    }],
+    \"requiredActions\": []
+  }"
+echo "✓ Usuário ${VENDEDOR_ACME_USER} criado"
+
+# 14. Configurar roles do vendedor@acme.com
+echo ""
+echo "[14/17] Configurando roles do vendedor@acme.com..."
+VENDEDOR_ACME_UUID=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/users?username=${VENDEDOR_ACME_USER}" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+
+ROLE_JSON=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/roles/VENDEDOR" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}")
+
+curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${VENDEDOR_ACME_UUID}/role-mappings/realm" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "[${ROLE_JSON}]"
+echo "  ✓ Role VENDEDOR atribuída"
+
+# 15. Criar usuário mecanico@acme.com
+echo ""
+echo "[15/17] Criando usuário mecanico@acme.com..."
+curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"username\": \"${MECANICO_ACME_USER}\",
+    \"email\": \"${MECANICO_ACME_USER}\",
+    \"firstName\": \"Mecanico\",
+    \"lastName\": \"ACME\",
+    \"enabled\": true,
+    \"emailVerified\": true,
+    \"credentials\": [{
+      \"type\": \"password\",
+      \"value\": \"${MECANICO_ACME_PASS}\",
+      \"temporary\": false
+    }],
+    \"requiredActions\": []
+  }"
+echo "✓ Usuário ${MECANICO_ACME_USER} criado"
+
+# 16. Configurar roles do mecanico@acme.com
+echo ""
+echo "[16/17] Configurando roles do mecanico@acme.com..."
+MECANICO_ACME_UUID=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/users?username=${MECANICO_ACME_USER}" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+
+ROLE_JSON=$(curl -s -X GET "${KEYCLOAK_URL}/admin/realms/${REALM}/roles/MECANICO" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}")
+
+curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${MECANICO_ACME_UUID}/role-mappings/realm" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "[${ROLE_JSON}]"
+echo "  ✓ Role MECANICO atribuída"
+
+# 17. Criar grupo ACME com tenant_id e adicionar usuários
+echo ""
+echo "[17/20] Configurando tenant ACME via grupo..."
 GROUP_NAME="tenant-acme"
 
 # Criar grupo com attribute tenant_id
@@ -298,7 +415,22 @@ curl -s -o /dev/null -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${OPERA
   -H "Authorization: Bearer ${ADMIN_TOKEN}"
 echo "  ✓ Usuário ${OPERADOR_ACME_USER} adicionado ao grupo"
 
-# 12. Criar grupo platform-admins com unrestricted_access
+# Adicionar gerente@acme.com ao grupo
+curl -s -o /dev/null -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${GERENTE_ACME_UUID}/groups/${GROUP_UUID}" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}"
+echo "  ✓ Usuário ${GERENTE_ACME_USER} adicionado ao grupo"
+
+# Adicionar vendedor@acme.com ao grupo
+curl -s -o /dev/null -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${VENDEDOR_ACME_UUID}/groups/${GROUP_UUID}" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}"
+echo "  ✓ Usuário ${VENDEDOR_ACME_USER} adicionado ao grupo"
+
+# Adicionar mecanico@acme.com ao grupo
+curl -s -o /dev/null -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${MECANICO_ACME_UUID}/groups/${GROUP_UUID}" \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}"
+echo "  ✓ Usuário ${MECANICO_ACME_USER} adicionado ao grupo"
+
+# 18. Criar grupo platform-admins com unrestricted_access
 echo ""
 echo "[12/14] Criando grupo platform-admins..."
 PLATFORM_GROUP_NAME="platform-admins"

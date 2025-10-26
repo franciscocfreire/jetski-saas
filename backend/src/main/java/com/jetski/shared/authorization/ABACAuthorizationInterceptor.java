@@ -149,8 +149,14 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
 
         UUID tenantId = TenantContext.getTenantId();
 
+        // IMPORTANT: Use resolved PostgreSQL usuario_id from TenantContext
+        // TenantFilter already resolved: Keycloak UUID → PostgreSQL UUID
+        // This ensures OPA receives the internal UUID that exists in the database
+        UUID usuarioId = TenantContext.getUsuarioId();
+        String userId = usuarioId != null ? usuarioId.toString() : jwt.getSubject();
+
         return OPAInput.UserContext.builder()
-            .id(jwt.getSubject())
+            .id(userId)
             .tenant_id(tenantId != null ? tenantId.toString() : null)
             .role(role)
             .roles(roles)

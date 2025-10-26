@@ -163,6 +163,13 @@ public class Reserva {
     private String observacoes;
 
     /**
+     * Link to rental operation created from this reservation
+     * Null if reservation was cancelled before check-in
+     */
+    @Column(name = "locacao_id")
+    private UUID locacaoId;
+
+    /**
      * Soft delete flag - inactive reservations are cancelled/archived
      * Preserves historical data for analytics
      */

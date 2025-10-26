@@ -158,8 +158,9 @@ public class ActionExtractor {
         // Lista de sub-actions conhecidas
         String[] knownSubActions = {
             "checkin", "checkout", "desconto", "aprovar", "fechar", "cancelar",
-            "criar", "list", "view", "update", "delete", "registrar", "upload",
-            "calcular", "diario", "mensal", "invite", "activate"
+            "criar", "create", "list", "view", "update", "delete", "registrar", "upload",
+            "calcular", "diario", "mensal", "invite", "activate",
+            "accept-terms", "confirmar-sinal", "confirmar", "alocar-jetski"
         };
 
         for (String subAction : knownSubActions) {

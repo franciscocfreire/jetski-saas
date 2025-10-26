@@ -1,29 +1,24 @@
-# Postman Collection - GitIgnore
-# Evita que credenciais sensíveis sejam versionadas
+# Newman test results
+results/
+*.html
+*.json
+*.xml
 
-# ⚠️ NUNCA VERSIONE estes arquivos se contiverem credenciais reais:
-# (Apenas se você sobrescrever os environments com credenciais de HML/PRD)
+# Node modules
+node_modules/
+package-lock.json
 
-# Descomente as linhas abaixo se você estiver usando credenciais reais:
-# environments/Homolog.postman_environment.json
-# environments/Production.postman_environment.json
+# Logs
+*.log
+npm-debug.log*
 
-# Backups do Postman
-*.backup
-*_backup.json
+# Environment secrets (production)
+environments/Production.postman_environment.json
 
-# Arquivos temporários
-*.tmp
+# OS files
 .DS_Store
 Thumbs.db
 
-# Postman cache
-.postman/
-
-# Logs de execução do Runner
-newman-*.json
-newman-*.html
-
-# Variáveis locais que não devem ser versionadas
-local-secrets.json
-.env.local
+# IDE
+.vscode/
+.idea/

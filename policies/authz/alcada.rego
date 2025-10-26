@@ -57,13 +57,13 @@ allow_desconto if allow_desconto_admin
 # MECANICO pode criar qualquer OS
 allow_os_criar if {
     input.user.role == "MECANICO"
-    input.action == "os:criar"
+    input.action == "os:create"
 }
 
 # GERENTE pode criar qualquer OS
 allow_os_criar if {
     input.user.role == "GERENTE"
-    input.action == "os:criar"
+    input.action == "os:create"
 }
 
 # OPERADOR pode aprovar OS até R$ 2.000
@@ -179,18 +179,44 @@ aprovador_requerido := "ADMIN_TENANT" if {
 
 # Ações que NÃO requerem validação de alçada (operações de leitura e gestão)
 actions_no_alcada := {
-    "modelo:list", "modelo:view",
-    "jetski:list", "jetski:view",
-    "cliente:list", "cliente:view",
-    "reserva:list", "reserva:view",
-    "locacao:list", "locacao:view",
+    # Modelos
+    "modelo:list", "modelo:view", "modelo:create", "modelo:update", "modelo:delete",
+
+    # Jetskis
+    "jetski:list", "jetski:view", "jetski:create", "jetski:update", "jetski:delete",
+
+    # Clientes
+    "cliente:list", "cliente:view", "cliente:create", "cliente:update", "cliente:delete",
+    "cliente:accept-terms",
+
+    # Reservas
+    "reserva:list", "reserva:view", "reserva:create", "reserva:update", "reserva:delete",
+    "reserva:confirmar-sinal", "reserva:confirmar", "reserva:alocar-jetski",
+
+    # Locações
+    "locacao:list", "locacao:view", "locacao:create",
     "locacao:checkin", "locacao:checkout",
+
+    # Abastecimento
     "abastecimento:view", "abastecimento:registrar",
+
+    # Fotos
     "foto:view", "foto:upload",
-    "vendedor:list", "vendedor:view",
+
+    # Vendedores
+    "vendedor:list", "vendedor:view", "vendedor:create", "vendedor:update", "vendedor:delete",
+
+    # Ordem de Serviço
+    "os:create", "os:view", "os:list", "os:update", "os:fechar",
+
+    # Members
     "member:list", "member:view", "member:deactivate",
+
+    # Relatórios e comissões
     "relatorio:operacional", "relatorio:financeiro", "relatorio:comissoes",
     "comissao:view", "comissao:calcular",
+
+    # User management
     "user:list"
 }
 

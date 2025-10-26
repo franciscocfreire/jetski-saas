@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "jetski-saas-api-v1",
     "name": "Jetski SaaS API",
-    "description": "Collection para testes manuais da API Jetski SaaS multi-tenant.\n\n## Configuração Inicial\n\n1. Importe os 4 ambientes (local, dev, hml, prd) disponíveis na pasta `postman/environments/`\n2. Selecione o ambiente desejado no dropdown do Postman\n3. Execute o request \"Get Access Token\" para obter o JWT\n4. O token será automaticamente salvo na variável `access_token` do ambiente\n5. Todos os requests protegidos usarão automaticamente este token\n\n## Multi-tenancy\n\nTodos os endpoints (exceto públicos e autenticação) requerem:\n- **Authorization**: Bearer token JWT\n- **X-Tenant-Id**: UUID do tenant (configurado na variável `tenant_id` do ambiente)\n\n## Estrutura\n\n- **Auth**: Obtenção de tokens JWT via Keycloak\n- **User**: Gerenciamento de usuários e listagem de tenants\n- **User Invitation**: Convidar e ativar usuários (fluxo OIDC completo)\n- **Tenant Members**: Gerenciamento de membros do tenant\n- **Locações (CRUD)**: Gestão completa de modelos, jetskis, vendedores, clientes e reservas\n  - **Modelos**: 6 endpoints para gestão de modelos de jetski\n  - **Jetskis**: 7 endpoints para gestão da frota (inclui status)\n  - **Vendedores**: 6 endpoints para gestão de parceiros/vendedores\n  - **Clientes**: 7 endpoints para gestão de clientes (inclui accept-terms RF03.4)\n  - **Reservas**: 9 endpoints para gestão de bookings (workflow com prioridades e modelo-based)\n- **Auth Tests**: Endpoints de teste para validação de segurança (RBAC, OPA)\n- **Health**: Health checks e métricas\n\n## User Invitation Flow (OIDC)\n\n**Novo fluxo com Keycloak OIDC:**\n1. ADMIN_TENANT convida usuário → gera token (48h)\n2. Usuário ativa conta (sem senha) → criado no Keycloak com required action UPDATE_PASSWORD\n3. Email enviado com link de login\n4. Usuário faz login → Keycloak solicita definição de senha\n5. Usuário define senha e está autenticado!\n\nVer documentação completa: `backend/OIDC_ACTIVATION_FLOW.md`\n\n## Infraestrutura\n\n**OPA (Open Policy Agent):** v1.9.0  \nPolicies modernizadas com sintaxe Rego v1 (upgrade em 2025-10-20)\n\n## Versionamento\n\nEsta collection é **viva** e será atualizada conforme novos endpoints forem adicionados.\n\nVersão: 1.5.0 - Modelo-based booking com sistema de prioridades\nÚltima atualização: 2025-10-24",
+    "description": "Collection para testes manuais da API Jetski SaaS multi-tenant.\n\n## Configuração Inicial\n\n1. Importe os 4 ambientes (local, dev, hml, prd) disponíveis na pasta `postman/environments/`\n2. Selecione o ambiente desejado no dropdown do Postman\n3. Execute o request \"Get Access Token\" para obter o JWT\n4. O token será automaticamente salvo na variável `access_token` do ambiente\n5. Todos os requests protegidos usarão automaticamente este token\n\n## Multi-tenancy\n\nTodos os endpoints (exceto públicos e autenticação) requerem:\n- **Authorization**: Bearer token JWT\n- **X-Tenant-Id**: UUID do tenant (configurado na variável `tenant_id` do ambiente)\n\n## Estrutura\n\n- **Auth**: Obtenção de tokens JWT via Keycloak\n- **User**: Gerenciamento de usuários e listagem de tenants\n- **User Invitation**: Convidar e ativar usuários (fluxo OIDC completo)\n- **Tenant Members**: Gerenciamento de membros do tenant\n- **Locações (CRUD)**: Gestão completa de modelos, jetskis, vendedores, clientes e reservas\n  - **Modelos**: 6 endpoints para gestão de modelos de jetski\n  - **Jetskis**: 7 endpoints para gestão da frota (inclui status)\n  - **Vendedores**: 6 endpoints para gestão de parceiros/vendedores\n  - **Clientes**: 7 endpoints para gestão de clientes (inclui accept-terms RF03.4)\n  - **Reservas**: 9 endpoints para gestão de bookings (workflow com prioridades e modelo-based)\n- **Locações - Operação (Check-in/Check-out)**: 🆕 **Sprint 2**\n  - **Check-in from Reservation**: Converter reserva em locação\n  - **Walk-in Check-in**: Cliente sem reserva\n  - **Check-out**: Finalizar locação com RN01 (tolerância + arredondamento 15min)\n  - **List/Get**: Consultar locações ativas e finalizadas\n- **Auth Tests**: Endpoints de teste para validação de segurança (RBAC, OPA)\n- **Health**: Health checks e métricas\n\n## User Invitation Flow (OIDC)\n\n**Novo fluxo com Keycloak OIDC:**\n1. ADMIN_TENANT convida usuário → gera token (48h)\n2. Usuário ativa conta (sem senha) → criado no Keycloak com required action UPDATE_PASSWORD\n3. Email enviado com link de login\n4. Usuário faz login → Keycloak solicita definição de senha\n5. Usuário define senha e está autenticado!\n\nVer documentação completa: `backend/OIDC_ACTIVATION_FLOW.md`\n\n## Sprint 2: Check-in/Check-out (RN01)\n\n**Novos endpoints de operação de locação:**\n- Check-in from Reservation: Converte reserva confirmada em locação ativa\n- Walk-in Check-in: Cliente sem reserva → locação direta\n- Check-out: Finaliza locação com cálculo RN01\n  - Tolerância configurável (ex: 5 min)\n  - Arredondamento para blocos de 15 min\n  - Fórmula: `billableMinutes = ceil((usedMinutes - tolerance) / 15) * 15`\n\n**Exemplo RN01:** Usado 70 min, Tolerância 5 min → Faturável 75 min (5 blocos)\n\nVer collection **\"Jetski - Jornadas\"** para fluxos completos passo-a-passo!\n\n## Infraestrutura\n\n**OPA (Open Policy Agent):** v1.9.0  \nPolicies modernizadas com sintaxe Rego v1 (upgrade em 2025-10-20)\n\n## Versionamento\n\nEsta collection é **viva** e será atualizada conforme novos endpoints forem adicionados.\n\nVersão: 1.6.0 - Sprint 2: Check-in/Check-out com RN01\nÚltima atualização: 2025-10-25",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "jetski-team"
   },
@@ -200,25 +200,36 @@
                   "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test(\"Response has access_type\", function () {",
+                  "pm.test(\"Response has accessType\", function () {",
                   "    const jsonData = pm.response.json();",
-                  "    pm.expect(jsonData).to.have.property(\"access_type\");",
-                  "    pm.expect(jsonData.access_type).to.be.oneOf([\"LIMITED\", \"UNRESTRICTED\"]);",
+                  "    pm.expect(jsonData).to.have.property(\"accessType\");",
+                  "    pm.expect(jsonData.accessType).to.be.oneOf([\"LIMITED\", \"UNRESTRICTED\"]);",
                   "});",
                   "",
                   "pm.test(\"If LIMITED, should have tenants array\", function () {",
                   "    const jsonData = pm.response.json();",
-                  "    if (jsonData.access_type === \"LIMITED\") {",
+                  "    if (jsonData.accessType === \"LIMITED\") {",
                   "        pm.expect(jsonData).to.have.property(\"tenants\");",
                   "        pm.expect(jsonData.tenants).to.be.an(\"array\");",
-                  "        pm.expect(jsonData).to.have.property(\"total_count\");",
+                  "        pm.expect(jsonData).to.have.property(\"totalTenants\");",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test(\"First tenant has correct structure\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.accessType === \"LIMITED\" && jsonData.tenants && jsonData.tenants.length > 0) {",
+                  "        const firstTenant = jsonData.tenants[0];",
+                  "        pm.expect(firstTenant).to.have.property(\"tenantId\");",
+                  "        pm.expect(firstTenant).to.have.property(\"roles\");",
+                  "        pm.expect(firstTenant.tenantId).to.be.a(\"string\");",
+                  "        pm.expect(firstTenant.roles).to.be.an(\"array\");",
                   "    }",
                   "});",
                   "",
                   "// Salva o primeiro tenant_id para uso em outros requests",
                   "const jsonData = pm.response.json();",
-                  "if (jsonData.access_type === \"LIMITED\" && jsonData.tenants && jsonData.tenants.length > 0) {",
-                  "    const firstTenantId = jsonData.tenants[0].tenant.id;",
+                  "if (jsonData.accessType === \"LIMITED\" && jsonData.tenants && jsonData.tenants.length > 0) {",
+                  "    const firstTenantId = jsonData.tenants[0].tenantId;",
                   "    pm.environment.set(\"tenant_id\", firstTenantId);",
                   "    console.log(\"✅ Primeiro tenant_id salvo:\", firstTenantId);",
                   "}"
@@ -2964,6 +2975,248 @@
       ]
     },
     {
+      "name": "Locações - Operação (Check-in/Check-out)",
+      "description": "Operações de locação: check-in, check-out e consultas (Sprint 2)\n\n## Check-in\n\n**Dois fluxos:**\n1. **Check-in from Reservation**: Converte reserva confirmada em locação ativa\n2. **Walk-in Check-in**: Cliente sem reserva → locação direta\n\n## Check-out\n\n**RN01 - Cálculo de cobrança:**\n- Tolerância configurável (ex: 5 min)\n- Arredondamento para blocos de 15 minutos\n- Fórmula: `billableMinutes = ceil((usedMinutes - tolerance) / 15) * 15`\n\n**Exemplo RN01:**\n- Usado: 70 min, Tolerância: 5 min → Faturável: 75 min (5 blocos de 15min)\n- Usado: 5 min, Tolerância: 5 min → Faturável: 0 min (dentro da tolerância)\n\n## Consultas\n\n- Listar locações (filtros: status, jetski, período)\n- Obter locação por ID (com detalhes de RN01)\n\n**Roles:** ADMIN_TENANT, GERENTE, OPERADOR\n\n**Endpoints (5 total):**\n- POST /check-in/reserva: Check-in a partir de reserva\n- POST /check-in/walk-in: Check-in direto (sem reserva)\n- POST /{id}/check-out: Finalizar locação\n- GET: Listar locações\n- GET /{id}: Obter locação por ID",
+      "item": [
+        {
+          "name": "Check-in from Reservation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.environment.set('locacao_id', locacao.id);",
+                  "    console.log('✅ Check-in realizado! Locação ID:', locacao.id);",
+                  "    console.log('   Status:', locacao.status);",
+                  "    console.log('   Horímetro inicial:', locacao.horimetroInicio);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservaId\": \"{{reserva_id}}\",\n  \"horimetroInicio\": 100.5,\n  \"observacoes\": \"Check-in realizado no horário. Jetski revisado e pronto para uso.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/check-in/reserva",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "check-in", "reserva"]
+            },
+            "description": "Realiza check-in de cliente com reserva confirmada.\n\n**Fluxo:**\n1. Valida que reserva existe e está CONFIRMADA\n2. Valida que jetski está alocado à reserva\n3. Valida que jetski está DISPONIVEL\n4. Cria locação com status EM_CURSO\n5. Altera jetski para status LOCADO\n6. Altera reserva para status FINALIZADA\n7. Registra horímetro inicial e timestamp de check-in\n\n**Campos obrigatórios:**\n- `reservaId`: UUID da reserva (CONFIRMADA)\n- `horimetroInicio`: Leitura do horímetro no início\n\n**Campos opcionais:**\n- `observacoes`: Notas sobre condições do check-in\n\n**Validações:**\n- Reserva deve estar CONFIRMADA\n- Reserva deve ter jetski alocado (jetskiId != null)\n- Jetski deve estar DISPONIVEL\n- Horímetro não pode ser negativo\n\n**Resposta (201 Created):**\n- Locação criada com:\n  - `status`: EM_CURSO\n  - `dataCheckIn`: timestamp atual\n  - `horimetroInicio`: valor informado\n  - `duracaoPrevista`: copiada da reserva\n  - Todos os dados da reserva (cliente, jetski, vendedor)\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Walk-in Check-in (sem reserva)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.environment.set('locacao_id', locacao.id);",
+                  "    console.log('✅ Check-in walk-in realizado! Locação ID:', locacao.id);",
+                  "    console.log('   Duração prevista:', locacao.duracaoPrevista, 'minutos');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jetskiId\": \"{{jetski_id}}\",\n  \"clienteId\": \"{{cliente_id}}\",\n  \"vendedorId\": \"{{vendedor_id}}\",\n  \"horimetroInicio\": 100.5,\n  \"duracaoPrevista\": 120,\n  \"observacoes\": \"Cliente walk-in sem reserva. Pagamento à vista.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/check-in/walk-in",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "check-in", "walk-in"]
+            },
+            "description": "Realiza check-in direto de cliente sem reserva prévia (walk-in).\n\n**Fluxo:**\n1. Valida que jetski existe e está DISPONIVEL\n2. Valida que cliente existe\n3. Cria locação diretamente (sem reserva) com status EM_CURSO\n4. Altera jetski para status LOCADO\n5. Registra horímetro inicial e duração prevista\n\n**Campos obrigatórios:**\n- `jetskiId`: UUID do jetski disponível\n- `clienteId`: UUID do cliente\n- `horimetroInicio`: Leitura inicial do horímetro\n- `duracaoPrevista`: Duração estimada em minutos\n\n**Campos opcionais:**\n- `vendedorId`: UUID do vendedor/parceiro\n- `observacoes`: Notas sobre o check-in\n\n**Validações:**\n- Jetski deve existir e estar DISPONIVEL\n- Cliente deve existir e ter aceito termos (termoAceite = true)\n- Duração prevista > 0\n- Horímetro não pode ser negativo\n\n**Resposta (201 Created):**\n- Locação criada com:\n  - `status`: EM_CURSO\n  - `reservaId`: null (walk-in)\n  - `dataCheckIn`: timestamp atual\n  - `horimetroInicio`: valor informado\n  - `duracaoPrevista`: valor informado\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Check-out",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const locacao = pm.response.json();",
+                  "    console.log('✅ Check-out realizado!');",
+                  "    console.log('   Minutos usados:', locacao.minutosUsados);",
+                  "    console.log('   Minutos faturáveis (RN01):', locacao.minutosFaturaveis);",
+                  "    console.log('   Valor base: R$', locacao.valorBase);",
+                  "    console.log('   Valor total: R$', locacao.valorTotal);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"horimetroFim\": 102.75,\n  \"observacoes\": \"Retornou sem avarias. Cliente satisfeito com o passeio.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/{{locacao_id}}/check-out",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "{{locacao_id}}", "check-out"]
+            },
+            "description": "Finaliza locação com check-out e aplica RN01 (cálculo de cobrança).\n\n**Fluxo:**\n1. Valida que locação está EM_CURSO\n2. Valida horímetro final ≥ inicial\n3. Calcula tempo usado (dataCheckOut - dataCheckIn)\n4. **Aplica RN01:**\n   - Deduz tolerância (ex: 5 min)\n   - Arredonda para múltiplo de 15 min (ceil)\n   - Calcula minutos faturáveis\n5. Calcula valores:\n   - `valorBase` = (minutosFaturaveis / 60) × precoBaseHora\n   - `valorTotal` = valorBase (futuro: + extras - descontos)\n6. Altera status para FINALIZADA\n7. Altera jetski para status DISPONIVEL\n8. Atualiza horímetro do jetski\n\n**RN01 - Exemplos:**\n```\nTolerância: 5 min, Preço: R$ 150/hora\n\n1) Usado: 10 min\n   → (10 - 5) = 5 min → ceil(5/15) = 1 bloco = 15 min faturáveis\n   → Valor: (15/60) × 150 = R$ 37,50\n\n2) Usado: 70 min\n   → (70 - 5) = 65 min → ceil(65/15) = 5 blocos = 75 min faturáveis\n   → Valor: (75/60) × 150 = R$ 187,50\n\n3) Usado: 5 min (dentro da tolerância)\n   → (5 - 5) = 0 min → 0 blocos = 0 min faturáveis\n   → Valor: R$ 0,00\n```\n\n**Campos obrigatórios:**\n- `horimetroFim`: Leitura final do horímetro\n\n**Campos opcionais:**\n- `observacoes`: Notas sobre condições do retorno\n\n**Validações:**\n- Locação deve estar EM_CURSO\n- Horímetro final ≥ horímetro inicial\n\n**Resposta (200 OK):**\n- Locação atualizada com:\n  - `status`: FINALIZADA\n  - `dataCheckOut`: timestamp atual\n  - `horimetroFim`: valor informado\n  - `minutosUsados`: calculado\n  - `minutosFaturaveis`: após RN01\n  - `valorBase`: calculado\n  - `valorTotal`: calculado\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "List Locações",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const locacoes = pm.response.json();",
+                  "    console.log('✅ Locações encontradas:', locacoes.length);",
+                  "    ",
+                  "    const emCurso = locacoes.filter(l => l.status === 'EM_CURSO').length;",
+                  "    const finalizadas = locacoes.filter(l => l.status === 'FINALIZADA').length;",
+                  "    ",
+                  "    console.log('   Em curso:', emCurso);",
+                  "    console.log('   Finalizadas:', finalizadas);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes?status=EM_CURSO",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "EM_CURSO",
+                  "description": "Filtro por status: EM_CURSO, FINALIZADA, CANCELADA"
+                },
+                {
+                  "key": "jetskiId",
+                  "value": "{{jetski_id}}",
+                  "description": "Filtro por jetski específico",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista todas as locações do tenant com filtros opcionais.\n\n**Query Parameters (opcionais):**\n- `status`: Filtrar por status (EM_CURSO, FINALIZADA, CANCELADA)\n- `jetskiId`: Filtrar por jetski específico (UUID)\n\n**Exemplos de uso:**\n- Locações em curso: `?status=EM_CURSO`\n- Histórico de um jetski: `?jetskiId=<uuid>`\n- Todas: sem query params\n\n**Resposta (200 OK):**\n- Array de locações ordenadas por `dataCheckIn DESC`\n- Cada locação inclui:\n  - Dados da locação (status, datas, horímetros)\n  - Cálculos RN01 (minutos usados/faturáveis, valores)\n  - IDs relacionados (reserva, jetski, cliente, vendedor)\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Locação by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/{{locacao_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "{{locacao_id}}"]
+            },
+            "description": "Obtém detalhes completos de uma locação específica.\n\n**Resposta (200 OK):**\n```json\n{\n  \"id\": \"uuid\",\n  \"tenantId\": \"uuid\",\n  \"reservaId\": \"uuid ou null\",\n  \"jetskiId\": \"uuid\",\n  \"clienteId\": \"uuid\",\n  \"vendedorId\": \"uuid ou null\",\n  \n  \"dataCheckIn\": \"2025-10-25T10:00:00Z\",\n  \"dataCheckOut\": \"2025-10-25T12:15:00Z\",\n  \n  \"horimetroInicio\": 100.5,\n  \"horimetroFim\": 102.75,\n  \n  \"duracaoPrevista\": 120,\n  \"minutosUsados\": 135,\n  \"minutosFaturaveis\": 135,\n  \n  \"valorBase\": 337.50,\n  \"valorTotal\": 337.50,\n  \n  \"status\": \"FINALIZADA\",\n  \"observacoes\": \"...\",\n  \n  \"createdAt\": \"2025-10-25T10:00:00Z\",\n  \"updatedAt\": \"2025-10-25T12:15:00Z\"\n}\n```\n\n**Use case:**\n- Consultar detalhes após check-out\n- Verificar cálculo RN01 aplicado\n- Auditoria de operações\n\n**Resposta (404 Not Found):** Locação não encontrada ou não pertence ao tenant\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Auth Tests",
       "description": "Endpoints de teste para validação de segurança (RBAC, OPA, multi-tenancy)\n\n⚠️ **IMPORTANTE**: Estes endpoints são apenas para testes e devem ser removidos em produção.",
       "item": [
@@ -3678,9 +3931,9 @@
   "variable": [
     {
       "key": "collection_version",
-      "value": "1.3.0",
+      "value": "1.6.0",
       "type": "string",
-      "description": "Feature: Added Locações CRUD endpoints - Modelos, Jetskis, Vendedores, Clientes (2025-10-23)"
+      "description": "Sprint 2: Check-in/Check-out with RN01 billing calculation (2025-10-25)"
     }
   ]
 }

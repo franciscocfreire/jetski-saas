@@ -14,8 +14,8 @@ import future.keywords.in
 # - OPERADOR: Operações do pier (check-in/out, abastecimento, fotos)
 # - GERENTE: Gestão operacional (descontos, OS, fechamentos diários)
 # - FINANCEIRO: Gestão financeira (comissões, fechamentos mensais)
-# - MECANICO: Manutenção (criar/fechar OS)
-# - VENDEDOR: Vendas (criar reservas, ganhar comissão)
+# - MECANICO: Manutenção (create/fechar OS)
+# - VENDEDOR: Vendas (create reservas, ganhar comissão)
 # - ADMIN_TENANT: Administrador do tenant (acesso total ao tenant)
 #
 # =============================================================================
@@ -25,6 +25,7 @@ role_permissions := {
     "OPERADOR": [
         "locacao:list",
         "locacao:view",
+        "locacao:create",
         "locacao:checkin",
         "locacao:checkout",
         "abastecimento:registrar",
@@ -33,12 +34,16 @@ role_permissions := {
         "foto:view",
         "jetski:view",
         "jetski:list",
+        "jetski:update",
         "modelo:view",
         "modelo:list",
         "cliente:view",
         "cliente:list",
+        "cliente:update",
+        "cliente:accept-terms",
         "reserva:view",
-        "reserva:list"
+        "reserva:list",
+        "reserva:alocar-jetski"
     ],
 
     "GERENTE": [
@@ -84,7 +89,7 @@ role_permissions := {
     "MECANICO": [
         "jetski:view",
         "jetski:list",
-        "os:criar",
+        "os:create",
         "os:fechar",
         "os:view",
         "os:list",
@@ -95,11 +100,12 @@ role_permissions := {
     ],
 
     "VENDEDOR": [
-        "reserva:criar",
+        "reserva:create",
         "reserva:view",
         "reserva:list",
         "reserva:update",
-        "cliente:criar",
+        "reserva:confirmar-sinal",
+        "cliente:create",
         "cliente:view",
         "cliente:list",
         "cliente:update",
