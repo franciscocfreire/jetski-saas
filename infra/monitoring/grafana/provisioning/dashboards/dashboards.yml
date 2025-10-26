@@ -1,0 +1,15 @@
+# Grafana Dashboards Provisioning
+# Auto-load dashboards from file system
+
+apiVersion: 1
+
+providers:
+  - name: 'Jetski Dashboards'
+    orgId: 1
+    folder: 'Jetski SaaS'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

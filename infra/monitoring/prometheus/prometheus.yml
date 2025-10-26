@@ -1,0 +1,40 @@
+# Prometheus Configuration for Jetski SaaS
+# Scrapes metrics from Spring Boot backend
+
+global:
+  scrape_interval: 15s      # Default scrape interval
+  evaluation_interval: 15s  # Evaluate rules every 15s
+  external_labels:
+    cluster: 'jetski-local'
+    environment: 'local'
+
+# Scrape configurations
+scrape_configs:
+  # Jetski Backend API
+  - job_name: 'jetski-backend'
+    metrics_path: '/api/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8090']
+        labels:
+          application: 'jetski-api'
+          environment: 'local'
+
+    # Relabel to add more metadata
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'jetski-backend'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          application: 'prometheus'
+
+  # Grafana monitoring (optional)
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+        labels:
+          application: 'grafana'
