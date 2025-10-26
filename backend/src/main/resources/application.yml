@@ -78,9 +78,17 @@ management:
   endpoint:
     health:
       show-details: always
+    prometheus:
+      enabled: true
   metrics:
     tags:
       application: ${spring.application.name}
+      environment: ${spring.profiles.active:default}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        jetski.rental.duration: true
+        jetski.opa.decision.duration: true
 
 springdoc:
   api-docs:

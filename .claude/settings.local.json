@@ -99,7 +99,10 @@
       "Bash(kill:*)",
       "Bash(if [ -f /tmp/admin_token.txt ])",
       "Bash(then echo \"Admin token exists\" cat /tmp/admin_token.txt)",
-      "Bash(/tmp/test_jornada1_apis.sh)"
+      "Bash(/tmp/test_jornada1_apis.sh)",
+      "Bash(cp:*)",
+      "Bash(./reset-ambiente-local.sh)",
+      "Bash(CUSTOM_TRACE=\"my-custom-trace-12345\":*)"
     ],
     "deny": [],
     "ask": []

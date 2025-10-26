@@ -3,6 +3,7 @@ package com.jetski.shared.security;
 import com.jetski.shared.internal.FilterChainExceptionFilter;
 import com.jetski.shared.internal.JwtAuthenticationConverter;
 import com.jetski.shared.internal.TenantFilter;
+import com.jetski.shared.observability.BusinessMetrics;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -46,14 +47,17 @@ public class SecurityConfig {
     private final JwtAuthenticationConverter jwtAuthenticationConverter;
     private final TenantAccessValidator tenantAccessValidator;
     private final FilterChainExceptionFilter filterChainExceptionFilter;
+    private final BusinessMetrics businessMetrics;
 
     public SecurityConfig(
             JwtAuthenticationConverter jwtAuthenticationConverter,
             TenantAccessValidator tenantAccessValidator,
-            FilterChainExceptionFilter filterChainExceptionFilter) {
+            FilterChainExceptionFilter filterChainExceptionFilter,
+            BusinessMetrics businessMetrics) {
         this.jwtAuthenticationConverter = jwtAuthenticationConverter;
         this.tenantAccessValidator = tenantAccessValidator;
         this.filterChainExceptionFilter = filterChainExceptionFilter;
+        this.businessMetrics = businessMetrics;
     }
 
     /**
@@ -61,7 +65,7 @@ public class SecurityConfig {
      */
     @Bean
     public TenantFilter tenantFilter() {
-        return new TenantFilter(tenantAccessValidator);
+        return new TenantFilter(tenantAccessValidator, businessMetrics);
     }
 
     /**
@@ -79,6 +83,8 @@ public class SecurityConfig {
             .securityMatcher(new OrRequestMatcher(
                 new AntPathRequestMatcher("/actuator/health"),
                 new AntPathRequestMatcher("/actuator/info"),
+                new AntPathRequestMatcher("/actuator/prometheus"),  // Prometheus metrics
+                new AntPathRequestMatcher("/actuator/metrics/**"),  // Micrometer metrics
                 new AntPathRequestMatcher("/swagger-ui.html"),
                 new AntPathRequestMatcher("/swagger-ui/**"),
                 new AntPathRequestMatcher("/v3/api-docs/**"),

@@ -116,21 +116,12 @@ echo "7️⃣  Verificando migrations aplicadas..."
 MIGRATION_COUNT=$(mvn flyway:info -q 2>/dev/null | grep -c "Success" || echo "0")
 echo "   ✅ ${MIGRATION_COUNT} migrations aplicadas com sucesso!"
 
-# 8. Configurar Keycloak (opcional)
+# 8. Configurar Keycloak (automático - sempre Y)
 if [ "$KC_AVAILABLE" = true ]; then
     echo "8️⃣  Configurando Keycloak..."
-    echo ""
-    echo "   Deseja executar o setup do Keycloak agora? (y/n)"
-    read -r SETUP_KC
-
-    if [ "$SETUP_KC" = "y" ] || [ "$SETUP_KC" = "Y" ]; then
-        echo "   Executando setup do Keycloak..."
-        bash "$SCRIPT_DIR/infra/keycloak-setup/setup-keycloak-local.sh"
-        KEYCLOAK_SETUP_DONE=true
-    else
-        echo "   ⏭️  Pulando setup do Keycloak (você pode rodar manualmente depois)"
-        KEYCLOAK_SETUP_DONE=false
-    fi
+    echo "   Executando setup do Keycloak automaticamente..."
+    bash "$SCRIPT_DIR/infra/keycloak-setup/setup-keycloak-local.sh"
+    KEYCLOAK_SETUP_DONE=true
 else
     echo "8️⃣  ⏭️  Pulando configuração do Keycloak (não disponível)"
     KEYCLOAK_SETUP_DONE=false

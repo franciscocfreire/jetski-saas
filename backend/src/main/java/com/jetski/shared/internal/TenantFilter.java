@@ -1,6 +1,7 @@
 package com.jetski.shared.internal;
 
 import com.jetski.shared.exception.InvalidTenantException;
+import com.jetski.shared.observability.BusinessMetrics;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.shared.security.TenantAccessValidator;
 import com.jetski.shared.security.TenantAccessInfo;
@@ -50,6 +51,7 @@ public class TenantFilter extends OncePerRequestFilter {
     private static final String TENANT_HEADER_NAME = "X-Tenant-Id";
 
     private final TenantAccessValidator tenantAccessValidator;
+    private final BusinessMetrics businessMetrics;
 
     @Override
     protected void doFilterInternal(
@@ -89,6 +91,9 @@ public class TenantFilter extends OncePerRequestFilter {
 
             // 5. Store tenant in context
             TenantContext.setTenantId(tenantId);
+
+            // 5.1. Record tenant context switch metric
+            businessMetrics.recordTenantContextSwitch(tenantId.toString());
 
             log.debug("Tenant context set successfully: tenantId={}, path={}, method={}",
                     tenantId, requestPath, request.getMethod());
