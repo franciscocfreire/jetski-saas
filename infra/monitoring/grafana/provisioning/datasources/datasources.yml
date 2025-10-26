@@ -1,5 +1,5 @@
 # Grafana Datasources Configuration
-# Auto-provisioned datasources for Prometheus and Loki
+# Auto-provisioned datasources for Prometheus, Loki, and Jaeger
 
 apiVersion: 1
 
@@ -25,3 +25,20 @@ datasources:
     jsonData:
       maxLines: 1000
       timeout: "60s"
+
+  # Jaeger datasource for distributed tracing
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: true
+    jsonData:
+      tracesToLogs:
+        datasourceUid: 'Loki'
+        tags: ['correlation_id', 'trace_id']
+        mappedTags: [{ key: 'correlation_id', value: 'correlation_id' }]
+        mapTagNamesEnabled: true
+        spanStartTimeShift: '1h'
+        spanEndTimeShift: '1h'
+        filterByTraceID: true
+        filterBySpanID: false

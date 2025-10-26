@@ -45,12 +45,15 @@ function start_stack() {
     print_success "Monitoring stack started successfully!"
     echo ""
     print_info "Services:"
-    echo "  - Grafana:    http://localhost:3000 (admin/admin)"
-    echo "  - Prometheus: http://localhost:9090"
-    echo "  - Loki:       http://localhost:3100"
+    echo "  - Grafana:      http://localhost:3000 (admin/admin)"
+    echo "  - Prometheus:   http://localhost:9090"
+    echo "  - Loki:         http://localhost:3100"
+    echo "  - Alertmanager: http://localhost:9093"
+    echo "  - Jaeger UI:    http://localhost:16686"
+    echo "  - Promtail:     http://localhost:9080"
     echo ""
     print_info "Waiting for services to be ready..."
-    sleep 5
+    sleep 10
 
     # Check if services are healthy
     if curl -s http://localhost:3000 > /dev/null 2>&1; then
@@ -69,6 +72,24 @@ function start_stack() {
         print_success "Loki is ready!"
     else
         print_error "Loki is not responding yet. Please wait a moment."
+    fi
+
+    if curl -s http://localhost:9093/-/healthy > /dev/null 2>&1; then
+        print_success "Alertmanager is ready!"
+    else
+        print_error "Alertmanager is not responding yet. Please wait a moment."
+    fi
+
+    if curl -s http://localhost:16686 > /dev/null 2>&1; then
+        print_success "Jaeger is ready!"
+    else
+        print_error "Jaeger is not responding yet. Please wait a moment."
+    fi
+
+    if curl -s http://localhost:9080/ready > /dev/null 2>&1; then
+        print_success "Promtail is ready!"
+    else
+        print_error "Promtail is not responding yet. Please wait a moment."
     fi
 }
 
@@ -117,12 +138,21 @@ function show_help() {
     echo "Usage: $0 {start|stop|restart|status|logs|clean}"
     echo ""
     echo "Commands:"
-    echo "  start    - Start monitoring stack (Prometheus + Grafana + Loki)"
+    echo "  start    - Start full observability stack"
+    echo "             (Prometheus + Grafana + Loki + Promtail + Alertmanager + Jaeger)"
     echo "  stop     - Stop monitoring stack"
     echo "  restart  - Restart monitoring stack"
     echo "  status   - Show status of services"
     echo "  logs     - Follow logs of all services"
     echo "  clean    - Stop and remove volumes (WARNING: deletes data)"
+    echo ""
+    echo "Services:"
+    echo "  • Prometheus   - Metrics collection (port 9090)"
+    echo "  • Grafana      - Visualization dashboards (port 3000)"
+    echo "  • Loki         - Log aggregation (port 3100)"
+    echo "  • Promtail     - Log shipping agent (port 9080)"
+    echo "  • Alertmanager - Alert routing & notifications (port 9093)"
+    echo "  • Jaeger       - Distributed tracing (port 16686)"
     echo ""
 }
 
