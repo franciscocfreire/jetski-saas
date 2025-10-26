@@ -8,6 +8,10 @@ global:
     cluster: 'jetski-local'
     environment: 'local'
 
+# Alert rules
+rule_files:
+  - '/etc/prometheus/rules/*.yml'
+
 # Scrape configurations
 scrape_configs:
   # Jetski Backend API

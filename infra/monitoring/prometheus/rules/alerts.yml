@@ -1,0 +1,117 @@
+groups:
+  - name: jetski_alerts
+    interval: 30s
+    rules:
+      # High Error Rate Alert
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{application="jetski-api",status=~"5.."}[5m]))
+            /
+            sum(rate(http_server_requests_seconds_count{application="jetski-api"}[5m]))
+          ) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "High 5xx error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      # High Response Time
+      - alert: HighResponseTime
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_server_requests_seconds_bucket{application="jetski-api"}[5m])
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "High API response time"
+          description: "P95 latency is {{ $value }}s (threshold: 2s)"
+
+      # Service Down
+      - alert: ServiceDown
+        expr: up{job="jetski-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "Jetski backend service is down"
+          description: "Service {{ $labels.instance }} has been down for more than 1 minute"
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            jvm_memory_used_bytes{application="jetski-api",area="heap"}
+            /
+            jvm_memory_max_bytes{application="jetski-api",area="heap"}
+          ) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: backend
+        annotations:
+          summary: "High JVM heap memory usage"
+          description: "Heap usage is {{ $value | humanizePercentage }} (threshold: 85%)"
+
+      # Database Connection Pool Exhaustion
+      - alert: DatabaseConnectionPoolLow
+        expr: |
+          (
+            hikaricp_connections_active{application="jetski-api"}
+            /
+            hikaricp_connections_max{application="jetski-api"}
+          ) * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database connection pool usage high"
+          description: "Connection pool usage is {{ $value | humanizePercentage }} (threshold: 80%)"
+
+      # OPA Decision Latency
+      - alert: HighOPALatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(jetski_opa_decision_duration_seconds_bucket[5m])
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: authorization
+        annotations:
+          summary: "High OPA authorization latency"
+          description: "P95 OPA decision latency is {{ $value }}s (threshold: 0.5s)"
+
+      # High Authentication Failure Rate
+      - alert: HighAuthFailureRate
+        expr: |
+          (
+            rate(jetski_auth_login_failure_total[5m])
+            /
+            (rate(jetski_auth_login_success_total[5m]) + rate(jetski_auth_login_failure_total[5m]))
+          ) * 100 > 20
+        for: 5m
+        labels:
+          severity: warning
+          component: authentication
+        annotations:
+          summary: "High authentication failure rate"
+          description: "Auth failure rate is {{ $value | humanizePercentage }} (threshold: 20%)"
+
+      # Excessive GC Pause Time
+      - alert: HighGCPauseTime
+        expr: rate(jvm_gc_pause_seconds_sum{application="jetski-api"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: jvm
+        annotations:
+          summary: "Excessive JVM garbage collection pause time"
+          description: "GC pause time is {{ $value }}s per second (threshold: 0.1s/s)"
