@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Import Spring Boot's default configuration -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- Property: Application name -->
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="jetski-api"/>
+
+    <!-- Property: Active profile -->
+    <springProperty scope="context" name="activeProfile" source="spring.profiles.active" defaultValue="local"/>
+
+    <!-- ================================================================ -->
+    <!-- APPENDERS -->
+    <!-- ================================================================ -->
+
+    <!-- Console Appender with JSON format (for dev/prod with log aggregation) -->
+    <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <!-- Add custom fields to all log entries -->
+            <customFields>{"app":"${appName}","environment":"${activeProfile}"}</customFields>
+
+            <!-- Include specific MDC keys -->
+            <includeMdcKeyName>trace_id</includeMdcKeyName>
+            <includeMdcKeyName>tenant_id</includeMdcKeyName>
+            <includeMdcKeyName>user_id</includeMdcKeyName>
+            <includeMdcKeyName>remote_ip</includeMdcKeyName>
+            <includeMdcKeyName>request_method</includeMdcKeyName>
+            <includeMdcKeyName>request_uri</includeMdcKeyName>
+
+            <!-- Timestamp format (ISO 8601 with UTC) -->
+            <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampPattern>
+
+            <!-- Pretty print for readability (disable in prod for performance) -->
+            <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
+        </encoder>
+    </appender>
+
+    <!-- Console Appender with plain text (for local development readability) -->
+    <appender name="CONSOLE_TEXT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <!-- Colorized pattern for better readability in terminal -->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %clr([%X{trace_id:-no-trace}]){cyan} %clr([%thread]){magenta} %clr(%-5level) %clr(%logger{36}){blue} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- File Appender with JSON format (for production with log aggregation) -->
+    <appender name="FILE_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/jetski-api.log</file>
+
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"app":"${appName}","environment":"${activeProfile}"}</customFields>
+            <includeMdcKeyName>trace_id</includeMdcKeyName>
+            <includeMdcKeyName>tenant_id</includeMdcKeyName>
+            <includeMdcKeyName>user_id</includeMdcKeyName>
+            <includeMdcKeyName>remote_ip</includeMdcKeyName>
+            <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampPattern>
+
+            <!-- No pretty print in file (compact JSON for better performance) -->
+        </encoder>
+
+        <!-- Rolling policy: Daily rotation + size-based -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/jetski-api-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+
+            <!-- Keep 30 days of logs -->
+            <maxHistory>30</maxHistory>
+
+            <!-- Size-based triggering within the same day -->
+            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+
+            <!-- Total log files size cap (10GB) -->
+            <totalSizeCap>10GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- ================================================================ -->
+    <!-- PROFILE-SPECIFIC CONFIGURATIONS -->
+    <!-- ================================================================ -->
+
+    <!-- LOCAL PROFILE: Plain text console for readability during development -->
+    <springProfile name="local">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_TEXT"/>
+        </root>
+
+        <!-- Debug level for application code -->
+        <logger name="com.jetski" level="DEBUG"/>
+
+        <!-- Debug Spring Security for troubleshooting OAuth2/ABAC -->
+        <logger name="org.springframework.security" level="DEBUG"/>
+
+        <!-- Debug SQL queries for database troubleshooting -->
+        <logger name="org.hibernate.SQL" level="DEBUG"/>
+
+        <!-- Info level for Flyway migrations -->
+        <logger name="org.flywaydb" level="INFO"/>
+
+        <!-- Info level for HikariCP connection pool -->
+        <logger name="com.zaxxer.hikari" level="INFO"/>
+    </springProfile>
+
+    <!-- DEV PROFILE: JSON console for testing log aggregation -->
+    <springProfile name="dev">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_JSON"/>
+        </root>
+
+        <!-- Debug level for application code -->
+        <logger name="com.jetski" level="DEBUG"/>
+
+        <!-- Info level for Spring Security (less noise than DEBUG) -->
+        <logger name="org.springframework.security" level="INFO"/>
+
+        <!-- Debug SQL queries -->
+        <logger name="org.hibernate.SQL" level="DEBUG"/>
+
+        <!-- Debug HikariCP for connection pool monitoring -->
+        <logger name="com.zaxxer.hikari" level="DEBUG"/>
+    </springProfile>
+
+    <!-- TEST PROFILE: Quiet logging for tests (avoid console noise) -->
+    <springProfile name="test">
+        <root level="WARN">
+            <appender-ref ref="CONSOLE_TEXT"/>
+        </root>
+
+        <!-- Info level for application code in tests -->
+        <logger name="com.jetski" level="INFO"/>
+
+        <!-- Suppress Spring test container logs -->
+        <logger name="org.testcontainers" level="WARN"/>
+        <logger name="com.github.dockerjava" level="WARN"/>
+    </springProfile>
+
+    <!-- PROD PROFILE: JSON to both console and file for production -->
+    <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE_JSON"/>
+            <appender-ref ref="FILE_JSON"/>
+        </root>
+
+        <!-- Info level for application code (no DEBUG in production) -->
+        <logger name="com.jetski" level="INFO"/>
+
+        <!-- Info level for Spring Security -->
+        <logger name="org.springframework.security" level="INFO"/>
+
+        <!-- Warn level for Hibernate (no SQL logging in prod) -->
+        <logger name="org.hibernate" level="WARN"/>
+
+        <!-- Info level for HikariCP -->
+        <logger name="com.zaxxer.hikari" level="INFO"/>
+
+        <!-- Warn level for noisy libraries -->
+        <logger name="org.springframework.web" level="WARN"/>
+        <logger name="org.springframework.boot" level="INFO"/>
+    </springProfile>
+
+</configuration>

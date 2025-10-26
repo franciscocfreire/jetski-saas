@@ -156,6 +156,19 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- Observability - Logs Estruturados (JSON) -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>7.4</version>
+        </dependency>
+
+        <!-- Observability - Métricas (Prometheus) -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!-- Spring Modulith - Modular Monolith Support -->
         <dependency>
             <groupId>org.springframework.modulith</groupId>
