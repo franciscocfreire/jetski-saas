@@ -380,6 +380,17 @@
           "name": "1.1. 👑 Admin cria Modelo",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Gera timestamp único para evitar duplicação em múltiplas execuções",
+                  "const timestamp = Date.now();",
+                  "pm.collectionVariables.set('run_timestamp', timestamp);",
+                  "pm.collectionVariables.set('modelo_nome', `VX Cruiser HO ${timestamp}`);"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "exec": [
@@ -392,9 +403,9 @@
                   "    pm.expect(modelo.id).to.be.a('string');",
                   "});",
                   "",
-                  "pm.test('Modelo possui nome correto', function () {",
+                  "pm.test('Modelo possui dados corretos', function () {",
                   "    const modelo = pm.response.json();",
-                  "    pm.expect(modelo.nome).to.eql('VX Cruiser HO');",
+                  "    pm.expect(modelo.nome).to.include('VX Cruiser HO');",
                   "    pm.expect(modelo.fabricante).to.eql('Yamaha');",
                   "});",
                   "",
@@ -422,7 +433,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fabricante\": \"Yamaha\",\n  \"nome\": \"VX Cruiser HO\",\n  \"capacidadePessoas\": 3,\n  \"potenciaHp\": 180,\n  \"precoBaseHora\": 350.00,\n  \"toleranciaMin\": 5,\n  \"ativo\": true\n}"
+              "raw": "{\n  \"fabricante\": \"Yamaha\",\n  \"nome\": \"{{modelo_nome}}\",\n  \"capacidadePessoas\": 3,\n  \"potenciaHp\": 180,\n  \"precoBaseHora\": 350.00,\n  \"toleranciaMin\": 5,\n  \"ativo\": true\n}"
             },
             "url": {
               "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/modelos",
@@ -435,6 +446,16 @@
         {
           "name": "1.2. 👑 Admin cadastra Jetski",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Usa o timestamp da execução para gerar série única",
+                  "const timestamp = pm.collectionVariables.get('run_timestamp') || Date.now();",
+                  "pm.collectionVariables.set('jetski_serie', `YAMAHA-VX-${timestamp}`);"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -476,7 +497,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"modeloId\": \"{{modelo_id}}\",\n  \"serie\": \"YAMAHA-VX-001\",\n  \"ano\": 2024,\n  \"horimetroAtual\": 100.5,\n  \"status\": \"DISPONIVEL\",\n  \"ativo\": true\n}"
+              "raw": "{\n  \"modeloId\": \"{{modelo_id}}\",\n  \"serie\": \"{{jetski_serie}}\",\n  \"ano\": 2024,\n  \"horimetroAtual\": 100.5,\n  \"status\": \"DISPONIVEL\",\n  \"ativo\": true\n}"
             },
             "url": {
               "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/jetskis",
