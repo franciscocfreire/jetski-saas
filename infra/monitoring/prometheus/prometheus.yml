@@ -15,10 +15,12 @@ rule_files:
 # Scrape configurations
 scrape_configs:
   # Jetski Backend API
+  # Note: For WSL2, use the WSL2 host IP instead of host.docker.internal
+  # Get IP with: ip addr show eth0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1
   - job_name: 'jetski-backend'
     metrics_path: '/api/actuator/prometheus'
     static_configs:
-      - targets: ['host.docker.internal:8090']
+      - targets: ['172.30.197.110:8090']  # WSL2 host IP (adjust if your IP is different)
         labels:
           application: 'jetski-api'
           environment: 'local'
