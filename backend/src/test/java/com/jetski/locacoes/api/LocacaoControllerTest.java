@@ -71,6 +71,9 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
     private VendedorRepository vendedorRepository;
 
     @Autowired
+    private FotoRepository fotoRepository;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     @MockBean
@@ -370,6 +373,9 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
             .build();
         locacao = locacaoRepository.save(locacao);
 
+        // Create 4 mandatory check-out photos (Sprint 2 requirement)
+        createCheckOutPhotos(locacao.getId());
+
         testJetski.setStatus(JetskiStatus.LOCADO);
         jetskiRepository.save(testJetski);
 
@@ -418,6 +424,9 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
             .build();
         locacao = locacaoRepository.save(locacao);
 
+        // Create 4 mandatory check-out photos (Sprint 2 requirement)
+        createCheckOutPhotos(locacao.getId());
+
         testJetski.setStatus(JetskiStatus.LOCADO);
         jetskiRepository.save(testJetski);
 
@@ -453,6 +462,9 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
             .status(LocacaoStatus.EM_CURSO)
             .build();
         locacao = locacaoRepository.save(locacao);
+
+        // Create 4 mandatory check-out photos (Sprint 2 requirement)
+        createCheckOutPhotos(locacao.getId());
 
         testJetski.setStatus(JetskiStatus.LOCADO);
         jetskiRepository.save(testJetski);
@@ -667,5 +679,45 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         }
 
         return locacaoRepository.save(locacao);
+    }
+
+    /**
+     * Helper method to create the 4 mandatory check-in photos for a locacao
+     */
+    private void createCheckInPhotos(UUID locacaoId) {
+        createPhoto(locacaoId, FotoTipo.CHECKIN_FRENTE);
+        createPhoto(locacaoId, FotoTipo.CHECKIN_LATERAL_ESQ);
+        createPhoto(locacaoId, FotoTipo.CHECKIN_LATERAL_DIR);
+        createPhoto(locacaoId, FotoTipo.CHECKIN_HORIMETRO);
+    }
+
+    /**
+     * Helper method to create the 4 mandatory check-out photos for a locacao
+     */
+    private void createCheckOutPhotos(UUID locacaoId) {
+        createPhoto(locacaoId, FotoTipo.CHECKOUT_FRENTE);
+        createPhoto(locacaoId, FotoTipo.CHECKOUT_LATERAL_ESQ);
+        createPhoto(locacaoId, FotoTipo.CHECKOUT_LATERAL_DIR);
+        createPhoto(locacaoId, FotoTipo.CHECKOUT_HORIMETRO);
+    }
+
+    /**
+     * Helper method to create a single photo
+     */
+    private void createPhoto(UUID locacaoId, FotoTipo tipo) {
+        Foto foto = Foto.builder()
+            .tenantId(TENANT_ID)
+            .locacaoId(locacaoId)
+            .jetskiId(testJetski.getId())
+            .tipo(tipo)
+            .url("https://fake-storage.local/foto.jpg")
+            .s3Key(TENANT_ID + "/" + locacaoId + "/" + tipo.name() + ".jpg")
+            .filename(tipo.name() + ".jpg")
+            .contentType("image/jpeg")
+            .sizeBytes(1024L)
+            .sha256Hash("abc123")
+            .uploadedAt(java.time.Instant.now())
+            .build();
+        fotoRepository.save(foto);
     }
 }

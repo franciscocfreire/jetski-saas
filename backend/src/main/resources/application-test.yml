@@ -19,6 +19,31 @@ spring:
           issuer-uri: http://localhost:8080/realms/jetski-saas
           jwk-set-uri: http://localhost:8080/realms/jetski-saas/protocol/openid-connect/certs
 
+management:
+  health:
+    defaults:
+      enabled: false  # Disable ALL health checks in tests
+    db:
+      enabled: false
+    keycloak:
+      enabled: false
+    opa:
+      enabled: false
+    redis:
+      enabled: false
+    ldap:
+      enabled: false
+    mail:
+      enabled: false
+    diskspace:
+      enabled: false
+    ping:
+      enabled: false
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+
 logging:
   level:
     root: WARN

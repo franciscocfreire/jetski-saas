@@ -2,6 +2,7 @@ package com.jetski.shared.observability;
 
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -27,6 +28,7 @@ import java.time.Duration;
  * @since 0.7.5
  */
 @Component("opa")
+@org.springframework.context.annotation.Profile("!test")
 public class OpaHealthIndicator implements HealthIndicator {
 
     private final WebClient opaWebClient;

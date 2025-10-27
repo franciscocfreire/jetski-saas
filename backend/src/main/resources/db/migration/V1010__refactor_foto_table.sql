@@ -17,8 +17,12 @@ CREATE TABLE foto (
     locacao_id UUID,              -- Nullable (photos can be standalone)
     jetski_id UUID,               -- Nullable (for maintenance photos)
 
-    -- Photo type: CHECK_IN, CHECK_OUT, INCIDENTE, MANUTENCAO
-    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('CHECK_IN', 'CHECK_OUT', 'INCIDENTE', 'MANUTENCAO')),
+    -- Photo type: CHECKIN_*, CHECKOUT_*, INCIDENTE, MANUTENCAO
+    tipo VARCHAR(50) NOT NULL CHECK (tipo IN (
+        'CHECKIN_FRENTE', 'CHECKIN_LATERAL_ESQ', 'CHECKIN_LATERAL_DIR', 'CHECKIN_HORIMETRO',
+        'CHECKOUT_FRENTE', 'CHECKOUT_LATERAL_ESQ', 'CHECKOUT_LATERAL_DIR', 'CHECKOUT_HORIMETRO',
+        'INCIDENTE', 'MANUTENCAO'
+    )),
 
     -- S3 storage
     url TEXT NOT NULL,            -- Full S3 URL
@@ -49,6 +53,6 @@ CREATE UNIQUE INDEX idx_foto_s3_key ON foto(tenant_id, s3_key);
 
 -- Comments
 COMMENT ON TABLE foto IS 'Sprint 2: Photo metadata with S3 storage integration';
-COMMENT ON COLUMN foto.tipo IS 'CHECK_IN, CHECK_OUT, INCIDENTE, MANUTENCAO';
+COMMENT ON COLUMN foto.tipo IS 'CHECKIN_FRENTE, CHECKIN_LATERAL_ESQ, CHECKIN_LATERAL_DIR, CHECKIN_HORIMETRO, CHECKOUT_FRENTE, CHECKOUT_LATERAL_ESQ, CHECKOUT_LATERAL_DIR, CHECKOUT_HORIMETRO, INCIDENTE, MANUTENCAO';
 COMMENT ON COLUMN foto.s3_key IS 'S3 object key: tenant_id/locacao/id/tipo_timestamp_uuid.ext';
 COMMENT ON COLUMN foto.sha256_hash IS 'SHA-256 hash for integrity verification';

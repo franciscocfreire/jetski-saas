@@ -5,6 +5,7 @@ import com.jetski.locacoes.domain.FotoTipo;
 import com.jetski.locacoes.internal.repository.FotoRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.exception.ConflictException;
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.shared.storage.StorageService;
 import com.jetski.shared.storage.PresignedUrl;
@@ -62,7 +63,7 @@ public class FotoService {
             tenantId, request.getLocacaoId(), request.getTipoFoto()
         );
         if (exists) {
-            throw new BusinessException(
+            throw new ConflictException(
                 String.format("Já existe foto do tipo %s para esta locação", request.getTipoFoto())
             );
         }

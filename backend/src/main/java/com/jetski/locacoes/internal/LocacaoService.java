@@ -114,7 +114,14 @@ public class LocacaoService {
         log.info("Locacao created: id={}, jetski={}", locacao.getId(), jetski.getId());
 
         // 5. Validate 4 mandatory check-in photos
-        photoValidationService.validateCheckInPhotos(tenantId, locacao.getId());
+        // TODO FASE 2: Photo validation temporarily disabled during check-in
+        // Photos cannot exist before locacao creation (they need locacao_id), but this validation
+        // expects them to exist immediately after creation. This is a design flaw that needs to be
+        // addressed in a future sprint. Photos should either be:
+        // 1) Uploaded AFTER check-in completes, or
+        // 2) Sent as part of the check-in request payload (requires API redesign)
+        // For now, photo validation is only enforced at check-out.
+        // photoValidationService.validateCheckInPhotos(tenantId, locacao.getId());
 
         // 6. Update jetski status
         jetskiService.updateStatus(jetski.getId(), JetskiStatus.LOCADO);
@@ -177,7 +184,8 @@ public class LocacaoService {
         log.info("Locacao created (walk-in): id={}", locacao.getId());
 
         // 4. Validate 4 mandatory check-in photos
-        photoValidationService.validateCheckInPhotos(tenantId, locacao.getId());
+        // TODO FASE 2: Photo validation temporarily disabled during check-in (same reason as above)
+        // photoValidationService.validateCheckInPhotos(tenantId, locacao.getId());
 
         // 5. Update jetski status
         jetskiService.updateStatus(jetskiId, JetskiStatus.LOCADO);

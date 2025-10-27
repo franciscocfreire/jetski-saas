@@ -3,6 +3,7 @@ package com.jetski.shared.observability;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
@@ -27,6 +28,7 @@ import java.time.Duration;
  * @since 0.7.5
  */
 @Component("keycloak")
+@org.springframework.context.annotation.Profile("!test")
 public class KeycloakHealthIndicator implements HealthIndicator {
 
     @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")

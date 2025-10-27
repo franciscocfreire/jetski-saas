@@ -39,6 +39,9 @@ class TenantFilterTest {
     @Mock
     private TenantAccessService tenantAccessService;
 
+    @Mock
+    private com.jetski.shared.observability.BusinessMetrics businessMetrics;
+
     @InjectMocks
     private TenantFilter tenantFilter;
 
@@ -167,8 +170,8 @@ class TenantFilterTest {
         request.addHeader("X-Tenant-Id", tenantId.toString());
         request.setRequestURI("/api/v1/modelos");
 
-        // Mock filterChain to throw exception
-        doThrow(new RuntimeException("Test exception"))
+        // Mock filterChain to throw exception (lenient to avoid unnecessary stubbing warning)
+        lenient().doThrow(new RuntimeException("Test exception"))
                 .when(filterChain)
                 .doFilter(request, response);
 
