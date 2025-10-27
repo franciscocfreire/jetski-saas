@@ -130,6 +130,20 @@
             <version>26.0.0</version>
         </dependency>
 
+        <!-- MinIO Client (S3-compatible storage) -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>8.5.7</version>
+        </dependency>
+
+        <!-- Apache Commons Codec (for SHA-256 hashing) -->
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.16.0</version>
+        </dependency>
+
         <!-- JWT Library for Magic Link tokens -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

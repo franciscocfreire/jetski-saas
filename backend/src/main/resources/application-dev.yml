@@ -97,3 +97,19 @@ jetski:
     allowed-origins:
       - http://localhost:3000
       - http://localhost:3001
+
+# Storage Configuration (MinIO S3-compatible)
+storage:
+  type: minio  # local | minio | s3
+  presigned-url-expiration-minutes: 15
+  download-url-expiration-minutes: 60
+  minio:
+    endpoint: http://localhost:9000
+    access-key: minioadmin
+    secret-key: minioadmin
+    bucket: jetski-photos
+    max-file-size-mb: 10
+    allowed-content-types:
+      - image/jpeg
+      - image/png
+      - image/webp

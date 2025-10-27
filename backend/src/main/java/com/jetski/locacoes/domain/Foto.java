@@ -140,14 +140,14 @@ public class Foto {
      * Check if photo is check-in type
      */
     public boolean isCheckIn() {
-        return this.tipo == FotoTipo.CHECK_IN;
+        return this.tipo != null && this.tipo.isCheckIn();
     }
 
     /**
      * Check if photo is check-out type
      */
     public boolean isCheckOut() {
-        return this.tipo == FotoTipo.CHECK_OUT;
+        return this.tipo != null && this.tipo.isCheckOut();
     }
 
     /**

@@ -45,6 +45,7 @@ public class LocacaoService {
     private final ModeloService modeloService;
     private final ClienteService clienteService;
     private final LocacaoCalculatorService calculatorService;
+    private final com.jetski.shared.storage.PhotoValidationService photoValidationService;
 
     /**
      * Check-in: Create rental from reservation
@@ -112,7 +113,10 @@ public class LocacaoService {
         locacao = locacaoRepository.save(locacao);
         log.info("Locacao created: id={}, jetski={}", locacao.getId(), jetski.getId());
 
-        // 5. Update jetski status
+        // 5. Validate 4 mandatory check-in photos
+        photoValidationService.validateCheckInPhotos(tenantId, locacao.getId());
+
+        // 6. Update jetski status
         jetskiService.updateStatus(jetski.getId(), JetskiStatus.LOCADO);
 
         // 6. Update reserva
@@ -172,7 +176,10 @@ public class LocacaoService {
         locacao = locacaoRepository.save(locacao);
         log.info("Locacao created (walk-in): id={}", locacao.getId());
 
-        // 4. Update jetski status
+        // 4. Validate 4 mandatory check-in photos
+        photoValidationService.validateCheckInPhotos(tenantId, locacao.getId());
+
+        // 5. Update jetski status
         jetskiService.updateStatus(jetskiId, JetskiStatus.LOCADO);
 
         log.info("Walk-in check-in completed: locacao={}", locacao.getId());
@@ -241,7 +248,10 @@ public class LocacaoService {
             modelo.getPrecoBaseHora()
         );
 
-        // 7. Update locacao
+        // 7. Validate 4 mandatory check-out photos
+        photoValidationService.validateCheckOutPhotos(tenantId, locacaoId);
+
+        // 8. Update locacao
         locacao.setDataCheckOut(LocalDateTime.now());
         locacao.setHorimetroFim(horimetroFim);
         locacao.setMinutosUsados(minutosUsados);

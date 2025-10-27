@@ -122,3 +122,16 @@ keycloak:
     username: admin  # Admin username
     password: admin  # Admin password
     target-realm: jetski-saas  # Realm onde os usuários serão criados
+
+# Storage Configuration (LOCAL filesystem)
+storage:
+  type: local  # local | minio | s3
+  presigned-url-expiration-minutes: 15
+  download-url-expiration-minutes: 60
+  local:
+    base-path: /tmp/jetski-photos
+    max-file-size-mb: 10
+    allowed-content-types:
+      - image/jpeg
+      - image/png
+      - image/webp

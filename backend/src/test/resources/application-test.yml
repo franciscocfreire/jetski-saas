@@ -79,3 +79,12 @@ keycloak:
     username: test-admin
     password: test-password
     target-realm: jetski-saas-test
+
+# Storage configuration for tests
+storage:
+  type: local
+  presigned-url-expiration-minutes: 15
+  download-url-expiration-minutes: 60
+  local:
+    base-path: /tmp/jetski-photos-test
+    max-file-size-mb: 10
