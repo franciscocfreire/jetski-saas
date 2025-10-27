@@ -1,4 +1,4 @@
-package com.jetski.shared.storage.dto;
+package com.jetski.locacoes.api.dto;
 
 import com.jetski.locacoes.domain.FotoTipo;
 import io.swagger.v3.oas.annotations.media.Schema;

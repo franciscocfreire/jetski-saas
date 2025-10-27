@@ -18,6 +18,7 @@
  *   <li>{@code authorization} - Serviços de autorização OPA</li>
  *   <li>{@code exception} - Classes de exceção e tratamento global</li>
  *   <li>{@code config} - Configurações compartilhadas</li>
+ *   <li>{@code storage} - Serviço de armazenamento de arquivos (S3/MinIO/Local)</li>
  * </ul>
  *
  * <p><strong>Implementação Interna:</strong>

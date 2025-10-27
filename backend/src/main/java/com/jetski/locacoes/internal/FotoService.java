@@ -1,4 +1,4 @@
-package com.jetski.shared.storage;
+package com.jetski.locacoes.internal;
 
 import com.jetski.locacoes.domain.Foto;
 import com.jetski.locacoes.domain.FotoTipo;
@@ -6,9 +6,11 @@ import com.jetski.locacoes.internal.repository.FotoRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
-import com.jetski.shared.storage.dto.FotoResponse;
-import com.jetski.shared.storage.dto.UploadUrlRequest;
-import com.jetski.shared.storage.dto.UploadUrlResponse;
+import com.jetski.shared.storage.StorageService;
+import com.jetski.shared.storage.PresignedUrl;
+import com.jetski.locacoes.api.dto.FotoResponse;
+import com.jetski.locacoes.api.dto.UploadUrlRequest;
+import com.jetski.locacoes.api.dto.UploadUrlResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

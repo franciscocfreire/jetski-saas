@@ -31,6 +31,7 @@
  * <ul>
  *   <li>{@code shared::security} - Contexto de tenant e autenticação</li>
  *   <li>{@code shared::exception} - Exceções de negócio</li>
+ *   <li>{@code shared::storage} - Serviço de armazenamento de arquivos (S3/MinIO/Local)</li>
  * </ul>
  *
  * <p><strong>Regras de Negócio Principais:</strong>
@@ -45,6 +46,6 @@
  */
 @org.springframework.modulith.ApplicationModule(
     displayName = "Rentals and Operations",
-    allowedDependencies = {"shared::security", "shared::exception"}
+    allowedDependencies = {"shared::security", "shared::exception", "shared::storage"}
 )
 package com.jetski.locacoes;

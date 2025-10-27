@@ -45,7 +45,7 @@ public class LocacaoService {
     private final ModeloService modeloService;
     private final ClienteService clienteService;
     private final LocacaoCalculatorService calculatorService;
-    private final com.jetski.shared.storage.PhotoValidationService photoValidationService;
+    private final com.jetski.locacoes.internal.PhotoValidationService photoValidationService;
 
     /**
      * Check-in: Create rental from reservation

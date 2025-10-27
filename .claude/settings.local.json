@@ -102,7 +102,19 @@
       "Bash(/tmp/test_jornada1_apis.sh)",
       "Bash(cp:*)",
       "Bash(./reset-ambiente-local.sh)",
-      "Bash(CUSTOM_TRACE=\"my-custom-trace-12345\":*)"
+      "Bash(CUSTOM_TRACE=\"my-custom-trace-12345\":*)",
+      "Bash(./infra/monitoring-stack.sh start:*)",
+      "Bash(docker compose:*)",
+      "Bash(./infra/monitoring-stack.sh:*)",
+      "Bash(docker network inspect:*)",
+      "Bash(for i in {1..10})",
+      "Bash(do curl -s http://localhost:8090/api/actuator/health)",
+      "Bash(for:*)",
+      "Bash(do curl -s http://localhost:8090/api/v1/auth-test/public -H \"X-Correlation-ID: test-$i\")",
+      "Bash(do if curl -s http://localhost:8090/api/actuator/health)",
+      "Bash(then echo \"Backend is ready!\")",
+      "Bash(then echo \"✓ Backend is ready!\")",
+      "Bash(do sed -i '1s/^package com\\.jetski\\.shared\\.storage\\.dto;/package com.jetski.locacoes.api.dto;/' \"$file\")"
     ],
     "deny": [],
     "ask": []

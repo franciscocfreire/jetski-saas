@@ -1,4 +1,4 @@
-package com.jetski.shared.storage;
+package com.jetski.locacoes.internal;
 
 import com.jetski.locacoes.domain.Foto;
 import com.jetski.locacoes.domain.FotoTipo;

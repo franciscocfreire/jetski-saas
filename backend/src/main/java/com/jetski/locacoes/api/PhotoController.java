@@ -1,10 +1,10 @@
-package com.jetski.shared.storage.api;
+package com.jetski.locacoes.api;
 
-import com.jetski.shared.storage.FotoService;
-import com.jetski.shared.storage.PhotoValidationService;
-import com.jetski.shared.storage.dto.FotoResponse;
-import com.jetski.shared.storage.dto.UploadUrlRequest;
-import com.jetski.shared.storage.dto.UploadUrlResponse;
+import com.jetski.locacoes.internal.FotoService;
+import com.jetski.locacoes.internal.PhotoValidationService;
+import com.jetski.locacoes.api.dto.FotoResponse;
+import com.jetski.locacoes.api.dto.UploadUrlRequest;
+import com.jetski.locacoes.api.dto.UploadUrlResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

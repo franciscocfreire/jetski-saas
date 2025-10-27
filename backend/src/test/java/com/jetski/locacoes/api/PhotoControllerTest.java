@@ -1,13 +1,18 @@
-package com.jetski.shared.storage.api;
+package com.jetski.locacoes.api;
 
 import com.jetski.integration.AbstractIntegrationTest;
 import com.jetski.locacoes.domain.FotoTipo;
+import com.jetski.locacoes.domain.Jetski;
+import com.jetski.locacoes.domain.JetskiStatus;
 import com.jetski.locacoes.domain.Locacao;
 import com.jetski.locacoes.domain.LocacaoStatus;
+import com.jetski.locacoes.domain.Modelo;
 import com.jetski.locacoes.internal.repository.FotoRepository;
+import com.jetski.locacoes.internal.repository.JetskiRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
-import com.jetski.shared.storage.dto.UploadUrlRequest;
-import com.jetski.shared.storage.dto.UploadUrlResponse;
+import com.jetski.locacoes.internal.repository.ModeloRepository;
+import com.jetski.locacoes.api.dto.UploadUrlRequest;
+import com.jetski.locacoes.api.dto.UploadUrlResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,6 +59,12 @@ class PhotoControllerTest extends AbstractIntegrationTest {
     @Autowired
     private FotoRepository fotoRepository;
 
+    @Autowired
+    private JetskiRepository jetskiRepository;
+
+    @Autowired
+    private ModeloRepository modeloRepository;
+
     private UUID testTenantId;
     private UUID testLocacaoId;
 
@@ -62,13 +73,38 @@ class PhotoControllerTest extends AbstractIntegrationTest {
         // Clean up
         fotoRepository.deleteAll();
         locacaoRepository.deleteAll();
+        jetskiRepository.deleteAll();
+        modeloRepository.deleteAll();
 
-        // Create test tenant and locacao
+        // Create test tenant
         testTenantId = UUID.fromString("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
 
+        // Create test modelo
+        Modelo modelo = Modelo.builder()
+            .tenantId(testTenantId)
+            .nome("Test Model")
+            .fabricante("Yamaha")
+            .capacidadePessoas(3)
+            .potenciaHp(180)
+            .precoBaseHora(new BigDecimal("200.00"))
+            .build();
+        modelo = modeloRepository.save(modelo);
+
+        // Create test jetski
+        Jetski jetski = Jetski.builder()
+            .tenantId(testTenantId)
+            .modeloId(modelo.getId())
+            .serie("TEST-123")
+            .ano(2023)
+            .status(JetskiStatus.DISPONIVEL)
+            .horimetroAtual(new BigDecimal("100.00"))
+            .build();
+        jetski = jetskiRepository.save(jetski);
+
+        // Create test locacao
         Locacao locacao = Locacao.builder()
             .tenantId(testTenantId)
-            .jetskiId(UUID.randomUUID())
+            .jetskiId(jetski.getId())
             .clienteId(UUID.randomUUID())
             .dataCheckIn(LocalDateTime.now())
             .horimetroInicio(new BigDecimal("100.00"))
@@ -294,6 +330,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
 
         try {
             mockMvc.perform(post("/api/v1/tenants/{tenantId}/fotos/upload", testTenantId)
+                    .header("X-Tenant-Id", testTenantId.toString())
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(requestBody))
                 .andExpect(status().isOk());
@@ -316,6 +353,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
         try {
             // Generate upload URL
             String response = mockMvc.perform(post("/api/v1/tenants/{tenantId}/fotos/upload", testTenantId)
+                    .header("X-Tenant-Id", testTenantId.toString())
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(requestBody))
                 .andExpect(status().isOk())
