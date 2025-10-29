@@ -223,8 +223,8 @@ public class FuelPolicyService {
             );
         }
 
-        // Converter minutos usados em horas (2 decimais)
-        BigDecimal horasFaturaveis = new BigDecimal(locacao.getMinutosUsados())
+        // Converter minutos faturáveis em horas (2 decimais)
+        BigDecimal horasFaturaveis = new BigDecimal(locacao.getMinutosFaturaveis())
             .divide(new BigDecimal(60), 2, RoundingMode.HALF_UP);
 
         BigDecimal custo = policy.getValorTaxaPorHora()
