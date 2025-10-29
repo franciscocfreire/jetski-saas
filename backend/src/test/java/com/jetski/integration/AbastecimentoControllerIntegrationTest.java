@@ -15,7 +15,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -48,6 +50,9 @@ class AbastecimentoControllerIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockBean
     private OPAAuthorizationService opaAuthorizationService;
 
@@ -58,9 +63,15 @@ class AbastecimentoControllerIntegrationTest extends AbstractIntegrationTest {
     private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID JETSKI_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID LOCACAO_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
+    private static final UUID MODELO_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
+    private static final UUID CLIENTE_ID = UUID.fromString("44444444-4444-4444-4444-444444444444");
 
     @BeforeEach
+    @Transactional
     void setUp() {
+        // Ensure test entities exist (idempotent - INSERT ... ON CONFLICT DO NOTHING)
+        ensureTestEntitiesExist();
+
         // Mock tenant access with conditional logic for tenant matching
         when(tenantAccessService.validateAccess(any(String.class), eq(USER_ID.toString()), any(UUID.class)))
             .thenAnswer(invocation -> {
@@ -89,6 +100,43 @@ class AbastecimentoControllerIntegrationTest extends AbstractIntegrationTest {
 
         when(opaAuthorizationService.authorize(any(OPAInput.class)))
             .thenReturn(allowDecision);
+    }
+
+    /**
+     * Ensure test entities exist in database (idempotent)
+     * This guarantees data integrity when running full test suite
+     */
+    private void ensureTestEntitiesExist() {
+        // Modelo
+        jdbcTemplate.update("""
+            INSERT INTO modelo (id, tenant_id, nome, fabricante, potencia_hp, capacidade_pessoas,
+                                preco_base_hora, tolerancia_min, taxa_hora_extra, caucao,
+                                inclui_combustivel, ativo)
+            VALUES (?, ?, 'SeaDoo GTI SE 130', 'Sea-Doo', 130, 2, 150.00, 5, 50.00, 300.00, FALSE, TRUE)
+            ON CONFLICT (id) DO NOTHING
+            """, MODELO_ID, TENANT_ID);
+
+        // Jetski
+        jdbcTemplate.update("""
+            INSERT INTO jetski (id, tenant_id, modelo_id, serie, placa, ano, horimetro_atual, status, ativo)
+            VALUES (?, ?, ?, 'JET-TEST-001', 'ABC-1234', 2023, 45.2, 'disponivel', TRUE)
+            ON CONFLICT (id) DO NOTHING
+            """, JETSKI_ID, TENANT_ID, MODELO_ID);
+
+        // Cliente
+        jdbcTemplate.update("""
+            INSERT INTO cliente (id, tenant_id, nome, documento, email, telefone, termo_aceite, ativo)
+            VALUES (?, ?, 'Cliente Teste', '123.456.789-00', 'cliente.teste@example.com', '+55 11 98765-4321', TRUE, TRUE)
+            ON CONFLICT (id) DO NOTHING
+            """, CLIENTE_ID, TENANT_ID);
+
+        // Locacao
+        jdbcTemplate.update("""
+            INSERT INTO locacao (id, tenant_id, jetski_id, cliente_id, data_check_in, horimetro_inicio,
+                                 duracao_prevista, valor_base, valor_total, status)
+            VALUES (?, ?, ?, ?, NOW() - INTERVAL '2 hours', 40.0, 180, 150.00, 150.00, 'EM_CURSO')
+            ON CONFLICT (id) DO NOTHING
+            """, LOCACAO_ID, TENANT_ID, JETSKI_ID, CLIENTE_ID);
     }
 
     // ===================================================================

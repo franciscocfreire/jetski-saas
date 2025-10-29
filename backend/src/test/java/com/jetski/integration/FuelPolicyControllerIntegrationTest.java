@@ -16,7 +16,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -48,6 +50,9 @@ class FuelPolicyControllerIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockBean
     private OPAAuthorizationService opaAuthorizationService;
 
@@ -60,7 +65,11 @@ class FuelPolicyControllerIntegrationTest extends AbstractIntegrationTest {
     private static final UUID MODELO_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
 
     @BeforeEach
+    @Transactional
     void setUp() {
+        // Ensure test entities exist (idempotent)
+        ensureTestEntitiesExist();
+
         // Mock tenant access with conditional logic for tenant matching
         when(tenantAccessService.validateAccess(any(String.class), eq(USER_ID.toString()), any(UUID.class)))
             .thenAnswer(invocation -> {
@@ -89,6 +98,38 @@ class FuelPolicyControllerIntegrationTest extends AbstractIntegrationTest {
 
         when(opaAuthorizationService.authorize(any(OPAInput.class)))
             .thenReturn(allowDecision);
+    }
+
+    /**
+     * Ensure test entities exist in database (idempotent)
+     * This guarantees data integrity when running full test suite
+     */
+    private void ensureTestEntitiesExist() {
+        // Modelo
+        jdbcTemplate.update("""
+            INSERT INTO modelo (id, tenant_id, nome, fabricante, potencia_hp, capacidade_pessoas,
+                                preco_base_hora, tolerancia_min, taxa_hora_extra, caucao,
+                                inclui_combustivel, ativo)
+            VALUES (?, ?, 'SeaDoo GTI SE 130', 'Sea-Doo', 130, 2, 150.00, 5, 50.00, 300.00, FALSE, TRUE)
+            ON CONFLICT (id) DO NOTHING
+            """, MODELO_ID, TENANT_ID);
+
+        // Jetski
+        jdbcTemplate.update("""
+            INSERT INTO jetski (id, tenant_id, modelo_id, serie, placa, ano, horimetro_atual, status, ativo)
+            VALUES (?, ?, ?, 'JET-TEST-001', 'ABC-1234', 2023, 45.2, 'disponivel', TRUE)
+            ON CONFLICT (id) DO NOTHING
+            """, JETSKI_ID, TENANT_ID, MODELO_ID);
+
+        // GLOBAL Fuel Policy (for hierarchical lookup test)
+        jdbcTemplate.update("""
+            INSERT INTO fuel_policy (id, tenant_id, nome, tipo, aplicavel_a, referencia_id, valor_taxa_por_hora,
+                                     comissionavel, ativo, prioridade, descricao)
+            VALUES (999, ?, 'Política Global Teste - Incluso',
+                    'INCLUSO', 'GLOBAL', NULL, NULL, FALSE, TRUE, 10,
+                    'Política padrão de teste: combustível incluído no preço')
+            ON CONFLICT (id) DO NOTHING
+            """, TENANT_ID);
     }
 
     // ===================================================================
