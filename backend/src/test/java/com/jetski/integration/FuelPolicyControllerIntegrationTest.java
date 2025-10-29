@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentMatchers;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -68,7 +69,7 @@ class FuelPolicyControllerIntegrationTest extends AbstractIntegrationTest {
             .usuarioId(USER_ID) // CRITICAL: Set usuarioId for TenantContext.getUsuarioId()
             .build();
 
-        when(tenantAccessService.validateAccess(any(String.class), eq(USER_ID.toString()), eq(TENANT_ID)))
+        when(tenantAccessService.validateAccess(any(String.class), eq(USER_ID.toString()), any(UUID.class)))
             .thenReturn(allowedAccess);
 
         // Mock OPA to allow all requests
@@ -238,10 +239,9 @@ class FuelPolicyControllerIntegrationTest extends AbstractIntegrationTest {
     // GET /v1/tenants/{tenantId}/fuel-policies/applicable - Get applicable policy
     // ===================================================================
 
-    // TODO: Test needs seed data or policy creation first
-    // @Test
+    @Test
     @DisplayName("GET /fuel-policies/applicable - Should return applicable policy")
-    void testBuscarPoliticaAplicavel_Success_Disabled() throws Exception {
+    void testBuscarPoliticaAplicavel_Success() throws Exception {
         // This test validates that the hierarchical lookup works
         // It may return GLOBAL policy from seed data or any created policy
         mockMvc.perform(get("/v1/tenants/{tenantId}/fuel-policies/applicable", TENANT_ID)
@@ -275,10 +275,9 @@ class FuelPolicyControllerIntegrationTest extends AbstractIntegrationTest {
             .andExpect(status().isUnauthorized());
     }
 
-    // TODO: Needs additional mock for different tenant
-    // @Test
+    @Test
     @DisplayName("Should return 400 when tenant mismatch")
-    void testCriarPolitica_TenantMismatch_Disabled() throws Exception {
+    void testCriarPolitica_TenantMismatch() throws Exception {
         UUID differentTenantId = UUID.randomUUID();
 
         FuelPolicyCreateRequest request = FuelPolicyCreateRequest.builder()

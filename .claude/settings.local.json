@@ -114,7 +114,11 @@
       "Bash(do if curl -s http://localhost:8090/api/actuator/health)",
       "Bash(then echo \"Backend is ready!\")",
       "Bash(then echo \"✓ Backend is ready!\")",
-      "Bash(do sed -i '1s/^package com\\.jetski\\.shared\\.storage\\.dto;/package com.jetski.locacoes.api.dto;/' \"$file\")"
+      "Bash(do sed -i '1s/^package com\\.jetski\\.shared\\.storage\\.dto;/package com.jetski.locacoes.api.dto;/' \"$file\")",
+      "Bash(paste:*)",
+      "Bash(git log:*)",
+      "Bash(wait)",
+      "Bash(lynx:*)"
     ],
     "deny": [],
     "ask": []

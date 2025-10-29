@@ -218,4 +218,56 @@ VALUES
  NOW() - INTERVAL '1 hour')
 ON CONFLICT (id) DO NOTHING;
 
+-- =====================================================
+-- Modelo (Jetski Model for Testing)
+-- =====================================================
+-- Uses MODELO_ID from integration tests: 33333333-3333-3333-3333-333333333333
+INSERT INTO modelo (id, tenant_id, nome, fabricante, potencia_hp, capacidade_pessoas,
+                    preco_base_hora, tolerancia_min, taxa_hora_extra, caucao,
+                    inclui_combustivel, ativo) VALUES
+('33333333-3333-3333-3333-333333333333', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+ 'SeaDoo GTI SE 130', 'Sea-Doo', 130, 2, 150.00, 5, 50.00, 300.00, FALSE, TRUE)
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================
+-- Jetski (Test Jetski for Abastecimento tests)
+-- =====================================================
+-- Uses JETSKI_ID from integration tests: 22222222-2222-2222-2222-222222222222
+INSERT INTO jetski (id, tenant_id, modelo_id, serie, placa, ano, horimetro_atual, status, ativo) VALUES
+('22222222-2222-2222-2222-222222222222', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+ '33333333-3333-3333-3333-333333333333', 'JET-TEST-001', 'ABC-1234', 2023, 45.2, 'disponivel', TRUE)
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================
+-- Cliente (Test Customer for Locacao)
+-- =====================================================
+-- Uses CLIENTE_ID: 44444444-4444-4444-4444-444444444444
+INSERT INTO cliente (id, tenant_id, nome, documento, email, telefone, termo_aceite, ativo) VALUES
+('44444444-4444-4444-4444-444444444444', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+ 'Cliente Teste', '123.456.789-00', 'cliente.teste@example.com', '+55 11 98765-4321',
+ TRUE, TRUE)
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================
+-- Locacao (Test Rental for Abastecimento tests)
+-- =====================================================
+-- Uses LOCACAO_ID from integration tests: 33333333-3333-3333-3333-333333333333
+INSERT INTO locacao (id, tenant_id, jetski_id, cliente_id, data_check_in, horimetro_inicio,
+                     duracao_prevista, valor_base, valor_total, status) VALUES
+('33333333-3333-3333-3333-333333333333', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+ '22222222-2222-2222-2222-222222222222', '44444444-4444-4444-4444-444444444444',
+ NOW() - INTERVAL '2 hours', 40.0, 180, 150.00, 150.00, 'EM_CURSO')
+ON CONFLICT (id) DO NOTHING;
+
+-- =====================================================
+-- Fuel Policy (Global INCLUSO policy for testing)
+-- =====================================================
+-- For FuelPolicyControllerIntegrationTest.testBuscarPoliticaAplicavel_Success
+INSERT INTO fuel_policy (id, tenant_id, nome, tipo, aplicavel_a, referencia_id, valor_taxa_por_hora,
+                         comissionavel, ativo, prioridade, descricao) VALUES
+(999, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Política Global Teste - Incluso',
+ 'INCLUSO', 'GLOBAL', NULL, NULL, FALSE, TRUE, 10,
+ 'Política padrão de teste: combustível incluído no preço')
+ON CONFLICT (id) DO NOTHING;
+
 COMMENT ON DATABASE jetski_test IS 'Jetski SaaS - Test database with comprehensive integration test data';

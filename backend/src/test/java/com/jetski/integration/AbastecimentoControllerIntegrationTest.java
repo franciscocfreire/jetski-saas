@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentMatchers;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -68,7 +69,7 @@ class AbastecimentoControllerIntegrationTest extends AbstractIntegrationTest {
             .usuarioId(USER_ID) // CRITICAL: Set usuarioId for TenantContext.getUsuarioId()
             .build();
 
-        when(tenantAccessService.validateAccess(any(String.class), eq(USER_ID.toString()), eq(TENANT_ID)))
+        when(tenantAccessService.validateAccess(any(String.class), eq(USER_ID.toString()), any(UUID.class)))
             .thenReturn(allowedAccess);
 
         // Mock OPA to allow all requests
@@ -85,10 +86,9 @@ class AbastecimentoControllerIntegrationTest extends AbstractIntegrationTest {
     // POST /v1/tenants/{tenantId}/abastecimentos - Register refill
     // ===================================================================
 
-    // TODO: Fix 500 error - investigate root cause
-    // @Test
+    @Test
     @DisplayName("POST /abastecimentos - Should register PRE_LOCACAO refill")
-    void testRegistrarAbastecimento_PreLocacao_Disabled() throws Exception {
+    void testRegistrarAbastecimento_PreLocacao() throws Exception {
         AbastecimentoCreateRequest request = AbastecimentoCreateRequest.builder()
             .jetskiId(JETSKI_ID)
             .locacaoId(LOCACAO_ID)
@@ -117,10 +117,9 @@ class AbastecimentoControllerIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.responsavelId").value(USER_ID.toString()));
     }
 
-    // TODO: Fix 500 error - investigate root cause
-    // @Test
+    @Test
     @DisplayName("POST /abastecimentos - Should register FROTA refill without locacao")
-    void testRegistrarAbastecimento_Frota_Disabled() throws Exception{
+    void testRegistrarAbastecimento_Frota() throws Exception{
         AbastecimentoCreateRequest request = AbastecimentoCreateRequest.builder()
             .jetskiId(JETSKI_ID)
             .locacaoId(null) // FROTA doesn't require locacao
@@ -250,10 +249,9 @@ class AbastecimentoControllerIntegrationTest extends AbstractIntegrationTest {
             .andExpect(status().isUnauthorized());
     }
 
-    // TODO: Needs additional mock for different tenant
-    // @Test
+    @Test
     @DisplayName("Should return 400 when tenant mismatch")
-    void testRegistrarAbastecimento_TenantMismatch_Disabled() throws Exception {
+    void testRegistrarAbastecimento_TenantMismatch() throws Exception {
         UUID differentTenantId = UUID.randomUUID();
 
         AbastecimentoCreateRequest request = AbastecimentoCreateRequest.builder()
