@@ -322,4 +322,106 @@ public class FuelPolicyService {
             );
         }
     }
+
+    /**
+     * Buscar política por ID.
+     *
+     * @param tenantId ID do tenant
+     * @param id ID da política
+     * @return Optional contendo a política se encontrada
+     */
+    @Transactional(readOnly = true)
+    public Optional<FuelPolicy> buscarPorId(UUID tenantId, Long id) {
+        return fuelPolicyRepository.findById(id)
+            .filter(p -> p.getTenantId().equals(tenantId));
+    }
+
+    /**
+     * Listar todas as políticas do tenant.
+     *
+     * @param tenantId ID do tenant
+     * @param ativo Filtro opcional por status ativo
+     * @return Lista de políticas
+     */
+    @Transactional(readOnly = true)
+    public List<FuelPolicy> listarTodas(UUID tenantId, Boolean ativo) {
+        if (ativo != null) {
+            return fuelPolicyRepository.findByTenantIdAndAtivoOrderByPrioridadeDesc(tenantId, ativo);
+        }
+        return fuelPolicyRepository.findByTenantIdOrderByPrioridadeDesc(tenantId);
+    }
+
+    /**
+     * Listar políticas por tipo (GLOBAL, MODELO, JETSKI).
+     *
+     * @param tenantId ID do tenant
+     * @param tipo Tipo de política
+     * @param ativo Filtro opcional por status ativo
+     * @return Lista de políticas
+     */
+    @Transactional(readOnly = true)
+    public List<FuelPolicy> listarPorTipo(UUID tenantId, FuelPolicyType tipo, Boolean ativo) {
+        if (ativo != null) {
+            return fuelPolicyRepository.findByTenantIdAndAplicavelAAndAtivoOrderByPrioridadeDesc(
+                tenantId, tipo, ativo
+            );
+        }
+        return fuelPolicyRepository.findByTenantIdAndAplicavelAOrderByPrioridadeDesc(tenantId, tipo);
+    }
+
+    /**
+     * Atualizar política existente.
+     *
+     * @param tenantId ID do tenant
+     * @param id ID da política
+     * @param request Dados para atualização
+     * @return Política atualizada
+     */
+    @Transactional
+    public FuelPolicy atualizar(UUID tenantId, Long id, com.jetski.combustivel.api.dto.FuelPolicyUpdateRequest request) {
+        FuelPolicy existing = buscarPorId(tenantId, id)
+            .orElseThrow(() -> new NotFoundException("Política não encontrada: " + id));
+
+        if (request.getNome() != null) {
+            existing.setNome(request.getNome());
+        }
+        if (request.getValorTaxaPorHora() != null) {
+            existing.setValorTaxaPorHora(request.getValorTaxaPorHora());
+        }
+        if (request.getComissionavel() != null) {
+            existing.setComissionavel(request.getComissionavel());
+        }
+        if (request.getAtivo() != null) {
+            existing.setAtivo(request.getAtivo());
+        }
+        if (request.getPrioridade() != null) {
+            existing.setPrioridade(request.getPrioridade());
+        }
+        if (request.getDescricao() != null) {
+            existing.setDescricao(request.getDescricao());
+        }
+
+        FuelPolicy updated = fuelPolicyRepository.save(existing);
+
+        log.info("Política atualizada: id={}, nome={}", updated.getId(), updated.getNome());
+
+        return updated;
+    }
+
+    /**
+     * Deletar (inativar) política.
+     *
+     * @param tenantId ID do tenant
+     * @param id ID da política
+     */
+    @Transactional
+    public void deletar(UUID tenantId, Long id) {
+        FuelPolicy policy = buscarPorId(tenantId, id)
+            .orElseThrow(() -> new NotFoundException("Política não encontrada: " + id));
+
+        policy.setAtivo(false);
+        fuelPolicyRepository.save(policy);
+
+        log.info("Política inativada: id={}, nome={}", id, policy.getNome());
+    }
 }

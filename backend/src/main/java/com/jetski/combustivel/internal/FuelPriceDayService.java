@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -114,6 +115,75 @@ public class FuelPriceDayService {
 
             fuelPriceDayRepository.save(priceDay);
             log.info("Preço médio criado: R$ {} (dia: {})", precoMedio, data);
+        }
+    }
+
+    /**
+     * Salvar ou sobrescrever preço do dia (admin override).
+     *
+     * @param priceDay Dados do preço
+     * @return Preço salvo
+     */
+    @Transactional
+    public FuelPriceDay salvar(FuelPriceDay priceDay) {
+        log.info("Salvando preço do dia: tenant={}, data={}, preco={}",
+            priceDay.getTenantId(), priceDay.getData(), priceDay.getPrecoMedioLitro());
+
+        // Verificar se já existe para o dia
+        Optional<FuelPriceDay> existing = fuelPriceDayRepository.findByTenantIdAndData(
+            priceDay.getTenantId(), priceDay.getData()
+        );
+
+        if (existing.isPresent()) {
+            // Atualizar existente
+            FuelPriceDay updated = existing.get();
+            updated.setPrecoMedioLitro(priceDay.getPrecoMedioLitro());
+            updated.setTotalLitrosAbastecidos(priceDay.getTotalLitrosAbastecidos());
+            updated.setTotalCusto(priceDay.getTotalCusto());
+            updated.setQtdAbastecimentos(priceDay.getQtdAbastecimentos());
+            return fuelPriceDayRepository.save(updated);
+        } else {
+            // Criar novo
+            return fuelPriceDayRepository.save(priceDay);
+        }
+    }
+
+    /**
+     * Buscar preço por data.
+     *
+     * @param tenantId ID do tenant
+     * @param data Data
+     * @return Optional contendo o preço se encontrado
+     */
+    @Transactional(readOnly = true)
+    public Optional<FuelPriceDay> buscarPorData(UUID tenantId, LocalDate data) {
+        return fuelPriceDayRepository.findByTenantIdAndData(tenantId, data);
+    }
+
+    /**
+     * Listar preços com filtro de data.
+     *
+     * @param tenantId ID do tenant
+     * @param dataInicio Data início (opcional)
+     * @param dataFim Data fim (opcional)
+     * @return Lista de preços
+     */
+    @Transactional(readOnly = true)
+    public List<FuelPriceDay> listar(UUID tenantId, LocalDate dataInicio, LocalDate dataFim) {
+        if (dataInicio != null && dataFim != null) {
+            return fuelPriceDayRepository.findByTenantIdAndDataBetweenOrderByDataDesc(
+                tenantId, dataInicio, dataFim
+            );
+        } else if (dataInicio != null) {
+            return fuelPriceDayRepository.findByTenantIdAndDataGreaterThanEqualOrderByDataDesc(
+                tenantId, dataInicio
+            );
+        } else if (dataFim != null) {
+            return fuelPriceDayRepository.findByTenantIdAndDataLessThanEqualOrderByDataDesc(
+                tenantId, dataFim
+            );
+        } else {
+            return fuelPriceDayRepository.findByTenantIdOrderByDataDesc(tenantId);
         }
     }
 }

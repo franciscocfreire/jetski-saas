@@ -36,4 +36,19 @@ public interface FuelPolicyRepository extends JpaRepository<FuelPolicy, Long> {
         @Param("aplicavelA") FuelPolicyType aplicavelA,
         @Param("referenciaId") UUID referenciaId
     );
+
+    List<FuelPolicy> findByTenantIdAndAtivoOrderByPrioridadeDesc(UUID tenantId, Boolean ativo);
+
+    List<FuelPolicy> findByTenantIdOrderByPrioridadeDesc(UUID tenantId);
+
+    List<FuelPolicy> findByTenantIdAndAplicavelAAndAtivoOrderByPrioridadeDesc(
+        UUID tenantId,
+        FuelPolicyType aplicavelA,
+        Boolean ativo
+    );
+
+    List<FuelPolicy> findByTenantIdAndAplicavelAOrderByPrioridadeDesc(
+        UUID tenantId,
+        FuelPolicyType aplicavelA
+    );
 }

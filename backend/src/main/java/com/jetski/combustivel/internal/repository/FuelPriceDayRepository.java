@@ -33,4 +33,12 @@ public interface FuelPriceDayRepository extends JpaRepository<FuelPriceDay, Long
         @Param("dataInicio") LocalDate dataInicio,
         @Param("dataFim") LocalDate dataFim
     );
+
+    List<FuelPriceDay> findByTenantIdAndDataBetweenOrderByDataDesc(UUID tenantId, LocalDate dataInicio, LocalDate dataFim);
+
+    List<FuelPriceDay> findByTenantIdAndDataGreaterThanEqualOrderByDataDesc(UUID tenantId, LocalDate dataInicio);
+
+    List<FuelPriceDay> findByTenantIdAndDataLessThanEqualOrderByDataDesc(UUID tenantId, LocalDate dataFim);
+
+    List<FuelPriceDay> findByTenantIdOrderByDataDesc(UUID tenantId);
 }

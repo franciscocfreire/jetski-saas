@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -79,19 +80,12 @@ public class AbastecimentoService {
      *
      * @param tenantId ID do tenant
      * @param id ID do abastecimento
-     * @return Abastecimento encontrado
-     * @throws NotFoundException se não encontrado
+     * @return Optional contendo o abastecimento se encontrado
      */
     @Transactional(readOnly = true)
-    public Abastecimento buscarPorId(UUID tenantId, Long id) {
-        Abastecimento abastecimento = abastecimentoRepository.findById(id)
-            .orElseThrow(() -> new NotFoundException("Abastecimento não encontrado: " + id));
-
-        if (!abastecimento.getTenantId().equals(tenantId)) {
-            throw new NotFoundException("Abastecimento não pertence ao tenant: " + tenantId);
-        }
-
-        return abastecimento;
+    public java.util.Optional<Abastecimento> buscarPorId(UUID tenantId, Long id) {
+        return abastecimentoRepository.findById(id)
+            .filter(a -> a.getTenantId().equals(tenantId));
     }
 
     /**
@@ -131,15 +125,29 @@ public class AbastecimentoService {
     }
 
     /**
-     * Listar abastecimentos por jetski.
+     * Listar abastecimentos por jetski com filtro de data.
      *
      * @param tenantId ID do tenant
      * @param jetskiId ID do jetski
+     * @param dataInicio Data início (opcional)
+     * @param dataFim Data fim (opcional)
      * @return Lista de abastecimentos
      */
     @Transactional(readOnly = true)
-    public List<Abastecimento> listarPorJetski(UUID tenantId, UUID jetskiId) {
-        return abastecimentoRepository.findByTenantIdAndJetskiIdOrderByDataHoraDesc(tenantId, jetskiId);
+    public List<Abastecimento> listarPorJetski(UUID tenantId, UUID jetskiId, LocalDate dataInicio, LocalDate dataFim) {
+        if (dataInicio == null && dataFim == null) {
+            return abastecimentoRepository.findByTenantIdAndJetskiIdOrderByDataHoraDesc(tenantId, jetskiId);
+        }
+
+        Instant instantInicio = dataInicio != null ?
+            dataInicio.atStartOfDay(ZoneId.systemDefault()).toInstant() : Instant.MIN;
+
+        Instant instantFim = dataFim != null ?
+            dataFim.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant() : Instant.MAX;
+
+        return abastecimentoRepository.findByTenantIdAndJetskiIdAndDataHoraBetweenOrderByDataHoraDesc(
+            tenantId, jetskiId, instantInicio, instantFim
+        );
     }
 
     /**
@@ -152,5 +160,56 @@ public class AbastecimentoService {
     @Transactional(readOnly = true)
     public List<Abastecimento> listarPorLocacao(UUID tenantId, UUID locacaoId) {
         return abastecimentoRepository.findByTenantIdAndLocacaoIdOrderByDataHoraAsc(tenantId, locacaoId);
+    }
+
+    /**
+     * Listar todos os abastecimentos com filtro de data.
+     *
+     * @param tenantId ID do tenant
+     * @param dataInicio Data início (opcional)
+     * @param dataFim Data fim (opcional)
+     * @return Lista de abastecimentos
+     */
+    @Transactional(readOnly = true)
+    public List<Abastecimento> listarTodos(UUID tenantId, LocalDate dataInicio, LocalDate dataFim) {
+        if (dataInicio == null && dataFim == null) {
+            return abastecimentoRepository.findByTenantIdOrderByDataHoraDesc(tenantId);
+        }
+
+        Instant instantInicio = dataInicio != null ?
+            dataInicio.atStartOfDay(ZoneId.systemDefault()).toInstant() : Instant.MIN;
+
+        Instant instantFim = dataFim != null ?
+            dataFim.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant() : Instant.MAX;
+
+        return abastecimentoRepository.findByTenantIdAndDataHoraBetweenOrderByDataHoraDesc(
+            tenantId, instantInicio, instantFim
+        );
+    }
+
+    /**
+     * Listar abastecimentos por tipo com filtro de data.
+     *
+     * @param tenantId ID do tenant
+     * @param tipo Tipo de abastecimento
+     * @param dataInicio Data início (opcional)
+     * @param dataFim Data fim (opcional)
+     * @return Lista de abastecimentos
+     */
+    @Transactional(readOnly = true)
+    public List<Abastecimento> listarPorTipo(UUID tenantId, com.jetski.combustivel.domain.TipoAbastecimento tipo, LocalDate dataInicio, LocalDate dataFim) {
+        if (dataInicio == null && dataFim == null) {
+            return abastecimentoRepository.findByTenantIdAndTipoOrderByDataHoraDesc(tenantId, tipo);
+        }
+
+        Instant instantInicio = dataInicio != null ?
+            dataInicio.atStartOfDay(ZoneId.systemDefault()).toInstant() : Instant.MIN;
+
+        Instant instantFim = dataFim != null ?
+            dataFim.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant() : Instant.MAX;
+
+        return abastecimentoRepository.findByTenantIdAndTipoAndDataHoraBetweenOrderByDataHoraDesc(
+            tenantId, tipo, instantInicio, instantFim
+        );
     }
 }

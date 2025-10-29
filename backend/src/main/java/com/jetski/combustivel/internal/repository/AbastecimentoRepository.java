@@ -40,4 +40,14 @@ public interface AbastecimentoRepository extends JpaRepository<Abastecimento, Lo
            "AND DATE(a.dataHora) = :data " +
            "ORDER BY a.dataHora ASC")
     List<Abastecimento> findByTenantIdAndData(@Param("tenantId") UUID tenantId, @Param("data") LocalDate data);
+
+    List<Abastecimento> findByTenantIdOrderByDataHoraDesc(UUID tenantId);
+
+    List<Abastecimento> findByTenantIdAndDataHoraBetweenOrderByDataHoraDesc(UUID tenantId, Instant dataInicio, Instant dataFim);
+
+    List<Abastecimento> findByTenantIdAndJetskiIdAndDataHoraBetweenOrderByDataHoraDesc(UUID tenantId, UUID jetskiId, Instant dataInicio, Instant dataFim);
+
+    List<Abastecimento> findByTenantIdAndTipoOrderByDataHoraDesc(UUID tenantId, TipoAbastecimento tipo);
+
+    List<Abastecimento> findByTenantIdAndTipoAndDataHoraBetweenOrderByDataHoraDesc(UUID tenantId, TipoAbastecimento tipo, Instant dataInicio, Instant dataFim);
 }
