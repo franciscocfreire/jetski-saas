@@ -14,7 +14,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -288,5 +292,431 @@ class FuelPolicyServiceTest {
 
         // Then: Should be R$ 15.00 (1.5 hours × R$ 10/hour)
         assertThat(custo).isEqualByComparingTo(new BigDecimal("15.00"));
+    }
+
+    // ===================================================================
+    // Fuel Cost Calculation: MEDIDO mode
+    // ===================================================================
+
+    @Test
+    @DisplayName("MEDIDO mode: Should calculate cost from abastecimentos (PRE + POS)")
+    void testCalcularCustoCombustivel_Medido() {
+        // Given: MEDIDO policy
+        FuelPolicy policy = FuelPolicy.builder()
+            .tipo(FuelChargeMode.MEDIDO)
+            .aplicavelA(FuelPolicyType.GLOBAL)
+            .ativo(true)
+            .build();
+
+        when(fuelPolicyRepository.findByTenantIdAndAplicavelAAndAtivoTrue(
+            tenantId, FuelPolicyType.GLOBAL
+        )).thenReturn(Optional.of(policy));
+
+        // Given: Locacao with check-out date
+        UUID locacaoId = UUID.randomUUID();
+        LocalDate dataCheckOut = LocalDate.now();
+        Locacao locacao = Locacao.builder()
+            .id(locacaoId)
+            .tenantId(tenantId)
+            .jetskiId(jetskiId)
+            .dataCheckOut(dataCheckOut.atStartOfDay())
+            .minutosUsados(60)
+            .minutosFaturaveis(60)
+            .build();
+
+        // Given: Abastecimentos PRE (50L) and POS (30L) = 20L consumidos
+        List<Abastecimento> abastecimentos = List.of(
+            Abastecimento.builder()
+                .tenantId(tenantId)
+                .locacaoId(locacaoId)
+                .tipo(TipoAbastecimento.PRE_LOCACAO)
+                .litros(new BigDecimal("50.00"))
+                .build(),
+            Abastecimento.builder()
+                .tenantId(tenantId)
+                .locacaoId(locacaoId)
+                .tipo(TipoAbastecimento.POS_LOCACAO)
+                .litros(new BigDecimal("30.00"))
+                .build()
+        );
+
+        when(abastecimentoRepository.findByTenantIdAndLocacaoIdOrderByDataHoraAsc(
+            tenantId, locacaoId
+        )).thenReturn(abastecimentos);
+
+        // Given: Fuel price = R$ 7.00/L
+        when(fuelPriceDayService.obterPrecoMedioDia(tenantId, dataCheckOut))
+            .thenReturn(new BigDecimal("7.00"));
+
+        // When: Calculate fuel cost
+        BigDecimal custo = service.calcularCustoCombustivel(locacao, modeloId);
+
+        // Then: Should be 20L × R$ 7.00 = R$ 140.00
+        assertThat(custo).isEqualByComparingTo(new BigDecimal("140.00"));
+    }
+
+    @Test
+    @DisplayName("MEDIDO mode: Should return ZERO when no abastecimentos found")
+    void testCalcularCustoCombustivel_Medido_NoAbastecimentos() {
+        // Given: MEDIDO policy
+        FuelPolicy policy = FuelPolicy.builder()
+            .tipo(FuelChargeMode.MEDIDO)
+            .aplicavelA(FuelPolicyType.GLOBAL)
+            .ativo(true)
+            .build();
+
+        when(fuelPolicyRepository.findByTenantIdAndAplicavelAAndAtivoTrue(
+            tenantId, FuelPolicyType.GLOBAL
+        )).thenReturn(Optional.of(policy));
+
+        // Given: Locacao with no abastecimentos
+        UUID locacaoId = UUID.randomUUID();
+        Locacao locacao = Locacao.builder()
+            .id(locacaoId)
+            .tenantId(tenantId)
+            .jetskiId(jetskiId)
+            .dataCheckOut(LocalDate.now().atStartOfDay())
+            .build();
+
+        when(abastecimentoRepository.findByTenantIdAndLocacaoIdOrderByDataHoraAsc(
+            tenantId, locacaoId
+        )).thenReturn(Collections.emptyList());
+
+        // When: Calculate fuel cost
+        BigDecimal custo = service.calcularCustoCombustivel(locacao, modeloId);
+
+        // Then: Should return ZERO
+        assertThat(custo).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    @DisplayName("MEDIDO mode: Should return ZERO when litros consumidos = 0")
+    void testCalcularCustoCombustivel_Medido_ZeroLitrosConsumidos() {
+        // Given: MEDIDO policy
+        FuelPolicy policy = FuelPolicy.builder()
+            .tipo(FuelChargeMode.MEDIDO)
+            .aplicavelA(FuelPolicyType.GLOBAL)
+            .ativo(true)
+            .build();
+
+        when(fuelPolicyRepository.findByTenantIdAndAplicavelAAndAtivoTrue(
+            tenantId, FuelPolicyType.GLOBAL
+        )).thenReturn(Optional.of(policy));
+
+        // Given: Locacao with PRE = POS (same fuel level)
+        UUID locacaoId = UUID.randomUUID();
+        Locacao locacao = Locacao.builder()
+            .id(locacaoId)
+            .tenantId(tenantId)
+            .jetskiId(jetskiId)
+            .dataCheckOut(LocalDate.now().atStartOfDay())
+            .build();
+
+        // Given: PRE and POS both 50L (no consumption)
+        List<Abastecimento> abastecimentos = List.of(
+            Abastecimento.builder()
+                .tenantId(tenantId)
+                .locacaoId(locacaoId)
+                .tipo(TipoAbastecimento.PRE_LOCACAO)
+                .litros(new BigDecimal("50.00"))
+                .build(),
+            Abastecimento.builder()
+                .tenantId(tenantId)
+                .locacaoId(locacaoId)
+                .tipo(TipoAbastecimento.POS_LOCACAO)
+                .litros(new BigDecimal("50.00"))
+                .build()
+        );
+
+        when(abastecimentoRepository.findByTenantIdAndLocacaoIdOrderByDataHoraAsc(
+            tenantId, locacaoId
+        )).thenReturn(abastecimentos);
+
+        // When: Calculate fuel cost
+        BigDecimal custo = service.calcularCustoCombustivel(locacao, modeloId);
+
+        // Then: Should return ZERO
+        assertThat(custo).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    // ===================================================================
+    // TAXA_FIXA validation
+    // ===================================================================
+
+    @Test
+    @DisplayName("TAXA_FIXA mode: Should throw error when valorTaxaPorHora is null")
+    void testCalcularCustoCombustivel_TaxaFixa_MissingValor() {
+        // Given: TAXA_FIXA policy WITHOUT valorTaxaPorHora
+        FuelPolicy policy = FuelPolicy.builder()
+            .tipo(FuelChargeMode.TAXA_FIXA)
+            .aplicavelA(FuelPolicyType.GLOBAL)
+            .valorTaxaPorHora(null) // MISSING!
+            .ativo(true)
+            .build();
+
+        when(fuelPolicyRepository.findByTenantIdAndAplicavelAAndAtivoTrue(
+            tenantId, FuelPolicyType.GLOBAL
+        )).thenReturn(Optional.of(policy));
+
+        Locacao locacao = Locacao.builder()
+            .tenantId(tenantId)
+            .jetskiId(jetskiId)
+            .minutosFaturaveis(60)
+            .build();
+
+        // When/Then: Should throw IllegalStateException
+        assertThatThrownBy(() ->
+            service.calcularCustoCombustivel(locacao, modeloId)
+        )
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("Política TAXA_FIXA sem valor configurado");
+    }
+
+    // ===================================================================
+    // Policy Validation Tests
+    // ===================================================================
+
+    @Test
+    @DisplayName("validatePolicy: Should reject TAXA_FIXA without valorTaxaPorHora")
+    void testCriar_ValidacaoTaxaFixaSemValor() {
+        // Given: TAXA_FIXA policy without valorTaxaPorHora
+        FuelPolicy policy = FuelPolicy.builder()
+            .tenantId(tenantId)
+            .nome("Taxa Fixa Sem Valor")
+            .tipo(FuelChargeMode.TAXA_FIXA)
+            .aplicavelA(FuelPolicyType.GLOBAL)
+            .valorTaxaPorHora(null) // MISSING!
+            .ativo(true)
+            .build();
+
+        // When/Then: Should throw IllegalArgumentException
+        assertThatThrownBy(() ->
+            service.criar(tenantId, policy)
+        )
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Política TAXA_FIXA requer valor_taxa_por_hora configurado");
+    }
+
+    @Test
+    @DisplayName("validatePolicy: Should reject GLOBAL with referenciaId")
+    void testCriar_ValidacaoGlobalComReferencia() {
+        // Given: GLOBAL policy WITH referenciaId (should be null)
+        FuelPolicy policy = FuelPolicy.builder()
+            .tenantId(tenantId)
+            .nome("Global Inválido")
+            .tipo(FuelChargeMode.INCLUSO)
+            .aplicavelA(FuelPolicyType.GLOBAL)
+            .referenciaId(UUID.randomUUID()) // INVALID for GLOBAL!
+            .ativo(true)
+            .build();
+
+        // When/Then: Should throw IllegalArgumentException
+        assertThatThrownBy(() ->
+            service.criar(tenantId, policy)
+        )
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Política GLOBAL não pode ter referencia_id");
+    }
+
+    @Test
+    @DisplayName("validatePolicy: Should reject MODELO without referenciaId")
+    void testCriar_ValidacaoModeloSemReferencia() {
+        // Given: MODELO policy WITHOUT referenciaId
+        FuelPolicy policy = FuelPolicy.builder()
+            .tenantId(tenantId)
+            .nome("Modelo Sem Referência")
+            .tipo(FuelChargeMode.MEDIDO)
+            .aplicavelA(FuelPolicyType.MODELO)
+            .referenciaId(null) // MISSING!
+            .ativo(true)
+            .build();
+
+        // When/Then: Should throw IllegalArgumentException
+        assertThatThrownBy(() ->
+            service.criar(tenantId, policy)
+        )
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Política MODELO requer referencia_id");
+    }
+
+    @Test
+    @DisplayName("validatePolicy: Should reject JETSKI without referenciaId")
+    void testCriar_ValidacaoJetskiSemReferencia() {
+        // Given: JETSKI policy WITHOUT referenciaId
+        FuelPolicy policy = FuelPolicy.builder()
+            .tenantId(tenantId)
+            .nome("Jetski Sem Referência")
+            .tipo(FuelChargeMode.TAXA_FIXA)
+            .aplicavelA(FuelPolicyType.JETSKI)
+            .referenciaId(null) // MISSING!
+            .valorTaxaPorHora(new BigDecimal("10.00"))
+            .ativo(true)
+            .build();
+
+        // When/Then: Should throw IllegalArgumentException
+        assertThatThrownBy(() ->
+            service.criar(tenantId, policy)
+        )
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Política JETSKI requer referencia_id");
+    }
+
+    // ===================================================================
+    // CRUD Tests: atualizar
+    // ===================================================================
+
+    @Test
+    @DisplayName("atualizar: Should update existing policy successfully")
+    void testAtualizar_Success() {
+        // Given: Existing policy
+        Long policyId = 1L;
+        FuelPolicy existing = FuelPolicy.builder()
+            .id(policyId)
+            .tenantId(tenantId)
+            .nome("Nome Original")
+            .tipo(FuelChargeMode.INCLUSO)
+            .aplicavelA(FuelPolicyType.GLOBAL)
+            .ativo(true)
+            .prioridade(10)
+            .build();
+
+        when(fuelPolicyRepository.findById(policyId))
+            .thenReturn(Optional.of(existing));
+
+        // Given: Updates
+        FuelPolicy updates = FuelPolicy.builder()
+            .nome("Nome Atualizado")
+            .prioridade(20)
+            .build();
+
+        when(fuelPolicyRepository.save(any(FuelPolicy.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When: Update policy
+        FuelPolicy result = service.atualizar(tenantId, policyId, updates);
+
+        // Then: Should update fields
+        assertThat(result.getNome()).isEqualTo("Nome Atualizado");
+        assertThat(result.getPrioridade()).isEqualTo(20);
+        verify(fuelPolicyRepository).save(existing);
+    }
+
+    @Test
+    @DisplayName("atualizar: Should reject update when policy not found")
+    void testAtualizar_NotFound() {
+        // Given: Policy does not exist
+        Long policyId = 999L;
+        when(fuelPolicyRepository.findById(policyId))
+            .thenReturn(Optional.empty());
+
+        FuelPolicy updates = FuelPolicy.builder()
+            .nome("Novo Nome")
+            .build();
+
+        // When/Then: Should throw NotFoundException
+        assertThatThrownBy(() ->
+            service.atualizar(tenantId, policyId, updates)
+        )
+            .isInstanceOf(NotFoundException.class)
+            .hasMessageContaining("FuelPolicy não encontrada");
+    }
+
+    @Test
+    @DisplayName("atualizar: Should reject update when tenant mismatch")
+    void testAtualizar_TenantMismatch() {
+        // Given: Policy belongs to different tenant
+        Long policyId = 1L;
+        UUID differentTenantId = UUID.randomUUID();
+
+        FuelPolicy existing = FuelPolicy.builder()
+            .id(policyId)
+            .tenantId(differentTenantId) // Different tenant!
+            .nome("Original")
+            .build();
+
+        when(fuelPolicyRepository.findById(policyId))
+            .thenReturn(Optional.of(existing));
+
+        FuelPolicy updates = FuelPolicy.builder()
+            .nome("Atualizado")
+            .build();
+
+        // When/Then: Should throw NotFoundException
+        assertThatThrownBy(() ->
+            service.atualizar(tenantId, policyId, updates)
+        )
+            .isInstanceOf(NotFoundException.class)
+            .hasMessageContaining("FuelPolicy não pertence ao tenant");
+    }
+
+    // ===================================================================
+    // CRUD Tests: desativar
+    // ===================================================================
+
+    @Test
+    @DisplayName("desativar: Should deactivate policy successfully")
+    void testDesativar_Success() {
+        // Given: Active policy
+        Long policyId = 1L;
+        FuelPolicy policy = FuelPolicy.builder()
+            .id(policyId)
+            .tenantId(tenantId)
+            .nome("Política Ativa")
+            .ativo(true)
+            .build();
+
+        when(fuelPolicyRepository.findById(policyId))
+            .thenReturn(Optional.of(policy));
+
+        when(fuelPolicyRepository.save(any(FuelPolicy.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When: Deactivate policy
+        service.desativar(tenantId, policyId);
+
+        // Then: Should set ativo = false
+        assertThat(policy.getAtivo()).isFalse();
+        verify(fuelPolicyRepository).save(policy);
+    }
+
+    @Test
+    @DisplayName("desativar: Should reject when policy not found")
+    void testDesativar_NotFound() {
+        // Given: Policy does not exist
+        Long policyId = 999L;
+        when(fuelPolicyRepository.findById(policyId))
+            .thenReturn(Optional.empty());
+
+        // When/Then: Should throw NotFoundException
+        assertThatThrownBy(() ->
+            service.desativar(tenantId, policyId)
+        )
+            .isInstanceOf(NotFoundException.class)
+            .hasMessageContaining("FuelPolicy não encontrada");
+    }
+
+    @Test
+    @DisplayName("desativar: Should reject when tenant mismatch")
+    void testDesativar_TenantMismatch() {
+        // Given: Policy belongs to different tenant
+        Long policyId = 1L;
+        UUID differentTenantId = UUID.randomUUID();
+
+        FuelPolicy policy = FuelPolicy.builder()
+            .id(policyId)
+            .tenantId(differentTenantId) // Different tenant!
+            .nome("Política")
+            .ativo(true)
+            .build();
+
+        when(fuelPolicyRepository.findById(policyId))
+            .thenReturn(Optional.of(policy));
+
+        // When/Then: Should throw NotFoundException
+        assertThatThrownBy(() ->
+            service.desativar(tenantId, policyId)
+        )
+            .isInstanceOf(NotFoundException.class)
+            .hasMessageContaining("FuelPolicy não pertence ao tenant");
     }
 }
