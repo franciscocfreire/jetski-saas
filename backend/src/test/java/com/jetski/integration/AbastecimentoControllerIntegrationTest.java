@@ -61,16 +61,25 @@ class AbastecimentoControllerIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        // Mock tenant access
-        TenantAccessInfo allowedAccess = TenantAccessInfo.builder()
-            .hasAccess(true)
-            .roles(List.of("OPERADOR", "GERENTE"))
-            .unrestricted(false)
-            .usuarioId(USER_ID) // CRITICAL: Set usuarioId for TenantContext.getUsuarioId()
-            .build();
-
+        // Mock tenant access with conditional logic for tenant matching
         when(tenantAccessService.validateAccess(any(String.class), eq(USER_ID.toString()), any(UUID.class)))
-            .thenReturn(allowedAccess);
+            .thenAnswer(invocation -> {
+                UUID requestedTenantId = invocation.getArgument(2, UUID.class);
+                if (requestedTenantId.equals(TENANT_ID)) {
+                    return TenantAccessInfo.builder()
+                        .hasAccess(true)
+                        .roles(List.of("OPERADOR", "GERENTE"))
+                        .unrestricted(false)
+                        .usuarioId(USER_ID) // CRITICAL: Set usuarioId for TenantContext.getUsuarioId()
+                        .build();
+                } else {
+                    return TenantAccessInfo.builder()
+                        .hasAccess(false)
+                        .roles(List.of())
+                        .unrestricted(false)
+                        .build();
+                }
+            });
 
         // Mock OPA to allow all requests
         OPADecision allowDecision = OPADecision.builder()
@@ -250,7 +259,7 @@ class AbastecimentoControllerIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should return 400 when tenant mismatch")
+    @DisplayName("Should return 403 when tenant mismatch")
     void testRegistrarAbastecimento_TenantMismatch() throws Exception {
         UUID differentTenantId = UUID.randomUUID();
 
@@ -268,6 +277,6 @@ class AbastecimentoControllerIntegrationTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", differentTenantId.toString()) // Different tenant!
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isForbidden()); // 403 - Authorization denied by TenantFilter
     }
 }
