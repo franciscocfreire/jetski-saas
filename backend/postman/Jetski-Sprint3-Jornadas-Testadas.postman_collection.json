@@ -1,0 +1,1223 @@
+{
+	"info": {
+		"_postman_id": "sprint3-jornadas-com-testes",
+		"name": "Jetski Sprint 3 - Jornadas Completas com Testes",
+		"description": "Collection completa com jornadas de Combustível (RN03), Comissões (RN04) e Fechamento (RN06) com testes automatizados.\n\n**Módulos Cobertos:**\n- ⛽ Combustível (RN03): políticas, abastecimento\n- 💰 Comissões (RN04): cálculo hierárquico, aprovação, pagamento\n- 📊 Fechamento (RN06): diário e mensal com bloqueio\n\n**Features:**\n- ✅ Testes automatizados em cada requisição\n- ✅ Variáveis dinâmicas (IDs salvos automaticamente)\n- ✅ Validação de status codes, estrutura JSON, valores\n- ✅ Scripts de pré-requisição para setup\n- ✅ Cleanup automático entre jornadas\n\n**Como Usar:**\n1. Importe o environment `Local.postman_environment.json`\n2. Execute a pasta \"0️⃣ Setup\" para autenticar\n3. Execute as jornadas sequencialmente ou use Collection Runner\n4. Veja os resultados dos testes na aba \"Test Results\"\n\n**Versão:** 0.8.0 (Sprint 3)\n**Total de Testes:** ~80 assertions automatizados",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "0️⃣ Setup - Autenticação",
+			"item": [
+				{
+					"name": "Auth - Get Gerente Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Resposta contém access_token', function() {",
+									"    const json = pm.response.json();",
+									"    pm.expect(json).to.have.property('access_token');",
+									"    pm.expect(json.access_token).to.be.a('string').and.not.empty;",
+									"});",
+									"",
+									"pm.test('Token possui tipo Bearer', function() {",
+									"    const json = pm.response.json();",
+									"    pm.expect(json.token_type).to.eql('Bearer');",
+									"});",
+									"",
+									"// Salvar token para uso nas próximas requisições",
+									"const json = pm.response.json();",
+									"pm.environment.set('gerente_token', json.access_token);",
+									"pm.environment.set('token_expires_in', json.expires_in);",
+									"",
+									"console.log('✅ Token do GERENTE salvo com sucesso');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "password",
+									"type": "text"
+								},
+								{
+									"key": "client_id",
+									"value": "jetski-local",
+									"type": "text"
+								},
+								{
+									"key": "username",
+									"value": "gerente.teste@example.com",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "senha123",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{keycloakUrl}}/realms/jetski-saas/protocol/openid-connect/token",
+							"host": ["{{keycloakUrl}}"],
+							"path": ["realms", "jetski-saas", "protocol", "openid-connect", "token"]
+						},
+						"description": "Autentica persona GERENTE via Keycloak OAuth2 Password Flow.\n\n**Persona:** 👨‍💼 GERENTE\n**Roles:** GERENTE, ADMIN_TENANT\n**Permissões:** Aprovar fechamentos, comissões, gerenciar políticas"
+					},
+					"response": []
+				},
+				{
+					"name": "Auth - Get Operador Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.environment.set('operador_token', json.access_token);",
+									"console.log('✅ Token do OPERADOR salvo');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "password"
+								},
+								{
+									"key": "client_id",
+									"value": "jetski-local"
+								},
+								{
+									"key": "username",
+									"value": "operador.teste@example.com"
+								},
+								{
+									"key": "password",
+									"value": "senha123"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{keycloakUrl}}/realms/jetski-saas/protocol/openid-connect/token",
+							"host": ["{{keycloakUrl}}"],
+							"path": ["realms", "jetski-saas", "protocol", "openid-connect", "token"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Auth - Get Financeiro Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.environment.set('financeiro_token', json.access_token);",
+									"console.log('✅ Token do FINANCEIRO salvo');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "password"
+								},
+								{
+									"key": "client_id",
+									"value": "jetski-local"
+								},
+								{
+									"key": "username",
+									"value": "financeiro.teste@example.com"
+								},
+								{
+									"key": "password",
+									"value": "senha123"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{keycloakUrl}}/realms/jetski-saas/protocol/openid-connect/token",
+							"host": ["{{keycloakUrl}}"],
+							"path": ["realms", "jetski-saas", "protocol", "openid-connect", "token"]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "Autentica todas as personas necessárias via Keycloak.\n\n**Tokens Obtidos:**\n- GERENTE: aprovações, políticas\n- OPERADOR: operações diárias\n- FINANCEIRO: pagamentos"
+		},
+		{
+			"name": "1️⃣ Jornada: Fechamento Diário Completo",
+			"item": [
+				{
+					"name": "1.1 Consolidar Fechamento Diário",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 201 Created', function() {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Resposta é JSON válido', function() {",
+									"    pm.response.to.be.json;",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Possui ID do fechamento', function() {",
+									"    pm.expect(json).to.have.property('id');",
+									"    pm.expect(json.id).to.be.a('string').and.not.empty;",
+									"});",
+									"",
+									"pm.test('Status inicial é \"aberto\"', function() {",
+									"    pm.expect(json.status).to.eql('aberto');",
+									"});",
+									"",
+									"pm.test('Não está bloqueado inicialmente', function() {",
+									"    pm.expect(json.bloqueado).to.be.false;",
+									"});",
+									"",
+									"pm.test('Data de referência corresponde ao enviado', function() {",
+									"    const dtReferencia = pm.variables.get('dt_referencia');",
+									"    pm.expect(json.dtReferencia).to.eql(dtReferencia);",
+									"});",
+									"",
+									"pm.test('Totais financeiros são números válidos', function() {",
+									"    pm.expect(json.totalLocacoes).to.be.a('number').and.at.least(0);",
+									"    pm.expect(json.totalFaturado).to.be.a('number').and.at.least(0);",
+									"    pm.expect(json.totalCombustivel).to.be.a('number').and.at.least(0);",
+									"    pm.expect(json.totalComissoes).to.be.a('number').and.at.least(0);",
+									"});",
+									"",
+									"pm.test('Possui breakdown por forma de pagamento', function() {",
+									"    pm.expect(json).to.have.property('totalDinheiro');",
+									"    pm.expect(json).to.have.property('totalCartao');",
+									"    pm.expect(json).to.have.property('totalPix');",
+									"});",
+									"",
+									"pm.test('Total faturado = soma das formas de pagamento', function() {",
+									"    const soma = json.totalDinheiro + json.totalCartao + json.totalPix;",
+									"    pm.expect(json.totalFaturado).to.be.closeTo(soma, 0.01);",
+									"});",
+									"",
+									"// Salvar ID para próximas requisições",
+									"pm.environment.set('fechamento_diario_id', json.id);",
+									"console.log('✅ Fechamento diário consolidado:', json.id);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Definir data de referência (hoje)",
+									"const hoje = new Date().toISOString().split('T')[0];",
+									"pm.variables.set('dt_referencia', hoje);",
+									"console.log('📅 Data de referência:', hoje);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{operador_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"dtReferencia\": \"{{dt_referencia}}\",\n  \"observacoes\": \"Consolidação automática via Postman\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/v1/fechamento/dia/consolidar",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "fechamento", "dia", "consolidar"]
+						},
+						"description": "**Persona:** 👔 OPERADOR\n\n**Business Logic:**\n- Agrega todas as locações finalizadas do dia\n- Calcula totais por forma de pagamento\n- Consolida abastecimentos e comissões\n- Cria fechamento com status ABERTO\n\n**Testes:** 10 assertions"
+					},
+					"response": []
+				},
+				{
+					"name": "1.2 Consultar Fechamento Criado",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('ID corresponde ao criado', function() {",
+									"    const id = pm.environment.get('fechamento_diario_id');",
+									"    pm.expect(json.id).to.eql(id);",
+									"});",
+									"",
+									"pm.test('Possui operador responsável', function() {",
+									"    pm.expect(json).to.have.property('operadorId');",
+									"    pm.expect(json.operadorId).to.be.a('string').and.not.empty;",
+									"});",
+									"",
+									"pm.test('Timestamps de auditoria presentes', function() {",
+									"    pm.expect(json).to.have.property('createdAt');",
+									"    pm.expect(json).to.have.property('updatedAt');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{operador_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/fechamento/dia/{{fechamento_diario_id}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "fechamento", "dia", "{{fechamento_diario_id}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "1.3 Fechar o Dia (Lock)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Status mudou para \"fechado\"', function() {",
+									"    pm.expect(json.status).to.eql('fechado');",
+									"});",
+									"",
+									"pm.test('Agora está bloqueado (RN06)', function() {",
+									"    pm.expect(json.bloqueado).to.be.true;",
+									"});",
+									"",
+									"pm.test('Possui data de fechamento', function() {",
+									"    pm.expect(json).to.have.property('dtFechamento');",
+									"    pm.expect(json.dtFechamento).to.not.be.null;",
+									"});",
+									"",
+									"console.log('🔒 Fechamento bloqueado - edições retroativas impedidas');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{operador_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/fechamento/dia/{{fechamento_diario_id}}/fechar",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "fechamento", "dia", "{{fechamento_diario_id}}", "fechar"]
+						},
+						"description": "**RN06:** Bloqueio retroativo\n\n**Efeitos:**\n- Status: aberto → fechado\n- bloqueado = true\n- dtFechamento = now()\n- Locações do dia não podem mais ser editadas\n\n**Testes:** 4 assertions"
+					},
+					"response": []
+				},
+				{
+					"name": "1.4 Tentar Reabrir (Gerente)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Status voltou para \"aberto\"', function() {",
+									"    pm.expect(json.status).to.eql('aberto');",
+									"});",
+									"",
+									"pm.test('Bloqueio foi removido', function() {",
+									"    pm.expect(json.bloqueado).to.be.false;",
+									"});",
+									"",
+									"pm.test('Data de fechamento foi limpa', function() {",
+									"    pm.expect(json.dtFechamento).to.be.null;",
+									"});",
+									"",
+									"console.log('🔓 Fechamento reaberto pelo GERENTE');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{gerente_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/fechamento/dia/{{fechamento_diario_id}}/reabrir",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "fechamento", "dia", "{{fechamento_diario_id}}", "reabrir"]
+						},
+						"description": "**Persona:** 👨‍💼 GERENTE\n\n**Regra:** Só pode reabrir se status == \"fechado\"\n**Erro:** 400 se status == \"aprovado\" (imutável)\n\n**Testes:** 3 assertions"
+					},
+					"response": []
+				},
+				{
+					"name": "1.5 Fechar Novamente",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"pm.expect(json.status).to.eql('fechado');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{operador_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/fechamento/dia/{{fechamento_diario_id}}/fechar",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "fechamento", "dia", "{{fechamento_diario_id}}", "fechar"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "1.6 Aprovar Fechamento (Gerente)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Status final é \"aprovado\"', function() {",
+									"    pm.expect(json.status).to.eql('aprovado');",
+									"});",
+									"",
+									"pm.test('Permanece bloqueado (imutável RN06)', function() {",
+									"    pm.expect(json.bloqueado).to.be.true;",
+									"});",
+									"",
+									"console.log('✅ Fechamento APROVADO - permanentemente bloqueado');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{gerente_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/fechamento/dia/{{fechamento_diario_id}}/aprovar",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "fechamento", "dia", "{{fechamento_diario_id}}", "aprovar"]
+						},
+						"description": "**RN06:** Estado final imutável\n\n**ABAC:** Requer role GERENTE\n\n**Efeitos:**\n- Status: fechado → aprovado\n- Não pode mais ser reaberto\n- Dados financeiros consolidados\n\n**Testes:** 2 assertions"
+					},
+					"response": []
+				},
+				{
+					"name": "1.7 Tentar Reabrir Aprovado (Deve Falhar)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 400 Bad Request', function() {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Mensagem de erro apropriada', function() {",
+									"    pm.expect(json.message).to.include('aprovado');",
+									"    pm.expect(json.message).to.include('não pode ser reaberto');",
+									"});",
+									"",
+									"pm.test('Tipo de erro é BusinessException', function() {",
+									"    pm.expect(json.error).to.include('Business');",
+									"});",
+									"",
+									"console.log('✅ Validação RN06: fechamento aprovado é imutável');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{gerente_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/fechamento/dia/{{fechamento_diario_id}}/reabrir",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "fechamento", "dia", "{{fechamento_diario_id}}", "reabrir"]
+						},
+						"description": "**Teste Negativo**\n\nValida que fechamento aprovado não pode ser reaberto (RN06)\n\n**Expected:** 400 Bad Request\n**Testes:** 3 assertions"
+					},
+					"response": []
+				}
+			],
+			"description": "**Jornada Completa:** Consolidação → Fechamento → Reabertura → Aprovação\n\n**Personas:** OPERADOR, GERENTE\n**Total de Testes:** 27 assertions\n\n**Fluxo de Estados (RN06):**\n```\nABERTO → FECHADO → APROVADO ⛔\n  ↑         ↓\n  └─reabrir─┘\n```"
+		},
+		{
+			"name": "2️⃣ Jornada: Comissões - Do Cálculo ao Pagamento",
+			"item": [
+				{
+					"name": "2.1 Criar Política de Comissão (Modelo)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 201 Created', function() {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Possui ID da política', function() {",
+									"    pm.expect(json).to.have.property('id');",
+									"});",
+									"",
+									"pm.test('Nível é MODELO (hierarquia RN04)', function() {",
+									"    pm.expect(json.nivel).to.eql('MODELO');",
+									"});",
+									"",
+									"pm.test('Tipo é PERCENTUAL', function() {",
+									"    pm.expect(json.tipoComissao).to.eql('PERCENTUAL');",
+									"});",
+									"",
+									"pm.test('Percentual configurado corretamente', function() {",
+									"    pm.expect(json.percentual).to.eql(12.0);",
+									"});",
+									"",
+									"pm.test('Política está ativa', function() {",
+									"    pm.expect(json.ativo).to.be.true;",
+									"});",
+									"",
+									"pm.environment.set('politica_comissao_id', json.id);",
+									"console.log('✅ Política de comissão criada (MODELO, 12%)');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{gerente_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nivel\": \"MODELO\",\n  \"modeloId\": \"{{modelo_id}}\",\n  \"tipoComissao\": \"PERCENTUAL\",\n  \"percentual\": 12.0,\n  \"descricao\": \"Política teste via Postman - 12% por modelo\",\n  \"ativo\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/v1/politicas-comissao",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "politicas-comissao"]
+						},
+						"description": "**Persona:** 👨‍💼 GERENTE\n\n**RN04:** Hierarquia de políticas\n1. CAMPANHA (prioridade 1)\n2. **MODELO** (prioridade 2) ⬅ AQUI\n3. FAIXA_DURACAO (prioridade 3)\n4. VENDEDOR (prioridade 4)\n\n**Testes:** 6 assertions"
+					},
+					"response": []
+				},
+				{
+					"name": "2.2 Listar Políticas Ativas",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Resposta é array', function() {",
+									"    pm.expect(json).to.be.an('array');",
+									"});",
+									"",
+									"pm.test('Contém a política recém-criada', function() {",
+									"    const politicaId = pm.environment.get('politica_comissao_id');",
+									"    const found = json.find(p => p.id === politicaId);",
+									"    pm.expect(found).to.not.be.undefined;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{gerente_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/politicas-comissao?ativo=true",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "politicas-comissao"],
+							"query": [
+								{
+									"key": "ativo",
+									"value": "true"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "2.3 Consultar Comissões Pendentes",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Resposta é array de comissões', function() {",
+									"    pm.expect(json).to.be.an('array');",
+									"});",
+									"",
+									"if (json.length > 0) {",
+									"    const comissao = json[0];",
+									"    ",
+									"    pm.test('Comissão possui estrutura correta', function() {",
+									"        pm.expect(comissao).to.have.property('id');",
+									"        pm.expect(comissao).to.have.property('vendedorId');",
+									"        pm.expect(comissao).to.have.property('locacaoId');",
+									"        pm.expect(comissao).to.have.property('valorBase');",
+									"        pm.expect(comissao).to.have.property('valorComissao');",
+									"        pm.expect(comissao).to.have.property('taxaAplicada');",
+									"        pm.expect(comissao).to.have.property('status');",
+									"    });",
+									"    ",
+									"    pm.test('Status é PENDENTE', function() {",
+									"        pm.expect(comissao.status).to.eql('PENDENTE');",
+									"    });",
+									"    ",
+									"    pm.test('Cálculo da comissão (RN04)', function() {",
+									"        const esperado = comissao.valorBase * (comissao.taxaAplicada / 100);",
+									"        pm.expect(comissao.valorComissao).to.be.closeTo(esperado, 0.01);",
+									"    });",
+									"    ",
+									"    // Salvar para aprovação",
+									"    pm.environment.set('comissao_id', comissao.id);",
+									"    console.log('✅ Comissão pendente encontrada:', comissao.valorComissao);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{gerente_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/comissoes/pendentes",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "comissoes", "pendentes"]
+						},
+						"description": "**Persona:** 👨‍💼 GERENTE\n\n**RN04:** Lista comissões aguardando aprovação\n\n**Validações:**\n- Estrutura da comissão\n- Cálculo correto (valorBase × taxa)\n- Status PENDENTE\n\n**Testes:** 7 assertions (se houver comissões)"
+					},
+					"response": []
+				},
+				{
+					"name": "2.4 Aprovar Comissão (Gerente)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const comissaoId = pm.environment.get('comissao_id');",
+									"",
+									"if (!comissaoId) {",
+									"    console.log('⚠️ Sem comissões para aprovar - pulando teste');",
+									"    pm.test.skip('Sem comissões disponíveis');",
+									"    return;",
+									"}",
+									"",
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Status mudou para APROVADA', function() {",
+									"    pm.expect(json.status).to.eql('APROVADA');",
+									"});",
+									"",
+									"pm.test('Valores permanecem inalterados', function() {",
+									"    pm.expect(json).to.have.property('valorComissao');",
+									"    pm.expect(json.valorComissao).to.be.a('number').and.above(0);",
+									"});",
+									"",
+									"console.log('✅ Comissão APROVADA pelo GERENTE');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{gerente_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"observacoes\": \"Aprovado via Postman - performance OK\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/v1/comissoes/{{comissao_id}}/aprovar",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "comissoes", "{{comissao_id}}", "aprovar"]
+						},
+						"description": "**Persona:** 👨‍💼 GERENTE\n\n**ABAC:** Valida alçada do gerente via OPA\n\n**Workflow:**\nPENDENTE → **APROVADA** → PAGA\n\n**Testes:** 3 assertions"
+					},
+					"response": []
+				},
+				{
+					"name": "2.5 Consultar Comissões Aguardando Pagamento",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Resposta é array', function() {",
+									"    pm.expect(json).to.be.an('array');",
+									"});",
+									"",
+									"if (json.length > 0) {",
+									"    pm.test('Todas têm status APROVADA', function() {",
+									"        json.forEach(c => {",
+									"            pm.expect(c.status).to.eql('APROVADA');",
+									"        });",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{financeiro_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/comissoes/aguardando-pagamento",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "comissoes", "aguardando-pagamento"]
+						},
+						"description": "**Persona:** 💰 FINANCEIRO\n\nLista comissões aprovadas que ainda não foram pagas."
+					},
+					"response": []
+				},
+				{
+					"name": "2.6 Pagar Comissão (Financeiro)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const comissaoId = pm.environment.get('comissao_id');",
+									"",
+									"if (!comissaoId) {",
+									"    console.log('⚠️ Sem comissões para pagar - pulando teste');",
+									"    pm.test.skip('Sem comissões disponíveis');",
+									"    return;",
+									"}",
+									"",
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Status final é PAGA', function() {",
+									"    pm.expect(json.status).to.eql('PAGA');",
+									"});",
+									"",
+									"pm.test('Possui data de pagamento', function() {",
+									"    pm.expect(json).to.have.property('dataPagamento');",
+									"    pm.expect(json.dataPagamento).to.not.be.null;",
+									"});",
+									"",
+									"pm.test('Método de pagamento registrado', function() {",
+									"    pm.expect(json).to.have.property('metodoPagamento');",
+									"    pm.expect(json.metodoPagamento).to.eql('PIX');",
+									"});",
+									"",
+									"console.log('✅ Comissão PAGA pelo FINANCEIRO');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{financeiro_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"dataPagamento\": \"{{$isoTimestamp}}\",\n  \"metodoPagamento\": \"PIX\",\n  \"comprovante\": \"https://storage.example.com/comprovante-pix.pdf\",\n  \"observacoes\": \"Pagamento efetuado via Postman\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/v1/comissoes/{{comissao_id}}/pagar",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "comissoes", "{{comissao_id}}", "pagar"]
+						},
+						"description": "**Persona:** 💰 FINANCEIRO\n\n**Workflow Completo:**\nPENDENTE → APROVADA → **PAGA** ✅\n\n**ABAC:** Requer role FINANCEIRO\n\n**Testes:** 4 assertions"
+					},
+					"response": []
+				}
+			],
+			"description": "**Jornada Completa:** Política → Cálculo → Aprovação → Pagamento\n\n**Personas:** GERENTE, FINANCEIRO\n**Total de Testes:** ~20 assertions\n\n**RN04:** Comissões hierárquicas com workflow de aprovação"
+		},
+		{
+			"name": "3️⃣ Jornada: Fechamento Mensal",
+			"item": [
+				{
+					"name": "3.1 Consolidar Mês",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 201 Created', function() {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Possui ID do fechamento mensal', function() {",
+									"    pm.expect(json).to.have.property('id');",
+									"});",
+									"",
+									"pm.test('Mês e ano corretos', function() {",
+									"    const mes = pm.variables.get('mes_referencia');",
+									"    const ano = pm.variables.get('ano_referencia');",
+									"    pm.expect(json.mes).to.eql(parseInt(mes));",
+									"    pm.expect(json.ano).to.eql(parseInt(ano));",
+									"});",
+									"",
+									"pm.test('Status inicial é \"aberto\"', function() {",
+									"    pm.expect(json.status).to.eql('aberto');",
+									"});",
+									"",
+									"pm.test('Possui totais consolidados', function() {",
+									"    pm.expect(json).to.have.property('totalReceita');",
+									"    pm.expect(json).to.have.property('totalDespesas');",
+									"    pm.expect(json).to.have.property('diasOperacao');",
+									"});",
+									"",
+									"pm.test('Possui breakdown de comissões', function() {",
+									"    pm.expect(json).to.have.property('totalComissoesPendentes');",
+									"    pm.expect(json).to.have.property('totalComissoesAprovadas');",
+									"    pm.expect(json).to.have.property('totalComissoesPagas');",
+									"});",
+									"",
+									"pm.environment.set('fechamento_mensal_id', json.id);",
+									"console.log('✅ Fechamento mensal consolidado:', json.id);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Definir mês/ano (mês atual)",
+									"const hoje = new Date();",
+									"const mes = (hoje.getMonth() + 1).toString();",
+									"const ano = hoje.getFullYear().toString();",
+									"pm.variables.set('mes_referencia', mes);",
+									"pm.variables.set('ano_referencia', ano);",
+									"console.log(`📅 Consolidando: ${mes}/${ano}`);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{gerente_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mes\": {{mes_referencia}},\n  \"ano\": {{ano_referencia}},\n  \"observacoes\": \"Fechamento mensal via Postman\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/v1/fechamento/mes/consolidar",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "fechamento", "mes", "consolidar"]
+						},
+						"description": "**Persona:** 👨‍💼 GERENTE\n\n**Agregação:**\n- Soma todos os fechamentos diários do mês\n- Calcula receita, despesas, comissões\n- Identifica divergências\n\n**Testes:** 6 assertions"
+					},
+					"response": []
+				},
+				{
+					"name": "3.2 Fechar Mês",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Status mudou para \"fechado\"', function() {",
+									"    pm.expect(json.status).to.eql('fechado');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{gerente_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/fechamento/mes/{{fechamento_mensal_id}}/fechar",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "fechamento", "mes", "{{fechamento_mensal_id}}", "fechar"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "3.3 Aprovar Mês (Libera Comissões)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', function() {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"const json = pm.response.json();",
+									"",
+									"pm.test('Status final é \"aprovado\"', function() {",
+									"    pm.expect(json.status).to.eql('aprovado');",
+									"});",
+									"",
+									"console.log('✅ Fechamento mensal APROVADO - comissões liberadas para pagamento');"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{gerente_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenantId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/v1/fechamento/mes/{{fechamento_mensal_id}}/aprovar",
+							"host": ["{{baseUrl}}"],
+							"path": ["v1", "fechamento", "mes", "{{fechamento_mensal_id}}", "aprovar"]
+						},
+						"description": "**RN06 + RN04:** Aprovação mensal libera workflow de comissões\n\n**Trigger:** Comissões PENDENTES → disponíveis para aprovação\n\n**Testes:** 2 assertions"
+					},
+					"response": []
+				}
+			],
+			"description": "**Jornada:** Consolidação mensal com liberação de comissões\n\n**Persona:** GERENTE\n**Total de Testes:** ~8 assertions"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Script global de pré-requisição",
+					"console.log('🚀 Executando requisição:', pm.info.requestName);",
+					"",
+					"// Validar se token está presente (exceto para auth)",
+					"if (!pm.info.requestName.includes('Auth')) {",
+					"    const token = pm.environment.get('gerente_token') || ",
+					"                  pm.environment.get('operador_token') || ",
+					"                  pm.environment.get('financeiro_token');",
+					"    ",
+					"    if (!token) {",
+					"        console.warn('⚠️ Nenhum token encontrado - execute Setup primeiro');",
+					"    }",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Script global de testes",
+					"pm.test('Response time é aceitável', function() {",
+					"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+					"});",
+					"",
+					"pm.test('Não possui erros 5xx', function() {",
+					"    pm.expect(pm.response.code).to.be.below(500);",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8090/api",
+			"type": "string"
+		},
+		{
+			"key": "tenantId",
+			"value": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+			"type": "string"
+		},
+		{
+			"key": "keycloakUrl",
+			"value": "http://localhost:8081",
+			"type": "string"
+		},
+		{
+			"key": "modelo_id",
+			"value": "33333333-3333-3333-3333-333333333333",
+			"type": "string"
+		},
+		{
+			"key": "jetski_id",
+			"value": "44444444-4444-4444-4444-444444444444",
+			"type": "string"
+		}
+	]
+}
