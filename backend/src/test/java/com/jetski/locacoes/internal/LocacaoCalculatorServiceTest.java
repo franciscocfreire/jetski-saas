@@ -323,4 +323,157 @@ class LocacaoCalculatorServiceTest {
         BigDecimal valorBase = calculator.calculateBaseValue(billableMinutes, pricePerHour);
         assertThat(valorBase).isEqualByComparingTo("50.00");
     }
+
+    // ===================================================================
+    // Additional Edge Cases for Branch Coverage
+    // ===================================================================
+
+    @Test
+    @DisplayName("Edge case: 68min used, 5min tolerance → 75min billable (63 → 75)")
+    void testCalculateBillableMinutes_Scenario68Minutes() {
+        // Given: 68 minutes used, 5 tolerance
+        int usedMinutes = 68;
+        int toleranceMinutes = 5;
+
+        // When: 68-5=63min → ceil(63/15)*15 = 75min
+        int billable = calculator.calculateBillableMinutes(usedMinutes, toleranceMinutes);
+
+        // Then
+        assertThat(billable).isEqualTo(75);
+    }
+
+    @Test
+    @DisplayName("Edge case: 19min used, 5min tolerance → 15min billable")
+    void testCalculateBillableMinutes_Scenario19Minutes() {
+        // Given: 19 minutes used, 5 tolerance
+        int usedMinutes = 19;
+        int toleranceMinutes = 5;
+
+        // When: 19-5=14min → ceil(14/15)*15 = 15min
+        int billable = calculator.calculateBillableMinutes(usedMinutes, toleranceMinutes);
+
+        // Then
+        assertThat(billable).isEqualTo(15);
+    }
+
+    @Test
+    @DisplayName("Edge case: 21min used, 5min tolerance → 30min billable")
+    void testCalculateBillableMinutes_Scenario21Minutes() {
+        // Given: 21 minutes used, 5 tolerance
+        int usedMinutes = 21;
+        int toleranceMinutes = 5;
+
+        // When: 21-5=16min → ceil(16/15)*15 = 30min
+        int billable = calculator.calculateBillableMinutes(usedMinutes, toleranceMinutes);
+
+        // Then
+        assertThat(billable).isEqualTo(30);
+    }
+
+    @Test
+    @DisplayName("Edge case: Large value (300min used, 5min tolerance → 300min billable)")
+    void testCalculateBillableMinutes_LargeValue() {
+        // Given: 300 minutes (5 hours)
+        int usedMinutes = 300;
+        int toleranceMinutes = 5;
+
+        // When: 300-5=295min → ceil(295/15)*15 = 300min
+        int billable = calculator.calculateBillableMinutes(usedMinutes, toleranceMinutes);
+
+        // Then
+        assertThat(billable).isEqualTo(300);
+    }
+
+    @Test
+    @DisplayName("Edge case: Negative minutes → 0 billable (defensive)")
+    void testCalculateBillableMinutes_NegativeUsed() {
+        // Given: Invalid negative usage (defensive test)
+        int usedMinutes = -10;
+        int toleranceMinutes = 5;
+
+        // When: System should protect against invalid input
+        int billable = calculator.calculateBillableMinutes(usedMinutes, toleranceMinutes);
+
+        // Then: max(0, -10-5) = 0
+        assertThat(billable).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Calculate used minutes: 10 minutes (0.166667 hours)")
+    void testCalculateUsedMinutes_TenMinutes() {
+        BigDecimal horimetroInicio = new BigDecimal("100.0");
+        BigDecimal horimetroFim = new BigDecimal("100.166667");
+
+        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+
+        assertThat(usedMinutes).isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("Calculate used minutes: 5 minutes (0.083333 hours)")
+    void testCalculateUsedMinutes_FiveMinutes() {
+        BigDecimal horimetroInicio = new BigDecimal("100.0");
+        BigDecimal horimetroFim = new BigDecimal("100.083333");
+
+        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+
+        assertThat(usedMinutes).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("Calculate used minutes: Zero usage (same reading)")
+    void testCalculateUsedMinutes_ZeroUsage() {
+        BigDecimal horimetroInicio = new BigDecimal("100.0");
+        BigDecimal horimetroFim = new BigDecimal("100.0");
+
+        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+
+        assertThat(usedMinutes).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Calculate base value: 90min at R$150/hour = R$225.00")
+    void testCalculateBaseValue_NinetyMinutes() {
+        int billableMinutes = 90;
+        BigDecimal pricePerHour = new BigDecimal("150.00");
+
+        BigDecimal valorBase = calculator.calculateBaseValue(billableMinutes, pricePerHour);
+
+        assertThat(valorBase).isEqualByComparingTo("225.00");
+    }
+
+    @Test
+    @DisplayName("Calculate base value: Large value (300min at R$200/hour = R$1000.00)")
+    void testCalculateBaseValue_LargeValue() {
+        int billableMinutes = 300;
+        BigDecimal pricePerHour = new BigDecimal("200.00");
+
+        BigDecimal valorBase = calculator.calculateBaseValue(billableMinutes, pricePerHour);
+
+        assertThat(valorBase).isEqualByComparingTo("1000.00");
+    }
+
+    @Test
+    @DisplayName("Calculate base value: Fractional result (17min at R$100/hour = R$28.33)")
+    void testCalculateBaseValue_FractionalRounding() {
+        // 17 minutes at R$100/hour = 28.3333... should round to 28.33
+        int billableMinutes = 17;
+        BigDecimal pricePerHour = new BigDecimal("100.00");
+
+        BigDecimal valorBase = calculator.calculateBaseValue(billableMinutes, pricePerHour);
+
+        assertThat(valorBase).isEqualByComparingTo("28.33");
+    }
+
+    @Test
+    @DisplayName("Calculate used minutes: Fractional seconds rounding (0.5 minutes → 1 minute)")
+    void testCalculateUsedMinutes_FractionalSecondsRounding() {
+        // 100.0 → 100.0084 = ~30 seconds = 0.504 minutes (should round to 1)
+        BigDecimal horimetroInicio = new BigDecimal("100.0");
+        BigDecimal horimetroFim = new BigDecimal("100.0084");
+
+        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+
+        assertThat(usedMinutes).isEqualTo(1);
+    }
 }

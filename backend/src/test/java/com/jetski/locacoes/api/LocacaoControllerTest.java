@@ -283,6 +283,37 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.message").value(containsString("disponível")));
     }
 
+    @Test
+    @DisplayName("POST /check-in/reserva - Fail: Reservation has no jetski allocated")
+    void testCheckInFromReservation_Fail_NoJetskiAllocated() throws Exception {
+        // Given: Reservation with NO jetski_id
+        testReserva = Reserva.builder()
+            .tenantId(TENANT_ID)
+            .modeloId(testModelo.getId())
+            .jetskiId(null)  // NO jetski allocated
+            .clienteId(testCliente.getId())
+            .dataInicio(LocalDateTime.now())
+            .dataFimPrevista(LocalDateTime.now().plusHours(2))
+            .status(Reserva.ReservaStatus.CONFIRMADA)
+            .build();
+        testReserva = reservaRepository.save(testReserva);
+
+        CheckInFromReservaRequest request = CheckInFromReservaRequest.builder()
+            .reservaId(testReserva.getId())
+            .horimetroInicio(new BigDecimal("100.0"))
+            .build();
+
+        // When/Then: Check-in fails with 400 Bad Request
+        mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/check-in/reserva", TENANT_ID)
+                .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
+                                         .claim("sub", USER_ID.toString())))
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value(containsString("jetski alocado")));
+    }
+
     // ===================================================================
     // Walk-in Check-in Tests
     // ===================================================================
@@ -549,6 +580,41 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.message").value(containsString("Horímetro")));
     }
 
+    @Test
+    @DisplayName("POST /{id}/check-out - Fail: Missing 4 mandatory photos")
+    void testCheckOut_Fail_MissingPhotos() throws Exception {
+        // Given: Active rental WITHOUT 4 mandatory photos
+        Locacao locacao = Locacao.builder()
+            .tenantId(TENANT_ID)
+            .jetskiId(testJetski.getId())
+            .clienteId(testCliente.getId())
+            .dataCheckIn(LocalDateTime.now())
+            .horimetroInicio(new BigDecimal("100.0"))
+            .duracaoPrevista(60)
+            .status(LocacaoStatus.EM_CURSO)
+            .build();
+        locacao = locacaoRepository.save(locacao);
+
+        // NO photos created - should fail validation
+
+        testJetski.setStatus(JetskiStatus.LOCADO);
+        jetskiRepository.save(testJetski);
+
+        CheckOutRequest request = CheckOutRequest.builder()
+            .horimetroFim(new BigDecimal("101.0"))
+            .build();
+
+        // When/Then: Check-out fails with 400 due to missing photos
+        mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/{id}/check-out", TENANT_ID, locacao.getId())
+                .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
+                                         .claim("sub", USER_ID.toString())))
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value(containsString("4 fotos obrigatórias")));
+    }
+
     // ===================================================================
     // List and Get Tests
     // ===================================================================
@@ -648,6 +714,53 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", hasSize(1)))
             .andExpect(jsonPath("$[0].jetskiId").value(testJetski.getId().toString()));
+    }
+
+    @Test
+    @DisplayName("GET /?clienteId=xxx - Success: Filter by cliente")
+    void testList_FilterByCliente() throws Exception {
+        // Given: Another cliente
+        Cliente otherCliente = Cliente.builder()
+            .tenantId(TENANT_ID)
+            .nome("Maria Santos")
+            .email("maria.santos@example.com")
+            .telefone("11987654322")
+            .build();
+        otherCliente = clienteRepository.save(otherCliente);
+
+        // Create rentals for different clientes
+        Locacao locacao1 = Locacao.builder()
+            .tenantId(TENANT_ID)
+            .jetskiId(testJetski.getId())
+            .clienteId(testCliente.getId())
+            .dataCheckIn(LocalDateTime.now().minusHours(2))
+            .horimetroInicio(new BigDecimal("100.0"))
+            .duracaoPrevista(60)
+            .status(LocacaoStatus.FINALIZADA)
+            .build();
+        locacaoRepository.save(locacao1);
+
+        Locacao locacao2 = Locacao.builder()
+            .tenantId(TENANT_ID)
+            .jetskiId(testJetski.getId())
+            .clienteId(otherCliente.getId())
+            .dataCheckIn(LocalDateTime.now().minusHours(1))
+            .horimetroInicio(new BigDecimal("100.0"))
+            .duracaoPrevista(60)
+            .status(LocacaoStatus.FINALIZADA)
+            .build();
+        locacaoRepository.save(locacao2);
+
+        // When: Filter by specific cliente
+        mockMvc.perform(get("/v1/tenants/{tenantId}/locacoes", TENANT_ID)
+                .param("clienteId", testCliente.getId().toString())
+                .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
+                                         .claim("sub", USER_ID.toString())))
+                .header("X-Tenant-Id", TENANT_ID.toString()))
+            // Then: Returns only rentals for that cliente
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$", hasSize(1)))
+            .andExpect(jsonPath("$[0].clienteId").value(testCliente.getId().toString()));
     }
 
     // ===================================================================

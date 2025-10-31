@@ -276,6 +276,93 @@ class TenantAccessInfoTest {
     }
 
     @Test
+    @DisplayName("equals() should return true for same instance")
+    void equalsShouldReturnTrueForSameInstance() {
+        // Given
+        TenantAccessInfo info = TenantAccessInfo.allowed(List.of("ROLE1"), TEST_USUARIO_ID);
+
+        // Then
+        assertThat(info).isEqualTo(info);
+    }
+
+    @Test
+    @DisplayName("equals() should return false when comparing to null")
+    void equalsShouldReturnFalseForNull() {
+        // Given
+        TenantAccessInfo info = TenantAccessInfo.allowed(List.of("ROLE1"), TEST_USUARIO_ID);
+
+        // Then
+        assertThat(info).isNotEqualTo(null);
+    }
+
+    @Test
+    @DisplayName("equals() should return false when comparing to different type")
+    void equalsShouldReturnFalseForDifferentType() {
+        // Given
+        TenantAccessInfo info = TenantAccessInfo.allowed(List.of("ROLE1"), TEST_USUARIO_ID);
+
+        // Then
+        assertThat(info).isNotEqualTo("not a TenantAccessInfo");
+        assertThat(info).isNotEqualTo(123);
+    }
+
+    @Test
+    @DisplayName("equals() should compare all fields correctly")
+    void equalsShouldCompareAllFieldsCorrectly() {
+        // Test hasAccess field
+        TenantAccessInfo info1 = TenantAccessInfo.builder().hasAccess(true).roles(List.of()).build();
+        TenantAccessInfo info2 = TenantAccessInfo.builder().hasAccess(false).roles(List.of()).build();
+        assertThat(info1).isNotEqualTo(info2);
+
+        // Test roles field
+        TenantAccessInfo info3 = TenantAccessInfo.builder().hasAccess(true).roles(List.of("ROLE1")).build();
+        TenantAccessInfo info4 = TenantAccessInfo.builder().hasAccess(true).roles(List.of("ROLE2")).build();
+        assertThat(info3).isNotEqualTo(info4);
+
+        // Test unrestricted field
+        TenantAccessInfo info5 = TenantAccessInfo.builder().hasAccess(true).unrestricted(true).build();
+        TenantAccessInfo info6 = TenantAccessInfo.builder().hasAccess(true).unrestricted(false).build();
+        assertThat(info5).isNotEqualTo(info6);
+
+        // Test reason field
+        TenantAccessInfo info7 = TenantAccessInfo.builder().hasAccess(true).reason("reason1").build();
+        TenantAccessInfo info8 = TenantAccessInfo.builder().hasAccess(true).reason("reason2").build();
+        assertThat(info7).isNotEqualTo(info8);
+
+        // Test usuarioId field
+        UUID userId1 = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        UUID userId2 = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        TenantAccessInfo info9 = TenantAccessInfo.builder().hasAccess(true).usuarioId(userId1).build();
+        TenantAccessInfo info10 = TenantAccessInfo.builder().hasAccess(true).usuarioId(userId2).build();
+        assertThat(info9).isNotEqualTo(info10);
+    }
+
+    @Test
+    @DisplayName("hashCode() should be consistent")
+    void hashCodeShouldBeConsistent() {
+        // Given
+        TenantAccessInfo info = TenantAccessInfo.allowed(List.of("ROLE1"), TEST_USUARIO_ID);
+
+        // When
+        int hashCode1 = info.hashCode();
+        int hashCode2 = info.hashCode();
+
+        // Then
+        assertThat(hashCode1).isEqualTo(hashCode2);
+    }
+
+    @Test
+    @DisplayName("hashCode() should be different for different objects")
+    void hashCodeShouldBeDifferentForDifferentObjects() {
+        // Given
+        TenantAccessInfo info1 = TenantAccessInfo.allowed(List.of("ROLE1"), TEST_USUARIO_ID);
+        TenantAccessInfo info2 = TenantAccessInfo.denied("Access denied");
+
+        // Then
+        assertThat(info1.hashCode()).isNotEqualTo(info2.hashCode());
+    }
+
+    @Test
     @DisplayName("toString() should return string representation")
     void toStringShouldReturnStringRepresentation() {
         // Given

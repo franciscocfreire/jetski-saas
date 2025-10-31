@@ -289,4 +289,174 @@ class AbastecimentoServiceTest {
         // Then: Should return empty
         assertThat(found).isEmpty();
     }
+
+    // ===================================================================
+    // Query methods: listarPorJetski (without date filters)
+    // ===================================================================
+
+    @Test
+    @DisplayName("Should list refills by jetski without date filter")
+    void testListarPorJetski_SemFiltroData() {
+        // Given: Multiple refills for the jetski
+        Abastecimento a1 = Abastecimento.builder().id(1L).litros(new BigDecimal("50")).build();
+        Abastecimento a2 = Abastecimento.builder().id(2L).litros(new BigDecimal("30")).build();
+
+        when(abastecimentoRepository.findByTenantIdAndJetskiIdOrderByDataHoraDesc(tenantId, jetskiId))
+            .thenReturn(List.of(a1, a2));
+
+        // When: List without date filter
+        List<Abastecimento> refills = service.listarPorJetski(tenantId, jetskiId, null, null);
+
+        // Then: Should return all refills
+        assertThat(refills).hasSize(2);
+        verify(abastecimentoRepository).findByTenantIdAndJetskiIdOrderByDataHoraDesc(tenantId, jetskiId);
+    }
+
+    @Test
+    @DisplayName("Should list refills by jetski with date filter")
+    void testListarPorJetski_ComFiltroData() {
+        // Given: Date range filter
+        java.time.LocalDate dataInicio = java.time.LocalDate.now().minusDays(7);
+        java.time.LocalDate dataFim = java.time.LocalDate.now();
+
+        Abastecimento a1 = Abastecimento.builder().id(1L).litros(new BigDecimal("50")).build();
+
+        when(abastecimentoRepository.findByTenantIdAndJetskiIdAndDataHoraBetweenOrderByDataHoraDesc(
+            eq(tenantId), eq(jetskiId), any(Instant.class), any(Instant.class)))
+            .thenReturn(List.of(a1));
+
+        // When: List with date filter
+        List<Abastecimento> refills = service.listarPorJetski(tenantId, jetskiId, dataInicio, dataFim);
+
+        // Then: Should return filtered refills
+        assertThat(refills).hasSize(1);
+        verify(abastecimentoRepository).findByTenantIdAndJetskiIdAndDataHoraBetweenOrderByDataHoraDesc(
+            eq(tenantId), eq(jetskiId), any(Instant.class), any(Instant.class));
+    }
+
+    // ===================================================================
+    // Query methods: listarTodos (without/with date filters)
+    // ===================================================================
+
+    @Test
+    @DisplayName("Should list all refills without date filter")
+    void testListarTodos_SemFiltroData() {
+        // Given: Multiple refills
+        Abastecimento a1 = Abastecimento.builder().id(1L).litros(new BigDecimal("50")).build();
+        Abastecimento a2 = Abastecimento.builder().id(2L).litros(new BigDecimal("30")).build();
+
+        when(abastecimentoRepository.findByTenantIdOrderByDataHoraDesc(tenantId))
+            .thenReturn(List.of(a1, a2));
+
+        // When: List all without date filter
+        List<Abastecimento> refills = service.listarTodos(tenantId, null, null);
+
+        // Then: Should return all refills
+        assertThat(refills).hasSize(2);
+        verify(abastecimentoRepository).findByTenantIdOrderByDataHoraDesc(tenantId);
+    }
+
+    @Test
+    @DisplayName("Should list all refills with date filter")
+    void testListarTodos_ComFiltroData() {
+        // Given: Date range filter
+        java.time.LocalDate dataInicio = java.time.LocalDate.now().minusDays(7);
+        java.time.LocalDate dataFim = java.time.LocalDate.now();
+
+        Abastecimento a1 = Abastecimento.builder().id(1L).litros(new BigDecimal("50")).build();
+
+        when(abastecimentoRepository.findByTenantIdAndDataHoraBetweenOrderByDataHoraDesc(
+            eq(tenantId), any(Instant.class), any(Instant.class)))
+            .thenReturn(List.of(a1));
+
+        // When: List with date filter
+        List<Abastecimento> refills = service.listarTodos(tenantId, dataInicio, dataFim);
+
+        // Then: Should return filtered refills
+        assertThat(refills).hasSize(1);
+        verify(abastecimentoRepository).findByTenantIdAndDataHoraBetweenOrderByDataHoraDesc(
+            eq(tenantId), any(Instant.class), any(Instant.class));
+    }
+
+    // ===================================================================
+    // Query methods: listarPorTipo (without/with date filters)
+    // ===================================================================
+
+    @Test
+    @DisplayName("Should list refills by type without date filter")
+    void testListarPorTipo_SemFiltroData() {
+        // Given: PRE_LOCACAO refills
+        Abastecimento a1 = Abastecimento.builder().id(1L).tipo(TipoAbastecimento.PRE_LOCACAO).build();
+
+        when(abastecimentoRepository.findByTenantIdAndTipoOrderByDataHoraDesc(tenantId, TipoAbastecimento.PRE_LOCACAO))
+            .thenReturn(List.of(a1));
+
+        // When: List by type without date filter
+        List<Abastecimento> refills = service.listarPorTipo(tenantId, TipoAbastecimento.PRE_LOCACAO, null, null);
+
+        // Then: Should return refills of that type
+        assertThat(refills).hasSize(1);
+        assertThat(refills.get(0).getTipo()).isEqualTo(TipoAbastecimento.PRE_LOCACAO);
+        verify(abastecimentoRepository).findByTenantIdAndTipoOrderByDataHoraDesc(tenantId, TipoAbastecimento.PRE_LOCACAO);
+    }
+
+    @Test
+    @DisplayName("Should list refills by type with date filter")
+    void testListarPorTipo_ComFiltroData() {
+        // Given: Date range filter and type
+        java.time.LocalDate dataInicio = java.time.LocalDate.now().minusDays(7);
+        java.time.LocalDate dataFim = java.time.LocalDate.now();
+
+        Abastecimento a1 = Abastecimento.builder().id(1L).tipo(TipoAbastecimento.FROTA).build();
+
+        when(abastecimentoRepository.findByTenantIdAndTipoAndDataHoraBetweenOrderByDataHoraDesc(
+            eq(tenantId), eq(TipoAbastecimento.FROTA), any(Instant.class), any(Instant.class)))
+            .thenReturn(List.of(a1));
+
+        // When: List by type with date filter
+        List<Abastecimento> refills = service.listarPorTipo(tenantId, TipoAbastecimento.FROTA, dataInicio, dataFim);
+
+        // Then: Should return filtered refills
+        assertThat(refills).hasSize(1);
+        assertThat(refills.get(0).getTipo()).isEqualTo(TipoAbastecimento.FROTA);
+        verify(abastecimentoRepository).findByTenantIdAndTipoAndDataHoraBetweenOrderByDataHoraDesc(
+            eq(tenantId), eq(TipoAbastecimento.FROTA), any(Instant.class), any(Instant.class));
+    }
+
+    // ===================================================================
+    // Register refill: Auto-calculate custoTotal when null
+    // ===================================================================
+
+    @Test
+    @DisplayName("Should auto-calculate custoTotal when null")
+    void testRegistrar_AutoCalculateCustoTotal() {
+        // Given: Refill without custoTotal (will be auto-calculated)
+        Abastecimento abastecimento = Abastecimento.builder()
+            .jetskiId(jetskiId)
+            .tipo(TipoAbastecimento.FROTA)
+            .litros(new BigDecimal("50"))
+            .precoLitro(new BigDecimal("7.00"))
+            .custoTotal(null) // Will trigger recalculation
+            .dataHora(Instant.now())
+            .build();
+
+        when(abastecimentoRepository.save(any(Abastecimento.class)))
+            .thenAnswer(invocation -> {
+                Abastecimento saved = invocation.getArgument(0);
+                saved.setId(10L);
+                return saved;
+            });
+
+        // When: Register refill
+        Abastecimento saved = service.registrar(tenantId, responsavelId, abastecimento);
+
+        // Then: custoTotal should be calculated (50L × R$7.00 = R$350)
+        assertThat(saved.getCustoTotal()).isEqualByComparingTo(new BigDecimal("350.00"));
+
+        // Then: Should save with calculated cost
+        verify(abastecimentoRepository).save(argThat(abast ->
+            abast.getCustoTotal() != null &&
+            abast.getCustoTotal().compareTo(new BigDecimal("350.00")) == 0
+        ));
+    }
 }
