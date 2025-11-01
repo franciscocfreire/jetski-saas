@@ -60,7 +60,7 @@
 								},
 								{
 									"key": "client_id",
-									"value": "jetski-local",
+									"value": "jetski-api",
 									"type": "text"
 								},
 								{
@@ -115,7 +115,7 @@
 								},
 								{
 									"key": "client_id",
-									"value": "jetski-local"
+									"value": "jetski-api"
 								},
 								{
 									"key": "username",
@@ -166,7 +166,7 @@
 								},
 								{
 									"key": "client_id",
-									"value": "jetski-local"
+									"value": "jetski-api"
 								},
 								{
 									"key": "username",
