@@ -64,6 +64,11 @@
 									"type": "text"
 								},
 								{
+									"key": "client_secret",
+									"value": "jetski-secret",
+									"type": "text"
+								},
+								{
 									"key": "username",
 									"value": "gerente.teste@example.com",
 									"type": "text"
@@ -118,6 +123,10 @@
 									"value": "jetski-api"
 								},
 								{
+									"key": "client_secret",
+									"value": "jetski-secret"
+								},
+								{
 									"key": "username",
 									"value": "operador.teste@example.com"
 								},
@@ -167,6 +176,10 @@
 								{
 									"key": "client_id",
 									"value": "jetski-api"
+								},
+								{
+									"key": "client_secret",
+									"value": "jetski-secret"
 								},
 								{
 									"key": "username",
