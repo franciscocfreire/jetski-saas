@@ -70,7 +70,7 @@
 								},
 								{
 									"key": "username",
-									"value": "gerente.teste@example.com",
+									"value": "gerente@acme.com",
 									"type": "text"
 								},
 								{
@@ -128,7 +128,7 @@
 								},
 								{
 									"key": "username",
-									"value": "operador.teste@example.com"
+									"value": "operador@acme.com"
 								},
 								{
 									"key": "password",
@@ -183,7 +183,7 @@
 								},
 								{
 									"key": "username",
-									"value": "financeiro.teste@example.com"
+									"value": "gerente@acme.com"
 								},
 								{
 									"key": "password",
