@@ -118,7 +118,10 @@
       "Bash(paste:*)",
       "Bash(git log:*)",
       "Bash(wait)",
-      "Bash(lynx:*)"
+      "Bash(lynx:*)",
+      "Bash(timeout 180 mvn test:*)",
+      "Read(///**)",
+      "Bash(timeout 240 mvn test:*)"
     ],
     "deny": [],
     "ask": []
