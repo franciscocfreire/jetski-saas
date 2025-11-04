@@ -75,7 +75,7 @@
 								},
 								{
 									"key": "password",
-									"value": "senha123",
+									"value": "gerente123",
 									"type": "text"
 								}
 							]
@@ -132,7 +132,7 @@
 								},
 								{
 									"key": "password",
-									"value": "senha123"
+									"value": "operador123"
 								}
 							]
 						},
@@ -187,7 +187,7 @@
 								},
 								{
 									"key": "password",
-									"value": "senha123"
+									"value": "gerente123"
 								}
 							]
 						},
