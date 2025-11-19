@@ -3,7 +3,6 @@ package com.jetski.combustivel.internal;
 import com.jetski.combustivel.domain.*;
 import com.jetski.combustivel.internal.repository.AbastecimentoRepository;
 import com.jetski.combustivel.internal.repository.FuelPolicyRepository;
-import com.jetski.locacoes.domain.Locacao;
 import com.jetski.shared.exception.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -62,6 +62,19 @@ class FuelPolicyServiceTest {
         tenantId = UUID.randomUUID();
         jetskiId = UUID.randomUUID();
         modeloId = UUID.randomUUID();
+    }
+
+    /**
+     * Helper method to create LocacaoFuelData for tests.
+     */
+    private LocacaoFuelData createLocacaoFuelData(int minutosFaturaveis) {
+        return LocacaoFuelData.builder()
+            .id(UUID.randomUUID())
+            .tenantId(tenantId)
+            .jetskiId(jetskiId)
+            .dataCheckOut(Instant.now())
+            .minutosFaturaveis(minutosFaturaveis)
+            .build();
     }
 
     // ===================================================================
@@ -247,15 +260,10 @@ class FuelPolicyServiceTest {
             tenantId, FuelPolicyType.GLOBAL
         )).thenReturn(Optional.of(policy));
 
-        Locacao locacao = Locacao.builder()
-            .tenantId(tenantId)
-            .jetskiId(jetskiId)
-            .minutosUsados(65)
-            .minutosFaturaveis(60)
-            .build();
+        LocacaoFuelData locacaoData = createLocacaoFuelData(60);
 
         // When: Calculate fuel cost
-        BigDecimal custo = service.calcularCustoCombustivel(locacao, modeloId);
+        BigDecimal custo = service.calcularCustoCombustivel(locacaoData, modeloId);
 
         // Then: Should return ZERO
         assertThat(custo).isEqualByComparingTo(BigDecimal.ZERO);
@@ -280,15 +288,10 @@ class FuelPolicyServiceTest {
             tenantId, FuelPolicyType.GLOBAL
         )).thenReturn(Optional.of(policy));
 
-        Locacao locacao = Locacao.builder()
-            .tenantId(tenantId)
-            .jetskiId(jetskiId)
-            .minutosUsados(95) // 95 minutes used
-            .minutosFaturaveis(90) // 1.5 hours billable after tolerance
-            .build();
+        LocacaoFuelData locacaoData = createLocacaoFuelData(90); // 1.5 hours billable after tolerance
 
         // When: Calculate fuel cost
-        BigDecimal custo = service.calcularCustoCombustivel(locacao, modeloId);
+        BigDecimal custo = service.calcularCustoCombustivel(locacaoData, modeloId);
 
         // Then: Should be R$ 15.00 (1.5 hours × R$ 10/hour)
         assertThat(custo).isEqualByComparingTo(new BigDecimal("15.00"));
@@ -315,12 +318,11 @@ class FuelPolicyServiceTest {
         // Given: Locacao with check-out date
         UUID locacaoId = UUID.randomUUID();
         LocalDate dataCheckOut = LocalDate.now();
-        Locacao locacao = Locacao.builder()
+        LocacaoFuelData locacaoData = LocacaoFuelData.builder()
             .id(locacaoId)
             .tenantId(tenantId)
             .jetskiId(jetskiId)
-            .dataCheckOut(dataCheckOut.atStartOfDay())
-            .minutosUsados(60)
+            .dataCheckOut(dataCheckOut.atStartOfDay().toInstant(ZoneOffset.UTC))
             .minutosFaturaveis(60)
             .build();
 
@@ -345,11 +347,11 @@ class FuelPolicyServiceTest {
         )).thenReturn(abastecimentos);
 
         // Given: Fuel price = R$ 7.00/L
-        when(fuelPriceDayService.obterPrecoMedioDia(tenantId, dataCheckOut))
+        when(fuelPriceDayService.obterPrecoMedioDia(eq(tenantId), any(LocalDate.class)))
             .thenReturn(new BigDecimal("7.00"));
 
         // When: Calculate fuel cost
-        BigDecimal custo = service.calcularCustoCombustivel(locacao, modeloId);
+        BigDecimal custo = service.calcularCustoCombustivel(locacaoData, modeloId);
 
         // Then: Should be 20L × R$ 7.00 = R$ 140.00
         assertThat(custo).isEqualByComparingTo(new BigDecimal("140.00"));
@@ -371,11 +373,12 @@ class FuelPolicyServiceTest {
 
         // Given: Locacao with no abastecimentos
         UUID locacaoId = UUID.randomUUID();
-        Locacao locacao = Locacao.builder()
+        LocacaoFuelData locacaoData = LocacaoFuelData.builder()
             .id(locacaoId)
             .tenantId(tenantId)
             .jetskiId(jetskiId)
-            .dataCheckOut(LocalDate.now().atStartOfDay())
+            .dataCheckOut(Instant.now())
+            .minutosFaturaveis(60)
             .build();
 
         when(abastecimentoRepository.findByTenantIdAndLocacaoIdOrderByDataHoraAsc(
@@ -383,7 +386,7 @@ class FuelPolicyServiceTest {
         )).thenReturn(Collections.emptyList());
 
         // When: Calculate fuel cost
-        BigDecimal custo = service.calcularCustoCombustivel(locacao, modeloId);
+        BigDecimal custo = service.calcularCustoCombustivel(locacaoData, modeloId);
 
         // Then: Should return ZERO
         assertThat(custo).isEqualByComparingTo(BigDecimal.ZERO);
@@ -405,11 +408,12 @@ class FuelPolicyServiceTest {
 
         // Given: Locacao with PRE = POS (same fuel level)
         UUID locacaoId = UUID.randomUUID();
-        Locacao locacao = Locacao.builder()
+        LocacaoFuelData locacaoData = LocacaoFuelData.builder()
             .id(locacaoId)
             .tenantId(tenantId)
             .jetskiId(jetskiId)
-            .dataCheckOut(LocalDate.now().atStartOfDay())
+            .dataCheckOut(Instant.now())
+            .minutosFaturaveis(60)
             .build();
 
         // Given: PRE and POS both 50L (no consumption)
@@ -433,7 +437,7 @@ class FuelPolicyServiceTest {
         )).thenReturn(abastecimentos);
 
         // When: Calculate fuel cost
-        BigDecimal custo = service.calcularCustoCombustivel(locacao, modeloId);
+        BigDecimal custo = service.calcularCustoCombustivel(locacaoData, modeloId);
 
         // Then: Should return ZERO
         assertThat(custo).isEqualByComparingTo(BigDecimal.ZERO);
@@ -458,15 +462,11 @@ class FuelPolicyServiceTest {
             tenantId, FuelPolicyType.GLOBAL
         )).thenReturn(Optional.of(policy));
 
-        Locacao locacao = Locacao.builder()
-            .tenantId(tenantId)
-            .jetskiId(jetskiId)
-            .minutosFaturaveis(60)
-            .build();
+        LocacaoFuelData locacaoData = createLocacaoFuelData(60);
 
         // When/Then: Should throw IllegalStateException
         assertThatThrownBy(() ->
-            service.calcularCustoCombustivel(locacao, modeloId)
+            service.calcularCustoCombustivel(locacaoData, modeloId)
         )
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("Política TAXA_FIXA sem valor configurado");

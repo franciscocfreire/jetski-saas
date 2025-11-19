@@ -3,7 +3,6 @@ package com.jetski.combustivel.internal;
 import com.jetski.combustivel.domain.*;
 import com.jetski.combustivel.internal.repository.AbastecimentoRepository;
 import com.jetski.combustivel.internal.repository.FuelPolicyRepository;
-import com.jetski.locacoes.domain.Locacao;
 import com.jetski.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -102,17 +101,17 @@ public class FuelPolicyService {
      * - MEDIDO: litros_consumidos × preço_dia
      * - TAXA_FIXA: valor_taxa_por_hora × horas_faturáveis
      *
-     * @param locacao Locação para calcular custo
+     * @param locacaoData Dados da locação para calcular custo
      * @param modeloId ID do modelo do jetski (necessário para buscar política aplicável)
      * @return Custo de combustível calculado
      */
     @Transactional(readOnly = true)
-    public BigDecimal calcularCustoCombustivel(Locacao locacao, UUID modeloId) {
-        log.debug("Calculando custo de combustível para locacao id={}", locacao.getId());
+    public BigDecimal calcularCustoCombustivel(LocacaoFuelData locacaoData, UUID modeloId) {
+        log.debug("Calculando custo de combustível para locacao id={}", locacaoData.getId());
 
         FuelPolicy policy = buscarPoliticaAplicavel(
-            locacao.getTenantId(),
-            locacao.getJetskiId(),
+            locacaoData.getTenantId(),
+            locacaoData.getJetskiId(),
             modeloId
         );
 
@@ -124,11 +123,11 @@ public class FuelPolicyService {
                 break;
 
             case MEDIDO:
-                custo = calcularCustoMedido(locacao);
+                custo = calcularCustoMedido(locacaoData);
                 break;
 
             case TAXA_FIXA:
-                custo = calcularCustoTaxaFixa(locacao, policy);
+                custo = calcularCustoTaxaFixa(locacaoData, policy);
                 break;
 
             default:
@@ -156,19 +155,19 @@ public class FuelPolicyService {
      * Modo MEDIDO: litros consumidos × preço do dia.
      * Busca abastecimentos PRE e POS da locação para calcular consumo.
      *
-     * @param locacao Locação
+     * @param locacaoData Dados da locação
      * @return Custo calculado
      */
-    private BigDecimal calcularCustoMedido(Locacao locacao) {
+    private BigDecimal calcularCustoMedido(LocacaoFuelData locacaoData) {
         // Buscar abastecimentos desta locação
         List<Abastecimento> abastecimentos = abastecimentoRepository
             .findByTenantIdAndLocacaoIdOrderByDataHoraAsc(
-                locacao.getTenantId(),
-                locacao.getId()
+                locacaoData.getTenantId(),
+                locacaoData.getId()
             );
 
         if (abastecimentos.isEmpty()) {
-            log.warn("Nenhum abastecimento encontrado para locacao id={}. Custo = R$ 0,00", locacao.getId());
+            log.warn("Nenhum abastecimento encontrado para locacao id={}. Custo = R$ 0,00", locacaoData.getId());
             return BigDecimal.ZERO;
         }
 
@@ -192,10 +191,10 @@ public class FuelPolicyService {
         }
 
         // Preço do dia da locação (data do check-out)
-        LocalDate dataLocacao = locacao.getDataCheckOut().toLocalDate();
+        LocalDate dataLocacao = locacaoData.getDataCheckOut().atZone(ZoneId.systemDefault()).toLocalDate();
 
         BigDecimal precoDia = fuelPriceDayService.obterPrecoMedioDia(
-            locacao.getTenantId(),
+            locacaoData.getTenantId(),
             dataLocacao
         );
 
@@ -212,11 +211,11 @@ public class FuelPolicyService {
     /**
      * Modo TAXA_FIXA: valor_taxa_por_hora × horas_faturáveis.
      *
-     * @param locacao Locação
+     * @param locacaoData Dados da locação
      * @param policy Política com valor da taxa
      * @return Custo calculado
      */
-    private BigDecimal calcularCustoTaxaFixa(Locacao locacao, FuelPolicy policy) {
+    private BigDecimal calcularCustoTaxaFixa(LocacaoFuelData locacaoData, FuelPolicy policy) {
         if (policy.getValorTaxaPorHora() == null) {
             throw new IllegalStateException(
                 "Política TAXA_FIXA sem valor configurado: " + policy.getId()
@@ -224,7 +223,7 @@ public class FuelPolicyService {
         }
 
         // Converter minutos faturáveis em horas (2 decimais)
-        BigDecimal horasFaturaveis = new BigDecimal(locacao.getMinutosFaturaveis())
+        BigDecimal horasFaturaveis = new BigDecimal(locacaoData.getMinutosFaturaveis())
             .divide(new BigDecimal(60), 2, RoundingMode.HALF_UP);
 
         BigDecimal custo = policy.getValorTaxaPorHora()

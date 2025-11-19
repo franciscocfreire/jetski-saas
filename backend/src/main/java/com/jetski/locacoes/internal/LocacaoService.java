@@ -1,5 +1,6 @@
 package com.jetski.locacoes.internal;
 
+import com.jetski.combustivel.internal.LocacaoFuelData;
 import com.jetski.locacoes.domain.*;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
@@ -46,6 +47,7 @@ public class LocacaoService {
     private final ClienteService clienteService;
     private final LocacaoCalculatorService calculatorService;
     private final com.jetski.locacoes.internal.PhotoValidationService photoValidationService;
+    private final com.jetski.combustivel.internal.FuelPolicyService fuelPolicyService;
 
     /**
      * Check-in: Create rental from reservation
@@ -65,7 +67,7 @@ public class LocacaoService {
      * @return Created Locacao
      */
     @Transactional
-    public Locacao checkInFromReservation(UUID tenantId, UUID reservaId, BigDecimal horimetroInicio, String observacoes) {
+    public Locacao checkInFromReservation(UUID tenantId, UUID reservaId, BigDecimal horimetroInicio, String observacoes, String checklistSaidaJson) {
         log.info("Check-in from reservation: tenant={}, reserva={}", tenantId, reservaId);
 
         // 1. Find and validate reservation
@@ -108,6 +110,7 @@ public class LocacaoService {
             .duracaoPrevista(duracaoPrevista)
             .status(LocacaoStatus.EM_CURSO)
             .observacoes(observacoes)
+            .checklistSaidaJson(checklistSaidaJson)
             .build();
 
         locacao = locacaoRepository.save(locacao);
@@ -156,7 +159,7 @@ public class LocacaoService {
      */
     @Transactional
     public Locacao checkInWalkIn(UUID tenantId, UUID jetskiId, UUID clienteId, UUID vendedorId,
-                                  BigDecimal horimetroInicio, Integer duracaoPrevista, String observacoes) {
+                                  BigDecimal horimetroInicio, Integer duracaoPrevista, String observacoes, String checklistSaidaJson) {
         log.info("Walk-in check-in: tenant={}, jetski={}, cliente={}", tenantId, jetskiId, clienteId);
 
         // 1. Validate jetski
@@ -178,6 +181,7 @@ public class LocacaoService {
             .duracaoPrevista(duracaoPrevista)
             .status(LocacaoStatus.EM_CURSO)
             .observacoes(observacoes)
+            .checklistSaidaJson(checklistSaidaJson)
             .build();
 
         locacao = locacaoRepository.save(locacao);
@@ -215,7 +219,7 @@ public class LocacaoService {
      * @return Updated Locacao with calculated values
      */
     @Transactional
-    public Locacao checkOut(UUID tenantId, UUID locacaoId, BigDecimal horimetroFim, String observacoes) {
+    public Locacao checkOut(UUID tenantId, UUID locacaoId, BigDecimal horimetroFim, String observacoes, String checklistEntradaJson) {
         log.info("Check-out: tenant={}, locacao={}", tenantId, locacaoId);
 
         // 1. Find and validate locacao
@@ -256,16 +260,46 @@ public class LocacaoService {
             modelo.getPrecoBaseHora()
         );
 
-        // 7. Validate 4 mandatory check-out photos
-        photoValidationService.validateCheckOutPhotos(tenantId, locacaoId);
-
-        // 8. Update locacao
+        // 7. Update locacao with intermediate values (needed for fuel cost calculation)
         locacao.setDataCheckOut(LocalDateTime.now());
         locacao.setHorimetroFim(horimetroFim);
         locacao.setMinutosUsados(minutosUsados);
         locacao.setMinutosFaturaveis(minutosFaturaveis);
+
+        // 8. RN03: Calculate fuel cost based on policy hierarchy (JETSKI → MODELO → GLOBAL)
+        LocacaoFuelData fuelData = LocacaoFuelData.builder()
+            .id(locacao.getId())
+            .tenantId(locacao.getTenantId())
+            .jetskiId(locacao.getJetskiId())
+            .dataCheckOut(locacao.getDataCheckOut().toInstant(java.time.ZoneOffset.UTC))
+            .minutosFaturaveis(locacao.getMinutosFaturaveis())
+            .build();
+
+        BigDecimal combustivelCusto = fuelPolicyService.calcularCustoCombustivel(fuelData, modelo.getId());
+
+        log.info("Fuel cost calculated: locacao={}, cost={}",
+                 locacaoId, combustivelCusto);
+
+        // 9. Calculate total value: base + fuel
+        BigDecimal valorTotal = valorBase.add(combustivelCusto);
+
+        // Store policy ID for audit (will be null if INCLUSO mode, as no charge applied)
+        Long fuelPolicyId = null;  // TODO: Return policy ID from calcularCustoCombustivel
+
+        // 10. RN05: Validate checklist is present
+        if (checklistEntradaJson == null || checklistEntradaJson.isBlank()) {
+            throw new BusinessException("Check-out requer checklist obrigatório (RN05)");
+        }
+
+        // 11. RN05: Validate 4 mandatory check-out photos
+        photoValidationService.validateCheckOutPhotos(tenantId, locacaoId);
+
+        // 12. Update locacao with final calculated values
         locacao.setValorBase(valorBase);
-        locacao.setValorTotal(valorBase);  // Sprint 2: no fuel/taxes yet
+        locacao.setCombustivelCusto(combustivelCusto);
+        locacao.setFuelPolicyId(fuelPolicyId);
+        locacao.setValorTotal(valorTotal);  // valorBase + combustivel
+        locacao.setChecklistEntradaJson(checklistEntradaJson);
         locacao.setStatus(LocacaoStatus.FINALIZADA);
 
         if (observacoes != null && !observacoes.isBlank()) {
@@ -275,10 +309,20 @@ public class LocacaoService {
 
         locacao = locacaoRepository.save(locacao);
 
-        log.info("Check-out calculated: locacao={}, used={}min, billable={}min, value={}",
-                 locacaoId, minutosUsados, minutosFaturaveis, valorBase);
+        log.info("Check-out completed: locacao={}, used={}min, billable={}min, base={}, fuel={}, total={}",
+                 locacaoId, minutosUsados, minutosFaturaveis, valorBase, combustivelCusto, valorTotal);
 
-        // 8. Update jetski status
+        // 10. RN07: Update jetski odometer and check for maintenance alerts
+        jetski.setHorimetroAtual(horimetroFim);
+        Jetski updatedJetski = jetskiService.updateJetski(jetski.getId(), jetski);
+
+        if (updatedJetski.requiresMaintenanceAlert()) {
+            log.warn("RN07: Jetski {} atingiu marco de manutenção: {} horas. " +
+                    "Favor criar OS de manutenção preventiva.",
+                    updatedJetski.getSerie(), updatedJetski.getHorimetroAtual().intValue());
+        }
+
+        // 11. Update jetski status
         jetskiService.updateStatus(jetski.getId(), JetskiStatus.DISPONIVEL);
 
         log.info("Check-out completed: locacao={}", locacaoId);
