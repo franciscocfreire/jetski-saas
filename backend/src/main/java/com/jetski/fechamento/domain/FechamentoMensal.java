@@ -145,6 +145,16 @@ public class FechamentoMensal {
     }
 
     /**
+     * Força reabertura mesmo se aprovado (apenas ADMIN_TENANT)
+     * Útil para correções administrativas e testes
+     */
+    public void forcarReabrir() {
+        this.status = "aberto";
+        this.dtFechamento = null;
+        this.bloqueado = false;
+    }
+
+    /**
      * Calcula o resultado líquido:
      * resultado_liquido = total_faturado - total_custos - total_comissoes - total_manutencoes
      */

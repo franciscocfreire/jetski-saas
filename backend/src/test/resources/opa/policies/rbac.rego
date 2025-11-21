@@ -57,6 +57,7 @@ role_permissions := {
         "os:view",
         "os:aprovar",
         "fechamento:diario",
+        "fechamento:consolidar",  # Consolidar fechamento diário
         "relatorio:operacional",
         "vendedor:view",
         "vendedor:list",

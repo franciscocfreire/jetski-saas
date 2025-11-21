@@ -5,7 +5,6 @@ import com.jetski.fechamento.domain.FechamentoDiario;
 import com.jetski.fechamento.domain.FechamentoMensal;
 import com.jetski.fechamento.internal.FechamentoService;
 import com.jetski.shared.security.TenantContext;
-import com.jetski.usuarios.api.UsuarioService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,13 +45,12 @@ import java.util.stream.Collectors;
  * @since 0.8.0
  */
 @RestController
-@RequestMapping("/api/v1/fechamentos")
+@RequestMapping("/v1/tenants/{tenantId}/fechamentos")
 @RequiredArgsConstructor
 @Slf4j
 public class FechamentoController {
 
     private final FechamentoService fechamentoService;
-    private final UsuarioService usuarioService;
 
     // ====================
     // Fechamento Diário
@@ -70,13 +68,18 @@ public class FechamentoController {
         UUID tenantId = TenantContext.getTenantId();
         UUID operadorId = obterUsuarioId(authentication);
 
+        // Verificar se já existe (para retornar status HTTP correto)
+        boolean existente = fechamentoService.existeFechamentoDiario(tenantId, request.getDtReferencia());
+
         FechamentoDiario fechamento = fechamentoService.consolidarDia(
                 tenantId,
                 request.getDtReferencia(),
                 operadorId
         );
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(mapDiarioToResponse(fechamento));
+        // 201 Created se novo, 200 OK se reconsolidação
+        HttpStatus status = existente ? HttpStatus.OK : HttpStatus.CREATED;
+        return ResponseEntity.status(status).body(mapDiarioToResponse(fechamento));
     }
 
     /**
@@ -164,6 +167,18 @@ public class FechamentoController {
         return ResponseEntity.ok(mapDiarioToResponse(fechamento));
     }
 
+    /**
+     * Forçar reabertura de fechamento diário (mesmo se aprovado)
+     * Permissão: ADMIN_TENANT (uso administrativo e testes)
+     */
+    @PostMapping("/dia/{id}/forcar-reabrir")
+    public ResponseEntity<FechamentoDiarioResponse> forcarReabrirFechamentoDiario(@PathVariable UUID id) {
+        UUID tenantId = TenantContext.getTenantId();
+
+        FechamentoDiario fechamento = fechamentoService.forcarReabrirFechamentoDiario(tenantId, id);
+        return ResponseEntity.ok(mapDiarioToResponse(fechamento));
+    }
+
     // ====================
     // Fechamento Mensal
     // ====================
@@ -180,6 +195,9 @@ public class FechamentoController {
         UUID tenantId = TenantContext.getTenantId();
         UUID operadorId = obterUsuarioId(authentication);
 
+        // Verificar se já existe (para retornar status HTTP correto)
+        boolean existente = fechamentoService.existeFechamentoMensal(tenantId, request.getAno(), request.getMes());
+
         FechamentoMensal fechamento = fechamentoService.consolidarMes(
                 tenantId,
                 request.getAno(),
@@ -187,7 +205,9 @@ public class FechamentoController {
                 operadorId
         );
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(mapMensalToResponse(fechamento));
+        // 201 Created se novo, 200 OK se reconsolidação
+        HttpStatus status = existente ? HttpStatus.OK : HttpStatus.CREATED;
+        return ResponseEntity.status(status).body(mapMensalToResponse(fechamento));
     }
 
     /**
@@ -285,6 +305,18 @@ public class FechamentoController {
         return ResponseEntity.ok(mapMensalToResponse(fechamento));
     }
 
+    /**
+     * Forçar reabertura de fechamento mensal (mesmo se aprovado)
+     * Permissão: ADMIN_TENANT (uso administrativo e testes)
+     */
+    @PostMapping("/mes/{id}/forcar-reabrir")
+    public ResponseEntity<FechamentoMensalResponse> forcarReabrirFechamentoMensal(@PathVariable UUID id) {
+        UUID tenantId = TenantContext.getTenantId();
+
+        FechamentoMensal fechamento = fechamentoService.forcarReabrirFechamentoMensal(tenantId, id);
+        return ResponseEntity.ok(mapMensalToResponse(fechamento));
+    }
+
     // ====================
     // Mappers & Helpers
     // ====================
@@ -337,6 +369,8 @@ public class FechamentoController {
      * Obtém ID do usuário autenticado
      */
     private UUID obterUsuarioId(Authentication authentication) {
-        return usuarioService.getUserIdFromAuthentication(authentication);
+        // Use TenantContext.getUsuarioId() which is already resolved from Keycloak UUID
+        // to internal PostgreSQL UUID by TenantFilter via usuario_identity_provider table
+        return TenantContext.getUsuarioId();
     }
 }

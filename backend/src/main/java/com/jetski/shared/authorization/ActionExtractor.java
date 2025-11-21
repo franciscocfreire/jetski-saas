@@ -160,7 +160,9 @@ public class ActionExtractor {
             "checkin", "checkout", "desconto", "aprovar", "fechar", "cancelar",
             "criar", "create", "list", "view", "update", "delete", "registrar", "upload",
             "calcular", "diario", "mensal", "invite", "activate",
-            "accept-terms", "confirmar-sinal", "confirmar", "alocar-jetski"
+            "accept-terms", "confirmar-sinal", "confirmar", "alocar-jetski",
+            "consolidar",  // Fechamento diário consolidação
+            "reabrir"  // Reabrir fechamento
         };
 
         for (String subAction : knownSubActions) {

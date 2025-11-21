@@ -1,6 +1,8 @@
 package jetski.context
 
 import future.keywords.if
+import future.keywords.in
+import future.keywords.contains
 
 # Helper functions for array containment
 pier_operations := {"locacao:checkin", "locacao:checkout", "abastecimento:registrar"}

@@ -58,4 +58,11 @@ public class CheckInWalkInRequest {
      * Optional notes
      */
     private String observacoes;
+
+    /**
+     * Check-in checklist (JSON array of verification items)
+     * Example: ["motor_ok", "casco_ok", "gasolina_ok", "equipamentos_ok"]
+     * RN05: Mandatory for check-out validation
+     */
+    private String checklistSaidaJson;
 }

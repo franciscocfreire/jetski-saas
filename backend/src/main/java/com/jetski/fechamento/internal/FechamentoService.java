@@ -92,7 +92,10 @@ public class FechamentoService {
             if (locacao.getValorTotal() != null) {
                 totalFaturado = totalFaturado.add(locacao.getValorTotal());
             }
-            // TODO: Adicionar campo valorCombustivel quando implementar módulo de combustível
+            // RN03: Aggregate fuel costs
+            if (locacao.getCombustivelCusto() != null) {
+                totalCombustivel = totalCombustivel.add(locacao.getCombustivelCusto());
+            }
             // TODO: Adicionar campo formaPagamento quando implementar módulo de pagamentos
         }
 
@@ -106,7 +109,9 @@ public class FechamentoService {
                 .filter(v -> v != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Criar ou atualizar fechamento
+        // Criar ou atualizar fechamento (idempotente)
+        boolean isUpdate = fechamento != null;
+
         if (fechamento == null) {
             fechamento = FechamentoDiario.builder()
                     .tenantId(tenantId)
@@ -123,6 +128,7 @@ public class FechamentoService {
                     .bloqueado(false)
                     .build();
         } else {
+            // Reconsolidar: atualizar valores recalculados
             fechamento.setTotalLocacoes(totalLocacoes);
             fechamento.setTotalFaturado(totalFaturado);
             fechamento.setTotalCombustivel(totalCombustivel);
@@ -133,8 +139,14 @@ public class FechamentoService {
         }
 
         FechamentoDiario salvo = fechamentoDiarioRepository.save(fechamento);
-        log.info("Fechamento diário consolidado: {} (data: {}, locações: {}, total: {})",
-                salvo.getId(), data, totalLocacoes, totalFaturado);
+
+        if (isUpdate) {
+            log.info("Fechamento diário RECONSOLIDADO: {} (data: {}, locações: {}, total: {})",
+                    salvo.getId(), data, totalLocacoes, totalFaturado);
+        } else {
+            log.info("Fechamento diário CRIADO: {} (data: {}, locações: {}, total: {})",
+                    salvo.getId(), data, totalLocacoes, totalFaturado);
+        }
 
         return salvo;
     }
@@ -186,6 +198,22 @@ public class FechamentoService {
     }
 
     /**
+     * Força reabertura de um fechamento diário, mesmo se aprovado
+     * Requer permissão ADMIN_TENANT
+     */
+    public FechamentoDiario forcarReabrirFechamentoDiario(UUID tenantId, UUID id) {
+        FechamentoDiario fechamento = buscarFechamentoDiario(tenantId, id);
+
+        fechamento.forcarReabrir();
+        FechamentoDiario salvo = fechamentoDiarioRepository.save(fechamento);
+
+        log.warn("Fechamento diário FORÇADO a reabrir por ADMIN: {} (data: {}, status anterior: {})",
+                id, fechamento.getDtReferencia(), fechamento.getStatus());
+
+        return salvo;
+    }
+
+    /**
      * Busca fechamento diário por ID
      */
     @Transactional(readOnly = true)
@@ -210,6 +238,14 @@ public class FechamentoService {
     @Transactional(readOnly = true)
     public List<FechamentoDiario> listarFechamentosDiarios(UUID tenantId, LocalDate dataInicio, LocalDate dataFim) {
         return fechamentoDiarioRepository.findByTenantIdAndDtReferenciaBetweenOrderByDtReferenciaDesc(tenantId, dataInicio, dataFim);
+    }
+
+    /**
+     * Verifica se existe fechamento diário para uma data (bloqueado ou não)
+     */
+    @Transactional(readOnly = true)
+    public boolean existeFechamentoDiario(UUID tenantId, LocalDate data) {
+        return fechamentoDiarioRepository.findByTenantIdAndDtReferencia(tenantId, data).isPresent();
     }
 
     /**
@@ -268,7 +304,9 @@ public class FechamentoService {
         // TODO: Calcular total de manutenções do mês (quando módulo de manutenção estiver implementado)
         BigDecimal totalManutencoes = BigDecimal.ZERO;
 
-        // Criar ou atualizar fechamento
+        // Criar ou atualizar fechamento (idempotente)
+        boolean isUpdate = fechamento != null;
+
         if (fechamento == null) {
             fechamento = FechamentoMensal.builder()
                     .tenantId(tenantId)
@@ -284,6 +322,7 @@ public class FechamentoService {
                     .bloqueado(false)
                     .build();
         } else {
+            // Reconsolidar: atualizar valores recalculados
             fechamento.setTotalLocacoes(totalLocacoes);
             fechamento.setTotalFaturado(totalFaturado);
             fechamento.setTotalCustos(totalCustos);
@@ -295,8 +334,14 @@ public class FechamentoService {
         fechamento.calcularResultadoLiquido();
 
         FechamentoMensal salvo = fechamentoMensalRepository.save(fechamento);
-        log.info("Fechamento mensal consolidado: {} (período: {}/{}, locações: {}, resultado: {})",
-                salvo.getId(), mes, ano, totalLocacoes, salvo.getResultadoLiquido());
+
+        if (isUpdate) {
+            log.info("Fechamento mensal RECONSOLIDADO: {} (período: {}/{}, locações: {}, resultado: {})",
+                    salvo.getId(), mes, ano, totalLocacoes, salvo.getResultadoLiquido());
+        } else {
+            log.info("Fechamento mensal CRIADO: {} (período: {}/{}, locações: {}, resultado: {})",
+                    salvo.getId(), mes, ano, totalLocacoes, salvo.getResultadoLiquido());
+        }
 
         return salvo;
     }
@@ -348,6 +393,22 @@ public class FechamentoService {
     }
 
     /**
+     * Força reabertura de um fechamento mensal, mesmo se aprovado
+     * Requer permissão ADMIN_TENANT
+     */
+    public FechamentoMensal forcarReabrirFechamentoMensal(UUID tenantId, UUID id) {
+        FechamentoMensal fechamento = buscarFechamentoMensal(tenantId, id);
+
+        fechamento.forcarReabrir();
+        FechamentoMensal salvo = fechamentoMensalRepository.save(fechamento);
+
+        log.warn("Fechamento mensal FORÇADO a reabrir por ADMIN: {} (período: {}/{}, status anterior: {})",
+                id, fechamento.getMes(), fechamento.getAno(), fechamento.getStatus());
+
+        return salvo;
+    }
+
+    /**
      * Busca fechamento mensal por ID
      */
     @Transactional(readOnly = true)
@@ -380,6 +441,14 @@ public class FechamentoService {
     @Transactional(readOnly = true)
     public List<FechamentoMensal> listarFechamentosMensaisPorAno(UUID tenantId, int ano) {
         return fechamentoMensalRepository.findByTenantIdAndAnoOrderByMesAsc(tenantId, ano);
+    }
+
+    /**
+     * Verifica se existe fechamento mensal para um período (bloqueado ou não)
+     */
+    @Transactional(readOnly = true)
+    public boolean existeFechamentoMensal(UUID tenantId, int ano, int mes) {
+        return fechamentoMensalRepository.findByTenantIdAndAnoAndMes(tenantId, ano, mes).isPresent();
     }
 
     /**

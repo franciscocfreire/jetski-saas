@@ -1,0 +1,108 @@
+#!/bin/bash
+
+set -e
+
+KC_HOME="/home/franciscocfreire/apps/keycloak-26.4.1"
+POSTGRES_HOST="localhost"
+POSTGRES_PORT="5433"  # Local PostgreSQL
+POSTGRES_DB="jetski_local"
+POSTGRES_USER="jetski"
+POSTGRES_PASSWORD="dev123"
+
+echo "========================================="
+echo "Keycloak com PostgreSQL"
+echo "========================================="
+
+# 1. Verificar PostgreSQL
+echo -e "\n[1/5] Verificando PostgreSQL..."
+if ! PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB -c '\q' 2>/dev/null; then
+    echo "✗ PostgreSQL não está acessível em $POSTGRES_HOST:$POSTGRES_PORT"
+    echo "  Por favor, inicie o PostgreSQL local na porta 5433"
+    exit 1
+fi
+echo "✓ PostgreSQL acessível"
+
+# 2. Database já existe (jetski_local), pulando configuração
+echo -e "\n[2/5] Database configurado..."
+PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB <<EOF >/dev/null 2>&1 || true
+GRANT ALL ON SCHEMA public TO $POSTGRES_USER;
+EOF
+
+echo "✓ Database configurado"
+
+# 3. Build Keycloak se necessário
+echo -e "\n[3/5] Verificando build do Keycloak..."
+cd $KC_HOME
+if [ ! -f "lib/lib/main/org.postgresql.postgresql-*.jar" ]; then
+    echo "  Building Keycloak com PostgreSQL driver..."
+    ./bin/kc.sh build --db=postgres
+    echo "✓ Build concluído"
+else
+    echo "✓ Build já existe"
+fi
+
+# 4. Parar instância anterior
+echo -e "\n[4/5] Parando instâncias anteriores..."
+pkill -f "keycloak.*8081" 2>/dev/null && sleep 2 || echo "  Nenhuma instância anterior"
+
+# 5. Iniciar Keycloak
+echo -e "\n[5/5] Iniciando Keycloak..."
+KC_DB=postgres \
+KC_DB_URL="jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB" \
+KC_DB_USERNAME=$POSTGRES_USER \
+KC_DB_PASSWORD=$POSTGRES_PASSWORD \
+KEYCLOAK_ADMIN=admin \
+KEYCLOAK_ADMIN_PASSWORD=admin \
+./bin/kc.sh start-dev \
+  --http-port=8081 \
+  > /tmp/keycloak-postgres.log 2>&1 &
+
+KEYCLOAK_PID=$!
+echo "  PID: $KEYCLOAK_PID"
+
+# Aguardar inicialização
+echo -e "\n  Aguardando inicialização..."
+for i in {1..40}; do
+  if curl -s http://localhost:8081/health/ready >/dev/null 2>&1; then
+    echo ""
+    echo "========================================="
+    echo "✓✓✓ Keycloak INICIADO COM SUCESSO!"
+    echo "========================================="
+    echo ""
+    echo "📊 Informações:"
+    echo "  URL: http://localhost:8081"
+    echo "  Admin Console: http://localhost:8081/admin"
+    echo "  Usuário: admin"
+    echo "  Senha: admin"
+    echo "  Database: PostgreSQL ($POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB)"
+    echo "  PID: $KEYCLOAK_PID"
+    echo ""
+    echo "📝 Logs:"
+    echo "  tail -f /tmp/keycloak-postgres.log"
+    echo ""
+    echo "🛑 Parar:"
+    echo "  kill $KEYCLOAK_PID"
+    echo "  # ou: pkill -f keycloak"
+    echo ""
+
+    # Verificar tabelas criadas
+    TABLE_COUNT=$(PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>/dev/null | tr -d ' ')
+    if [ "$TABLE_COUNT" -gt "50" ]; then
+        echo "✓ Database inicializado ($TABLE_COUNT tabelas criadas)"
+    fi
+    echo ""
+
+    exit 0
+  fi
+  printf "."
+  sleep 2
+done
+
+echo ""
+echo "========================================="
+echo "✗ TIMEOUT - Keycloak não inicializou"
+echo "========================================="
+echo ""
+echo "Últimas 30 linhas do log:"
+tail -30 /tmp/keycloak-postgres.log
+exit 1

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16
@@ -85,13 +83,14 @@ services:
       - jetski-network
 
   opa:
-    image: openpolicyagent/opa:0.70.0
+    image: openpolicyagent/opa:1.1.0
     container_name: jetski-opa
     ports:
       - "0.0.0.0:8181:8181"
     command:
       - "run"
       - "--server"
+      - "--addr=0.0.0.0:8181"
       - "--log-level=debug"
       - "--log-format=json-pretty"
       - "/policies"

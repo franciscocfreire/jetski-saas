@@ -148,4 +148,14 @@ public class FechamentoDiario {
         this.dtFechamento = null;
         this.bloqueado = false;
     }
+
+    /**
+     * Força reabertura mesmo se aprovado (apenas ADMIN_TENANT)
+     * Útil para correções administrativas e testes
+     */
+    public void forcarReabrir() {
+        this.status = "aberto";
+        this.dtFechamento = null;
+        this.bloqueado = false;
+    }
 }

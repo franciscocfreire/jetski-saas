@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
  * @since 0.7.0
  */
 @RestController
-@RequestMapping("/api/v1/comissoes")
+@RequestMapping("/v1/tenants/{tenantId}/comissoes")
 @RequiredArgsConstructor
 @Slf4j
 public class ComissaoController {

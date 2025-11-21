@@ -33,16 +33,17 @@ public class PoliticaComissaoService {
     public PoliticaComissao criar(UUID tenantId, PoliticaComissao politica) {
         politica.setTenantId(tenantId);
 
-        // Set createdBy from SecurityContext if not already set
+        // Set createdBy from TenantContext (already resolved from Keycloak UUID to PostgreSQL UUID)
         if (politica.getCreatedBy() == null) {
             try {
-                String userId = org.springframework.security.core.context.SecurityContextHolder
-                        .getContext()
-                        .getAuthentication()
-                        .getName();
-                politica.setCreatedBy(UUID.fromString(userId));
+                UUID usuarioId = com.jetski.shared.security.TenantContext.getUsuarioId();
+                if (usuarioId != null) {
+                    politica.setCreatedBy(usuarioId);
+                } else {
+                    log.warn("Could not extract usuarioId from TenantContext");
+                }
             } catch (Exception e) {
-                log.warn("Could not extract userId from SecurityContext: {}", e.getMessage());
+                log.warn("Error setting createdBy: {}", e.getMessage());
                 // Will fail with NOT NULL constraint if not set
             }
         }

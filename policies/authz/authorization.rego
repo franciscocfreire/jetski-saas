@@ -1,13 +1,14 @@
 package jetski.authorization
 
+import future.keywords.if
+import future.keywords.in
+import future.keywords.contains
+
 import data.jetski.rbac
 import data.jetski.alcada
 import data.jetski.multi_tenant
 import data.jetski.business
 import data.jetski.context
-
-import future.keywords.if
-import future.keywords.in
 
 # =============================================================================
 # Main Authorization Policy

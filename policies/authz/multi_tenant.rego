@@ -1,6 +1,8 @@
 package jetski.multi_tenant
 
 import future.keywords.if
+import future.keywords.in
+import future.keywords.contains
 
 # =============================================================================
 # Multi-Tenant Isolation Policies

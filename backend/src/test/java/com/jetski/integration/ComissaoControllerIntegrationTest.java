@@ -192,7 +192,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
             .descricao("Comissão padrão do vendedor")
             .build();
 
-        mockMvc.perform(post("/api/v1/politicas-comissao")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/politicas-comissao")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString())
@@ -220,7 +220,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
             .ativa(true)
             .build();
 
-        mockMvc.perform(post("/api/v1/politicas-comissao")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/politicas-comissao")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString())
@@ -244,7 +244,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
             .ativa(true)
             .build();
 
-        mockMvc.perform(post("/api/v1/politicas-comissao")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/politicas-comissao")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString())
@@ -268,7 +268,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
             .ativa(true)
             .build();
 
-        mockMvc.perform(post("/api/v1/politicas-comissao")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/politicas-comissao")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString())
@@ -284,7 +284,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
         // Create a policy first
         createTestPolitica();
 
-        mockMvc.perform(get("/api/v1/politicas-comissao")
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/politicas-comissao")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -298,7 +298,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
     void testBuscarPoliticaPorId() throws Exception {
         UUID politicaId = createTestPolitica();
 
-        mockMvc.perform(get("/api/v1/politicas-comissao/" + politicaId)
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/politicas-comissao/" + politicaId)
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -321,7 +321,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
             .ativa(true)
             .build();
 
-        mockMvc.perform(put("/api/v1/politicas-comissao/" + politicaId)
+        mockMvc.perform(put("/v1/tenants/" + TENANT_ID + "/politicas-comissao/" + politicaId)
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString())
@@ -338,7 +338,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
         UUID politicaId = createTestPolitica();
 
         // First toggle (active -> inactive)
-        mockMvc.perform(patch("/api/v1/politicas-comissao/" + politicaId + "/toggle")
+        mockMvc.perform(patch("/v1/tenants/" + TENANT_ID + "/politicas-comissao/" + politicaId + "/toggle")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -346,7 +346,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.ativa").value(false));
 
         // Second toggle (inactive -> active)
-        mockMvc.perform(patch("/api/v1/politicas-comissao/" + politicaId + "/toggle")
+        mockMvc.perform(patch("/v1/tenants/" + TENANT_ID + "/politicas-comissao/" + politicaId + "/toggle")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -365,7 +365,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
         UUID locacaoId = createTestLocacao();
         UUID comissaoId = createTestComissao(locacaoId, politicaId);
 
-        mockMvc.perform(get("/api/v1/comissoes/" + comissaoId)
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/comissoes/" + comissaoId)
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -382,7 +382,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
         UUID locacaoId = createTestLocacao();
         createTestComissao(locacaoId, politicaId);
 
-        mockMvc.perform(get("/api/v1/comissoes/vendedor/" + VENDEDOR_ID)
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/comissoes/vendedor/" + VENDEDOR_ID)
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -398,7 +398,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
         UUID locacaoId = createTestLocacao();
         createTestComissao(locacaoId, politicaId);
 
-        mockMvc.perform(get("/api/v1/comissoes/pendentes")
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/comissoes/pendentes")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -421,7 +421,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
             WHERE id = ?
             """, StatusComissao.APROVADA.name(), USER_ID, java.sql.Timestamp.from(Instant.now()), comissaoId);
 
-        mockMvc.perform(get("/api/v1/comissoes/aguardando-pagamento")
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/comissoes/aguardando-pagamento")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -440,7 +440,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
         Instant inicio = Instant.now().minus(1, ChronoUnit.DAYS);
         Instant fim = Instant.now().plus(1, ChronoUnit.DAYS);
 
-        mockMvc.perform(get("/api/v1/comissoes/periodo")
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/comissoes/periodo")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString())
@@ -457,7 +457,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
         UUID locacaoId = createTestLocacao();
         UUID comissaoId = createTestComissao(locacaoId, politicaId);
 
-        mockMvc.perform(post("/api/v1/comissoes/" + comissaoId + "/aprovar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/comissoes/" + comissaoId + "/aprovar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString())
@@ -487,7 +487,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
             .referenciaPagamento("PIX-2025-001")
             .build();
 
-        mockMvc.perform(post("/api/v1/comissoes/" + comissaoId + "/pagar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/comissoes/" + comissaoId + "/pagar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString())
@@ -511,7 +511,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
             .referenciaPagamento("PIX-2025-001")
             .build();
 
-        mockMvc.perform(post("/api/v1/comissoes/" + comissaoId + "/pagar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/comissoes/" + comissaoId + "/pagar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString())

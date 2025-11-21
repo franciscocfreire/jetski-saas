@@ -80,7 +80,8 @@ public class LocacaoController {
             tenantId,
             request.getReservaId(),
             request.getHorimetroInicio(),
-            request.getObservacoes()
+            request.getObservacoes(),
+            request.getChecklistSaidaJson()
         );
 
         LocacaoResponse response = toResponse(locacao);
@@ -123,7 +124,8 @@ public class LocacaoController {
             request.getVendedorId(),
             request.getHorimetroInicio(),
             request.getDuracaoPrevista(),
-            request.getObservacoes()
+            request.getObservacoes(),
+            request.getChecklistSaidaJson()
         );
 
         LocacaoResponse response = toResponse(locacao);
@@ -168,7 +170,8 @@ public class LocacaoController {
             tenantId,
             id,
             request.getHorimetroFim(),
-            request.getObservacoes()
+            request.getObservacoes(),
+            request.getChecklistEntradaJson()
         );
 
         LocacaoResponse response = toResponse(locacao);
@@ -281,6 +284,8 @@ public class LocacaoController {
             .valorTotal(locacao.getValorTotal())
             .status(locacao.getStatus())
             .observacoes(locacao.getObservacoes())
+            .checklistSaidaJson(locacao.getChecklistSaidaJson())
+            .checklistEntradaJson(locacao.getChecklistEntradaJson())
             .createdAt(locacao.getCreatedAt())
             .updatedAt(locacao.getUpdatedAt())
             .build();

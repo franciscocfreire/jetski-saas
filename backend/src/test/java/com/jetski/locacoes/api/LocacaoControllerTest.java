@@ -152,6 +152,14 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
             .build();
         testVendedor = vendedorRepository.save(testVendedor);
 
+        // Create default GLOBAL fuel policy (RN03: INCLUSO mode - no charge)
+        jdbcTemplate.execute(
+            "INSERT INTO fuel_policy (tenant_id, nome, tipo, aplicavel_a, valor_taxa_por_hora, " +
+            "comissionavel, ativo, prioridade, created_at, updated_at) " +
+            "VALUES ('" + TENANT_ID + "', 'Global - Combustível Incluso', 'INCLUSO', 'GLOBAL', " +
+            "null, false, true, 0, NOW(), NOW())"
+        );
+
         // Mock OPA to allow all
         when(opaAuthorizationService.authorize(any()))
             .thenReturn(OPADecision.builder().allow(true).build());
@@ -413,6 +421,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         CheckOutRequest request = CheckOutRequest.builder()
             .horimetroFim(new BigDecimal("101.5"))  // 1.5 hours = 90 minutes used
             .observacoes("Check-out normal")
+            .checklistEntradaJson("[\"motor_ok\",\"casco_ok\",\"limpeza_ok\"]")  // RN05: mandatory checklist
             .build();
 
         // When: Check-out
@@ -463,6 +472,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
 
         CheckOutRequest request = CheckOutRequest.builder()
             .horimetroFim(new BigDecimal("100.166667"))  // ~10 minutes (0.166667 hours)
+            .checklistEntradaJson("[\"motor_ok\"]")  // RN05: mandatory checklist
             .build();
 
         // When: Check-out
@@ -502,6 +512,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
 
         CheckOutRequest request = CheckOutRequest.builder()
             .horimetroFim(new BigDecimal("100.083333"))  // 5 minutes (0.083333 hours)
+            .checklistEntradaJson("[\"motor_ok\"]")  // RN05: mandatory checklist
             .build();
 
         // When: Check-out
@@ -537,6 +548,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
 
         CheckOutRequest request = CheckOutRequest.builder()
             .horimetroFim(new BigDecimal("102.0"))
+            .checklistEntradaJson("[\"motor_ok\"]")  // RN05: mandatory checklist
             .build();
 
         // When/Then: Check-out fails
@@ -567,6 +579,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
 
         CheckOutRequest request = CheckOutRequest.builder()
             .horimetroFim(new BigDecimal("99.0"))  // Less than inicio
+            .checklistEntradaJson("[\"motor_ok\"]")  // RN05: mandatory checklist
             .build();
 
         // When/Then: Check-out fails
@@ -602,6 +615,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
 
         CheckOutRequest request = CheckOutRequest.builder()
             .horimetroFim(new BigDecimal("101.0"))
+            .checklistEntradaJson("[\"motor_ok\"]")  // RN05: mandatory checklist
             .build();
 
         // When/Then: Check-out fails with 400 due to missing photos

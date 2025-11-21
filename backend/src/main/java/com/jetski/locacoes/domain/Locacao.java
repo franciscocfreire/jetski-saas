@@ -143,10 +143,26 @@ public class Locacao {
 
     /**
      * Final total value (after fuel, taxes, discounts, etc.)
-     * For Sprint 2, valorTotal = valorBase (no fuel/commission yet)
+     * valorTotal = valorBase + combustivelCusto + taxas - descontos
      */
     @Column(name = "valor_total", precision = 10, scale = 2)
     private BigDecimal valorTotal;
+
+    /**
+     * Fuel cost charged to customer (RN03)
+     * Calculated based on fuel policy (INCLUSO, MEDIDO, TAXA_FIXA)
+     * null = fuel not yet calculated (rental in progress)
+     */
+    @Column(name = "combustivel_custo", precision = 10, scale = 2)
+    private BigDecimal combustivelCusto;
+
+    /**
+     * Fuel policy applied to this rental (RN03)
+     * Reference to FuelPolicy that was used for calculation
+     * Stored for audit trail and reporting
+     */
+    @Column(name = "fuel_policy_id")
+    private Long fuelPolicyId;
 
     // ===================================================================
     // Status & Notes
@@ -164,6 +180,28 @@ public class Locacao {
      */
     @Column(name = "observacoes", columnDefinition = "TEXT")
     private String observacoes;
+
+    // ===================================================================
+    // Checklist Fields (RN05)
+    // ===================================================================
+
+    /**
+     * Check-in checklist (JSON array of verification items)
+     * Example: ["motor_ok", "casco_ok", "gasolina_ok", "equipamentos_ok"]
+     * RN05: Checklist validation is mandatory for check-out
+     */
+    @Column(name = "checklist_saida_json", columnDefinition = "JSONB")
+    @org.hibernate.annotations.Type(io.hypersistence.utils.hibernate.type.json.JsonBinaryType.class)
+    private String checklistSaidaJson;
+
+    /**
+     * Check-out checklist (JSON array of verification items)
+     * Example: ["motor_ok", "casco_ok", "limpeza_ok", "avarias"]
+     * RN05: Checklist validation is mandatory for check-out
+     */
+    @Column(name = "checklist_entrada_json", columnDefinition = "JSONB")
+    @org.hibernate.annotations.Type(io.hypersistence.utils.hibernate.type.json.JsonBinaryType.class)
+    private String checklistEntradaJson;
 
     // ===================================================================
     // Audit Fields

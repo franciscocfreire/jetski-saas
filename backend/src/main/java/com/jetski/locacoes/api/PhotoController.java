@@ -35,7 +35,7 @@ import java.util.UUID;
  * 5. Backend valida e marca foto como confirmada
  */
 @RestController
-@RequestMapping("/api/v1/tenants/{tenantId}/fotos")
+@RequestMapping("/v1/tenants/{tenantId}/fotos")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Fotos", description = "Gerenciamento de fotos de locações")

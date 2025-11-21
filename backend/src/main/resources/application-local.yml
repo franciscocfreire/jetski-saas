@@ -64,8 +64,15 @@ logging:
   level:
     root: INFO
     com.jetski: DEBUG
+    com.jetski.shared.authorization: TRACE  # ActionExtractor + ABACInterceptor
+    com.jetski.shared.opa: TRACE  # OPA service calls
+    com.jetski.shared.security: DEBUG  # Security filters
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
+    org.springframework.context: TRACE  # Detect bean creation issues
+    org.springframework.beans.factory: DEBUG  # Show dependency injection details
+    org.springframework.web.servlet.mvc.method.annotation: TRACE  # Show controller mapping details
+    org.springframework.web.servlet.handler: TRACE  # Show request handler mapping
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 

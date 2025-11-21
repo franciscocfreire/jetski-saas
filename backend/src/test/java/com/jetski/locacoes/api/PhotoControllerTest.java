@@ -16,11 +16,14 @@ import com.jetski.locacoes.internal.repository.ModeloRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
 import com.jetski.locacoes.api.dto.UploadUrlRequest;
 import com.jetski.locacoes.api.dto.UploadUrlResponse;
+import com.jetski.shared.authorization.OPAAuthorizationService;
+import com.jetski.shared.authorization.dto.OPADecision;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,6 +34,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -74,6 +79,9 @@ class PhotoControllerTest extends AbstractIntegrationTest {
 
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @MockBean
+    private OPAAuthorizationService opaAuthorizationService;
 
     private static final UUID TEST_TENANT_ID = UUID.fromString("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
     private UUID testLocacaoId;
@@ -134,10 +142,15 @@ class PhotoControllerTest extends AbstractIntegrationTest {
             .horimetroInicio(new BigDecimal("100.00"))
             .duracaoPrevista(60)
             .status(LocacaoStatus.EM_CURSO)
+            .checklistSaidaJson("[\"motor_ok\"]")  // RN05: checklist field
             .build();
 
         locacao = locacaoRepository.save(locacao);
         testLocacaoId = locacao.getId();
+
+        // Mock OPA to always allow (authorization is tested separately)
+        when(opaAuthorizationService.authorize(any()))
+            .thenReturn(OPADecision.builder().allow(true).build());
     }
 
     @Test
@@ -156,7 +169,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
             """.formatted(testLocacaoId);
 
         // When/Then
-        mockMvc.perform(post("/api/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
+        mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
                 .header("X-Tenant-Id", TEST_TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
@@ -187,7 +200,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
             """.formatted(nonExistentLocacaoId);
 
         // When/Then
-        mockMvc.perform(post("/api/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
+        mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
                 .header("X-Tenant-Id", TEST_TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
@@ -210,14 +223,14 @@ class PhotoControllerTest extends AbstractIntegrationTest {
             }
             """.formatted(testLocacaoId);
 
-        mockMvc.perform(post("/api/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
+        mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
                 .header("X-Tenant-Id", TEST_TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
             .andExpect(status().isOk());
 
         // When/Then - Second upload (duplicate)
-        mockMvc.perform(post("/api/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
+        mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
                 .header("X-Tenant-Id", TEST_TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
@@ -238,7 +251,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
             """.formatted(testLocacaoId);
 
         // When/Then
-        mockMvc.perform(post("/api/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
+        mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
                 .header("X-Tenant-Id", TEST_TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
@@ -254,7 +267,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
         createTestPhoto(FotoTipo.CHECKIN_LATERAL_ESQ);
 
         // When/Then
-        mockMvc.perform(get("/api/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}", TEST_TENANT_ID, testLocacaoId)
+        mockMvc.perform(get("/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}", TEST_TENANT_ID, testLocacaoId)
                 .header("X-Tenant-Id", TEST_TENANT_ID.toString()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
@@ -268,7 +281,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
     @DisplayName("Should return empty list when no photos exist")
     void testListFotosByLocacao_EmptyList() throws Exception {
         // When/Then
-        mockMvc.perform(get("/api/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}", TEST_TENANT_ID, testLocacaoId)
+        mockMvc.perform(get("/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}", TEST_TENANT_ID, testLocacaoId)
                 .header("X-Tenant-Id", TEST_TENANT_ID.toString()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
@@ -284,7 +297,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
         createAndConfirmPhoto(FotoTipo.CHECKIN_LATERAL_ESQ);
 
         // When/Then
-        mockMvc.perform(get("/api/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}/checkin-status",
+        mockMvc.perform(get("/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}/checkin-status",
                 TEST_TENANT_ID, testLocacaoId)
                 .header("X-Tenant-Id", TEST_TENANT_ID.toString()))
             .andExpect(status().isOk())
@@ -306,7 +319,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
         createAndConfirmPhoto(FotoTipo.CHECKIN_HORIMETRO);
 
         // When/Then
-        mockMvc.perform(get("/api/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}/checkin-status",
+        mockMvc.perform(get("/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}/checkin-status",
                 TEST_TENANT_ID, testLocacaoId)
                 .header("X-Tenant-Id", TEST_TENANT_ID.toString()))
             .andExpect(status().isOk())
@@ -327,7 +340,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
         createAndConfirmPhoto(FotoTipo.CHECKOUT_LATERAL_DIR);
 
         // When/Then
-        mockMvc.perform(get("/api/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}/checkout-status",
+        mockMvc.perform(get("/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}/checkout-status",
                 TEST_TENANT_ID, testLocacaoId)
                 .header("X-Tenant-Id", TEST_TENANT_ID.toString()))
             .andExpect(status().isOk())
@@ -353,7 +366,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
             """.formatted(testLocacaoId, tipo.name());
 
         try {
-            mockMvc.perform(post("/api/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
+            mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
                     .header("X-Tenant-Id", TEST_TENANT_ID.toString())
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(requestBody))
@@ -376,7 +389,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
 
         try {
             // Generate upload URL
-            String response = mockMvc.perform(post("/api/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
+            String response = mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
                     .header("X-Tenant-Id", TEST_TENANT_ID.toString())
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(requestBody))

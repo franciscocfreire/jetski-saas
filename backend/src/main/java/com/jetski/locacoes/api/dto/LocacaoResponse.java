@@ -51,6 +51,10 @@ public class LocacaoResponse {
     private LocacaoStatus status;
     private String observacoes;
 
+    // Checklist (RN05)
+    private String checklistSaidaJson;
+    private String checklistEntradaJson;
+
     // Audit
     private Instant createdAt;
     private Instant updatedAt;

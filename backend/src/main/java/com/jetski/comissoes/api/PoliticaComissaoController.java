@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  * @since 0.7.0
  */
 @RestController
-@RequestMapping("/api/v1/politicas-comissao")
+@RequestMapping("/v1/tenants/{tenantId}/politicas-comissao")
 @RequiredArgsConstructor
 @Slf4j
 public class PoliticaComissaoController {

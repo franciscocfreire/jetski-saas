@@ -214,7 +214,14 @@ actions_no_alcada := {
 
     # Relatórios e comissões
     "relatorio:operacional", "relatorio:financeiro", "relatorio:comissoes",
-    "comissao:view", "comissao:calcular",
+    "comissao:view", "comissao:calcular", "comissao:aprovar", "comissao:pagar",
+
+    # Fechamentos (todas as operações)
+    "fechamento:consolidar", "fechamento:fechar", "fechamento:aprovar", "fechamento:reabrir",
+    "fechamento:diario", "fechamento:mensal", "fechamento:view", "fechamento:list",
+
+    # Políticas de comissão
+    "politica-comissao:list", "politica-comissao:view", "politica-comissao:create",
 
     # User management
     "user:list"

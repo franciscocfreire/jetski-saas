@@ -2,6 +2,7 @@ package jetski.business
 
 import future.keywords.if
 import future.keywords.in
+import future.keywords.contains
 
 # =============================================================================
 # Business Rules Policies

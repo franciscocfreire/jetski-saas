@@ -15,6 +15,11 @@
  * - shared::security (TenantContext)
  * - shared::storage (fotos opcionais de abastecimento)
  * - locacoes::domain (integração com Locacao via eventos ou injeção)
+ *
+ * NOTA: Este módulo tem dependência bidirecional com locacoes:
+ * - combustivel usa locacoes::domain (para ler dados de Locacao)
+ * - locacoes usa combustivel::internal (para calcular custos no checkout)
+ * Esta dependência circular é aceitável pois representa lógica de negócio fortemente acoplada.
  */
 @org.springframework.modulith.ApplicationModule(
     displayName = "Combustivel",

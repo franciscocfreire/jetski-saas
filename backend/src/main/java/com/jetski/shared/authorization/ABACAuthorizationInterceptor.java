@@ -127,24 +127,26 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * Constrói UserContext do Authentication (JWT).
+     * Constrói UserContext do Authentication (JWT ou mock user para testes).
      */
     private OPAInput.UserContext buildUserContext(Authentication authentication) {
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-
-        // Extrai primeira role (simplificação - em produção pode ter múltiplas)
+        // Extrai role de negócio (GERENTE, OPERADOR, etc.) e ignora roles padrão do Keycloak
+        // Priority: business roles > default Keycloak roles
+        List<String> businessRoles = List.of("ADMIN_TENANT", "GERENTE", "FINANCEIRO", "OPERADOR", "VENDEDOR", "MECANICO");
         String role = authentication.getAuthorities().stream()
             .map(GrantedAuthority::getAuthority)
             .filter(auth -> auth.startsWith("ROLE_"))
             .map(auth -> auth.substring(5))  // Remove "ROLE_" prefix
+            .filter(r -> businessRoles.contains(r))  // Only business roles
             .findFirst()
             .orElse("NONE");
 
-        // Extrai todas as roles
+        // Extrai todas as roles de negócio (filtra roles padrão do Keycloak)
         List<String> roles = authentication.getAuthorities().stream()
             .map(GrantedAuthority::getAuthority)
             .filter(auth -> auth.startsWith("ROLE_"))
             .map(auth -> auth.substring(5))
+            .filter(r -> businessRoles.contains(r))  // Only business roles
             .toList();
 
         UUID tenantId = TenantContext.getTenantId();
@@ -153,14 +155,27 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
         // TenantFilter already resolved: Keycloak UUID → PostgreSQL UUID
         // This ensures OPA receives the internal UUID that exists in the database
         UUID usuarioId = TenantContext.getUsuarioId();
-        String userId = usuarioId != null ? usuarioId.toString() : jwt.getSubject();
+
+        // Handle both JWT (production) and mock user (tests)
+        String userId;
+        String email;
+
+        if (authentication.getPrincipal() instanceof Jwt jwt) {
+            // Production: extract from JWT
+            userId = usuarioId != null ? usuarioId.toString() : jwt.getSubject();
+            email = jwt.getClaimAsString("email");
+        } else {
+            // Tests: use authentication name as fallback
+            userId = usuarioId != null ? usuarioId.toString() : authentication.getName();
+            email = authentication.getName() + "@test.com";
+        }
 
         return OPAInput.UserContext.builder()
             .id(userId)
             .tenant_id(tenantId != null ? tenantId.toString() : null)
             .role(role)
             .roles(roles)
-            .email(jwt.getClaimAsString("email"))
+            .email(email)
             .build();
     }
 

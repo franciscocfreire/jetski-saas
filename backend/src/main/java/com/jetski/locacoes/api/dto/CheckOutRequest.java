@@ -35,4 +35,12 @@ public class CheckOutRequest {
      * Optional notes for check-out
      */
     private String observacoes;
+
+    /**
+     * Check-out checklist (JSON array of verification items)
+     * Example: ["motor_ok", "casco_ok", "limpeza_ok", "avarias"]
+     * RN05: Mandatory for check-out completion
+     */
+    @NotNull(message = "Checklist de check-out é obrigatório")
+    private String checklistEntradaJson;
 }

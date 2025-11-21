@@ -192,7 +192,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
             .build();
 
         // When / Then
-        mockMvc.perform(post("/api/v1/fechamentos/dia/consolidar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/dia/consolidar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString())
@@ -216,7 +216,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
         UUID fechamentoId = createTestFechamentoDiario(dataReferencia);
 
         // When / Then
-        mockMvc.perform(get("/api/v1/fechamentos/dia/" + fechamentoId)
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/fechamentos/dia/" + fechamentoId)
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -234,7 +234,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
         createTestFechamentoDiario(dataReferencia);
 
         // When / Then
-        mockMvc.perform(get("/api/v1/fechamentos/dia/data/" + dataReferencia)
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/fechamentos/dia/data/" + dataReferencia)
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -254,7 +254,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
         createTestFechamentoDiario(LocalDate.now().minusDays(6));
 
         // When / Then
-        mockMvc.perform(get("/api/v1/fechamentos/dia")
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/fechamentos/dia")
                 .param("dataInicio", dataInicio.toString())
                 .param("dataFim", dataFim.toString())
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
@@ -273,7 +273,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
         UUID fechamentoId = createTestFechamentoDiario(dataReferencia);
 
         // When / Then
-        mockMvc.perform(post("/api/v1/fechamentos/dia/" + fechamentoId + "/fechar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/dia/" + fechamentoId + "/fechar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -292,14 +292,14 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
         UUID fechamentoId = createTestFechamentoDiario(dataReferencia);
 
         // First close it via API (not JDBC)
-        mockMvc.perform(post("/api/v1/fechamentos/dia/" + fechamentoId + "/fechar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/dia/" + fechamentoId + "/fechar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
             .andExpect(status().isOk());
 
         // When / Then
-        mockMvc.perform(post("/api/v1/fechamentos/dia/" + fechamentoId + "/aprovar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/dia/" + fechamentoId + "/aprovar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -316,14 +316,14 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
         UUID fechamentoId = createTestFechamentoDiario(dataReferencia);
 
         // First close it via API (not JDBC)
-        mockMvc.perform(post("/api/v1/fechamentos/dia/" + fechamentoId + "/fechar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/dia/" + fechamentoId + "/fechar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
             .andExpect(status().isOk());
 
         // When / Then
-        mockMvc.perform(post("/api/v1/fechamentos/dia/" + fechamentoId + "/reabrir")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/dia/" + fechamentoId + "/reabrir")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -341,21 +341,21 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
         UUID fechamentoId = createTestFechamentoDiario(dataReferencia);
 
         // First close it via API
-        mockMvc.perform(post("/api/v1/fechamentos/dia/" + fechamentoId + "/fechar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/dia/" + fechamentoId + "/fechar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
             .andExpect(status().isOk());
 
         // Then approve it via API
-        mockMvc.perform(post("/api/v1/fechamentos/dia/" + fechamentoId + "/aprovar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/dia/" + fechamentoId + "/aprovar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
             .andExpect(status().isOk());
 
         // When / Then - Try to reopen approved closure (should fail)
-        mockMvc.perform(post("/api/v1/fechamentos/dia/" + fechamentoId + "/reabrir")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/dia/" + fechamentoId + "/reabrir")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -385,7 +385,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
             .build();
 
         // When / Then
-        mockMvc.perform(post("/api/v1/fechamentos/mes/consolidar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/mes/consolidar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString())
@@ -412,7 +412,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
         UUID fechamentoId = createTestFechamentoMensal(ano, mes);
 
         // When / Then
-        mockMvc.perform(get("/api/v1/fechamentos/mes/" + fechamentoId)
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/fechamentos/mes/" + fechamentoId)
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -432,7 +432,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
         createTestFechamentoMensal(ano, mes);
 
         // When / Then
-        mockMvc.perform(get("/api/v1/fechamentos/mes/" + ano + "/" + mes)
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/fechamentos/mes/" + ano + "/" + mes)
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -450,7 +450,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
         createTestFechamentoMensal(2025, 4);
 
         // When / Then
-        mockMvc.perform(get("/api/v1/fechamentos/mes")
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/fechamentos/mes")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -468,7 +468,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
         createTestFechamentoMensal(ano, 12);
 
         // When / Then
-        mockMvc.perform(get("/api/v1/fechamentos/mes/ano/" + ano)
+        mockMvc.perform(get("/v1/tenants/" + TENANT_ID + "/fechamentos/mes/ano/" + ano)
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -486,7 +486,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
         UUID fechamentoId = createTestFechamentoMensal(ano, mes);
 
         // When / Then
-        mockMvc.perform(post("/api/v1/fechamentos/mes/" + fechamentoId + "/fechar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/mes/" + fechamentoId + "/fechar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -513,7 +513,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
             """, Timestamp.from(Instant.now()), fechamentoId);
 
         // When / Then
-        mockMvc.perform(post("/api/v1/fechamentos/mes/" + fechamentoId + "/aprovar")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/mes/" + fechamentoId + "/aprovar")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
@@ -538,7 +538,7 @@ class FechamentoControllerIntegrationTest extends AbstractIntegrationTest {
             """, Timestamp.from(Instant.now()), fechamentoId);
 
         // When / Then
-        mockMvc.perform(post("/api/v1/fechamentos/mes/" + fechamentoId + "/reabrir")
+        mockMvc.perform(post("/v1/tenants/" + TENANT_ID + "/fechamentos/mes/" + fechamentoId + "/reabrir")
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())
                     .claim("tenant_id", TENANT_ID.toString())))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
