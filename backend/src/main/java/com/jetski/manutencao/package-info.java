@@ -16,8 +16,8 @@
  *
  * <h2>Arquitetura</h2>
  * <ul>
- *   <li><b>api</b>: Controllers e DTOs REST</li>
- *   <li><b>domain</b>: Entidades JPA e enums</li>
+ *   <li><b>api</b>: Controllers, services públicos e DTOs REST (exposed via @NamedInterface)</li>
+ *   <li><b>domain</b>: Entidades JPA e enums (exposed via @NamedInterface)</li>
  *   <li><b>internal</b>: Services e Repositories (package-private)</li>
  * </ul>
  *
@@ -41,10 +41,9 @@
     allowedDependencies = {
         "shared::security",
         "shared::exception",
-        "usuarios",
+        "usuarios::api",
         "locacoes::api",
-        "locacoes::domain",
-        "locacoes::internal"
+        "locacoes::domain"
     }
 )
 package com.jetski.manutencao;

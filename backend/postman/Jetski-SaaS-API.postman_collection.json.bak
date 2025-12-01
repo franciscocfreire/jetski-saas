@@ -1,0 +1,3939 @@
+{
+  "info": {
+    "_postman_id": "jetski-saas-api-v1",
+    "name": "Jetski SaaS API",
+    "description": "Collection para testes manuais da API Jetski SaaS multi-tenant.\n\n## Configuração Inicial\n\n1. Importe os 4 ambientes (local, dev, hml, prd) disponíveis na pasta `postman/environments/`\n2. Selecione o ambiente desejado no dropdown do Postman\n3. Execute o request \"Get Access Token\" para obter o JWT\n4. O token será automaticamente salvo na variável `access_token` do ambiente\n5. Todos os requests protegidos usarão automaticamente este token\n\n## Multi-tenancy\n\nTodos os endpoints (exceto públicos e autenticação) requerem:\n- **Authorization**: Bearer token JWT\n- **X-Tenant-Id**: UUID do tenant (configurado na variável `tenant_id` do ambiente)\n\n## Estrutura\n\n- **Auth**: Obtenção de tokens JWT via Keycloak\n- **User**: Gerenciamento de usuários e listagem de tenants\n- **User Invitation**: Convidar e ativar usuários (fluxo OIDC completo)\n- **Tenant Members**: Gerenciamento de membros do tenant\n- **Locações (CRUD)**: Gestão completa de modelos, jetskis, vendedores, clientes e reservas\n  - **Modelos**: 6 endpoints para gestão de modelos de jetski\n  - **Jetskis**: 7 endpoints para gestão da frota (inclui status)\n  - **Vendedores**: 6 endpoints para gestão de parceiros/vendedores\n  - **Clientes**: 7 endpoints para gestão de clientes (inclui accept-terms RF03.4)\n  - **Reservas**: 9 endpoints para gestão de bookings (workflow com prioridades e modelo-based)\n- **Locações - Operação (Check-in/Check-out)**: 🆕 **Sprint 2**\n  - **Check-in from Reservation**: Converter reserva em locação\n  - **Walk-in Check-in**: Cliente sem reserva\n  - **Check-out**: Finalizar locação com RN01 (tolerância + arredondamento 15min)\n  - **List/Get**: Consultar locações ativas e finalizadas\n- **Auth Tests**: Endpoints de teste para validação de segurança (RBAC, OPA)\n- **Health**: Health checks e métricas\n\n## User Invitation Flow (OIDC)\n\n**Novo fluxo com Keycloak OIDC:**\n1. ADMIN_TENANT convida usuário → gera token (48h)\n2. Usuário ativa conta (sem senha) → criado no Keycloak com required action UPDATE_PASSWORD\n3. Email enviado com link de login\n4. Usuário faz login → Keycloak solicita definição de senha\n5. Usuário define senha e está autenticado!\n\nVer documentação completa: `backend/OIDC_ACTIVATION_FLOW.md`\n\n## Sprint 2: Check-in/Check-out (RN01)\n\n**Novos endpoints de operação de locação:**\n- Check-in from Reservation: Converte reserva confirmada em locação ativa\n- Walk-in Check-in: Cliente sem reserva → locação direta\n- Check-out: Finaliza locação com cálculo RN01\n  - Tolerância configurável (ex: 5 min)\n  - Arredondamento para blocos de 15 min\n  - Fórmula: `billableMinutes = ceil((usedMinutes - tolerance) / 15) * 15`\n\n**Exemplo RN01:** Usado 70 min, Tolerância 5 min → Faturável 75 min (5 blocos)\n\nVer collection **\"Jetski - Jornadas\"** para fluxos completos passo-a-passo!\n\n## Infraestrutura\n\n**OPA (Open Policy Agent):** v1.9.0  \nPolicies modernizadas com sintaxe Rego v1 (upgrade em 2025-10-20)\n\n## Versionamento\n\nEsta collection é **viva** e será atualizada conforme novos endpoints forem adicionados.\n\nVersão: 1.6.0 - Sprint 2: Check-in/Check-out com RN01\nÚltima atualização: 2025-10-25",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "jetski-team"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Endpoints de autenticação via Keycloak OAuth2/OIDC",
+      "item": [
+        {
+          "name": "Get Access Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Salva o access_token na variável de ambiente",
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set(\"access_token\", jsonData.access_token);",
+                  "    pm.environment.set(\"refresh_token\", jsonData.refresh_token);",
+                  "    pm.environment.set(\"token_expires_in\", jsonData.expires_in);",
+                  "    ",
+                  "    console.log(\"✅ Access token obtido com sucesso!\");",
+                  "    console.log(\"Expira em:\", jsonData.expires_in, \"segundos\");",
+                  "} else {",
+                  "    console.error(\"❌ Erro ao obter token:\", pm.response.text());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Validação de variáveis necessárias",
+                  "const requiredVars = [\"keycloak_url\", \"keycloak_realm\", \"client_id\", \"client_secret\", \"username\", \"password\"];",
+                  "const missing = requiredVars.filter(v => !pm.environment.get(v));",
+                  "",
+                  "if (missing.length > 0) {",
+                  "    console.error(\"❌ Variáveis de ambiente ausentes:\", missing);",
+                  "    throw new Error(\"Configure as variáveis: \" + missing.join(\", \"));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password",
+                  "type": "text"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{client_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{client_secret}}",
+                  "type": "text"
+                },
+                {
+                  "key": "username",
+                  "value": "{{username}}",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}",
+                  "type": "text"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid profile email",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
+              "host": [
+                "{{keycloak_url}}"
+              ],
+              "path": [
+                "realms",
+                "{{keycloak_realm}}",
+                "protocol",
+                "openid-connect",
+                "token"
+              ]
+            },
+            "description": "Obtém um access token JWT do Keycloak usando Resource Owner Password Credentials.\n\n**Variáveis necessárias:**\n- `keycloak_url`: URL base do Keycloak\n- `keycloak_realm`: Nome do realm\n- `client_id`: Client ID configurado no Keycloak\n- `client_secret`: Client secret (confidential client)\n- `username`: Usuário para login\n- `password`: Senha do usuário\n\n**Resposta:**\nO token JWT será salvo automaticamente na variável `access_token`."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set(\"access_token\", jsonData.access_token);",
+                  "    pm.environment.set(\"refresh_token\", jsonData.refresh_token);",
+                  "    pm.environment.set(\"token_expires_in\", jsonData.expires_in);",
+                  "    console.log(\"✅ Token renovado com sucesso!\");",
+                  "} else {",
+                  "    console.error(\"❌ Erro ao renovar token:\", pm.response.text());",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "refresh_token",
+                  "type": "text"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{client_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{client_secret}}",
+                  "type": "text"
+                },
+                {
+                  "key": "refresh_token",
+                  "value": "{{refresh_token}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
+              "host": [
+                "{{keycloak_url}}"
+              ],
+              "path": [
+                "realms",
+                "{{keycloak_realm}}",
+                "protocol",
+                "openid-connect",
+                "token"
+              ]
+            },
+            "description": "Renova o access token usando o refresh token.\n\nUse quando o access token expirar (geralmente após 5-15 minutos)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "description": "Endpoints relacionados a usuários e tenants",
+      "item": [
+        {
+          "name": "List User Tenants",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has accessType\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"accessType\");",
+                  "    pm.expect(jsonData.accessType).to.be.oneOf([\"LIMITED\", \"UNRESTRICTED\"]);",
+                  "});",
+                  "",
+                  "pm.test(\"If LIMITED, should have tenants array\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.accessType === \"LIMITED\") {",
+                  "        pm.expect(jsonData).to.have.property(\"tenants\");",
+                  "        pm.expect(jsonData.tenants).to.be.an(\"array\");",
+                  "        pm.expect(jsonData).to.have.property(\"totalTenants\");",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test(\"First tenant has correct structure\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.accessType === \"LIMITED\" && jsonData.tenants && jsonData.tenants.length > 0) {",
+                  "        const firstTenant = jsonData.tenants[0];",
+                  "        pm.expect(firstTenant).to.have.property(\"tenantId\");",
+                  "        pm.expect(firstTenant).to.have.property(\"roles\");",
+                  "        pm.expect(firstTenant.tenantId).to.be.a(\"string\");",
+                  "        pm.expect(firstTenant.roles).to.be.an(\"array\");",
+                  "    }",
+                  "});",
+                  "",
+                  "// Salva o primeiro tenant_id para uso em outros requests",
+                  "const jsonData = pm.response.json();",
+                  "if (jsonData.accessType === \"LIMITED\" && jsonData.tenants && jsonData.tenants.length > 0) {",
+                  "    const firstTenantId = jsonData.tenants[0].tenantId;",
+                  "    pm.environment.set(\"tenant_id\", firstTenantId);",
+                  "    console.log(\"✅ Primeiro tenant_id salvo:\", firstTenantId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/v1/user/tenants",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "user",
+                "tenants"
+              ]
+            },
+            "description": "Lista todos os tenants que o usuário autenticado pode acessar.\n\n**Tipos de resposta:**\n- `LIMITED`: Retorna lista de tenants (máx 100)\n- `UNRESTRICTED`: Usuário é admin de plataforma, pode acessar qualquer tenant\n\n**Uso:**\n- Mobile app: Exibir seletor de tenant no login\n- Web app: Exibir dropdown de tenants"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User Invitation",
+      "description": "Endpoints para convidar e ativar usuários no tenant.\n\n**Fluxo Option 2 (Temporary Password):**\n1. ADMIN_TENANT convida usuário → backend gera senha temporária aleatória (12 chars)\n2. Backend armazena hash BCrypt da senha temporária\n3. Email enviado com token + senha temporária em texto plano\n4. Usuário ativa conta com token + senha temporária (endpoint público)\n5. Backend valida senha temporária contra hash BCrypt\n6. Cria usuário no PostgreSQL + Keycloak com senha temporária + required action UPDATE_PASSWORD\n7. Usuário faz primeiro login com senha temporária\n8. Keycloak FORÇA troca de senha (políticas gerenciadas pelo Keycloak)\n9. Usuário define senha permanente e está autenticado!",
+      "item": [
+        {
+          "name": "Invite User to Tenant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has conviteId\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"conviteId\");",
+                  "    pm.expect(jsonData).to.have.property(\"email\");",
+                  "    pm.expect(jsonData).to.have.property(\"expiresAt\");",
+                  "});",
+                  "",
+                  "// Salva dados para teste de ativação",
+                  "const jsonData = pm.response.json();",
+                  "if (jsonData.conviteId) {",
+                  "    // Token não é retornado na API (só via email), mas podemos buscar no DB para testes",
+                  "    console.log(\"✅ Convite criado:\", jsonData.conviteId);",
+                  "    console.log(\"   Email:\", jsonData.email);",
+                  "    console.log(\"   Expira em:\", jsonData.expiresAt);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"operador.novo@example.com\",\n  \"nome\": \"Operador Novo\",\n  \"papeis\": [\"OPERADOR\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/users/invite",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "users",
+                "invite"
+              ]
+            },
+            "description": "Convida um novo usuário para o tenant.\n\n**Requer:** ADMIN_TENANT ou GERENTE role\n\n**Validações:**\n- Limite de usuários do plano não atingido\n- Email não possui convite pendente\n- Email não é membro do tenant\n\n**Resposta:**\n- Convite criado com token válido por 48h\n- Email de convite enviado (TODO)\n\n**Body:**\n```json\n{\n  \"email\": \"novo.usuario@example.com\",\n  \"nome\": \"Novo Usuário\",\n  \"papeis\": [\"OPERADOR\", \"VENDEDOR\"]\n}\n```\n\n**Roles disponíveis:**\n- ADMIN_TENANT\n- GERENTE\n- OPERADOR\n- VENDEDOR\n- MECANICO\n- FINANCEIRO"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User Invitation (Single-Email Flow)",
+      "description": "FLUXO OPTION 2: Ativação com senha temporária em um único email.\n\n**Fluxo Completo:**\n1. ADMIN_TENANT convida usuário → backend gera senha temporária aleatória (12 chars)\n2. Backend armazena hash BCrypt da senha temporária no BD\n3. Email enviado com: link de ativação + senha temporária em texto plano\n   - Link: /activate?token=xxx\n   - Senha temporária: Ab12#Xy9@Kl4 (exemplo)\n4. Usuário acessa formulário de ativação e informa: token + senha temporária do email\n5. POST /v1/auth/complete-activation (token + temporaryPassword)\n6. Backend valida senha temporária contra hash BCrypt\n7. Se válido: cria usuário no PostgreSQL + Keycloak com senha temporária + required action UPDATE_PASSWORD\n8. Usuário faz primeiro login com senha temporária\n9. Keycloak FORÇA troca de senha (políticas gerenciadas pelo Keycloak: comprimento, complexidade, histórico)\n10. Usuário define senha permanente e está autenticado!\n\n**Vantagens:**\n- UX simplificado: 1 único email\n- Segurança: senha temporária aleatória gerada pelo backend\n- Keycloak gerencia políticas de senha (não o frontend/backend)\n- Forçar troca no primeiro login garante senha conhecida apenas pelo usuário",
+      "item": [
+        {
+          "name": "1. Invite User to Tenant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has conviteId\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"conviteId\");",
+                  "    pm.expect(jsonData).to.have.property(\"email\");",
+                  "    pm.expect(jsonData).to.have.property(\"expiresAt\");",
+                  "});",
+                  "",
+                  "// Salva email para próximos testes",
+                  "const jsonData = pm.response.json();",
+                  "if (jsonData.email) {",
+                  "    pm.environment.set(\"invited_email\", jsonData.email);",
+                  "    console.log(\"✅ Convite criado (Option 2):\", jsonData.conviteId);",
+                  "    console.log(\"   Email:\", jsonData.email);",
+                  "    console.log(\"   Expira em:\", jsonData.expiresAt);",
+                  "    console.log(\"\");",
+                  "    console.log(\"🔔 IMPORTANTE: Busque token E senha temporária no email\");",
+                  "    console.log(\"   Local: /tmp/emails/ (arquivo mais recente)\");",
+                  "    console.log(\"   Token: na URL do link de ativação\");",
+                  "    console.log(\"   Senha temporária: no corpo do email (12 chars aleatórios)\");",
+                  "    console.log(\"   Ou via SQL: SELECT token FROM convite WHERE email = '\" + jsonData.email + \"' AND status = 'PENDING';\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"teste.fluxo.unico@example.com\",\n  \"nome\": \"Teste Fluxo Único\",\n  \"papeis\": [\"OPERADOR\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/users/invite",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "users",
+                "invite"
+              ]
+            },
+            "description": "**Passo 1:** Convida usuário para o tenant (Option 2 flow).\n\n**Requer:** ADMIN_TENANT ou GERENTE\n\n**Ação:**\n- Email de convite enviado para `teste.fluxo.unico@example.com`\n- Email contém:\n  - Link de ativação: `{{frontend_url}}/activate?token=xxx`\n  - Senha temporária aleatória gerada pelo backend (12 chars)\n- Token válido por 48 horas\n\n**Backend (Option 2):**\n- Gera senha temporária aleatória: `SecureRandom` (12 chars)\n- Armazena hash BCrypt no campo `temporary_password_hash`\n- Envia senha temporária em texto plano NO EMAIL (única vez)\n\n**Próximos passos:**\n1. Verifique o email em `/tmp/emails/` (último arquivo criado)\n2. Copie o token da URL\n3. Copie a senha temporária do corpo do email\n4. Cole ambos no request \"2. Complete Activation with Password\"\n5. Execute para ativar conta com senha temporária validada via BCrypt\n6. Execute \"3. Login with New User\" com senha temporária para validar"
+          },
+          "response": []
+        },
+        {
+          "name": "2. Complete Activation with Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has usuarioId\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"usuarioId\");",
+                  "    pm.expect(jsonData).to.have.property(\"email\");",
+                  "    pm.expect(jsonData).to.have.property(\"tenantId\");",
+                  "    pm.expect(jsonData).to.have.property(\"roles\");",
+                  "});",
+                  "",
+                  "pm.test(\"Success message indicates immediate login\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include(\"fazer login\");",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "console.log(\"✅ Conta ativada COM SENHA TEMPORÁRIA (Option 2):\", jsonData.usuarioId);",
+                  "console.log(\"   Email:\", jsonData.email);",
+                  "console.log(\"   Tenant:\", jsonData.tenantId);",
+                  "console.log(\"   Roles:\", jsonData.roles.join(\", \"));",
+                  "console.log(\"   Mensagem:\", jsonData.message);",
+                  "console.log(\"\");",
+                  "console.log(\"🎉 Usuário pode fazer login com senha temporária!\");",
+                  "console.log(\"   Execute o request '3. Login with New User' para testar\");",
+                  "console.log(\"   ⚠️  Keycloak forçará troca de senha no primeiro login\");"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"COLE-O-TOKEN-DO-EMAIL-AQUI\",\n  \"temporaryPassword\": \"COLE-A-SENHA-TEMPORARIA-DO-EMAIL-AQUI\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/auth/complete-activation",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "complete-activation"
+              ]
+            },
+            "description": "**Passo 2:** Completa ativação da conta com SENHA TEMPORÁRIA (Option 2 flow).\n\n**Endpoint PÚBLICO** - Não requer autenticação\n\n**Fluxo:**\n1. Usuário recebe email com: token + senha temporária (gerada pelo backend)\n2. Frontend exibe formulário: token + temporaryPassword\n3. Submit → POST /v1/auth/complete-activation\n4. Backend:\n   - Valida token (não expirado, status PENDING)\n   - Valida senha temporária contra hash BCrypt armazenado\n   - Cria usuario no PostgreSQL (email_verified=true)\n   - Cria membro no tenant\n   - Cria usuario no Keycloak com senha temporária + required action UPDATE_PASSWORD\n   - Marca convite como ACTIVATED\n5. Usuário faz primeiro login com senha temporária\n6. Keycloak FORÇA troca de senha (políticas gerenciadas pelo Keycloak)\n7. Usuário define senha permanente e está autenticado!\n\n**Body (Option 2):**\n```json\n{\n  \"token\": \"abc123xyz...\",\n  \"temporaryPassword\": \"Ab12#Xy9@Kl4\"\n}\n```\n\n**Validações:**\n- Token válido e não expirado (48h)\n- Token em status PENDING (não usado)\n- Senha temporária válida (match com hash BCrypt)\n- Email não duplicado\n\n**Para obter token e senha temporária:**\n1. Verifique arquivo em `/tmp/emails/` (último criado)\n2. Busque o token na URL e a senha temporária no corpo do email\n3. Cole ambos no body do request\n\n**Ou via SQL (apenas token):**\n```sql\nSELECT token FROM convite \nWHERE email = 'teste.fluxo.unico@example.com' \nAND status = 'PENDING' \nORDER BY created_at DESC LIMIT 1;\n```\n\n**Segurança Option 2:**\n- Backend gera senha temporária aleatória (12 chars)\n- Armazena apenas hash BCrypt no banco\n- Senha temporária enviada UMA VEZ no email\n- Keycloak força troca no primeiro login\n- Políticas de senha gerenciadas pelo Keycloak (comprimento, complexidade, histórico)"
+          },
+          "response": []
+        },
+        {
+          "name": "3. Magic Link Activation (One-Click UX)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has usuarioId\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"usuarioId\");",
+                  "    pm.expect(jsonData).to.have.property(\"email\");",
+                  "    pm.expect(jsonData).to.have.property(\"tenantId\");",
+                  "    pm.expect(jsonData).to.have.property(\"roles\");",
+                  "});",
+                  "",
+                  "pm.test(\"Success message indicates immediate login\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.include(\"fazer login\");",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "console.log(\"✅ Conta ativada VIA MAGIC LINK (One-Click):\", jsonData.usuarioId);",
+                  "console.log(\"   Email:\", jsonData.email);",
+                  "console.log(\"   Tenant:\", jsonData.tenantId);",
+                  "console.log(\"   Roles:\", jsonData.roles.join(\", \"));",
+                  "console.log(\"   Mensagem:\", jsonData.message);",
+                  "console.log(\"\");",
+                  "console.log(\"🎉 MAGIC LINK FUNCIONOU - Sem digitação de senha!\");",
+                  "console.log(\"   Usuário pode fazer login com senha temporária\");",
+                  "console.log(\"   Execute o request '4. Login with New User' para testar\");",
+                  "console.log(\"   ⚠️  Keycloak forçará troca de senha no primeiro login\");"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"magicToken\": \"COLE-O-JWT-DO-EMAIL-AQUI\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/auth/magic-activate",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "magic-activate"
+              ]
+            },
+            "description": "**Passo 3 (Alternativa): Ativação via Magic Link JWT (UX melhorada - ONE CLICK!)**\n\n**Endpoint PÚBLICO** - Não requer autenticação\n\n**O que é Magic Link?**\nMagic Link é um JWT assinado que contém o token de convite + senha temporária criptografados. O usuário só precisa clicar no link do email - sem digitar nada!\n\n**Fluxo:**\n1. Usuário recebe email com magic link: `{{frontend_url}}/magic-activate?token=SIGNED_JWT`\n2. Usuário CLICA NO LINK (sem precisar digitar nada!)\n3. Frontend extrai JWT da URL e envia para este endpoint\n4. Backend:\n   - Valida assinatura do JWT (HMAC-SHA256)\n   - Valida expiração (48h)\n   - Extrai invitation token + senha temporária do JWT\n   - Chama o fluxo de ativação normal (mesmo que endpoint #2)\n5. Conta ativada! Usuário pode fazer login com senha temporária\n6. Keycloak força troca de senha no primeiro login\n\n**Body (Magic Link):**\n```json\n{\n  \"magicToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"\n}\n```\n\n**JWT Claims (dentro do magicToken):**\n- `sub`: invitation token (string 40 chars)\n- `pwd`: senha temporária (plain text, criptografada no JWT)\n- `exp`: expiração (48 horas)\n- `iat`: issued at\n- `jti`: JWT ID único\n\n**Validações:**\n- JWT com assinatura válida (não foi adulterado)\n- JWT não expirado (48h)\n- Invitation token válido e não usado\n- Senha temporária válida (extraída do JWT)\n\n**Para obter o Magic Token:**\n1. Verifique arquivo em `/tmp/emails/` (último criado)\n2. Busque o JWT completo após \"magic-activate?token=\"\n3. Cole o JWT inteiro no campo `magicToken` do body\n\n**Segurança Magic Link:**\n- JWT assinado com HMAC-SHA256 (não pode ser forjado)\n- Senha temporária nunca armazenada em plain text no banco\n- JWT expira em 48h (mesma validade do convite)\n- Token só pode ser usado uma vez (convite é marcado como ACTIVATED)\n- Keycloak força troca de senha no primeiro login\n\n**Diferença entre Magic Link (#3) e Ativação Manual (#2):**\n- **#2 (Manual)**: Usuário digita token + senha temporária no formulário\n- **#3 (Magic Link)**: Usuário clica no link - ZERO digitação! ✨\n- Ambos ativam a conta da mesma forma, diferença é apenas UX\n\n**Vantagens Magic Link:**\n- ✅ UX perfeita: um clique ativa a conta\n- ✅ Menos erros: usuário não precisa copiar/colar nada\n- ✅ Mobile-friendly: funciona perfeitamente em smartphones\n- ✅ Segurança mantida: JWT assinado + senha temporária criptografada"
+          },
+          "response": []
+        },
+        {
+          "name": "4. Login with New User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has access_token\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"access_token\");",
+                  "    pm.expect(jsonData).to.have.property(\"refresh_token\");",
+                  "    pm.expect(jsonData).to.have.property(\"id_token\");",
+                  "});",
+                  "",
+                  "// Salva tokens",
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set(\"new_user_token\", jsonData.access_token);",
+                  "    console.log(\"✅ LOGIN BEM-SUCEDIDO COM SENHA TEMPORÁRIA (Option 2)!\");",
+                  "    console.log(\"   Access token obtido e salvo em 'new_user_token'\");",
+                  "    console.log(\"   Token expira em:\", jsonData.expires_in, \"segundos\");",
+                  "    console.log(\"\");",
+                  "    console.log(\"🎉 FLUXO OPTION 2 COMPLETO!\");",
+                  "    console.log(\"   ✓ Convite enviado com senha temporária aleatória\");",
+                  "    console.log(\"   ✓ Conta ativada com senha temporária validada via BCrypt\");",
+                  "    console.log(\"   ✓ Login com senha temporária funcionando\");",
+                  "    console.log(\"   ⚠️  Keycloak forçará troca de senha no primeiro login (Authorization Code Flow)\");",
+                  "} else {",
+                  "    console.error(\"❌ Falha no login - verifique email/senha\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password",
+                  "type": "text"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{client_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "{{client_secret}}",
+                  "type": "text"
+                },
+                {
+                  "key": "username",
+                  "value": "teste.fluxo.unico@example.com",
+                  "type": "text",
+                  "description": "Email do usuário convidado"
+                },
+                {
+                  "key": "password",
+                  "value": "SENHA-TEMPORARIA-DO-EMAIL",
+                  "type": "text",
+                  "description": "Senha temporária do email (gerada pelo backend no passo 1)"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid profile email",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
+              "host": [
+                "{{keycloak_url}}"
+              ],
+              "path": [
+                "realms",
+                "{{keycloak_realm}}",
+                "protocol",
+                "openid-connect",
+                "token"
+              ]
+            },
+            "description": "**Passo 3:** Faz login com o usuário recém-criado (Option 2: primeiro login com senha temporária).\n\n**IMPORTANTE - Fluxo Option 2:**\n- Este teste simula o primeiro login do usuário com senha temporária\n- **Keycloak FORÇARÁ troca de senha** (required action UPDATE_PASSWORD)\n- Em ambiente real, Keycloak redirecionará para tela de alteração de senha\n- Após troca, usuário terá senha permanente conhecida apenas por ele\n\n**Credenciais:**\n- username: `teste.fluxo.unico@example.com`\n- password: **senha temporária do email** (ex: `Ab12#Xy9@Kl4`)\n\n**O que este teste valida:**\n1. Usuário foi criado corretamente no Keycloak\n2. Senha temporária foi definida e é funcional\n3. Email foi marcado como verificado\n4. Required action UPDATE_PASSWORD está ativo\n5. Login com senha temporária funciona\n\n**Nota:** \n- Neste teste via Postman, o login via Resource Owner Password Credentials pode não enforcar o UPDATE_PASSWORD\n- Em aplicação real (Authorization Code Flow), Keycloak força troca de senha após login\n- Políticas de senha (comprimento, complexidade, histórico) são gerenciadas pelo Keycloak\n\n**Se falhar:**\n- Verifique se o passo 2 retornou 200\n- Use a senha temporária do email (não a senha permanente)\n- Cheque logs do backend em /tmp/backend-*.log"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tenant Members",
+      "description": "Endpoints para gerenciamento de membros do tenant.\n\n**Funcionalidades:**\n- Listar membros ativos/inativos\n- Ver informações de limite do plano\n- Desativar membros (soft delete)\n\n**Requer:** ADMIN_TENANT ou GERENTE role",
+      "item": [
+        {
+          "name": "List Tenant Members",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has members array\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"members\");",
+                  "    pm.expect(jsonData.members).to.be.an(\"array\");",
+                  "});",
+                  "",
+                  "pm.test(\"Response has plan limit info\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"planLimit\");",
+                  "    pm.expect(jsonData.planLimit).to.have.property(\"maxUsuarios\");",
+                  "    pm.expect(jsonData.planLimit).to.have.property(\"currentActive\");",
+                  "    pm.expect(jsonData.planLimit).to.have.property(\"available\");",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "console.log(\"✅ Members loaded:\", jsonData.totalCount);",
+                  "console.log(\"   Active:\", jsonData.activeCount);",
+                  "console.log(\"   Inactive:\", jsonData.inactiveCount);",
+                  "console.log(\"   Plan limit:\", jsonData.planLimit.currentActive + \"/\" + jsonData.planLimit.maxUsuarios);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/members?includeInactive=false",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "members"
+              ],
+              "query": [
+                {
+                  "key": "includeInactive",
+                  "value": "false",
+                  "description": "Incluir membros inativos (default: false)"
+                }
+              ]
+            },
+            "description": "Lista todos os membros do tenant com informações de limite do plano.\n\n**Requer:** ADMIN_TENANT ou GERENTE role\n\n**Query Parameters:**\n- `includeInactive`: boolean (default: false) - Incluir membros inativos\n\n**Response:**\n```json\n{\n  \"members\": [\n    {\n      \"usuarioId\": \"uuid\",\n      \"email\": \"user@example.com\",\n      \"nome\": \"Nome do Usuário\",\n      \"papeis\": [\"GERENTE\", \"OPERADOR\"],\n      \"ativo\": true,\n      \"joinedAt\": \"2025-01-15T10:30:00Z\",\n      \"lastUpdated\": \"2025-01-15T10:30:00Z\"\n    }\n  ],\n  \"totalCount\": 10,\n  \"activeCount\": 8,\n  \"inactiveCount\": 2,\n  \"planLimit\": {\n    \"maxUsuarios\": 10,\n    \"currentActive\": 8,\n    \"available\": 2,\n    \"limitReached\": false\n  }\n}\n```"
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate Member",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response indicates success\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.message).to.include(\"desativado com sucesso\");",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "console.log(\"✅ Member deactivated:\", jsonData.usuarioId);",
+                  "console.log(\"   Email:\", jsonData.email);",
+                  "console.log(\"   Tenant:\", jsonData.tenantId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/members/{{usuario_id_to_deactivate}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "members",
+                "{{usuario_id_to_deactivate}}"
+              ]
+            },
+            "description": "Desativa um membro do tenant (soft delete).\n\n**Requer:** ADMIN_TENANT ou GERENTE role\n\n**Validações:**\n- Membro deve existir e estar ativo\n- Não pode desativar o último ADMIN_TENANT do tenant\n\n**Path Parameters:**\n- `tenantId`: UUID do tenant\n- `usuarioId`: UUID do usuário a desativar\n\n**Response:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Membro desativado com sucesso\",\n  \"usuarioId\": \"uuid\",\n  \"email\": \"user@example.com\",\n  \"tenantId\": \"uuid\"\n}\n```\n\n**Errors:**\n- 404: Membro não encontrado\n- 400: Membro já está inativo\n- 400: Não é possível desativar o último ADMIN_TENANT\n\n**Exemplo:**\n1. Execute \"List Tenant Members\" para ver membros\n2. Copie o `usuarioId` de um membro de teste\n3. Crie variável `usuario_id_to_deactivate` com esse UUID\n4. Execute este endpoint"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Locações (CRUD)",
+      "description": "Endpoints para gerenciamento de locações: modelos de jetski, frota (jetskis), vendedores/parceiros e clientes.\n\n**Módulo:** com.jetski.locacoes (Spring Modulith)\n\n**Funcionalidades:**\n- **Modelos**: Cadastro de modelos de jetski com precificação por hora/pacote\n- **Jetskis**: Gestão da frota com odômetro, status e disponibilidade\n- **Vendedores**: Cadastro de parceiros de venda com configuração de comissões\n- **Clientes**: Gestão de clientes/locatários com termo de responsabilidade (RF03.4)\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role (a maioria dos endpoints)\n\n**Multi-tenancy:**\n- Todos os endpoints requerem `X-Tenant-Id` header\n- Validação automática via TenantContext\n- Soft deletes (campo `ativo`)",
+      "item": [
+        {
+          "name": "Modelos",
+          "description": "Gestão de modelos de jetski (fabricante, modelo, ano, precificação).\n\n**Endpoints:**\n- GET: Listar modelos\n- GET /{id}: Obter modelo por ID\n- POST: Criar modelo\n- PUT /{id}: Atualizar modelo\n- DELETE /{id}: Desativar modelo\n- POST /{id}/reactivate: Reativar modelo",
+          "item": [
+            {
+              "name": "List Modelos",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response is array\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.be.an(\"array\");",
+                      "});",
+                      "",
+                      "// Save first modelo_id for other tests",
+                      "const modelos = pm.response.json();",
+                      "if (modelos.length > 0) {",
+                      "    pm.environment.set(\"modelo_id\", modelos[0].id);",
+                      "    console.log(\"✅ Modelos loaded:\", modelos.length);",
+                      "    console.log(\"   First modelo_id saved:\", modelos[0].id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/modelos?includeInactive=false",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "modelos"
+                  ],
+                  "query": [
+                    {
+                      "key": "includeInactive",
+                      "value": "false",
+                      "description": "Incluir modelos inativos (default: false)"
+                    }
+                  ]
+                },
+                "description": "Lista todos os modelos de jetski do tenant.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role\n\n**Query Parameters:**\n- `includeInactive`: boolean (default: false) - Incluir modelos inativos"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Modelo by ID",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has modelo fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData).to.have.property(\"tenantId\");",
+                      "    pm.expect(jsonData).to.have.property(\"fabricante\");",
+                      "    pm.expect(jsonData).to.have.property(\"modelo\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/modelos/{{modelo_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "modelos",
+                    "{{modelo_id}}"
+                  ]
+                },
+                "description": "Obtém detalhes de um modelo específico.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Modelo",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has created modelo\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData.fabricante).to.equal(\"Sea-Doo\");",
+                      "});",
+                      "",
+                      "// Save created modelo_id",
+                      "const created = pm.response.json();",
+                      "if (created.id) {",
+                      "    pm.environment.set(\"created_modelo_id\", created.id);",
+                      "    console.log(\"✅ Modelo created:\", created.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fabricante\": \"Sea-Doo\",\n  \"nome\": \"GTI SE 170\",\n  \"potenciaHp\": 170,\n  \"capacidadePessoas\": 3,\n  \"precoBaseHora\": 200.00,\n  \"toleranciaMin\": 5,\n  \"taxaHoraExtra\": 50.00,\n  \"incluiCombustivel\": false,\n  \"caucao\": 500.00,\n  \"fotoReferenciaUrl\": \"https://example.com/seadoo-gti.jpg\",\n  \"pacotesJson\": \"[{\\\"duracao_min\\\": 30, \\\"preco\\\": 180.00}, {\\\"duracao_min\\\": 60, \\\"preco\\\": 300.00}]\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/modelos",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "modelos"
+                  ]
+                },
+                "description": "Cria um novo modelo de jetski.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role\n\n**Validações:**\n- Fabricante e modelo são obrigatórios\n- Ano deve ser válido\n- Preços devem ser positivos"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Modelo",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has updated fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"precoBaseHora\": 250.00,\n  \"toleranciaMin\": 10,\n  \"taxaHoraExtra\": 75.00\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/modelos/{{modelo_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "modelos",
+                    "{{modelo_id}}"
+                  ]
+                },
+                "description": "Atualiza um modelo existente.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Deactivate Modelo",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Modelo is inactive\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.false;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/modelos/{{modelo_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "modelos",
+                    "{{modelo_id}}"
+                  ]
+                },
+                "description": "Desativa um modelo (soft delete).\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            },
+            {
+              "name": "Reactivate Modelo",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Modelo is active\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.true;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/modelos/{{modelo_id}}/reactivate",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "modelos",
+                    "{{modelo_id}}",
+                    "reactivate"
+                  ]
+                },
+                "description": "Reativa um modelo previamente desativado.\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Jetskis",
+          "description": "Gestão da frota de jetskis (unidades individuais, odômetro, status, disponibilidade).\n\n**Status disponíveis:**\n- DISPONIVEL: Jetski pronto para locação\n- LOCADO: Em operação de locação\n- MANUTENCAO: Em manutenção (bloqueado para reservas)\n- INDISPONIVEL: Temporariamente indisponível\n\n**Endpoints:**\n- GET: Listar jetskis\n- GET /{id}: Obter jetski por ID\n- POST: Criar jetski\n- PUT /{id}: Atualizar jetski\n- PATCH /{id}/status: Atualizar status\n- DELETE /{id}: Desativar jetski\n- POST /{id}/reactivate: Reativar jetski",
+          "item": [
+            {
+              "name": "List Jetskis",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response is array\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.be.an(\"array\");",
+                      "});",
+                      "",
+                      "// Save first jetski_id",
+                      "const jetskis = pm.response.json();",
+                      "if (jetskis.length > 0) {",
+                      "    pm.environment.set(\"jetski_id\", jetskis[0].id);",
+                      "    console.log(\"✅ Jetskis loaded:\", jetskis.length);",
+                      "    console.log(\"   First jetski_id saved:\", jetskis[0].id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis?includeInactive=false",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis"
+                  ],
+                  "query": [
+                    {
+                      "key": "includeInactive",
+                      "value": "false",
+                      "description": "Incluir jetskis inativos (default: false)"
+                    }
+                  ]
+                },
+                "description": "Lista todos os jetskis da frota do tenant.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Jetski by ID",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has jetski fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData).to.have.property(\"modeloId\");",
+                      "    pm.expect(jsonData).to.have.property(\"numeroSerie\");",
+                      "    pm.expect(jsonData).to.have.property(\"status\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis/{{jetski_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis",
+                    "{{jetski_id}}"
+                  ]
+                },
+                "description": "Obtém detalhes de um jetski específico.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Jetski",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has created jetski\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData.status).to.equal(\"DISPONIVEL\");",
+                      "});",
+                      "",
+                      "// Save created jetski_id",
+                      "const created = pm.response.json();",
+                      "if (created.id) {",
+                      "    pm.environment.set(\"created_jetski_id\", created.id);",
+                      "    console.log(\"✅ Jetski created:\", created.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"modeloId\": \"{{modelo_id}}\",\n  \"serie\": \"SDI-GTI-2024-001\",\n  \"ano\": 2024,\n  \"horimetroAtual\": 0,\n  \"status\": \"DISPONIVEL\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis"
+                  ]
+                },
+                "description": "Cria um novo jetski na frota.\n\n**Requer:** ADMIN_TENANT ou GERENTE role\n\n**Validações:**\n- modeloId deve existir\n- Número de série é obrigatório\n- Status inicial é DISPONIVEL"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Jetski",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has updated fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"horimetroAtual\": 150.5,\n  \"status\": \"MANUTENCAO\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis/{{jetski_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis",
+                    "{{jetski_id}}"
+                  ]
+                },
+                "description": "Atualiza um jetski existente.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Jetski Status",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Status updated\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.status).to.be.oneOf([\"DISPONIVEL\", \"LOCADO\", \"MANUTENCAO\", \"INDISPONIVEL\"]);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis/{{jetski_id}}/status?status=MANUTENCAO",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis",
+                    "{{jetski_id}}",
+                    "status"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "MANUTENCAO",
+                      "description": "Novo status do jetski"
+                    }
+                  ]
+                },
+                "description": "Atualiza o status de um jetski via query parameter.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role\n\n**Uso:** Enviar status como query parameter `?status=MANUTENCAO` (SEM body JSON)\n\n**Status válidos:**\n- DISPONIVEL\n- LOCADO\n- MANUTENCAO\n- INDISPONIVEL\n\n**Nota:** Para atualizar status + outros campos (horímetro, série, ano), use o endpoint PUT /jetskis/{id}"
+              },
+              "response": []
+            },
+            {
+              "name": "Deactivate Jetski",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Jetski is inactive\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.false;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis/{{jetski_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis",
+                    "{{jetski_id}}"
+                  ]
+                },
+                "description": "Desativa um jetski (soft delete).\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            },
+            {
+              "name": "Reactivate Jetski",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Jetski is active\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.true;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/jetskis/{{jetski_id}}/reactivate",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "jetskis",
+                    "{{jetski_id}}",
+                    "reactivate"
+                  ]
+                },
+                "description": "Reativa um jetski previamente desativado.\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Vendedores",
+          "description": "Gestão de vendedores/parceiros de venda (configuração de comissões por vendedor/parceiro).\n\n**Endpoints:**\n- GET: Listar vendedores\n- GET /{id}: Obter vendedor por ID\n- POST: Criar vendedor\n- PUT /{id}: Atualizar vendedor\n- DELETE /{id}: Desativar vendedor\n- POST /{id}/reactivate: Reativar vendedor",
+          "item": [
+            {
+              "name": "List Vendedores",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response is array\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.be.an(\"array\");",
+                      "});",
+                      "",
+                      "// Save first vendedor_id",
+                      "const vendedores = pm.response.json();",
+                      "if (vendedores.length > 0) {",
+                      "    pm.environment.set(\"vendedor_id\", vendedores[0].id);",
+                      "    console.log(\"✅ Vendedores loaded:\", vendedores.length);",
+                      "    console.log(\"   First vendedor_id saved:\", vendedores[0].id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/vendedores?includeInactive=false",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "vendedores"
+                  ],
+                  "query": [
+                    {
+                      "key": "includeInactive",
+                      "value": "false",
+                      "description": "Incluir vendedores inativos (default: false)"
+                    }
+                  ]
+                },
+                "description": "Lista todos os vendedores/parceiros do tenant.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Vendedor by ID",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has vendedor fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData).to.have.property(\"nome\");",
+                      "    pm.expect(jsonData).to.have.property(\"comissaoJson\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/vendedores/{{vendedor_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "vendedores",
+                    "{{vendedor_id}}"
+                  ]
+                },
+                "description": "Obtém detalhes de um vendedor específico.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Vendedor",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has created vendedor\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData.nome).to.equal(\"João Silva\");",
+                      "});",
+                      "",
+                      "// Save created vendedor_id",
+                      "const created = pm.response.json();",
+                      "if (created.id) {",
+                      "    pm.environment.set(\"created_vendedor_id\", created.id);",
+                      "    console.log(\"✅ Vendedor created:\", created.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"João Silva\",\n  \"documento\": \"123.456.789-00\",\n  \"tipo\": \"PARCEIRO\",\n  \"regraComissaoJson\": \"{\\\"tipo\\\": \\\"PERCENTUAL\\\", \\\"valor\\\": 10.0}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/vendedores",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "vendedores"
+                  ]
+                },
+                "description": "Cria um novo vendedor/parceiro.\n\n**Requer:** ADMIN_TENANT ou GERENTE role\n\n**Validações:**\n- Nome é obrigatório\n- Configuração de comissão (tipo: PERCENTUAL, FIXO, ESCALONADO)"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Vendedor",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has updated fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"regraComissaoJson\": \"{\\\"tipo\\\": \\\"PERCENTUAL\\\", \\\"valor\\\": 12.0}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/vendedores/{{vendedor_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "vendedores",
+                    "{{vendedor_id}}"
+                  ]
+                },
+                "description": "Atualiza um vendedor existente.\n\n**Requer:** ADMIN_TENANT ou GERENTE role"
+              },
+              "response": []
+            },
+            {
+              "name": "Deactivate Vendedor",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Vendedor is inactive\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.false;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/vendedores/{{vendedor_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "vendedores",
+                    "{{vendedor_id}}"
+                  ]
+                },
+                "description": "Desativa um vendedor (soft delete).\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            },
+            {
+              "name": "Reactivate Vendedor",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Vendedor is active\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.true;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/vendedores/{{vendedor_id}}/reactivate",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "vendedores",
+                    "{{vendedor_id}}",
+                    "reactivate"
+                  ]
+                },
+                "description": "Reativa um vendedor previamente desativado.\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Clientes",
+          "description": "Gestão de clientes/locatários (cadastro, contato, termo de responsabilidade RF03.4).\n\n**Endpoints:**\n- GET: Listar clientes\n- GET /{id}: Obter cliente por ID\n- POST: Criar cliente\n- PUT /{id}: Atualizar cliente\n- POST /{id}/accept-terms: Aceitar termo de responsabilidade (RF03.4)\n- DELETE /{id}: Desativar cliente\n- POST /{id}/reactivate: Reativar cliente",
+          "item": [
+            {
+              "name": "List Clientes",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response is array\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.be.an(\"array\");",
+                      "});",
+                      "",
+                      "// Save first cliente_id",
+                      "const clientes = pm.response.json();",
+                      "if (clientes.length > 0) {",
+                      "    pm.environment.set(\"cliente_id\", clientes[0].id);",
+                      "    console.log(\"✅ Clientes loaded:\", clientes.length);",
+                      "    console.log(\"   First cliente_id saved:\", clientes[0].id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes?includeInactive=false",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes"
+                  ],
+                  "query": [
+                    {
+                      "key": "includeInactive",
+                      "value": "false",
+                      "description": "Incluir clientes inativos (default: false)"
+                    }
+                  ]
+                },
+                "description": "Lista todos os clientes do tenant.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Cliente by ID",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has cliente fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData).to.have.property(\"nome\");",
+                      "    pm.expect(jsonData).to.have.property(\"termoAceite\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "{{cliente_id}}"
+                  ]
+                },
+                "description": "Obtém detalhes de um cliente específico.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Cliente",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 201\", function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has created cliente\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "    pm.expect(jsonData.nome).to.equal(\"Maria Santos\");",
+                      "});",
+                      "",
+                      "// Save created cliente_id",
+                      "const created = pm.response.json();",
+                      "if (created.id) {",
+                      "    pm.environment.set(\"created_cliente_id\", created.id);",
+                      "    console.log(\"✅ Cliente created:\", created.id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"Maria Santos\",\n  \"documento\": \"987.654.321-00\",\n  \"dataNascimento\": \"1990-05-15\",\n  \"genero\": \"FEMININO\",\n  \"email\": \"maria.santos@email.com\",\n  \"telefone\": \"+5511912345678\",\n  \"whatsapp\": \"+5511912345678\",\n  \"enderecoJson\": \"{\\\"cep\\\": \\\"01310-100\\\", \\\"logradouro\\\": \\\"Av. Paulista\\\", \\\"numero\\\": \\\"1000\\\", \\\"cidade\\\": \\\"São Paulo\\\", \\\"estado\\\": \\\"SP\\\"}\",\n  \"termoAceite\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes"
+                  ]
+                },
+                "description": "Cria um novo cliente.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role\n\n**Dados pessoais:**\n- nome: Nome completo (obrigatório)\n- documento: CPF ou CNPJ (opcional)\n- dataNascimento: Data no formato YYYY-MM-DD (opcional, útil para validação de idade)\n- genero: MASCULINO, FEMININO, OUTRO, NAO_INFORMADO (opcional)\n\n**Campos de contato:**\n- email: Email válido (opcional)\n- telefone: Formato E.164 internacional (+5511987654321) - opcional\n- whatsapp: Formato E.164 internacional - opcional\n- enderecoJson: Endereço em formato JSON (opcional)\n\n**Validações:**\n- Nome é obrigatório\n- Telefone/WhatsApp devem seguir formato E.164 se fornecidos\n- Cliente deve aceitar termo de responsabilidade antes da primeira locação (RF03.4)"
+              },
+              "response": []
+            },
+            {
+              "name": "Update Cliente",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Response has updated fields\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData).to.have.property(\"id\");",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"dataNascimento\": \"1990-06-20\",\n  \"genero\": \"FEMININO\",\n  \"email\": \"maria.santos.nova@email.com\",\n  \"telefone\": \"+5511912349999\",\n  \"whatsapp\": \"+5511912349999\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "{{cliente_id}}"
+                  ]
+                },
+                "description": "Atualiza um cliente existente.\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role\n\n**Campos atualizáveis:**\n- nome: Nome do cliente\n- documento: CPF/CNPJ\n- dataNascimento: Data no formato YYYY-MM-DD\n- genero: MASCULINO, FEMININO, OUTRO, NAO_INFORMADO\n- email: Email (opcional)\n- telefone: Formato E.164 internacional (+5511987654321) - opcional\n- whatsapp: Formato E.164 internacional - opcional\n- enderecoJson: Endereço JSON - opcional\n- termoAceite: Aceite de termos\n\nApenas os campos fornecidos serão atualizados."
+              },
+              "response": []
+            },
+            {
+              "name": "Accept Terms (RF03.4)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Cliente accepted terms\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.termoAceite).to.be.true;",
+                      "});",
+                      "",
+                      "console.log(\"✅ Cliente accepted liability terms (RF03.4)\");"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}/accept-terms",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "{{cliente_id}}",
+                    "accept-terms"
+                  ]
+                },
+                "description": "Cliente aceita termo de responsabilidade (RF03.4).\n\n**Obrigatório antes da primeira locação.**\n\n**Requer:** ADMIN_TENANT, GERENTE, ou OPERADOR role"
+              },
+              "response": []
+            },
+            {
+              "name": "Deactivate Cliente",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Cliente is inactive\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.false;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "{{cliente_id}}"
+                  ]
+                },
+                "description": "Desativa um cliente (soft delete).\n\nHistórico de locações é preservado para conformidade LGPD.\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            },
+            {
+              "name": "Reactivate Cliente",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Status code is 200\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test(\"Cliente is active\", function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.ativo).to.be.true;",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}/reactivate",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "{{cliente_id}}",
+                    "reactivate"
+                  ]
+                },
+                "description": "Reativa um cliente previamente desativado.\n\n**Requer:** ADMIN_TENANT role"
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reservas",
+      "description": "Gestão de reservas de jetski (bookings) **com sistema de prioridades por modelo (v0.3.0)**\n\n**Novo Sistema (v0.3.0):**\n- Reserva é por MODELO (não jetski específico)\n- Alocação de jetski específico no check-in (FIFO)\n- Sistema de prioridades com/sem sinal\n- Overbooking controlado\n- Expiração automática de reservas sem sinal\n\n**Prioridades:**\n- **ALTA**: Reserva com sinal (garantida, bloqueia capacidade física, não expira)\n- **BAIXA**: Reserva sem sinal (permite overbooking, expira após grace period)\n\n**Workflow:**\n1. Cliente faz reserva → Status: PENDENTE, Prioridade: BAIXA\n2. (Opcional) Cliente paga sinal → confirmar-sinal → Prioridade: ALTA\n3. Operador/Gerente confirma → Status: CONFIRMADA\n4. No check-in → alocar-jetski → Jetski específico alocado\n5. Check-in converte reserva em locação → Status: FINALIZADA\n6. Ou reserva pode ser cancelada → Status: CANCELADA\n7. Ou reserva expira (sem sinal) → Status: EXPIRADA (automático)\n\n**Business Rules:**\n- Reserva por MODELO (jetskiId opcional)\n- Valida capacidade do modelo (garantidas vs regulares)\n- Fator de overbooking configurável por tenant\n- Grace period configurável (default: 30 min após horário início)\n- Expiração automática a cada 5 minutos (apenas BAIXA prioridade)\n- Detecta conflitos de agenda automaticamente\n- Data início deve ser antes da data fim\n- Data início não pode ser no passado\n\n**Roles:**\n- List/View/Disponibilidade: ADMIN_TENANT, GERENTE, OPERADOR, VENDEDOR\n- Create: ADMIN_TENANT, GERENTE, OPERADOR, VENDEDOR\n- Update/Confirm/Cancel/ConfirmarSinal/AlocarJetski: ADMIN_TENANT, GERENTE, OPERADOR\n\n**Endpoints (9 total):**\n- GET: Listar reservas\n- GET /{id}: Obter reserva por ID\n- POST: Criar reserva\n- PUT /{id}: Atualizar reserva\n- POST /{id}/confirmar: Confirmar reserva pendente\n- POST /{id}/confirmar-sinal: Confirmar pagamento de sinal (BAIXA → ALTA)\n- POST /{id}/alocar-jetski: Alocar jetski específico\n- GET /disponibilidade: Verificar disponibilidade detalhada\n- DELETE /{id}: Cancelar reserva",
+      "item": [
+        {
+          "name": "List Reservas",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas?status=PENDENTE&includeInactive=false",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDENTE",
+                  "description": "Filtrar por status: PENDENTE, CONFIRMADA, CANCELADA, FINALIZADA",
+                  "disabled": true
+                },
+                {
+                  "key": "includeInactive",
+                  "value": "false",
+                  "description": "Incluir reservas canceladas/finalizadas (padrão: false)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista todas as reservas do tenant.\n\n**Query params:**\n- `status` (opcional): Filtra por status específico\n- `includeInactive` (opcional): Incluir canceladas/finalizadas (padrão: false)\n\n**Retorna:** Por padrão, apenas reservas ativas (PENDENTE, CONFIRMADA)\n\n**Requer:** ADMIN_TENANT, GERENTE, OPERADOR ou VENDEDOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Reserva by ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}"
+              ]
+            },
+            "description": "Obtém os detalhes de uma reserva específica por ID.\n\n**Requer:** ADMIN_TENANT, GERENTE, OPERADOR ou VENDEDOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Reserva",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Salva o ID da reserva criada para uso posterior",
+                  "if (pm.response.code === 201) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set(\"reserva_id\", jsonData.id);",
+                  "    console.log(\"✅ Reserva criada:\", jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"modeloId\": \"{{modelo_id}}\",\n  \"jetskiId\": \"{{jetski_id}}\",\n  \"clienteId\": \"{{cliente_id}}\",\n  \"vendedorId\": \"{{vendedor_id}}\",\n  \"dataInicio\": \"2025-11-01T10:00:00\",\n  \"dataFimPrevista\": \"2025-11-01T12:00:00\",\n  \"observacoes\": \"Reserva de teste - modelo-based booking\"\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas"
+              ]
+            },
+            "description": "Cria uma nova reserva de jetski (modelo-based booking v0.3.0)\n\n**Campos obrigatórios:**\n- `modeloId`: UUID do modelo (OBRIGATÓRIO)\n- `clienteId`: UUID do cliente (OBRIGATÓRIO)\n- `dataInicio`: Data/hora início (OBRIGATÓRIO, formato ISO 8601)\n- `dataFimPrevista`: Data/hora fim (OBRIGATÓRIO, formato ISO 8601)\n\n**Campos opcionais:**\n- `jetskiId`: UUID do jetski específico (OPCIONAL - se não fornecido, alocação será no check-in)\n- `vendedorId`: UUID do vendedor/parceiro (OPCIONAL)\n- `observacoes`: Notas adicionais (OPCIONAL)\n\n**Comportamento (v0.3.0):**\n- Reserva criada com status PENDENTE\n- Prioridade inicial: BAIXA (sem sinal)\n- Se jetskiId não fornecido, será alocado no check-in via FIFO\n- Expira automaticamente após grace period se não houver sinal\n\n**Validações:**\n- Valida capacidade do modelo (física vs overbooking)\n- Detecta conflitos de agenda se jetskiId fornecido\n- Data início < data fim\n- Data início não pode ser no passado\n- Se jetskiId fornecido, jetski deve estar DISPONIVEL e pertencer ao modelo\n\n**Requer:** ADMIN_TENANT, GERENTE, OPERADOR ou VENDEDOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Reserva",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dataInicio\": \"2025-11-01T11:00:00\",\n  \"dataFimPrevista\": \"2025-11-01T14:00:00\",\n  \"observacoes\": \"Alterado horário - cliente solicitou estender período\"\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}"
+              ]
+            },
+            "description": "Atualiza informações de uma reserva existente.\n\n**Restrições:**\n- Apenas reservas PENDENTE ou CONFIRMADA podem ser atualizadas\n- Se datas forem alteradas, valida conflitos de agenda\n- Data início deve ser < data fim\n\n**Campos opcionais:** Todos os campos no body são opcionais\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Reserva",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/confirmar",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}",
+                "confirmar"
+              ]
+            },
+            "description": "Confirma uma reserva pendente.\n\n**Transição:** PENDENTE → CONFIRMADA\n\n**Validações:**\n- Re-valida disponibilidade do jetski\n- Re-valida conflitos de agenda\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Confirmar Sinal",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valorSinal\": 150.0\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/confirmar-sinal",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}",
+                "confirmar-sinal"
+              ]
+            },
+            "description": "Confirma pagamento de sinal e upgrade para prioridade ALTA (v0.3.0)\n\n**Transição:** BAIXA → ALTA priority\n\n**Efeitos:**\n- Marca sinal como pago (sinalPago=true)\n- Registra valor e timestamp do pagamento\n- Upgrade para prioridade ALTA (garantida)\n- Bloqueia capacidade física (não permite overbooking)\n- Remove risco de expiração automática\n\n**Validações:**\n- Reserva deve estar PENDENTE ou CONFIRMADA\n- Sinal não pode estar já pago\n- Capacidade física disponível (reservas garantidas < jetskis disponíveis)\n- Valor do sinal deve ser > 0\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Alocar Jetski",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jetskiId\": \"{{jetski_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/alocar-jetski",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}",
+                "alocar-jetski"
+              ]
+            },
+            "description": "Aloca jetski específico à reserva (v0.3.0)\n\n**Usado quando:**\n- Cliente chega para check-in (operador aloca FIFO)\n- Pré-alocação de jetski específico\n- Cliente solicitou unidade particular\n\n**Validações:**\n- Reserva deve estar CONFIRMADA\n- Jetski não deve estar já alocado (jetskiId = null)\n- Jetski deve pertencer ao mesmo modelo da reserva\n- Jetski deve estar DISPONIVEL\n- Sem conflitos de agenda para o jetski\n\n**Processo FIFO:**\n1. Listar reservas confirmadas para o período\n2. Ordenar por sinalPago DESC, dataInicio ASC\n3. Alocar jetskis disponíveis na ordem\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Verificar Disponibilidade",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/disponibilidade?modeloId={{modelo_id}}&dataInicio=2025-10-30T10:00:00&dataFimPrevista=2025-10-30T12:00:00",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "disponibilidade"
+              ],
+              "query": [
+                {
+                  "key": "modeloId",
+                  "value": "{{modelo_id}}",
+                  "description": "UUID do modelo de jetski"
+                },
+                {
+                  "key": "dataInicio",
+                  "value": "2025-10-30T10:00:00",
+                  "description": "Data/hora início (formato ISO 8601)"
+                },
+                {
+                  "key": "dataFimPrevista",
+                  "value": "2025-10-30T12:00:00",
+                  "description": "Data/hora fim (formato ISO 8601)"
+                }
+              ]
+            },
+            "description": "Verifica disponibilidade detalhada de um modelo para período (v0.3.0)\n\n**Retorna métricas:**\n- `totalJetskis`: Total de jetskis disponíveis do modelo\n- `reservasGarantidas`: Reservas ALTA (com sinal)\n- `totalReservas`: Total de reservas ativas (ALTA + BAIXA)\n- `maximoReservas`: Limite máximo baseado em overbooking\n- `aceitaComSinal`: Se aceita nova reserva com sinal (garantida)\n- `aceitaSemSinal`: Se aceita nova reserva sem sinal (regular)\n- `vagasGarantidas`: Slots restantes para reservas garantidas\n- `vagasRegulares`: Slots restantes para reservas regulares\n\n**Cálculo:**\n- `maximoReservas = ceil(totalJetskis × fatorOverbooking)`\n- Exemplo: 10 jetskis × 1.5 = 15 reservas max\n\n**Público:** Endpoint pode ser chamado sem autenticação (para consulta de clientes)\n\n**Uso típico:**\n- Frontend exibir disponibilidade antes de criar reserva\n- Validar capacidade em tempo real\n- Dashboard de ocupação"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Reserva",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}"
+              ]
+            },
+            "description": "Cancela uma reserva.\n\n**Soft delete:** Altera status para CANCELADA (não remove do banco)\n\n**Restrições:** Apenas reservas PENDENTE ou CONFIRMADA podem ser canceladas\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Locações - Operação (Check-in/Check-out)",
+      "description": "Operações de locação: check-in, check-out e consultas (Sprint 2)\n\n## Check-in\n\n**Dois fluxos:**\n1. **Check-in from Reservation**: Converte reserva confirmada em locação ativa\n2. **Walk-in Check-in**: Cliente sem reserva → locação direta\n\n## Check-out\n\n**RN01 - Cálculo de cobrança:**\n- Tolerância configurável (ex: 5 min)\n- Arredondamento para blocos de 15 minutos\n- Fórmula: `billableMinutes = ceil((usedMinutes - tolerance) / 15) * 15`\n\n**Exemplo RN01:**\n- Usado: 70 min, Tolerância: 5 min → Faturável: 75 min (5 blocos de 15min)\n- Usado: 5 min, Tolerância: 5 min → Faturável: 0 min (dentro da tolerância)\n\n## Consultas\n\n- Listar locações (filtros: status, jetski, período)\n- Obter locação por ID (com detalhes de RN01)\n\n**Roles:** ADMIN_TENANT, GERENTE, OPERADOR\n\n**Endpoints (5 total):**\n- POST /check-in/reserva: Check-in a partir de reserva\n- POST /check-in/walk-in: Check-in direto (sem reserva)\n- POST /{id}/check-out: Finalizar locação\n- GET: Listar locações\n- GET /{id}: Obter locação por ID",
+      "item": [
+        {
+          "name": "Check-in from Reservation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.environment.set('locacao_id', locacao.id);",
+                  "    console.log('✅ Check-in realizado! Locação ID:', locacao.id);",
+                  "    console.log('   Status:', locacao.status);",
+                  "    console.log('   Horímetro inicial:', locacao.horimetroInicio);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservaId\": \"{{reserva_id}}\",\n  \"horimetroInicio\": 100.5,\n  \"observacoes\": \"Check-in realizado no horário. Jetski revisado e pronto para uso.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/check-in/reserva",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "check-in", "reserva"]
+            },
+            "description": "Realiza check-in de cliente com reserva confirmada.\n\n**Fluxo:**\n1. Valida que reserva existe e está CONFIRMADA\n2. Valida que jetski está alocado à reserva\n3. Valida que jetski está DISPONIVEL\n4. Cria locação com status EM_CURSO\n5. Altera jetski para status LOCADO\n6. Altera reserva para status FINALIZADA\n7. Registra horímetro inicial e timestamp de check-in\n\n**Campos obrigatórios:**\n- `reservaId`: UUID da reserva (CONFIRMADA)\n- `horimetroInicio`: Leitura do horímetro no início\n\n**Campos opcionais:**\n- `observacoes`: Notas sobre condições do check-in\n\n**Validações:**\n- Reserva deve estar CONFIRMADA\n- Reserva deve ter jetski alocado (jetskiId != null)\n- Jetski deve estar DISPONIVEL\n- Horímetro não pode ser negativo\n\n**Resposta (201 Created):**\n- Locação criada com:\n  - `status`: EM_CURSO\n  - `dataCheckIn`: timestamp atual\n  - `horimetroInicio`: valor informado\n  - `duracaoPrevista`: copiada da reserva\n  - Todos os dados da reserva (cliente, jetski, vendedor)\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Walk-in Check-in (sem reserva)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.environment.set('locacao_id', locacao.id);",
+                  "    console.log('✅ Check-in walk-in realizado! Locação ID:', locacao.id);",
+                  "    console.log('   Duração prevista:', locacao.duracaoPrevista, 'minutos');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jetskiId\": \"{{jetski_id}}\",\n  \"clienteId\": \"{{cliente_id}}\",\n  \"vendedorId\": \"{{vendedor_id}}\",\n  \"horimetroInicio\": 100.5,\n  \"duracaoPrevista\": 120,\n  \"observacoes\": \"Cliente walk-in sem reserva. Pagamento à vista.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/check-in/walk-in",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "check-in", "walk-in"]
+            },
+            "description": "Realiza check-in direto de cliente sem reserva prévia (walk-in).\n\n**Fluxo:**\n1. Valida que jetski existe e está DISPONIVEL\n2. Valida que cliente existe\n3. Cria locação diretamente (sem reserva) com status EM_CURSO\n4. Altera jetski para status LOCADO\n5. Registra horímetro inicial e duração prevista\n\n**Campos obrigatórios:**\n- `jetskiId`: UUID do jetski disponível\n- `clienteId`: UUID do cliente\n- `horimetroInicio`: Leitura inicial do horímetro\n- `duracaoPrevista`: Duração estimada em minutos\n\n**Campos opcionais:**\n- `vendedorId`: UUID do vendedor/parceiro\n- `observacoes`: Notas sobre o check-in\n\n**Validações:**\n- Jetski deve existir e estar DISPONIVEL\n- Cliente deve existir e ter aceito termos (termoAceite = true)\n- Duração prevista > 0\n- Horímetro não pode ser negativo\n\n**Resposta (201 Created):**\n- Locação criada com:\n  - `status`: EM_CURSO\n  - `reservaId`: null (walk-in)\n  - `dataCheckIn`: timestamp atual\n  - `horimetroInicio`: valor informado\n  - `duracaoPrevista`: valor informado\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Check-out",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const locacao = pm.response.json();",
+                  "    console.log('✅ Check-out realizado!');",
+                  "    console.log('   Minutos usados:', locacao.minutosUsados);",
+                  "    console.log('   Minutos faturáveis (RN01):', locacao.minutosFaturaveis);",
+                  "    console.log('   Valor base: R$', locacao.valorBase);",
+                  "    console.log('   Valor total: R$', locacao.valorTotal);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"horimetroFim\": 102.75,\n  \"observacoes\": \"Retornou sem avarias. Cliente satisfeito com o passeio.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/{{locacao_id}}/check-out",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "{{locacao_id}}", "check-out"]
+            },
+            "description": "Finaliza locação com check-out e aplica RN01 (cálculo de cobrança).\n\n**Fluxo:**\n1. Valida que locação está EM_CURSO\n2. Valida horímetro final ≥ inicial\n3. Calcula tempo usado (dataCheckOut - dataCheckIn)\n4. **Aplica RN01:**\n   - Deduz tolerância (ex: 5 min)\n   - Arredonda para múltiplo de 15 min (ceil)\n   - Calcula minutos faturáveis\n5. Calcula valores:\n   - `valorBase` = (minutosFaturaveis / 60) × precoBaseHora\n   - `valorTotal` = valorBase (futuro: + extras - descontos)\n6. Altera status para FINALIZADA\n7. Altera jetski para status DISPONIVEL\n8. Atualiza horímetro do jetski\n\n**RN01 - Exemplos:**\n```\nTolerância: 5 min, Preço: R$ 150/hora\n\n1) Usado: 10 min\n   → (10 - 5) = 5 min → ceil(5/15) = 1 bloco = 15 min faturáveis\n   → Valor: (15/60) × 150 = R$ 37,50\n\n2) Usado: 70 min\n   → (70 - 5) = 65 min → ceil(65/15) = 5 blocos = 75 min faturáveis\n   → Valor: (75/60) × 150 = R$ 187,50\n\n3) Usado: 5 min (dentro da tolerância)\n   → (5 - 5) = 0 min → 0 blocos = 0 min faturáveis\n   → Valor: R$ 0,00\n```\n\n**Campos obrigatórios:**\n- `horimetroFim`: Leitura final do horímetro\n\n**Campos opcionais:**\n- `observacoes`: Notas sobre condições do retorno\n\n**Validações:**\n- Locação deve estar EM_CURSO\n- Horímetro final ≥ horímetro inicial\n\n**Resposta (200 OK):**\n- Locação atualizada com:\n  - `status`: FINALIZADA\n  - `dataCheckOut`: timestamp atual\n  - `horimetroFim`: valor informado\n  - `minutosUsados`: calculado\n  - `minutosFaturaveis`: após RN01\n  - `valorBase`: calculado\n  - `valorTotal`: calculado\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "List Locações",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const locacoes = pm.response.json();",
+                  "    console.log('✅ Locações encontradas:', locacoes.length);",
+                  "    ",
+                  "    const emCurso = locacoes.filter(l => l.status === 'EM_CURSO').length;",
+                  "    const finalizadas = locacoes.filter(l => l.status === 'FINALIZADA').length;",
+                  "    ",
+                  "    console.log('   Em curso:', emCurso);",
+                  "    console.log('   Finalizadas:', finalizadas);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes?status=EM_CURSO",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "EM_CURSO",
+                  "description": "Filtro por status: EM_CURSO, FINALIZADA, CANCELADA"
+                },
+                {
+                  "key": "jetskiId",
+                  "value": "{{jetski_id}}",
+                  "description": "Filtro por jetski específico",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista todas as locações do tenant com filtros opcionais.\n\n**Query Parameters (opcionais):**\n- `status`: Filtrar por status (EM_CURSO, FINALIZADA, CANCELADA)\n- `jetskiId`: Filtrar por jetski específico (UUID)\n\n**Exemplos de uso:**\n- Locações em curso: `?status=EM_CURSO`\n- Histórico de um jetski: `?jetskiId=<uuid>`\n- Todas: sem query params\n\n**Resposta (200 OK):**\n- Array de locações ordenadas por `dataCheckIn DESC`\n- Cada locação inclui:\n  - Dados da locação (status, datas, horímetros)\n  - Cálculos RN01 (minutos usados/faturáveis, valores)\n  - IDs relacionados (reserva, jetski, cliente, vendedor)\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Locação by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/{{locacao_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "{{locacao_id}}"]
+            },
+            "description": "Obtém detalhes completos de uma locação específica.\n\n**Resposta (200 OK):**\n```json\n{\n  \"id\": \"uuid\",\n  \"tenantId\": \"uuid\",\n  \"reservaId\": \"uuid ou null\",\n  \"jetskiId\": \"uuid\",\n  \"clienteId\": \"uuid\",\n  \"vendedorId\": \"uuid ou null\",\n  \n  \"dataCheckIn\": \"2025-10-25T10:00:00Z\",\n  \"dataCheckOut\": \"2025-10-25T12:15:00Z\",\n  \n  \"horimetroInicio\": 100.5,\n  \"horimetroFim\": 102.75,\n  \n  \"duracaoPrevista\": 120,\n  \"minutosUsados\": 135,\n  \"minutosFaturaveis\": 135,\n  \n  \"valorBase\": 337.50,\n  \"valorTotal\": 337.50,\n  \n  \"status\": \"FINALIZADA\",\n  \"observacoes\": \"...\",\n  \n  \"createdAt\": \"2025-10-25T10:00:00Z\",\n  \"updatedAt\": \"2025-10-25T12:15:00Z\"\n}\n```\n\n**Use case:**\n- Consultar detalhes após check-out\n- Verificar cálculo RN01 aplicado\n- Auditoria de operações\n\n**Resposta (404 Not Found):** Locação não encontrada ou não pertence ao tenant\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth Tests",
+      "description": "Endpoints de teste para validação de segurança (RBAC, OPA, multi-tenancy)\n\n⚠️ **IMPORTANTE**: Estes endpoints são apenas para testes e devem ser removidos em produção.",
+      "item": [
+        {
+          "name": "Public Endpoint",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has message\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"message\");",
+                  "    pm.expect(jsonData.message).to.include(\"Public endpoint\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/v1/auth-test/public",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "auth-test",
+                "public"
+              ]
+            },
+            "description": "Endpoint público sem autenticação.\n\nUse para testar conectividade com a API."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User (Me)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has authenticated=true\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.authenticated).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test(\"Response has JWT claims\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"jwt\");",
+                  "    pm.expect(jsonData.jwt).to.have.property(\"sub\");",
+                  "    pm.expect(jsonData.jwt).to.have.property(\"email\");",
+                  "});",
+                  "",
+                  "pm.test(\"Response has tenantId\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"tenantId\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/auth-test/me",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "auth-test",
+                "me"
+              ]
+            },
+            "description": "Retorna informações do usuário autenticado extraídas do JWT.\n\n**Valida:**\n- Extração de claims do JWT (sub, email, roles, tenant_id)\n- Validação de tenant_id vs header X-Tenant-Id\n- Authorities (roles) do Spring Security"
+          },
+          "response": []
+        },
+        {
+          "name": "Operador Only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Se o usuário tem role OPERADOR, deve retornar 200",
+                  "// Caso contrário, deve retornar 403 Forbidden",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"User has OPERADOR role - Access granted\", function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.message).to.include(\"OPERADOR\");",
+                  "    });",
+                  "} else if (pm.response.code === 403) {",
+                  "    pm.test(\"User does NOT have OPERADOR role - Access denied (expected)\", function () {",
+                  "        pm.expect(pm.response.code).to.equal(403);",
+                  "    });",
+                  "} else {",
+                  "    pm.test(\"Unexpected status code\", function () {",
+                  "        pm.expect.fail(\"Expected 200 or 403, got \" + pm.response.code);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/auth-test/operador-only",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "auth-test",
+                "operador-only"
+              ]
+            },
+            "description": "Endpoint protegido que requer role **OPERADOR**.\n\n**Valida:**\n- @PreAuthorize com single role\n- 403 Forbidden se usuário não tem a role"
+          },
+          "response": []
+        },
+        {
+          "name": "Manager Only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"User has GERENTE or ADMIN_TENANT role - Access granted\", function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.message).to.include(\"GERENTE\");",
+                  "    });",
+                  "} else if (pm.response.code === 403) {",
+                  "    pm.test(\"User does NOT have required roles - Access denied (expected)\", function () {",
+                  "        pm.expect(pm.response.code).to.equal(403);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/auth-test/manager-only",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "auth-test",
+                "manager-only"
+              ]
+            },
+            "description": "Endpoint protegido que requer role **GERENTE** ou **ADMIN_TENANT**.\n\n**Valida:**\n- @PreAuthorize com múltiplas roles (hasAnyRole)"
+          },
+          "response": []
+        },
+        {
+          "name": "Finance Only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.test(\"User has FINANCEIRO role - Access granted\", function () {",
+                  "        const jsonData = pm.response.json();",
+                  "        pm.expect(jsonData.message).to.include(\"FINANCEIRO\");",
+                  "    });",
+                  "} else if (pm.response.code === 403) {",
+                  "    pm.test(\"User does NOT have FINANCEIRO role - Access denied (expected)\", function () {",
+                  "        pm.expect(pm.response.code).to.equal(403);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/auth-test/finance-only",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "auth-test",
+                "finance-only"
+              ]
+            },
+            "description": "Endpoint protegido que requer role **FINANCEIRO**."
+          },
+          "response": []
+        },
+        {
+          "name": "OPA RBAC Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has decision\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"decision\");",
+                  "    pm.expect(jsonData.decision).to.have.property(\"allow\");",
+                  "    pm.expect(jsonData.decision).to.have.property(\"tenant_is_valid\");",
+                  "});",
+                  "",
+                  "// Log resultado",
+                  "const decision = pm.response.json().decision;",
+                  "if (decision.allow) {",
+                  "    console.log(\"✅ OPA RBAC: Access ALLOWED\");",
+                  "} else {",
+                  "    console.log(\"❌ OPA RBAC: Access DENIED\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/auth-test/opa/rbac?action=locacao:checkin&role=OPERADOR",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "auth-test",
+                "opa",
+                "rbac"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "locacao:checkin",
+                  "description": "Ação a validar (ex: modelo:list, locacao:checkin)"
+                },
+                {
+                  "key": "role",
+                  "value": "OPERADOR",
+                  "description": "Papel do usuário (ex: OPERADOR, GERENTE)"
+                },
+                {
+                  "key": "resourceTenantId",
+                  "value": "",
+                  "description": "Tenant do recurso (opcional, usa tenantId do user se omitido)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Testa autorização RBAC via OPA (Open Policy Agent).\n\n**Parâmetros:**\n- `action`: Ação a validar (ex: modelo:list, locacao:checkin)\n- `role`: Papel do usuário (ex: OPERADOR, GERENTE)\n- `resourceTenantId`: Tenant do recurso (opcional)\n\n**Exemplos de ações:**\n- `modelo:list` - Listar modelos\n- `locacao:checkin` - Check-in de locação\n- `locacao:checkout` - Check-out de locação\n- `os:criar` - Criar ordem de serviço"
+          },
+          "response": []
+        },
+        {
+          "name": "OPA Alçada Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has decision with alcada fields\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.decision).to.have.property(\"allow\");",
+                  "    pm.expect(jsonData.decision).to.have.property(\"requer_aprovacao\");",
+                  "});",
+                  "",
+                  "// Log resultado",
+                  "const decision = pm.response.json().decision;",
+                  "console.log(\"OPA Alçada:\");",
+                  "console.log(\"  Allow:\", decision.allow);",
+                  "console.log(\"  Requer Aprovação:\", decision.requer_aprovacao);",
+                  "if (decision.aprovador_requerido !== \"N/A\") {",
+                  "    console.log(\"  Aprovador Requerido:\", decision.aprovador_requerido);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/auth-test/opa/alcada?action=desconto:aplicar&role=OPERADOR&percentualDesconto=15",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "auth-test",
+                "opa",
+                "alcada"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "desconto:aplicar",
+                  "description": "Ação (ex: desconto:aplicar, os:aprovar)"
+                },
+                {
+                  "key": "role",
+                  "value": "OPERADOR",
+                  "description": "Papel do usuário"
+                },
+                {
+                  "key": "percentualDesconto",
+                  "value": "15",
+                  "description": "Percentual de desconto (para desconto:aplicar)"
+                },
+                {
+                  "key": "valorOs",
+                  "value": "",
+                  "description": "Valor da OS (para os:aprovar)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Testa política de Alçada (autoridade de aprovação) via OPA.\n\n**Casos de uso:**\n- Aplicar desconto: Valida se usuário pode aplicar X% de desconto\n- Aprovar OS: Valida se usuário pode aprovar OS de R$ X\n\n**Parâmetros:**\n- `action`: desconto:aplicar ou os:aprovar\n- `role`: Papel do usuário\n- `percentualDesconto`: % de desconto (para desconto:aplicar)\n- `valorOs`: Valor da OS em reais (para os:aprovar)\n\n**Exemplos:**\n1. OPERADOR aplicar 10% desconto → allow=true\n2. OPERADOR aplicar 25% desconto → allow=false, requer_aprovacao=true, aprovador=GERENTE\n3. GERENTE aprovar OS de R$ 5.000 → allow=true\n4. GERENTE aprovar OS de R$ 15.000 → allow=false, requer_aprovacao=true, aprovador=ADMIN_TENANT"
+          },
+          "response": []
+        },
+        {
+          "name": "OPA Generic Authorize",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has decision\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"decision\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"locacao:checkin\",\n  \"user\": {\n    \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"tenant_id\": \"{{tenant_id}}\",\n    \"role\": \"OPERADOR\"\n  },\n  \"resource\": {\n    \"id\": \"123e4567-e89b-12d3-a456-426614174000\",\n    \"tenant_id\": \"{{tenant_id}}\"\n  },\n  \"operation\": {\n    \"percentual_desconto\": null,\n    \"valor_os\": null\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/auth-test/opa/authorize",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "auth-test",
+                "opa",
+                "authorize"
+              ]
+            },
+            "description": "Testa autorização genérica (RBAC + Alçada) via OPA.\n\nEste endpoint combina:\n1. Validação RBAC (role tem permissão?)\n2. Se sim e há contexto de operação, valida Alçada\n\n**Body:**\n```json\n{\n  \"action\": \"locacao:checkin\",\n  \"user\": {\n    \"id\": \"user-uuid\",\n    \"tenant_id\": \"tenant-uuid\",\n    \"role\": \"OPERADOR\"\n  },\n  \"resource\": {\n    \"id\": \"resource-uuid\",\n    \"tenant_id\": \"tenant-uuid\"\n  },\n  \"operation\": {\n    \"percentual_desconto\": 10,\n    \"valor_os\": 5000.00\n  }\n}\n```"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "description": "Health checks e métricas de observabilidade",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Status is UP\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.equal(\"UP\");",
+                  "});",
+                  "",
+                  "pm.test(\"Has components\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"components\");",
+                  "});",
+                  "",
+                  "// Verifica se PostgreSQL está UP",
+                  "const components = pm.response.json().components;",
+                  "if (components.db) {",
+                  "    pm.test(\"Database is UP\", function () {",
+                  "        pm.expect(components.db.status).to.equal(\"UP\");",
+                  "    });",
+                  "}",
+                  "",
+                  "// Verifica se Redis está UP (se configurado)",
+                  "if (components.redis) {",
+                  "    pm.test(\"Redis is UP\", function () {",
+                  "        pm.expect(components.redis.status).to.equal(\"UP\");",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/actuator/health",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            },
+            "description": "Health check da aplicação.\n\nRetorna status da aplicação e seus componentes (database, redis, etc.)."
+          },
+          "response": []
+        },
+        {
+          "name": "Metrics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Has metrics\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property(\"names\");",
+                  "    pm.expect(jsonData.names).to.be.an(\"array\");",
+                  "    pm.expect(jsonData.names.length).to.be.greaterThan(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/actuator/metrics",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "actuator",
+                "metrics"
+              ]
+            },
+            "description": "Lista todas as métricas disponíveis.\n\nPara ver detalhes de uma métrica específica:\n`GET /actuator/metrics/{metric.name}`\n\nExemplos:\n- `/actuator/metrics/jvm.memory.used`\n- `/actuator/metrics/http.server.requests`"
+          },
+          "response": []
+        },
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/actuator/prometheus",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "actuator",
+                "prometheus"
+              ]
+            },
+            "description": "Endpoint de métricas no formato Prometheus.\n\nUse para integração com Prometheus/Grafana."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Script global executado antes de cada request",
+          "// Valida se as variáveis essenciais estão configuradas",
+          "",
+          "const currentRequest = pm.request;",
+          "const authType = currentRequest.auth ? currentRequest.auth.type : 'noauth';",
+          "",
+          "// Se o request requer autenticação, valida token",
+          "if (authType === 'bearer') {",
+          "    const token = pm.environment.get('access_token');",
+          "    if (!token) {",
+          "        console.warn('⚠️  Token não encontrado. Execute \"Get Access Token\" primeiro.');",
+          "    }",
+          "}",
+          "",
+          "// Log do request sendo executado",
+          "console.log('🚀 Executando:', pm.request.name);"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Script global executado após cada response",
+          "",
+          "// Log do resultado",
+          "const statusCode = pm.response.code;",
+          "const responseTime = pm.response.responseTime;",
+          "",
+          "if (statusCode >= 200 && statusCode < 300) {",
+          "    console.log('✅ Success:', statusCode, '| Response time:', responseTime + 'ms');",
+          "} else if (statusCode >= 400 && statusCode < 500) {",
+          "    console.warn('⚠️  Client error:', statusCode, '| Response time:', responseTime + 'ms');",
+          "} else if (statusCode >= 500) {",
+          "    console.error('❌ Server error:', statusCode, '| Response time:', responseTime + 'ms');",
+          "}",
+          "",
+          "// Valida tempo de resposta",
+          "pm.test('Response time is acceptable (< 5000ms)', function () {",
+          "    pm.expect(responseTime).to.be.below(5000);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "collection_version",
+      "value": "1.6.0",
+      "type": "string",
+      "description": "Sprint 2: Check-in/Check-out with RN01 billing calculation (2025-10-25)"
+    }
+  ]
+}

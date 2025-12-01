@@ -2,7 +2,7 @@ package com.jetski.manutencao.internal;
 
 import com.jetski.locacoes.domain.Jetski;
 import com.jetski.locacoes.domain.JetskiStatus;
-import com.jetski.locacoes.internal.JetskiService;
+import com.jetski.locacoes.api.JetskiPublicService;
 import com.jetski.manutencao.domain.OSManutencao;
 import com.jetski.manutencao.domain.OSManutencaoStatus;
 import com.jetski.manutencao.domain.OSManutencaoTipo;
@@ -44,7 +44,7 @@ import java.util.UUID;
 public class OSManutencaoService {
 
     private final OSManutencaoRepository osManutencaoRepository;
-    private final JetskiService jetskiService;
+    private final JetskiPublicService jetskiPublicService;
 
     /**
      * List all active maintenance orders for current tenant.
@@ -167,7 +167,7 @@ public class OSManutencaoService {
         log.info("Creating new maintenance order for jetski: {}", os.getJetskiId());
 
         // Validate jetski exists
-        Jetski jetski = jetskiService.findById(os.getJetskiId());
+        Jetski jetski = jetskiPublicService.findById(os.getJetskiId());
 
         // Validate problem description
         if (os.getDescricaoProblema() == null || os.getDescricaoProblema().isBlank()) {
@@ -492,10 +492,10 @@ public class OSManutencaoService {
      */
     private void blockJetskiForMaintenance(UUID jetskiId) {
         log.info("Blocking jetski for maintenance: {}", jetskiId);
-        Jetski jetski = jetskiService.findById(jetskiId);
+        Jetski jetski = jetskiPublicService.findById(jetskiId);
 
         if (jetski.getStatus() != JetskiStatus.MANUTENCAO) {
-            jetskiService.updateStatus(jetskiId, JetskiStatus.MANUTENCAO);
+            jetskiPublicService.updateStatus(jetskiId, JetskiStatus.MANUTENCAO);
             log.info("Jetski blocked for maintenance: {}", jetskiId);
         }
     }
@@ -513,10 +513,10 @@ public class OSManutencaoService {
         boolean hasOtherActiveOS = osManutencaoRepository.hasActiveMaintenanceByJetskiId(jetskiId);
 
         if (!hasOtherActiveOS) {
-            Jetski jetski = jetskiService.findById(jetskiId);
+            Jetski jetski = jetskiPublicService.findById(jetskiId);
 
             if (jetski.getStatus() == JetskiStatus.MANUTENCAO) {
-                jetskiService.updateStatus(jetskiId, JetskiStatus.DISPONIVEL);
+                jetskiPublicService.updateStatus(jetskiId, JetskiStatus.DISPONIVEL);
                 log.info("Jetski released from maintenance: {}", jetskiId);
             }
         } else {

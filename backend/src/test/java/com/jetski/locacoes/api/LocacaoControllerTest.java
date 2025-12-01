@@ -101,10 +101,15 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // Break circular FK: reserva ↔ locacao
         jdbcTemplate.execute("UPDATE reserva SET locacao_id = NULL WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM locacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        // Delete ALL reservas that reference jetskis from this tenant (including cross-tenant reservas)
+        jdbcTemplate.execute("UPDATE reserva SET jetski_id = NULL WHERE jetski_id IN (SELECT id FROM jetski WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')");
         jdbcTemplate.execute("DELETE FROM reserva WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM os_manutencao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        // Delete ALL jetskis that reference models from this tenant (handles cross-tenant FK issues)
+        jdbcTemplate.execute("DELETE FROM jetski WHERE modelo_id IN (SELECT id FROM modelo WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')");
         jdbcTemplate.execute("DELETE FROM jetski WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM commission_policy WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM politica_comissao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM fuel_policy WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM modelo WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM cliente WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
@@ -398,16 +403,17 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
     // ===================================================================
 
     @Test
-    @DisplayName("POST /{id}/check-out - Success: Calculate billable time with RN01")
+    @DisplayName("POST /{id}/check-out - Success: PRECO_FECHADO charges predicted duration")
     void testCheckOut_Success_RN01Calculation() throws Exception {
-        // Given: Active rental
+        // Given: Active rental with PRECO_FECHADO (90 min used, but 60 min predicted)
         Locacao locacao = Locacao.builder()
             .tenantId(TENANT_ID)
             .jetskiId(testJetski.getId())
             .clienteId(testCliente.getId())
-            .dataCheckIn(LocalDateTime.now().minusHours(1))
+            .dataCheckIn(LocalDateTime.now().minusMinutes(90))
             .horimetroInicio(new BigDecimal("100.0"))
             .duracaoPrevista(60)
+            .modalidadePreco(ModalidadePreco.PRECO_FECHADO)  // Charges predicted duration
             .status(LocacaoStatus.EM_CURSO)
             .build();
         locacao = locacaoRepository.save(locacao);
@@ -419,7 +425,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         jetskiRepository.save(testJetski);
 
         CheckOutRequest request = CheckOutRequest.builder()
-            .horimetroFim(new BigDecimal("101.5"))  // 1.5 hours = 90 minutes used
+            .horimetroFim(new BigDecimal("101.5"))  // 1.5 hours engine time
             .observacoes("Check-out normal")
             .checklistEntradaJson("[\"motor_ok\",\"casco_ok\",\"limpeza_ok\"]")  // RN05: mandatory checklist
             .build();
@@ -431,16 +437,15 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            // Then: Returns 200 OK with calculated values
+            // Then: Returns 200 OK with PRECO_FECHADO calculation
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(locacao.getId().toString()))
             .andExpect(jsonPath("$.horimetroFim").value(101.5))
-            .andExpect(jsonPath("$.minutosUsados").value(90))
-            // RN01: 90-5=85min → ceil(85/15)*15 = 90min billable
-            .andExpect(jsonPath("$.minutosFaturaveis").value(90))
-            // 90min at R$150/hour = R$225.00
-            .andExpect(jsonPath("$.valorBase").value(225.00))
-            .andExpect(jsonPath("$.valorTotal").value(225.00))
+            .andExpect(jsonPath("$.minutosUsados").value(90))  // Real time: 90min
+            .andExpect(jsonPath("$.minutosFaturaveis").value(90))  // Real billable time
+            // PRECO_FECHADO: charges predicted 60min (60-5=55 → rounds to 60min)
+            .andExpect(jsonPath("$.valorBase").value(150.00))  // 60min at R$150/hour = R$150.00
+            .andExpect(jsonPath("$.valorTotal").value(150.00))
             .andExpect(jsonPath("$.status").value("FINALIZADA"))
             .andExpect(jsonPath("$.dataCheckOut").exists());
 
@@ -452,14 +457,15 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("POST /{id}/check-out - RN01 Scenario 1.1: 10min used, 5min tolerance → 15min billable")
     void testCheckOut_RN01_Scenario1_1() throws Exception {
-        // Given: Active rental
+        // Given: Active rental (10 minutes ago for billing based on REAL TIME with DIARIA)
         Locacao locacao = Locacao.builder()
             .tenantId(TENANT_ID)
             .jetskiId(testJetski.getId())
             .clienteId(testCliente.getId())
-            .dataCheckIn(LocalDateTime.now())
+            .dataCheckIn(LocalDateTime.now().minusMinutes(10))
             .horimetroInicio(new BigDecimal("100.0"))
             .duracaoPrevista(30)
+            .modalidadePreco(ModalidadePreco.DIARIA)  // Uses actual time, not predicted
             .status(LocacaoStatus.EM_CURSO)
             .build();
         locacao = locacaoRepository.save(locacao);
@@ -492,14 +498,15 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("POST /{id}/check-out - RN01 Scenario 1.3: Within tolerance → 0 billable")
     void testCheckOut_RN01_Scenario1_3_WithinTolerance() throws Exception {
-        // Given: Active rental
+        // Given: Active rental (5 minutes ago for billing based on REAL TIME with DIARIA)
         Locacao locacao = Locacao.builder()
             .tenantId(TENANT_ID)
             .jetskiId(testJetski.getId())
             .clienteId(testCliente.getId())
-            .dataCheckIn(LocalDateTime.now())
+            .dataCheckIn(LocalDateTime.now().minusMinutes(5))
             .horimetroInicio(new BigDecimal("100.0"))
             .duracaoPrevista(30)
+            .modalidadePreco(ModalidadePreco.DIARIA)  // Uses actual time, not predicted
             .status(LocacaoStatus.EM_CURSO)
             .build();
         locacao = locacaoRepository.save(locacao);

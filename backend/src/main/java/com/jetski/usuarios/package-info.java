@@ -38,6 +38,6 @@
  */
 @org.springframework.modulith.ApplicationModule(
     displayName = "Users and Members",
-    allowedDependencies = {"shared::security", "shared::exception", "shared::email"}
+    allowedDependencies = {"shared::security", "shared::exception", "shared::email", "tenant", "tenant::domain"}
 )
 package com.jetski.usuarios;

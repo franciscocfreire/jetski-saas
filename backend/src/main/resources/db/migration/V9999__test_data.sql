@@ -23,7 +23,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO tenant (id, slug, razao_social, cnpj, timezone, moeda, status, contato, branding_json)
 VALUES
 ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'test-company', 'Test Company Ltda', '99.999.999/0001-99',
- 'America/Sao_Paulo', 'BRL', 'ativo',
+ 'America/Sao_Paulo', 'BRL', 'ATIVO',
  '{"telefone": "+55 11 99999-9999", "email": "contato@testcompany.com"}'::jsonb,
  '{"logo_url": "https://test.com/logo.png", "cor_primaria": "#0066CC"}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
@@ -191,7 +191,7 @@ ON CONFLICT (id) DO NOTHING;
 -- =====================================================
 INSERT INTO tenant (id, slug, razao_social, status)
 VALUES
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'other-company', 'Other Company Ltda', 'ativo')
+('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'other-company', 'Other Company Ltda', 'ATIVO')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO usuario (id, email, nome, ativo) VALUES
@@ -235,7 +235,7 @@ ON CONFLICT (id) DO NOTHING;
 -- Uses JETSKI_ID from integration tests: 22222222-2222-2222-2222-222222222222
 INSERT INTO jetski (id, tenant_id, modelo_id, serie, placa, ano, horimetro_atual, status, ativo) VALUES
 ('22222222-2222-2222-2222-222222222222', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- '33333333-3333-3333-3333-333333333333', 'JET-TEST-001', 'ABC-1234', 2023, 45.2, 'disponivel', TRUE)
+ '33333333-3333-3333-3333-333333333333', 'JET-TEST-001', 'ABC-1234', 2023, 45.2, 'DISPONIVEL', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
 -- =====================================================

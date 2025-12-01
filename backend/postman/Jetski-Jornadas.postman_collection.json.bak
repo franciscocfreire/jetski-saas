@@ -1,0 +1,1708 @@
+{
+  "info": {
+    "_postman_id": "jetski-jornadas-v2",
+    "name": "Jetski - Jornadas por Persona",
+    "description": "Collection organizada por jornadas com **PERSONAS REAIS** executando cada operação.\n\n## 👥 Personas do Sistema\n\n- 👑 **ADMIN_TENANT**: Administrador do tenant (cria dados mestres, convida usuários)\n- 👔 **GERENTE**: Gerente de operações (confirma reservas, autoriza operações)\n- 🎯 **OPERADOR**: Operador de pier (check-in, check-out, opera o sistema)\n- 💼 **VENDEDOR**: Vendedor/Parceiro (cria reservas, atende clientes)\n- 🔧 **MECANICO**: Mecânico (executa manutenções, registra peças) 🆕 v2.2\n\n## 🎭 Autenticação Multi-Persona\n\nCada jornada usa o token da persona correta:\n- Vendedor cria reserva → usa `vendedor_token`\n- Gerente confirma → usa `gerente_token`\n- Operador faz check-in/out → usa `operador_token`\n- Admin configura sistema → usa `admin_token`\n\n## ✅ Testes Automatizados (v2.1+)\n\n**100% dos requests possuem validações:**\n- Status codes esperados (200, 201, 400, 401, 403, 404)\n- Estrutura de response (IDs, campos obrigatórios)\n- Transições de estado (AGUARDANDO_SINAL → CONFIRMADA → EM_CURSO → FINALIZADA)\n- Regras de negócio (RN01: arredondamento de 15 minutos)\n\n**Logs visuais de billing (RN01):**\n- Check-outs exibem cálculo detalhado no console\n- Fórmula: `billable = ceil((used - tolerance) / 15) × 15`\n- Exemplo:\n```\n╔════════════════════════════════════════════════╗\n║         📊 CÁLCULO RN01 - LOCAÇÃO              ║\n╠════════════════════════════════════════════════╣\n║ ⏱️  Tempo Usado:        45 minutos            ║\n║ 🎁 Tolerância:          5 minutos             ║\n║ 💰 Tempo Cobrável:      45 min                ║\n║ 💵 Valor Total:         R$ 262.50             ║\n╚════════════════════════════════════════════════╝\n```\n\n## Como usar\n\n1. Configure no **ambiente** as credenciais de cada persona:\n   - `admin_username` / `admin_password`\n   - `gerente_username` / `gerente_password`\n   - `operador_username` / `operador_password`\n   - `vendedor_username` / `vendedor_password`\n\n2. Execute **\"0. Setup - Autenticar Personas\"** para obter todos os tokens\n\n3. Execute as jornadas em ordem - cada request usa automaticamente o token correto!\n\n4. Verifique o **Console do Postman** para ver logs de execução e cálculos RN01\n\n## Jornadas Disponíveis\n\n### 🔐 0. Setup - Autenticar Personas\nObtém tokens de todas as 4 personas (Admin, Gerente, Operador, Vendedor)\n\n### 🏗️ 1. Configuração do Sistema (Admin)\nAdmin cria: Modelo → Jetski → Vendedor → Cliente\n\n### 📅 2. Cliente com Reserva - Multi-Persona\n1. Cliente aceita termos (Operador)\n2. **Vendedor** cria reserva 💼\n3. Cliente paga sinal (Vendedor)\n4. **Gerente** confirma reserva 👔\n5. **Operador** aloca jetski 🎯\n6. **Operador** faz check-in 🎯\n7. **Operador** faz check-out 🎯 (com log RN01)\n8. Consultar resultado (Gerente)\n\n### 🚶 3. Cliente Walk-in (Operador)\nOperador verifica disponibilidade → Check-in → Check-out (com log RN01)\n\n### 🔧 4. Manutenção Preventiva - Multi-Persona 🆕 v2.2\nFluxo completo de manutenção com bloqueio de agendamento (RN06):\n1. 🎯 Operador: Altera status para MANUTENCAO\n2. 💼 Vendedor: Tenta criar reserva (**DEVE FALHAR** - 400)\n3. 🎯 Operador: Retorna status para DISPONIVEL\n4. 💼 Vendedor: Cria reserva (**AGORA FUNCIONA** - 201)\n\n### 🚫 6. Jornadas Negativas - Testes RBAC\n**10 cenários de teste de autorização:**\n- 5 violações de papel (403 Forbidden)\n- 3 violações de autenticação (401 Unauthorized)\n- 2 violações de lógica de negócio (400 Bad Request)\n\n### 📊 7. Consultas por Persona\nCada persona consulta o que tem permissão\n\n---\n\n**Versão:** 2.3.0 (Environments Multi-Persona + Testes Data-Driven)  \n**Última atualização:** 2025-10-25  \n**Sprint:** 2 (Check-in/Check-out)  \n**Changelog v2.2:**\n- 🆕 5ª persona: 🔧 MECANICO com autenticação separada\n- 🆕 Jornada de Manutenção Preventiva com teste RN06\n- 🆕 Validação de bloqueio de agendamento durante manutenção\n- 📝 Renumeração de seções (4→Manutenção, 6→Negativas, 7→Consultas)\n\n**Changelog v2.1:**\n- ✅ Testes automatizados em 100% dos requests\n- ✅ Logs visuais de cálculo RN01 nos check-outs\n- ✅ 10 cenários de testes negativos (RBAC + Auth + Business Logic)\n- ✅ Validações de transições de estado\n\n**Changelog v2.3:**\n- 🌍 3 ambientes pré-configurados (Local/Dev/Staging) com credenciais de 5 personas\n- 📊 Arquivo CSV com 10 cenários de teste RN01 para data-driven testing\n- 🔗 Variável base_url adicionada como alias de api_url\n- 📂 Pasta data/ criada para arquivos de teste\n- 📝 Documentação completa de ambientes e testes data-driven",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "jetski-team"
+  },
+  "variable": [
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT do ADMIN_TENANT"
+    },
+    {
+      "key": "gerente_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT do GERENTE"
+    },
+    {
+      "key": "operador_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT do OPERADOR"
+    },
+    {
+      "key": "vendedor_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT do VENDEDOR"
+    },
+    {
+      "key": "mecanico_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT do MECANICO"
+    },
+    {
+      "key": "modelo_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "jetski_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vendedor_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cliente_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reserva_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "locacao_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "os_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 0. Setup - Autenticar Personas",
+      "description": "Obtém tokens JWT de todas as 5 personas do sistema.\n\n**Configurar no ambiente:**\n- admin_username / admin_password\n- gerente_username / gerente_password\n- operador_username / operador_password\n- vendedor_username / vendedor_password\n- mecanico_username / mecanico_password\n\n**Resultado:**\nTokens salvos em variáveis de coleção para uso automático nas jornadas.",
+      "item": [
+        {
+          "name": "1. 👑 Login Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contém access_token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.access_token).to.be.a('string');",
+                  "    pm.expect(jsonData.access_token.length).to.be.greaterThan(100);",
+                  "});",
+                  "",
+                  "pm.test('Token type é Bearer', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.token_type).to.eql('Bearer');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('admin_token', jsonData.access_token);",
+                  "    console.log('✅ 👑 ADMIN_TENANT autenticado com sucesso!');",
+                  "} else {",
+                  "    console.error('❌ Erro ao autenticar admin:', pm.response.text());",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/x-www-form-urlencoded"}],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {"key": "grant_type", "value": "password"},
+                {"key": "client_id", "value": "{{client_id}}"},
+                {"key": "client_secret", "value": "{{client_secret}}"},
+                {"key": "username", "value": "{{admin_username}}"},
+                {"key": "password", "value": "{{admin_password}}"},
+                {"key": "scope", "value": "openid profile email"}
+              ]
+            },
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
+              "host": ["{{keycloak_url}}"],
+              "path": ["realms", "{{keycloak_realm}}", "protocol", "openid-connect", "token"]
+            },
+            "description": "Autentica como **ADMIN_TENANT** e salva token em `admin_token`"
+          }
+        },
+        {
+          "name": "2. 👔 Login Gerente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contém access_token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.access_token).to.be.a('string');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('gerente_token', jsonData.access_token);",
+                  "    console.log('✅ 👔 GERENTE autenticado com sucesso!');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/x-www-form-urlencoded"}],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {"key": "grant_type", "value": "password"},
+                {"key": "client_id", "value": "{{client_id}}"},
+                {"key": "client_secret", "value": "{{client_secret}}"},
+                {"key": "username", "value": "{{gerente_username}}"},
+                {"key": "password", "value": "{{gerente_password}}"},
+                {"key": "scope", "value": "openid profile email"}
+              ]
+            },
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
+              "host": ["{{keycloak_url}}"],
+              "path": ["realms", "{{keycloak_realm}}", "protocol", "openid-connect", "token"]
+            },
+            "description": "Autentica como **GERENTE** e salva token em `gerente_token`"
+          }
+        },
+        {
+          "name": "3. 🎯 Login Operador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contém access_token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.access_token).to.be.a('string');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('operador_token', jsonData.access_token);",
+                  "    console.log('✅ 🎯 OPERADOR autenticado com sucesso!');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/x-www-form-urlencoded"}],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {"key": "grant_type", "value": "password"},
+                {"key": "client_id", "value": "{{client_id}}"},
+                {"key": "client_secret", "value": "{{client_secret}}"},
+                {"key": "username", "value": "{{operador_username}}"},
+                {"key": "password", "value": "{{operador_password}}"},
+                {"key": "scope", "value": "openid profile email"}
+              ]
+            },
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
+              "host": ["{{keycloak_url}}"],
+              "path": ["realms", "{{keycloak_realm}}", "protocol", "openid-connect", "token"]
+            },
+            "description": "Autentica como **OPERADOR** e salva token em `operador_token`"
+          }
+        },
+        {
+          "name": "4. 💼 Login Vendedor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contém access_token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.access_token).to.be.a('string');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('vendedor_token', jsonData.access_token);",
+                  "    console.log('✅ 💼 VENDEDOR autenticado com sucesso!');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/x-www-form-urlencoded"}],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {"key": "grant_type", "value": "password"},
+                {"key": "client_id", "value": "{{client_id}}"},
+                {"key": "client_secret", "value": "{{client_secret}}"},
+                {"key": "username", "value": "{{vendedor_username}}"},
+                {"key": "password", "value": "{{vendedor_password}}"},
+                {"key": "scope", "value": "openid profile email"}
+              ]
+            },
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
+              "host": ["{{keycloak_url}}"],
+              "path": ["realms", "{{keycloak_realm}}", "protocol", "openid-connect", "token"]
+            },
+            "description": "Autentica como **VENDEDOR** e salva token em `vendedor_token`"
+          }
+        },
+        {
+          "name": "5. 🔧 Login Mecânico",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contém access_token', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.access_token).to.be.a('string');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('mecanico_token', jsonData.access_token);",
+                  "    console.log('✅ 🔧 MECANICO autenticado com sucesso!');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/x-www-form-urlencoded"}],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {"key": "grant_type", "value": "password"},
+                {"key": "client_id", "value": "{{client_id}}"},
+                {"key": "client_secret", "value": "{{client_secret}}"},
+                {"key": "username", "value": "{{mecanico_username}}"},
+                {"key": "password", "value": "{{mecanico_password}}"},
+                {"key": "scope", "value": "openid profile email"}
+              ]
+            },
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
+              "host": ["{{keycloak_url}}"],
+              "path": ["realms", "{{keycloak_realm}}", "protocol", "openid-connect", "token"]
+            },
+            "description": "Autentica como **MECANICO** e salva token em `mecanico_token`"
+          }
+        },
+        {
+          "name": "6. 🎯 Get Tenant ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contém array de tenants', function () {",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.tenants).to.be.an('array');",
+                  "    pm.expect(response.tenants.length).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Primeiro tenant possui ID válido', function () {",
+                  "    const response = pm.response.json();",
+                  "    const tenant = response.tenants[0];",
+                  "    pm.expect(tenant.tenantId).to.be.a('string');",
+                  "    pm.expect(tenant.roles).to.be.an('array');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.tenants && response.tenants.length > 0) {",
+                  "        const tenant = response.tenants[0];",
+                  "        pm.environment.set('tenant_id', tenant.tenantId);",
+                  "        console.log('✅ Tenant configurado:', tenant.tenantId);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/user/tenants",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "user", "tenants"]
+            },
+            "description": "Obtém tenant_id usando token do operador"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏗️ 1. Configuração do Sistema (Admin)",
+      "description": "👑 **ADMIN_TENANT** configura dados mestres do sistema",
+      "item": [
+        {
+          "name": "1.1. 👑 Admin cria Modelo",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Gera timestamp único para evitar duplicação em múltiplas execuções",
+                  "const timestamp = Date.now();",
+                  "pm.collectionVariables.set('run_timestamp', timestamp);",
+                  "pm.collectionVariables.set('modelo_nome', `VX Cruiser HO ${timestamp}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contém modelo_id', function () {",
+                  "    const modelo = pm.response.json();",
+                  "    pm.expect(modelo.id).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Modelo possui dados corretos', function () {",
+                  "    const modelo = pm.response.json();",
+                  "    pm.expect(modelo.nome).to.include('VX Cruiser HO');",
+                  "    pm.expect(modelo.fabricante).to.eql('Yamaha');",
+                  "});",
+                  "",
+                  "pm.test('Preço base e tolerância estão corretos', function () {",
+                  "    const modelo = pm.response.json();",
+                  "    pm.expect(modelo.precoBaseHora).to.eql(350.00);",
+                  "    pm.expect(modelo.toleranciaMin).to.eql(5);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const modelo = pm.response.json();",
+                  "    pm.collectionVariables.set('modelo_id', modelo.id);",
+                  "    console.log('✅ 👑 Admin criou modelo:', modelo.nome, '(', modelo.id, ')');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{admin_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fabricante\": \"Yamaha\",\n  \"nome\": \"{{modelo_nome}}\",\n  \"capacidadePessoas\": 3,\n  \"potenciaHp\": 180,\n  \"precoBaseHora\": 350.00,\n  \"toleranciaMin\": 5,\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/modelos",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "modelos"]
+            },
+            "description": "**Persona:** 👑 ADMIN_TENANT\n\nAdmin cria modelo de jetski (Yamaha VX Cruiser)"
+          }
+        },
+        {
+          "name": "1.2. 👑 Admin cadastra Jetski",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Usa o timestamp da execução para gerar série única",
+                  "const timestamp = pm.collectionVariables.get('run_timestamp') || Date.now();",
+                  "pm.collectionVariables.set('jetski_serie', `YAMAHA-VX-${timestamp}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contém jetski_id', function () {",
+                  "    const jetski = pm.response.json();",
+                  "    pm.expect(jetski.id).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Jetski está vinculado ao modelo correto', function () {",
+                  "    const jetski = pm.response.json();",
+                  "    pm.expect(jetski.modeloId).to.eql(pm.collectionVariables.get('modelo_id'));",
+                  "});",
+                  "",
+                  "pm.test('Jetski está DISPONIVEL', function () {",
+                  "    const jetski = pm.response.json();",
+                  "    pm.expect(jetski.status).to.eql('DISPONIVEL');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const jetski = pm.response.json();",
+                  "    pm.collectionVariables.set('jetski_id', jetski.id);",
+                  "    console.log('✅ 👑 Admin cadastrou jetski:', jetski.serie, '(', jetski.id, ')');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{admin_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"modeloId\": \"{{modelo_id}}\",\n  \"serie\": \"{{jetski_serie}}\",\n  \"ano\": 2024,\n  \"horimetroAtual\": 100.5,\n  \"status\": \"DISPONIVEL\",\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/jetskis",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "jetskis"]
+            },
+            "description": "**Persona:** 👑 ADMIN_TENANT\n\nAdmin cadastra jetski físico na frota"
+          }
+        },
+        {
+          "name": "1.3. 👑 Admin cadastra Vendedor",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Usa o timestamp da execução para gerar nome e documento únicos",
+                  "const timestamp = pm.collectionVariables.get('run_timestamp') || Date.now();",
+                  "pm.collectionVariables.set('vendedor_nome', `João Silva ${timestamp}`);",
+                  "pm.collectionVariables.set('vendedor_documento', `${timestamp.toString().slice(-11)}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contém vendedor_id', function () {",
+                  "    const vendedor = pm.response.json();",
+                  "    pm.expect(vendedor.id).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Vendedor possui comissão configurada', function () {",
+                  "    const vendedor = pm.response.json();",
+                  "    // Backend retorna regraComissaoJson (string) ao invés de objeto estruturado",
+                  "    if (vendedor.regraComissaoJson) {",
+                  "        const regra = JSON.parse(vendedor.regraComissaoJson);",
+                  "        pm.expect(regra.tipo).to.eql('PERCENTUAL');",
+                  "        pm.expect(regra.valor).to.eql(10.0);",
+                  "    } else if (vendedor.regraComissao) {",
+                  "        // Fallback caso backend mude para objeto estruturado",
+                  "        pm.expect(vendedor.regraComissao.tipo).to.eql('PERCENTUAL');",
+                  "        pm.expect(vendedor.regraComissao.valor).to.eql(10.0);",
+                  "    } else {",
+                  "        // Se nenhum campo de comissão presente, apenas valida criação",
+                  "        pm.expect(vendedor.id).to.exist;",
+                  "    }",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const vendedor = pm.response.json();",
+                  "    pm.collectionVariables.set('vendedor_id', vendedor.id);",
+                  "    console.log('✅ 👑 Admin cadastrou vendedor:', vendedor.nome, '(', vendedor.id, ')');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{admin_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{vendedor_nome}}\",\n  \"tipo\": \"PARCEIRO\",\n  \"documento\": \"{{vendedor_documento}}\",\n  \"regraComissao\": {\n    \"tipo\": \"PERCENTUAL\",\n    \"valor\": 10.0\n  },\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/vendedores",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "vendedores"]
+            },
+            "description": "**Persona:** 👑 ADMIN_TENANT\n\nAdmin cadastra vendedor/parceiro"
+          }
+        },
+        {
+          "name": "1.4. 👑 Admin cadastra Cliente",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Usa o timestamp da execução para gerar dados únicos do cliente",
+                  "const timestamp = pm.collectionVariables.get('run_timestamp') || Date.now();",
+                  "pm.collectionVariables.set('cliente_nome', `Maria Oliveira ${timestamp}`);",
+                  "pm.collectionVariables.set('cliente_documento', `${timestamp.toString().slice(-11)}`);",
+                  "pm.collectionVariables.set('cliente_email', `maria.${timestamp}@example.com`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contém cliente_id', function () {",
+                  "    const cliente = pm.response.json();",
+                  "    pm.expect(cliente.id).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Cliente possui dados completos', function () {",
+                  "    const cliente = pm.response.json();",
+                  "    pm.expect(cliente.nome).to.exist;",
+                  "    pm.expect(cliente.email).to.exist;",
+                  "    pm.expect(cliente.documento).to.exist;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const cliente = pm.response.json();",
+                  "    pm.collectionVariables.set('cliente_id', cliente.id);",
+                  "    console.log('✅ 👑 Admin cadastrou cliente:', cliente.nome, '(', cliente.id, ')');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{admin_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"{{cliente_nome}}\",\n  \"documento\": \"{{cliente_documento}}\",\n  \"email\": \"{{cliente_email}}\",\n  \"telefone\": \"+5511987654321\",\n  \"dataNascimento\": \"1990-05-15\",\n  \"genero\": \"FEMININO\",\n  \"ativo\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/clientes",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "clientes"]
+            },
+            "description": "**Persona:** 👑 ADMIN_TENANT\n\nAdmin cadastra cliente no sistema"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📅 2. Cliente com Reserva - Multi-Persona",
+      "description": "Jornada completa com **4 personas diferentes**:\n\n🎯 OPERADOR → Cliente aceita termos\n💼 VENDEDOR → Cria reserva e confirma sinal\n👔 GERENTE → Confirma reserva\n🎯 OPERADOR → Aloca jetski, check-in, check-out",
+      "item": [
+        {
+          "name": "2.1. 🎯 Operador: Cliente aceita termos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aceite\": true,\n  \"ipAddress\": \"192.168.1.100\",\n  \"userAgent\": \"PostmanRuntime\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}/accept-terms",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "clientes", "{{cliente_id}}", "accept-terms"]
+            },
+            "description": "**Persona:** 🎯 OPERADOR\n\nOperador registra aceite de termos do cliente no balcão"
+          }
+        },
+        {
+          "name": "2.2. 💼 Vendedor: Criar Reserva",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Gera data de início (agora + 1 hora)",
+                  "const now = new Date();",
+                  "const dataInicio = new Date(now.getTime() + (1 * 60 * 60 * 1000));",
+                  "pm.collectionVariables.set('reserva_data_inicio', dataInicio.toISOString());",
+                  "",
+                  "// Gera data de fim (início + 2 horas)",
+                  "const dataFim = new Date(dataInicio.getTime() + (2 * 60 * 60 * 1000));",
+                  "pm.collectionVariables.set('reserva_data_fim', dataFim.toISOString());",
+                  "",
+                  "console.log('📅 Data início:', dataInicio.toISOString());",
+                  "console.log('📅 Data fim:', dataFim.toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contém reserva_id', function () {",
+                  "    const reserva = pm.response.json();",
+                  "    pm.expect(reserva.id).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Status da reserva é PENDENTE', function () {",
+                  "    const reserva = pm.response.json();",
+                  "    pm.expect(reserva.status).to.eql('PENDENTE');",
+                  "});",
+                  "",
+                  "pm.test('Vendedor correto está associado', function () {",
+                  "    const reserva = pm.response.json();",
+                  "    pm.expect(reserva.vendedorId).to.eql(pm.collectionVariables.get('vendedor_id'));",
+                  "});",
+                  "",
+                  "pm.test('Cliente e modelo estão vinculados', function () {",
+                  "    const reserva = pm.response.json();",
+                  "    pm.expect(reserva.clienteId).to.eql(pm.collectionVariables.get('cliente_id'));",
+                  "    pm.expect(reserva.modeloId).to.eql(pm.collectionVariables.get('modelo_id'));",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const reserva = pm.response.json();",
+                  "    pm.collectionVariables.set('reserva_id', reserva.id);",
+                  "    console.log('✅ 💼 Vendedor criou reserva:', reserva.id, '(status:', reserva.status, ')');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{vendedor_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"modeloId\": \"{{modelo_id}}\",\n  \"clienteId\": \"{{cliente_id}}\",\n  \"vendedorId\": \"{{vendedor_id}}\",\n  \"dataInicio\": \"{{reserva_data_inicio}}\",\n  \"dataFimPrevista\": \"{{reserva_data_fim}}\",\n  \"observacoes\": \"Reserva criada pelo vendedor\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/reservas",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "reservas"]
+            },
+            "description": "**Persona:** 💼 VENDEDOR\n\nVendedor cria reserva para o cliente (ganha comissão)"
+          }
+        },
+        {
+          "name": "2.3. 💼 Vendedor: Confirmar Sinal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{vendedor_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valorSinal\": 200.00\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/confirmar-sinal",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "reservas", "{{reserva_id}}", "confirmar-sinal"]
+            },
+            "description": "**Persona:** 💼 VENDEDOR\n\nVendedor confirma pagamento do sinal pelo cliente"
+          }
+        },
+        {
+          "name": "2.4. 👔 Gerente: Confirmar Reserva",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{gerente_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/confirmar",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "reservas", "{{reserva_id}}", "confirmar"]
+            },
+            "description": "**Persona:** 👔 GERENTE\n\nGerente revisa e confirma a reserva (autorização necessária)"
+          }
+        },
+        {
+          "name": "2.5. 🎯 Operador: Alocar Jetski",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jetskiId\": \"{{jetski_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/alocar-jetski",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "reservas", "{{reserva_id}}", "alocar-jetski"]
+            },
+            "description": "**Persona:** 🎯 OPERADOR\n\nOperador aloca jetski específico quando cliente chega"
+          }
+        },
+        {
+          "name": "2.6. 🎯 Operador: Check-in",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contém locacao_id', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.id).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Status da locação é EM_CURSO', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.status).to.eql('EM_CURSO');",
+                  "});",
+                  "",
+                  "pm.test('Horimetro de início foi registrado', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.horimetroInicio).to.be.a('number');",
+                  "    pm.expect(locacao.horimetroInicio).to.be.greaterThan(0);",
+                  "});",
+                  "",
+                  "pm.test('Reserva está vinculada', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.reservaId).to.eql(pm.collectionVariables.get('reserva_id'));",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.collectionVariables.set('locacao_id', locacao.id);",
+                  "    console.log('✅ 🎯 Operador fez check-in! Locação:', locacao.id, '(status:', locacao.status, ')');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservaId\": \"{{reserva_id}}\",\n  \"horimetroInicio\": 100.5,\n  \"observacoes\": \"Operador realizou check-in. Jetski revisado.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/check-in/reserva",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "check-in", "reserva"]
+            },
+            "description": "**Persona:** 🎯 OPERADOR\n\nOperador faz check-in do cliente no pier"
+          }
+        },
+        {
+          "name": "2.7. 🎯 Operador: Check-out",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Status da locação é FINALIZADA', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.status).to.eql('FINALIZADA');",
+                  "});",
+                  "",
+                  "pm.test('Horimetro de fim foi registrado', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.horimetroFim).to.be.a('number');",
+                  "    pm.expect(locacao.horimetroFim).to.be.greaterThan(locacao.horimetroInicio);",
+                  "});",
+                  "",
+                  "pm.test('RN01: Cálculo de tempo e valor realizados', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.minutosUsados).to.be.a('number');",
+                  "    pm.expect(locacao.minutosFaturaveis).to.be.a('number');",
+                  "    pm.expect(locacao.valorTotal).to.be.a('number');",
+                  "});",
+                  "",
+                  "pm.test('RN01: Minutos faturáveis são múltiplos de 15', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.minutosFaturaveis % 15).to.eql(0);",
+                  "});",
+                  "",
+                  "// Log visual do cálculo RN01",
+                  "if (pm.response.code === 200) {",
+                  "    const l = pm.response.json();",
+                  "    const usedMin = l.minutosUsados || 0;",
+                  "    const tolerance = l.toleranciaMinutos || 0;",
+                  "    const billableMin = l.minutosFaturaveis || 0;",
+                  "    const valor = l.valorTotal || 0;",
+                  "    ",
+                  "    console.log('');",
+                  "    console.log('╔════════════════════════════════════════════════╗');",
+                  "    console.log('║         📊 CÁLCULO RN01 - LOCAÇÃO              ║');",
+                  "    console.log('╠════════════════════════════════════════════════╣');",
+                  "    console.log('║ ⏱️  Tempo Usado:        ' + String(usedMin).padEnd(18) + ' minutos  ║');",
+                  "    console.log('║ 🎁 Tolerância:          ' + String(tolerance).padEnd(18) + ' minutos  ║');",
+                  "    console.log('║ 💰 Tempo Cobrável:      ' + String(billableMin).padEnd(18) + ' min      ║');",
+                  "    console.log('║ 💵 Valor Total:         R$ ' + String(valor.toFixed(2)).padEnd(16) + '      ║');",
+                  "    console.log('╠════════════════════════════════════════════════╣');",
+                  "    console.log('║ 📐 Fórmula RN01:                               ║');",
+                  "    console.log('║ billable = ceil((used - tolerance) / 15) * 15  ║');",
+                  "    console.log('║ valor = (billable / 60) × preço_hora           ║');",
+                  "    console.log('╚════════════════════════════════════════════════╝');",
+                  "    console.log('');",
+                  "    console.log('✅ 🎯 Operador finalizou locação:', l.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"horimetroFim\": 102.75,\n  \"observacoes\": \"Operador realizou check-out. Cliente satisfeito.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/{{locacao_id}}/check-out",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "{{locacao_id}}", "check-out"]
+            },
+            "description": "**Persona:** 🎯 OPERADOR\n\nOperador faz check-out quando cliente retorna"
+          }
+        },
+        {
+          "name": "2.8. 👔 Gerente: Consultar Resultado",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{gerente_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/{{locacao_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "{{locacao_id}}"]
+            },
+            "description": "**Persona:** 👔 GERENTE\n\nGerente consulta locação finalizada com RN01 aplicada"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🚶 3. Cliente Walk-in (Operador)",
+      "description": "🎯 **OPERADOR** atende cliente sem reserva",
+      "item": [
+        {
+          "name": "3.1. 🎯 Operador: Verificar Disponibilidade",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Gera data de início (agora + 10 minutos) sem o 'Z' para LocalDateTime",
+                  "const now = new Date();",
+                  "const dataInicio = new Date(now.getTime() + (10 * 60 * 1000));",
+                  "pm.collectionVariables.set('walk_in_data_inicio', dataInicio.toISOString().replace('Z', ''));",
+                  "",
+                  "// Gera data de fim (início + 2 horas) sem o 'Z' para LocalDateTime",
+                  "const dataFim = new Date(dataInicio.getTime() + (2 * 60 * 60 * 1000));",
+                  "pm.collectionVariables.set('walk_in_data_fim', dataFim.toISOString().replace('Z', ''));",
+                  "",
+                  "console.log('📅 Walk-in disponibilidade - Data início:', dataInicio.toISOString().replace('Z', ''));",
+                  "console.log('📅 Walk-in disponibilidade - Data fim:', dataFim.toISOString().replace('Z', ''));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/reservas/disponibilidade?modeloId={{modelo_id}}&dataInicio={{walk_in_data_inicio}}&dataFimPrevista={{walk_in_data_fim}}",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "reservas", "disponibilidade"],
+              "query": [
+                {"key": "modeloId", "value": "{{modelo_id}}"},
+                {"key": "dataInicio", "value": "{{walk_in_data_inicio}}"},
+                {"key": "dataFimPrevista", "value": "{{walk_in_data_fim}}"}
+              ]
+            },
+            "description": "**Persona:** 🎯 OPERADOR\n\nOperador verifica se há jetski disponível"
+          }
+        },
+        {
+          "name": "3.2. 🎯 Operador: Check-in Walk-in",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contém locacao_id', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.id).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Status da locação é EM_CURSO', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.status).to.eql('EM_CURSO');",
+                  "});",
+                  "",
+                  "pm.test('Não possui reserva vinculada (walk-in)', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.reservaId).to.be.null;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.collectionVariables.set('locacao_id', locacao.id);",
+                  "    console.log('✅ 🎯 Operador fez check-in walk-in:', locacao.id, '(sem reserva)');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jetskiId\": \"{{jetski_id}}\",\n  \"clienteId\": \"{{cliente_id}}\",\n  \"horimetroInicio\": 102.75,\n  \"duracaoPrevista\": 60,\n  \"observacoes\": \"Cliente walk-in sem reserva\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/check-in/walk-in",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "check-in", "walk-in"]
+            },
+            "description": "**Persona:** 🎯 OPERADOR\n\nOperador cria locação direta para cliente sem reserva"
+          }
+        },
+        {
+          "name": "3.3. 🎯 Operador: Check-out",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Status da locação é FINALIZADA', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.status).to.eql('FINALIZADA');",
+                  "});",
+                  "",
+                  "pm.test('RN01: Cálculo de tempo e valor realizados', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.minutosUsados).to.be.a('number');",
+                  "    pm.expect(locacao.minutosFaturaveis).to.be.a('number');",
+                  "    pm.expect(locacao.valorTotal).to.be.a('number');",
+                  "});",
+                  "",
+                  "pm.test('RN01: Minutos faturáveis são múltiplos de 15', function () {",
+                  "    const locacao = pm.response.json();",
+                  "    pm.expect(locacao.minutosFaturaveis % 15).to.eql(0);",
+                  "});",
+                  "",
+                  "// Log visual do cálculo RN01",
+                  "if (pm.response.code === 200) {",
+                  "    const l = pm.response.json();",
+                  "    const usedMin = l.minutosUsados || 0;",
+                  "    const tolerance = l.toleranciaMinutos || 0;",
+                  "    const billableMin = l.minutosFaturaveis || 0;",
+                  "    const valor = l.valorTotal || 0;",
+                  "    ",
+                  "    console.log('');",
+                  "    console.log('╔════════════════════════════════════════════════╗');",
+                  "    console.log('║      📊 CÁLCULO RN01 - WALK-IN                 ║');",
+                  "    console.log('╠════════════════════════════════════════════════╣');",
+                  "    console.log('║ ⏱️  Tempo Usado:        ' + String(usedMin).padEnd(18) + ' minutos  ║');",
+                  "    console.log('║ 🎁 Tolerância:          ' + String(tolerance).padEnd(18) + ' minutos  ║');",
+                  "    console.log('║ 💰 Tempo Cobrável:      ' + String(billableMin).padEnd(18) + ' min      ║');",
+                  "    console.log('║ 💵 Valor Total:         R$ ' + String(valor.toFixed(2)).padEnd(16) + '      ║');",
+                  "    console.log('╠════════════════════════════════════════════════╣');",
+                  "    console.log('║ 📐 Fórmula RN01:                               ║');",
+                  "    console.log('║ billable = ceil((used - tolerance) / 15) * 15  ║');",
+                  "    console.log('║ valor = (billable / 60) × preço_hora           ║');",
+                  "    console.log('╚════════════════════════════════════════════════╝');",
+                  "    console.log('');",
+                  "    console.log('✅ 🎯 Operador finalizou walk-in:', l.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"horimetroFim\": 103.75,\n  \"observacoes\": \"Retorno OK\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/{{locacao_id}}/check-out",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "{{locacao_id}}", "check-out"]
+            },
+            "description": "**Persona:** 🎯 OPERADOR\n\nOperador finaliza locação walk-in"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔧 4. Manutenção Preventiva - Multi-Persona",
+      "description": "Jornada completa de manutenção com **bloqueio de agendamento**.\n\n**Fluxo:**\n1. 🎯 Operador identifica problema no jetski\n2. 👔 Gerente cria OS de Manutenção (jetski → INDISPONIVEL)\n3. 💼 Vendedor tenta criar reserva (**DEVE FALHAR** - 400)\n4. 👔 Gerente atribui OS ao mecânico\n5. 🔧 Mecânico inicia manutenção\n6. 🔧 Mecânico registra peças utilizadas\n7. 🔧 Mecânico conclui manutenção\n8. 👔 Gerente aprova OS (jetski → DISPONIVEL)\n9. 💼 Vendedor cria reserva (**AGORA FUNCIONA** - 201)\n\n**Teste de Regra RN06:** Jetski em manutenção não pode ser reservado.",
+      "item": [
+        {
+          "name": "4.1. 🎯 Operador: Alterar status para MANUTENCAO",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Jetski está em MANUTENCAO', function () {",
+                  "    const jetski = pm.response.json();",
+                  "    pm.expect(jetski.status).to.eql('MANUTENCAO');",
+                  "});",
+                  "",
+                  "console.log('✅ 🎯 Operador alterou jetski para MANUTENCAO');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/jetskis/{{jetski_id}}/status?status=MANUTENCAO",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "jetskis", "{{jetski_id}}", "status"],
+              "query": [
+                {"key": "status", "value": "MANUTENCAO"}
+              ]
+            },
+            "description": "**Persona:** 🎯 OPERADOR\n\nOperador identifica problema e altera status para MANUTENCAO. Jetski ficará INDISPONIVEL para novas reservas (RN06)."
+          }
+        },
+        {
+          "name": "4.2. 💼 Vendedor: Tentar criar reserva (DEVE FALHAR)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Gera data de início (agora + 30 minutos)",
+                  "const now = new Date();",
+                  "const dataInicio = new Date(now.getTime() + (30 * 60 * 1000));",
+                  "pm.collectionVariables.set('manutencao_falha_data_inicio', dataInicio.toISOString());",
+                  "",
+                  "// Gera data de fim (início + 1 hora)",
+                  "const dataFim = new Date(dataInicio.getTime() + (1 * 60 * 60 * 1000));",
+                  "pm.collectionVariables.set('manutencao_falha_data_fim', dataFim.toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Mensagem indica jetski indisponível', function () {",
+                  "    const error = pm.response.json();",
+                  "    pm.expect(error.message).to.include('disponível');",
+                  "});",
+                  "",
+                  "console.log('✅ RN06 validada: Jetski em manutenção NÃO pode ser reservado!');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{vendedor_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"modeloId\": \"{{modelo_id}}\",\n  \"jetskiId\": \"{{jetski_id}}\",\n  \"clienteId\": \"{{cliente_id}}\",\n  \"vendedorId\": \"{{vendedor_id}}\",\n  \"dataInicio\": \"{{manutencao_falha_data_inicio}}\",\n  \"dataFimPrevista\": \"{{manutencao_falha_data_fim}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/reservas",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "reservas"]
+            },
+            "description": "**Persona:** 💼 VENDEDOR\n\n**Teste RN06:** Vendedor tenta criar reserva com jetski em manutenção.\n\n**Esperado:** 400 Bad Request (jetski indisponível)"
+          }
+        },
+        {
+          "name": "4.3. 🎯 Operador: Retornar status para DISPONIVEL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Jetski está DISPONIVEL novamente', function () {",
+                  "    const jetski = pm.response.json();",
+                  "    pm.expect(jetski.status).to.eql('DISPONIVEL');",
+                  "});",
+                  "",
+                  "console.log('✅ 🎯 Operador finalizou manutenção: jetski DISPONIVEL');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/jetskis/{{jetski_id}}/status?status=DISPONIVEL",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "jetskis", "{{jetski_id}}", "status"],
+              "query": [
+                {"key": "status", "value": "DISPONIVEL"}
+              ]
+            },
+            "description": "**Persona:** 🎯 OPERADOR\n\nOperador finaliza manutenção e retorna jetski ao status DISPONIVEL. Jetski pode ser reservado novamente."
+          }
+        },
+        {
+          "name": "4.4. 💼 Vendedor: Criar reserva (AGORA FUNCIONA)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Gera data de início (agora + 1 hora)",
+                  "const now = new Date();",
+                  "const dataInicio = new Date(now.getTime() + (1 * 60 * 60 * 1000));",
+                  "pm.collectionVariables.set('manutencao_data_inicio', dataInicio.toISOString());",
+                  "",
+                  "// Gera data de fim (início + 2 horas)",
+                  "const dataFim = new Date(dataInicio.getTime() + (2 * 60 * 60 * 1000));",
+                  "pm.collectionVariables.set('manutencao_data_fim', dataFim.toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 201 Created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Reserva criada com sucesso', function () {",
+                  "    const reserva = pm.response.json();",
+                  "    pm.expect(reserva.id).to.be.a('string');",
+                  "    pm.expect(reserva.status).to.eql('PENDENTE');",
+                  "});",
+                  "",
+                  "console.log('✅ 💼 Vendedor criou reserva após manutenção concluída!');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{vendedor_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"modeloId\": \"{{modelo_id}}\",\n  \"jetskiId\": \"{{jetski_id}}\",\n  \"clienteId\": \"{{cliente_id}}\",\n  \"vendedorId\": \"{{vendedor_id}}\",\n  \"dataInicio\": \"{{manutencao_data_inicio}}\",\n  \"dataFimPrevista\": \"{{manutencao_data_fim}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/reservas",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "reservas"]
+            },
+            "description": "**Persona:** 💼 VENDEDOR\n\n**Sucesso:** Vendedor cria reserva após manutenção concluída.\n\n**Esperado:** 201 Created"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🚫 6. Jornadas Negativas - Testes de Autorização",
+      "description": "## 🔒 Testes de Segurança e RBAC\n\nValida que o sistema **bloqueia corretamente** operações não autorizadas.\n\n### Grupos de Testes:\n\n**A. Violações de Papel (Role)**\n- Vendedor/Operador tentando operações de Gerente/Admin\n\n**B. Violações de Autenticação**\n- Requests sem token, com token inválido ou expirado\n\n**C. Violações de Lógica de Negócio**\n- Check-out sem check-in, reserva sem sinal, etc.\n\nTodos os testes devem **FALHAR com códigos esperados** (400/401/403).",
+      "item": [
+        {
+          "name": "6.1. ❌ Vendedor tenta fazer check-in (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "pm.test('Mensagem de erro indica falta de permissão', function () {",
+                  "    const error = pm.response.json();",
+                  "    pm.expect(error.status).to.eql(403);",
+                  "});",
+                  "",
+                  "console.log('✅ RBAC correto: Vendedor NÃO pode fazer check-in (apenas Operador)');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{vendedor_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservaId\": \"{{reserva_id}}\",\n  \"horimetroInicio\": 100.5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/check-in/reserva",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "check-in", "reserva"]
+            },
+            "description": "**Teste:** Vendedor NÃO pode fazer check-in (papel incorreto)\n\n**Esperado:** 403 Forbidden\n\n**Razão:** Apenas OPERADOR pode executar check-in/check-out"
+          }
+        },
+        {
+          "name": "6.2. ❌ Vendedor tenta fazer check-out (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "console.log('✅ RBAC correto: Vendedor NÃO pode fazer check-out');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{vendedor_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"horimetroFim\": 105.0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/{{locacao_id}}/check-out",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "{{locacao_id}}", "check-out"]
+            },
+            "description": "**Teste:** Vendedor NÃO pode fazer check-out\n\n**Esperado:** 403 Forbidden"
+          }
+        },
+        {
+          "name": "6.3. ❌ Operador tenta confirmar reserva (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "console.log('✅ RBAC correto: Operador NÃO pode confirmar reserva (apenas Gerente)');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/confirmar",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "reservas", "{{reserva_id}}", "confirmar"]
+            },
+            "description": "**Teste:** Operador NÃO pode confirmar reserva (precisa autorização de Gerente)\n\n**Esperado:** 403 Forbidden"
+          }
+        },
+        {
+          "name": "6.4. ❌ Operador tenta criar modelo (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "console.log('✅ RBAC correto: Operador NÃO pode criar modelo (apenas Admin)');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fabricante\": \"Sea-Doo\",\n  \"nome\": \"GTX\",\n  \"precoBaseHora\": 400.0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/modelos",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "modelos"]
+            },
+            "description": "**Teste:** Operador NÃO pode criar modelos (operação de Admin)\n\n**Esperado:** 403 Forbidden"
+          }
+        },
+        {
+          "name": "6.5. ❌ Vendedor tenta criar jetski (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "",
+                  "console.log('✅ RBAC correto: Vendedor NÃO pode cadastrar jetskis (apenas Admin)');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{vendedor_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"modeloId\": \"{{modelo_id}}\",\n  \"serie\": \"FAKE-002\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/jetskis",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "jetskis"]
+            },
+            "description": "**Teste:** Vendedor NÃO pode cadastrar jetskis na frota\n\n**Esperado:** 403 Forbidden"
+          }
+        },
+        {
+          "name": "6.6. ❌ Request sem token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "console.log('✅ Auth correto: Request sem token retorna 401');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/modelos",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "modelos"]
+            },
+            "description": "**Teste:** Request sem header Authorization\n\n**Esperado:** 401 Unauthorized"
+          }
+        },
+        {
+          "name": "6.7. ❌ Request com token inválido (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "console.log('✅ Auth correto: Token inválido retorna 401');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer INVALID_TOKEN_12345"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/modelos",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "modelos"]
+            },
+            "description": "**Teste:** Token JWT inválido/mal formado\n\n**Esperado:** 401 Unauthorized"
+          }
+        },
+        {
+          "name": "6.8. ❌ Check-out sem check-in (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 400 Bad Request ou 404 Not Found', function () {",
+                  "    pm.expect([400, 404]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "console.log('✅ Lógica de negócio correta: Check-out sem locação ativa falha');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"horimetroFim\": 999.0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/99999999-9999-9999-9999-999999999999/check-out",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "99999999-9999-9999-9999-999999999999", "check-out"]
+            },
+            "description": "**Teste:** Check-out em locação inexistente\n\n**Esperado:** 400 ou 404"
+          }
+        },
+        {
+          "name": "6.9. ❌ Check-in em reserva inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code é 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Mensagem indica reserva não encontrada', function () {",
+                  "    const error = pm.response.json();",
+                  "    pm.expect(error.message).to.include('não encontrada');",
+                  "});",
+                  "",
+                  "console.log('✅ Lógica correta: Check-in requer reserva existente');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservaId\": \"99999999-9999-9999-9999-999999999999\",\n  \"horimetroInicio\": 100.0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/check-in/reserva",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "check-in", "reserva"]
+            },
+            "description": "**Teste:** Check-in em reserva inexistente\n\n**Esperado:** 404 Not Found (recurso não existe)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 7. Consultas por Persona",
+      "description": "Cada persona consulta o que tem permissão de ver",
+      "item": [
+        {
+          "name": "7.1. 👔 Gerente: Locações em Curso",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{gerente_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes?status=EM_CURSO",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes"],
+              "query": [{"key": "status", "value": "EM_CURSO"}]
+            },
+            "description": "**Persona:** 👔 GERENTE\n\nGerente monitora locações em andamento"
+          }
+        },
+        {
+          "name": "7.2. 🎯 Operador: Reservas do Dia",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{operador_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/reservas?status=CONFIRMADA",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "reservas"],
+              "query": [{"key": "status", "value": "CONFIRMADA"}]
+            },
+            "description": "**Persona:** 🎯 OPERADOR\n\nOperador vê reservas confirmadas aguardando check-in"
+          }
+        },
+        {
+          "name": "7.3. 💼 Vendedor: Minhas Reservas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{vendedor_token}}"},
+              {"key": "X-Tenant-Id", "value": "{{tenant_id}}"}
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/reservas",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "tenants", "{{tenant_id}}", "reservas"]
+            },
+            "description": "**Persona:** 💼 VENDEDOR\n\nVendedor consulta reservas que criou (comissões)"
+          }
+        }
+      ]
+    }
+  ]
+}

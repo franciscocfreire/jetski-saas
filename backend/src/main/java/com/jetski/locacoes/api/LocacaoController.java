@@ -1,9 +1,16 @@
 package com.jetski.locacoes.api;
 
 import com.jetski.locacoes.api.dto.*;
+import com.jetski.locacoes.domain.Cliente;
+import com.jetski.locacoes.domain.Jetski;
 import com.jetski.locacoes.domain.Locacao;
 import com.jetski.locacoes.domain.LocacaoStatus;
+import com.jetski.locacoes.domain.Modelo;
 import com.jetski.locacoes.internal.LocacaoService;
+import com.jetski.locacoes.internal.repository.ClienteRepository;
+import com.jetski.locacoes.internal.repository.JetskiRepository;
+import com.jetski.locacoes.internal.repository.LocacaoItemOpcionalRepository;
+import com.jetski.locacoes.internal.repository.ModeloRepository;
 import com.jetski.shared.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -15,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -47,6 +55,10 @@ import java.util.stream.Collectors;
 public class LocacaoController {
 
     private final LocacaoService locacaoService;
+    private final LocacaoItemOpcionalRepository locacaoItemOpcionalRepository;
+    private final JetskiRepository jetskiRepository;
+    private final ModeloRepository modeloRepository;
+    private final ClienteRepository clienteRepository;
 
     /**
      * POST /v1/tenants/{tenantId}/locacoes/check-in/reserva
@@ -81,7 +93,10 @@ public class LocacaoController {
             request.getReservaId(),
             request.getHorimetroInicio(),
             request.getObservacoes(),
-            request.getChecklistSaidaJson()
+            request.getChecklistSaidaJson(),
+            request.getValorNegociado(),
+            request.getMotivoDesconto(),
+            request.getModalidadePreco()
         );
 
         LocacaoResponse response = toResponse(locacao);
@@ -125,7 +140,10 @@ public class LocacaoController {
             request.getHorimetroInicio(),
             request.getDuracaoPrevista(),
             request.getObservacoes(),
-            request.getChecklistSaidaJson()
+            request.getChecklistSaidaJson(),
+            request.getValorNegociado(),
+            request.getMotivoDesconto(),
+            request.getModalidadePreco()
         );
 
         LocacaoResponse response = toResponse(locacao);
@@ -171,7 +189,8 @@ public class LocacaoController {
             id,
             request.getHorimetroFim(),
             request.getObservacoes(),
-            request.getChecklistEntradaJson()
+            request.getChecklistEntradaJson(),
+            request.getSkipPhotos()
         );
 
         LocacaoResponse response = toResponse(locacao);
@@ -200,6 +219,35 @@ public class LocacaoController {
         validateTenantContext(tenantId);
 
         Locacao locacao = locacaoService.findById(id);
+        LocacaoResponse response = toResponse(locacao);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * PATCH /v1/tenants/{tenantId}/locacoes/{id}/cliente
+     *
+     * Associate a client to an existing rental (for quick check-in without client)
+     *
+     * @param tenantId Tenant ID from path
+     * @param id Locacao ID from path
+     * @param request AssociarClienteRequest with clienteId
+     * @return 200 OK with updated LocacaoResponse
+     */
+    @PatchMapping("/{id}/cliente")
+    @Operation(summary = "Associate client to rental",
+               description = "Associate a client to a rental that was created without one (quick check-in)")
+    public ResponseEntity<LocacaoResponse> associarCliente(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @Valid @RequestBody AssociarClienteRequest request
+    ) {
+        log.info("PATCH /v1/tenants/{}/locacoes/{}/cliente - clienteId={}",
+                 tenantId, id, request.getClienteId());
+
+        validateTenantContext(tenantId);
+
+        Locacao locacao = locacaoService.associarCliente(tenantId, id, request.getClienteId());
         LocacaoResponse response = toResponse(locacao);
 
         return ResponseEntity.ok(response);
@@ -266,6 +314,34 @@ public class LocacaoController {
     }
 
     private LocacaoResponse toResponse(Locacao locacao) {
+        // Calculate optional items total
+        BigDecimal valorItensOpcionais = locacaoItemOpcionalRepository
+            .sumValorCobradoByLocacaoId(locacao.getId());
+
+        // Fetch denormalized fields for display
+        String jetskiSerie = null;
+        String jetskiModeloNome = null;
+        String clienteNome = null;
+
+        // Get jetski info
+        Jetski jetski = jetskiRepository.findById(locacao.getJetskiId()).orElse(null);
+        if (jetski != null) {
+            jetskiSerie = jetski.getSerie();
+            // Get modelo name
+            Modelo modelo = modeloRepository.findById(jetski.getModeloId()).orElse(null);
+            if (modelo != null) {
+                jetskiModeloNome = modelo.getNome();
+            }
+        }
+
+        // Get cliente name (if exists)
+        if (locacao.getClienteId() != null) {
+            Cliente cliente = clienteRepository.findById(locacao.getClienteId()).orElse(null);
+            if (cliente != null) {
+                clienteNome = cliente.getNome();
+            }
+        }
+
         return LocacaoResponse.builder()
             .id(locacao.getId())
             .tenantId(locacao.getTenantId())
@@ -273,6 +349,9 @@ public class LocacaoController {
             .jetskiId(locacao.getJetskiId())
             .clienteId(locacao.getClienteId())
             .vendedorId(locacao.getVendedorId())
+            .jetskiSerie(jetskiSerie)
+            .jetskiModeloNome(jetskiModeloNome)
+            .clienteNome(clienteNome)
             .dataCheckIn(locacao.getDataCheckIn())
             .horimetroInicio(locacao.getHorimetroInicio())
             .duracaoPrevista(locacao.getDuracaoPrevista())
@@ -280,7 +359,11 @@ public class LocacaoController {
             .horimetroFim(locacao.getHorimetroFim())
             .minutosUsados(locacao.getMinutosUsados())
             .minutosFaturaveis(locacao.getMinutosFaturaveis())
+            .valorNegociado(locacao.getValorNegociado())
+            .motivoDesconto(locacao.getMotivoDesconto())
+            .modalidadePreco(locacao.getModalidadePreco())
             .valorBase(locacao.getValorBase())
+            .valorItensOpcionais(valorItensOpcionais)
             .valorTotal(locacao.getValorTotal())
             .status(locacao.getStatus())
             .observacoes(locacao.getObservacoes())

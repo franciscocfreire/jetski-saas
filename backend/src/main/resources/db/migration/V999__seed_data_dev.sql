@@ -7,6 +7,14 @@
 -- =====================================================
 
 -- =====================================================
+-- Fix Tenant Status CHECK constraint (must run before inserts)
+-- =====================================================
+-- Drop old CHECK constraint and add new one with UPPERCASE values
+ALTER TABLE tenant DROP CONSTRAINT IF EXISTS tenant_status_check;
+ALTER TABLE tenant ADD CONSTRAINT tenant_status_check
+    CHECK (status = ANY (ARRAY['TRIAL', 'ATIVO', 'SUSPENSO', 'CANCELADO', 'INATIVO']));
+
+-- =====================================================
 -- Planos (Subscription Plans)
 -- =====================================================
 INSERT INTO plano (nome, descricao, limites_json, preco_mensal, ativo) VALUES
@@ -28,17 +36,57 @@ INSERT INTO plano (nome, descricao, limites_json, preco_mensal, ativo) VALUES
 INSERT INTO tenant (id, slug, razao_social, cnpj, timezone, moeda, status, contato, branding_json)
 VALUES
 ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'praia-do-sol', 'Praia do Sol Jet Ski Ltda', '12.345.678/0001-90',
- 'America/Sao_Paulo', 'BRL', 'ativo',
+ 'America/Sao_Paulo', 'BRL', 'ATIVO',
  '{"telefone": "+55 11 98765-4321", "email": "contato@praiadosol.com.br", "endereco": "Av. Atlântica, 1000 - Copacabana, Rio de Janeiro/RJ"}'::jsonb,
- '{"logo_url": "https://example.com/logo.png", "cor_primaria": "#0066CC", "cor_secundaria": "#FFD700"}'::jsonb);
+ '{"logo_url": "https://example.com/logo.png", "cor_primaria": "#0066CC", "cor_secundaria": "#FFD700"}'::jsonb),
+
+('b0000000-0000-0000-0000-000000000001', 'marina-bay-club', 'Marina Bay Club Ltda', '22.345.678/0001-91',
+ 'America/Sao_Paulo', 'BRL', 'ATIVO',
+ '{"telefone": "+55 21 98888-1111", "email": "contato@marinabay.com.br", "endereco": "Av. das Américas, 5000 - Barra da Tijuca, Rio de Janeiro/RJ"}'::jsonb,
+ '{"logo_url": "https://example.com/marina-logo.png", "cor_primaria": "#003366", "cor_secundaria": "#66CCFF"}'::jsonb),
+
+('b0000000-0000-0000-0000-000000000002', 'copacabana-jet-ski', 'Copacabana Jet Ski Rentals Ltda', '32.345.678/0001-92',
+ 'America/Sao_Paulo', 'BRL', 'ATIVO',
+ '{"telefone": "+55 21 97777-2222", "email": "contato@copajets.com.br", "endereco": "Av. Atlântica, 3500 - Copacabana, Rio de Janeiro/RJ"}'::jsonb,
+ '{"logo_url": "https://example.com/copa-logo.png", "cor_primaria": "#FF6600", "cor_secundaria": "#FFCC00"}'::jsonb),
+
+('b0000000-0000-0000-0000-000000000003', 'ipanema-beach-rentals', 'Ipanema Beach Rentals Ltda', '42.345.678/0001-93',
+ 'America/Sao_Paulo', 'BRL', 'ATIVO',
+ '{"telefone": "+55 21 96666-3333", "email": "contato@ipanemabeach.com.br", "endereco": "Av. Vieira Souto, 500 - Ipanema, Rio de Janeiro/RJ"}'::jsonb,
+ '{"logo_url": "https://example.com/ipanema-logo.png", "cor_primaria": "#9933CC", "cor_secundaria": "#FF99CC"}'::jsonb),
+
+('b0000000-0000-0000-0000-000000000005', 'buzios-jet-adventures', 'Búzios Jet Adventures Ltda', '52.345.678/0001-95',
+ 'America/Sao_Paulo', 'BRL', 'ATIVO',
+ '{"telefone": "+55 22 95555-5555", "email": "contato@buziosjets.com.br", "endereco": "Rua das Pedras, 200 - Búzios, RJ"}'::jsonb,
+ '{"logo_url": "https://example.com/buzios-logo.png", "cor_primaria": "#00CC99", "cor_secundaria": "#FFFF00"}'::jsonb),
+
+('b0000000-0000-0000-0000-000000000009', 'angra-paradise-jets', 'Angra Paradise Jets Ltda', '62.345.678/0001-99',
+ 'America/Sao_Paulo', 'BRL', 'ATIVO',
+ '{"telefone": "+55 24 94444-9999", "email": "contato@angraparadise.com.br", "endereco": "Praia do Abraão, s/n - Angra dos Reis, RJ"}'::jsonb,
+ '{"logo_url": "https://example.com/angra-logo.png", "cor_primaria": "#006633", "cor_secundaria": "#99FF66"}'::jsonb);
 
 -- =====================================================
--- Assinatura (Active Subscription)
+-- Assinaturas (Active Subscriptions)
 -- =====================================================
 INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, dt_fim, status, pagamento_cfg_json)
 VALUES
 ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', (SELECT id FROM plano WHERE nome = 'Pro'), 'mensal', '2025-01-01', NULL, 'ativa',
- '{"metodo": "cartao", "ultimos_digitos": "4321", "vencimento_dia": 1}'::jsonb);
+ '{"metodo": "cartao", "ultimos_digitos": "4321", "vencimento_dia": 1}'::jsonb),
+
+('b0000000-0000-0000-0000-000000000001', (SELECT id FROM plano WHERE nome = 'Pro'), 'mensal', '2025-01-01', NULL, 'ativa',
+ '{"metodo": "cartao", "ultimos_digitos": "1111", "vencimento_dia": 5}'::jsonb),
+
+('b0000000-0000-0000-0000-000000000002', (SELECT id FROM plano WHERE nome = 'Basic'), 'mensal', '2025-01-01', NULL, 'ativa',
+ '{"metodo": "cartao", "ultimos_digitos": "2222", "vencimento_dia": 10}'::jsonb),
+
+('b0000000-0000-0000-0000-000000000003', (SELECT id FROM plano WHERE nome = 'Pro'), 'mensal', '2025-01-01', NULL, 'ativa',
+ '{"metodo": "cartao", "ultimos_digitos": "3333", "vencimento_dia": 15}'::jsonb),
+
+('b0000000-0000-0000-0000-000000000005', (SELECT id FROM plano WHERE nome = 'Enterprise'), 'mensal', '2025-01-01', NULL, 'ativa',
+ '{"metodo": "cartao", "ultimos_digitos": "5555", "vencimento_dia": 20}'::jsonb),
+
+('b0000000-0000-0000-0000-000000000009', (SELECT id FROM plano WHERE nome = 'Basic'), 'mensal', '2025-01-01', NULL, 'ativa',
+ '{"metodo": "cartao", "ultimos_digitos": "9999", "vencimento_dia": 25}'::jsonb);
 
 -- =====================================================
 -- Usuarios (Sample Users)
@@ -124,19 +172,51 @@ VALUES
 INSERT INTO jetski (id, tenant_id, modelo_id, serie, placa, ano, horimetro_atual, status, ativo)
 VALUES
 ('d1111111-1111-1111-1111-111111111111', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'SPARK001', 'JET-0001', 2023, 120.5, 'disponivel', TRUE),
+ 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'SPARK001', 'JET-0001', 2023, 120.5, 'DISPONIVEL', TRUE),
 
 ('d2222222-2222-2222-2222-222222222222', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'SPARK002', 'JET-0002', 2023, 95.3, 'disponivel', TRUE),
+ 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'SPARK002', 'JET-0002', 2023, 95.3, 'DISPONIVEL', TRUE),
 
 ('d3333333-3333-3333-3333-333333333333', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'VXCRU001', 'JET-0003', 2022, 250.8, 'disponivel', TRUE),
+ 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'VXCRU001', 'JET-0003', 2022, 250.8, 'DISPONIVEL', TRUE),
 
 ('d4444444-4444-4444-4444-444444444444', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'VXCRU002', 'JET-0004', 2022, 310.2, 'locado', TRUE),
+ 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'VXCRU002', 'JET-0004', 2022, 310.2, 'LOCADO', TRUE),
 
 ('d5555555-5555-5555-5555-555555555555', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'ULTRA001', 'JET-0005', 2024, 45.7, 'manutencao', TRUE);
+ 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'ULTRA001', 'JET-0005', 2024, 45.7, 'MANUTENCAO', TRUE),
+
+-- Jetskis for Marina Bay Club (b0000000-0000-0000-0000-000000000001)
+('e1111111-1111-1111-1111-111111111111', 'b0000000-0000-0000-0000-000000000001',
+ 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'MARINA-001', 'BAY-001', 2024, 50.0, 'DISPONIVEL', TRUE),
+('e2222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000001',
+ 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'MARINA-002', 'BAY-002', 2023, 180.5, 'DISPONIVEL', TRUE),
+
+-- Jetskis for Copacabana Jet Ski (b0000000-0000-0000-0000-000000000002)
+('e3333333-3333-3333-3333-333333333333', 'b0000000-0000-0000-0000-000000000002',
+ 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'COPA-001', 'CPJ-001', 2023, 95.3, 'DISPONIVEL', TRUE),
+('e4444444-4444-4444-4444-444444444444', 'b0000000-0000-0000-0000-000000000002',
+ 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'COPA-002', 'CPJ-002', 2024, 30.0, 'LOCADO', TRUE),
+
+-- Jetskis for Ipanema Beach Rentals (b0000000-0000-0000-0000-000000000003)
+('e5555555-5555-5555-5555-555555555555', 'b0000000-0000-0000-0000-000000000003',
+ 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'IPA-001', 'IPB-001', 2022, 310.0, 'DISPONIVEL', TRUE),
+('e6666666-6666-6666-6666-666666666666', 'b0000000-0000-0000-0000-000000000003',
+ 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'IPA-002', 'IPB-002', 2023, 120.0, 'MANUTENCAO', TRUE),
+
+-- Jetskis for Búzios Jet Adventures (b0000000-0000-0000-0000-000000000005)
+('e7777777-7777-7777-7777-777777777777', 'b0000000-0000-0000-0000-000000000005',
+ 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'BUZIOS-001', 'BJA-001', 2024, 25.5, 'DISPONIVEL', TRUE),
+('e8888888-8888-8888-8888-888888888888', 'b0000000-0000-0000-0000-000000000005',
+ 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'BUZIOS-002', 'BJA-002', 2023, 150.0, 'DISPONIVEL', TRUE),
+('e9999999-9999-9999-9999-999999999999', 'b0000000-0000-0000-0000-000000000005',
+ 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'BUZIOS-003', 'BJA-003', 2023, 200.0, 'DISPONIVEL', TRUE),
+
+-- Jetskis for Angra Paradise Jets (b0000000-0000-0000-0000-000000000009)
+('f1111111-1111-1111-1111-111111111111', 'b0000000-0000-0000-0000-000000000009',
+ 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'ANGRA-001', 'APJ-001', 2024, 15.0, 'DISPONIVEL', TRUE),
+('f2222222-2222-2222-2222-222222222222', 'b0000000-0000-0000-0000-000000000009',
+ 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'ANGRA-002', 'APJ-002', 2023, 85.0, 'DISPONIVEL', TRUE);
 
 -- =====================================================
 -- Vendedores (Sellers/Partners)
@@ -286,31 +366,13 @@ VALUES
 INSERT INTO usuario (id, email, nome, ativo) VALUES
 ('00000000-0000-0000-0000-000000000002', 'gerente.multi@example.com', 'Gerente Multi-Tenant', TRUE);
 
--- Additional Test Tenants
-INSERT INTO tenant (id, slug, razao_social, status) VALUES
-('b0000000-0000-0000-0000-000000000001', 'marina-bay', 'Marina Bay Club', 'ativo'),
-('b0000000-0000-0000-0000-000000000002', 'copa-jet', 'Copacabana Jet Ski', 'ativo'),
-('b0000000-0000-0000-0000-000000000003', 'ipanema-beach', 'Ipanema Beach Rentals', 'ativo'),
-('b0000000-0000-0000-0000-000000000004', 'guaruja-waters', 'Guarujá Waters', 'ativo'),
-('b0000000-0000-0000-0000-000000000005', 'buzios-jet', 'Búzios Jet Adventures', 'ativo'),
-('b0000000-0000-0000-0000-000000000006', 'ilhabela-sports', 'Ilhabela Water Sports', 'ativo'),
-('b0000000-0000-0000-0000-000000000007', 'balneario-waves', 'Balneário Waves', 'ativo'),
-('b0000000-0000-0000-0000-000000000008', 'floripa-jet', 'Floripa Jet Rentals', 'ativo'),
-('b0000000-0000-0000-0000-000000000009', 'angra-paradise', 'Angra Paradise Jets', 'ativo'),
-('b0000000-0000-0000-0000-000000000010', 'paraty-bay', 'Paraty Bay Adventures', 'ativo');
-
--- Multi-tenant memberships (same user in 10+ tenants with different roles)
+-- Multi-tenant memberships (same user in 6 tenants with different roles)
 INSERT INTO membro (tenant_id, usuario_id, papeis, ativo) VALUES
 ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '00000000-0000-0000-0000-000000000002', ARRAY['ADMIN_TENANT'], TRUE),
 ('b0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', ARRAY['GERENTE'], TRUE),
 ('b0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', ARRAY['OPERADOR'], TRUE),
 ('b0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000002', ARRAY['GERENTE', 'OPERADOR'], TRUE),
-('b0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000002', ARRAY['GERENTE'], TRUE),
 ('b0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000002', ARRAY['ADMIN_TENANT'], TRUE),
-('b0000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000002', ARRAY['OPERADOR'], TRUE),
-('b0000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000002', ARRAY['GERENTE'], TRUE),
-('b0000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000002', ARRAY['GERENTE', 'FINANCEIRO'], TRUE),
-('b0000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000002', ARRAY['OPERADOR'], TRUE),
-('b0000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000002', ARRAY['GERENTE'], TRUE);
+('b0000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000002', ARRAY['OPERADOR'], TRUE);
 
 COMMENT ON DATABASE jetski_dev IS 'Jetski SaaS - Development database with seed data including multi-tenant test users';

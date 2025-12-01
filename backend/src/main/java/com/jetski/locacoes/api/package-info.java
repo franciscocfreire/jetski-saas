@@ -8,6 +8,7 @@
  * <p><strong>Exposed Services:</strong>
  * <ul>
  *   <li>{@link com.jetski.locacoes.api.LocacaoQueryService} - Query service for rentals</li>
+ *   <li>{@link com.jetski.locacoes.api.JetskiPublicService} - Public service for jetski operations</li>
  * </ul>
  *
  * @author Jetski Team

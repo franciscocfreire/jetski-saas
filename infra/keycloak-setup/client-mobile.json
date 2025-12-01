@@ -14,18 +14,17 @@
   "authorizationServicesEnabled": false,
   "fullScopeAllowed": true,
   "redirectUris": [
-    "com.jetski.app:/oauth2redirect",
-    "jetski://oauth2callback",
+    "com.jetski.mobile:/oauth2redirect",
+    "com.jetski.mobile:/oauth2callback",
     "http://localhost:3000/*"
   ],
   "webOrigins": [
-    "com.jetski.app",
-    "jetski",
+    "com.jetski.mobile",
     "http://localhost:3000"
   ],
   "attributes": {
     "pkce.code.challenge.method": "S256",
-    "post.logout.redirect.uris": "com.jetski.app:/logout+##jetski://logout",
+    "post.logout.redirect.uris": "com.jetski.mobile:/logout",
     "oauth2.device.authorization.grant.enabled": "false",
     "oidc.ciba.grant.enabled": "false",
     "backchannel.logout.session.required": "true",
@@ -37,6 +36,17 @@
     "token.endpoint.auth.signing.alg": "RS256"
   },
   "protocolMappers": [
+    {
+      "name": "sub-mapper",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-sub-mapper",
+      "consentRequired": false,
+      "config": {
+        "access.token.claim": "true",
+        "id.token.claim": "true",
+        "userinfo.token.claim": "true"
+      }
+    },
     {
       "name": "tenant-id-mapper",
       "protocol": "openid-connect",

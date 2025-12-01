@@ -65,14 +65,14 @@ class BusinessMetricsServiceTest {
     @Test
     @DisplayName("Should update gauge metrics with non-null database results")
     void testAtualizarMetricasGauge_WithNonNullResults() {
-        // Mock database queries returning non-null values
+        // Mock database queries returning non-null values (using actual SQL from service)
         when(jdbcTemplate.queryForObject(
             eq("SELECT COUNT(*) FROM locacao WHERE status IN ('ATIVA', 'EM_ANDAMENTO')"),
             eq(Integer.class)
         )).thenReturn(5);
 
         when(jdbcTemplate.queryForObject(
-            eq("SELECT COUNT(*) FROM reserva WHERE status = 'CONFIRMADA' AND data_hora_prevista_inicio > NOW()"),
+            eq("SELECT COUNT(*) FROM reserva WHERE status = 'CONFIRMADA' AND data_inicio > NOW()"),
             eq(Integer.class)
         )).thenReturn(10);
 
@@ -174,7 +174,7 @@ class BusinessMetricsServiceTest {
         )).thenReturn(0);
 
         when(jdbcTemplate.queryForObject(
-            eq("SELECT COUNT(*) FROM reserva WHERE status = 'CONFIRMADA' AND data_hora_prevista_inicio > NOW()"),
+            eq("SELECT COUNT(*) FROM reserva WHERE status = 'CONFIRMADA' AND data_inicio > NOW()"),
             eq(Integer.class)
         )).thenReturn(0);
 
@@ -213,7 +213,7 @@ class BusinessMetricsServiceTest {
         )).thenReturn(0);
 
         when(jdbcTemplate.queryForObject(
-            eq("SELECT COUNT(*) FROM reserva WHERE status = 'CONFIRMADA' AND data_hora_prevista_inicio > NOW()"),
+            eq("SELECT COUNT(*) FROM reserva WHERE status = 'CONFIRMADA' AND data_inicio > NOW()"),
             eq(Integer.class)
         )).thenReturn(0);
 

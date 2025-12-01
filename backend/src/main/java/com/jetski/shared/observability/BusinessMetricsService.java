@@ -137,7 +137,7 @@ public class BusinessMetricsService {
 
             // Atualizar reservas pendentes
             Integer reservasPendentesCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM reserva WHERE status = 'CONFIRMADA' AND data_hora_prevista_inicio > NOW()",
+                "SELECT COUNT(*) FROM reserva WHERE status = 'CONFIRMADA' AND data_inicio > NOW()",
                 Integer.class
             );
             reservasPendentes.set(reservasPendentesCount != null ? reservasPendentesCount : 0);

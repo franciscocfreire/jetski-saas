@@ -45,6 +45,8 @@ spring:
           issuer-uri: http://localhost:8081/realms/jetski-saas
           jwk-set-uri: http://localhost:8081/realms/jetski-saas/protocol/openid-connect/certs
           # Keycloak LOCAL realm jetski-saas (porta 8081)
+          # IMPORTANTE: Mobile usa IP WSL (172.30.197.110) mas Keycloak emite tokens com localhost
+          # Backend precisa validar contra localhost para o issuer bater
 
   cache:
     type: redis

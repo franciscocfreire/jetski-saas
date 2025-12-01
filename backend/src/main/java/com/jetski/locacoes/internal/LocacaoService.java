@@ -2,6 +2,7 @@ package com.jetski.locacoes.internal;
 
 import com.jetski.combustivel.internal.LocacaoFuelData;
 import com.jetski.locacoes.domain.*;
+import com.jetski.locacoes.internal.repository.LocacaoItemOpcionalRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
 import com.jetski.shared.exception.BusinessException;
@@ -42,6 +43,7 @@ public class LocacaoService {
 
     private final LocacaoRepository locacaoRepository;
     private final ReservaRepository reservaRepository;
+    private final LocacaoItemOpcionalRepository locacaoItemOpcionalRepository;
     private final JetskiService jetskiService;
     private final ModeloService modeloService;
     private final ClienteService clienteService;
@@ -64,10 +66,17 @@ public class LocacaoService {
      * @param reservaId Reservation ID
      * @param horimetroInicio Hourmeter reading at check-in
      * @param observacoes Optional notes
+     * @param checklistSaidaJson Check-in checklist JSON
+     * @param valorNegociado Optional negotiated price (if set, used instead of calculated value)
+     * @param motivoDesconto Optional reason for negotiated price
+     * @param modalidadePreco Pricing mode (PRECO_FECHADO, DIARIA, MEIA_DIARIA)
      * @return Created Locacao
      */
     @Transactional
-    public Locacao checkInFromReservation(UUID tenantId, UUID reservaId, BigDecimal horimetroInicio, String observacoes, String checklistSaidaJson) {
+    public Locacao checkInFromReservation(UUID tenantId, UUID reservaId, BigDecimal horimetroInicio,
+                                           String observacoes, String checklistSaidaJson,
+                                           BigDecimal valorNegociado, String motivoDesconto,
+                                           ModalidadePreco modalidadePreco) {
         log.info("Check-in from reservation: tenant={}, reserva={}", tenantId, reservaId);
 
         // 1. Find and validate reservation
@@ -111,10 +120,13 @@ public class LocacaoService {
             .status(LocacaoStatus.EM_CURSO)
             .observacoes(observacoes)
             .checklistSaidaJson(checklistSaidaJson)
+            .valorNegociado(valorNegociado)
+            .motivoDesconto(motivoDesconto)
+            .modalidadePreco(modalidadePreco != null ? modalidadePreco : ModalidadePreco.PRECO_FECHADO)
             .build();
 
         locacao = locacaoRepository.save(locacao);
-        log.info("Locacao created: id={}, jetski={}", locacao.getId(), jetski.getId());
+        log.info("Locacao created: id={}, jetski={}, valorNegociado={}, modalidade={}", locacao.getId(), jetski.getId(), valorNegociado, locacao.getModalidadePreco());
 
         // 5. Validate 4 mandatory check-in photos
         // TODO FASE 2: Photo validation temporarily disabled during check-in
@@ -155,19 +167,27 @@ public class LocacaoService {
      * @param horimetroInicio Hourmeter reading at check-in
      * @param duracaoPrevista Expected duration in minutes
      * @param observacoes Optional notes
+     * @param checklistSaidaJson Check-in checklist JSON
+     * @param valorNegociado Optional negotiated price (if set, used instead of calculated value)
+     * @param motivoDesconto Optional reason for negotiated price
+     * @param modalidadePreco Pricing mode (PRECO_FECHADO, DIARIA, MEIA_DIARIA)
      * @return Created Locacao
      */
     @Transactional
     public Locacao checkInWalkIn(UUID tenantId, UUID jetskiId, UUID clienteId, UUID vendedorId,
-                                  BigDecimal horimetroInicio, Integer duracaoPrevista, String observacoes, String checklistSaidaJson) {
+                                  BigDecimal horimetroInicio, Integer duracaoPrevista, String observacoes,
+                                  String checklistSaidaJson, BigDecimal valorNegociado, String motivoDesconto,
+                                  ModalidadePreco modalidadePreco) {
         log.info("Walk-in check-in: tenant={}, jetski={}, cliente={}", tenantId, jetskiId, clienteId);
 
         // 1. Validate jetski
         Jetski jetski = jetskiService.findById(jetskiId);
         validateJetskiForCheckIn(jetski);
 
-        // 2. Validate cliente exists
-        clienteService.findById(clienteId);
+        // 2. Validate cliente exists (only if provided - check-in rápido allows null)
+        if (clienteId != null) {
+            clienteService.findById(clienteId);
+        }
 
         // 3. Create Locacao
         Locacao locacao = Locacao.builder()
@@ -182,10 +202,13 @@ public class LocacaoService {
             .status(LocacaoStatus.EM_CURSO)
             .observacoes(observacoes)
             .checklistSaidaJson(checklistSaidaJson)
+            .valorNegociado(valorNegociado)
+            .motivoDesconto(motivoDesconto)
+            .modalidadePreco(modalidadePreco != null ? modalidadePreco : ModalidadePreco.PRECO_FECHADO)
             .build();
 
         locacao = locacaoRepository.save(locacao);
-        log.info("Locacao created (walk-in): id={}", locacao.getId());
+        log.info("Locacao created (walk-in): id={}, valorNegociado={}, modalidade={}", locacao.getId(), valorNegociado, locacao.getModalidadePreco());
 
         // 4. Validate 4 mandatory check-in photos
         // TODO FASE 2: Photo validation temporarily disabled during check-in (same reason as above)
@@ -216,10 +239,11 @@ public class LocacaoService {
      * @param locacaoId Locacao ID
      * @param horimetroFim Hourmeter reading at check-out
      * @param observacoes Optional notes
+     * @param skipPhotos If true, skip photo validation (photos can be added later)
      * @return Updated Locacao with calculated values
      */
     @Transactional
-    public Locacao checkOut(UUID tenantId, UUID locacaoId, BigDecimal horimetroFim, String observacoes, String checklistEntradaJson) {
+    public Locacao checkOut(UUID tenantId, UUID locacaoId, BigDecimal horimetroFim, String observacoes, String checklistEntradaJson, Boolean skipPhotos) {
         log.info("Check-out: tenant={}, locacao={}", tenantId, locacaoId);
 
         // 1. Find and validate locacao
@@ -236,11 +260,21 @@ public class LocacaoService {
         // 2. Validate horimetro readings
         calculatorService.validateHorimetroReadings(locacao.getHorimetroInicio(), horimetroFim);
 
-        // 3. Calculate used minutes
+        // 3. Calculate used minutes from actual rental time (not hourmeter)
+        // IMPORTANT: We charge for the time the customer had the jetski, not the engine runtime
+        LocalDateTime dataCheckOut = LocalDateTime.now();
         int minutosUsados = calculatorService.calculateUsedMinutes(
+            locacao.getDataCheckIn(),
+            dataCheckOut
+        );
+
+        // Also calculate engine minutes for maintenance tracking (not used for billing)
+        int minutosMotor = calculatorService.calculateEngineMinutes(
             locacao.getHorimetroInicio(),
             horimetroFim
         );
+        log.debug("Rental duration: {}min (billing), Engine runtime: {}min (maintenance tracking)",
+                  minutosUsados, minutosMotor);
 
         // 4. Get modelo to retrieve tolerance and price
         Jetski jetski = jetskiService.findById(locacao.getJetskiId());
@@ -254,14 +288,40 @@ public class LocacaoService {
             toleranciaMinutos
         );
 
-        // 6. Calculate base value
-        BigDecimal valorBase = calculatorService.calculateBaseValue(
-            minutosFaturaveis,
-            modelo.getPrecoBaseHora()
-        );
+        // 6. Determine base value based on pricing modality
+        BigDecimal valorBase;
+        ModalidadePreco modalidade = locacao.getModalidadePreco() != null
+            ? locacao.getModalidadePreco()
+            : ModalidadePreco.PRECO_FECHADO;  // Default
+
+        if (locacao.getValorNegociado() != null) {
+            // Use negotiated price set at check-in
+            valorBase = locacao.getValorNegociado();
+            log.info("Using negotiated price for locacao {}: {}", locacaoId, valorBase);
+        } else if (modalidade == ModalidadePreco.PRECO_FECHADO && locacao.getDuracaoPrevista() != null) {
+            // PRECO_FECHADO: Calculate based on predicted duration, not actual time used
+            // This ensures customer pays for reserved time regardless of early return
+            int duracaoPrevistaMinutos = locacao.getDuracaoPrevista();
+            int minutosFaturaveisPrevisto = calculatorService.calculateBillableMinutes(
+                duracaoPrevistaMinutos,
+                toleranciaMinutos
+            );
+            valorBase = calculatorService.calculateBaseValue(
+                minutosFaturaveisPrevisto,
+                modelo.getPrecoBaseHora()
+            );
+            log.info("PRECO_FECHADO: Using predicted duration for locacao {}: {}min → {}",
+                     locacaoId, duracaoPrevistaMinutos, valorBase);
+        } else {
+            // DIARIA/MEIA_DIARIA or other: Calculate base value from actual billable minutes
+            valorBase = calculatorService.calculateBaseValue(
+                minutosFaturaveis,
+                modelo.getPrecoBaseHora()
+            );
+        }
 
         // 7. Update locacao with intermediate values (needed for fuel cost calculation)
-        locacao.setDataCheckOut(LocalDateTime.now());
+        locacao.setDataCheckOut(dataCheckOut);
         locacao.setHorimetroFim(horimetroFim);
         locacao.setMinutosUsados(minutosUsados);
         locacao.setMinutosFaturaveis(minutosFaturaveis);
@@ -280,8 +340,16 @@ public class LocacaoService {
         log.info("Fuel cost calculated: locacao={}, cost={}",
                  locacaoId, combustivelCusto);
 
-        // 9. Calculate total value: base + fuel
-        BigDecimal valorTotal = valorBase.add(combustivelCusto);
+        // 9. Calculate optional items cost
+        BigDecimal valorItensOpcionais = locacaoItemOpcionalRepository
+            .sumValorCobradoByLocacaoId(locacaoId);
+        long countItensOpcionais = locacaoItemOpcionalRepository.countByLocacaoId(locacaoId);
+
+        log.info("Optional items cost calculated: locacao={}, count={}, total={}",
+                 locacaoId, countItensOpcionais, valorItensOpcionais);
+
+        // 10. Calculate total value: base + fuel + optional items
+        BigDecimal valorTotal = valorBase.add(combustivelCusto).add(valorItensOpcionais);
 
         // Store policy ID for audit (will be null if INCLUSO mode, as no charge applied)
         Long fuelPolicyId = null;  // TODO: Return policy ID from calcularCustoCombustivel
@@ -291,8 +359,12 @@ public class LocacaoService {
             throw new BusinessException("Check-out requer checklist obrigatório (RN05)");
         }
 
-        // 11. RN05: Validate 4 mandatory check-out photos
-        photoValidationService.validateCheckOutPhotos(tenantId, locacaoId);
+        // 11. RN05: Validate 4 mandatory check-out photos (unless skipPhotos is true)
+        if (skipPhotos == null || !skipPhotos) {
+            photoValidationService.validateCheckOutPhotos(tenantId, locacaoId);
+        } else {
+            log.info("Skipping photo validation for check-out: locacao={}", locacaoId);
+        }
 
         // 12. Update locacao with final calculated values
         locacao.setValorBase(valorBase);
@@ -309,8 +381,8 @@ public class LocacaoService {
 
         locacao = locacaoRepository.save(locacao);
 
-        log.info("Check-out completed: locacao={}, used={}min, billable={}min, base={}, fuel={}, total={}",
-                 locacaoId, minutosUsados, minutosFaturaveis, valorBase, combustivelCusto, valorTotal);
+        log.info("Check-out completed: locacao={}, used={}min, billable={}min, base={}, fuel={}, optional_items={}, total={}",
+                 locacaoId, minutosUsados, minutosFaturaveis, valorBase, combustivelCusto, valorItensOpcionais, valorTotal);
 
         // 10. RN07: Update jetski odometer and check for maintenance alerts
         jetski.setHorimetroAtual(horimetroFim);
@@ -369,6 +441,62 @@ public class LocacaoService {
     @Transactional(readOnly = true)
     public List<Locacao> listByCliente(UUID tenantId, UUID clienteId) {
         return locacaoRepository.findByTenantIdAndClienteIdOrderByDataCheckInDesc(tenantId, clienteId);
+    }
+
+    /**
+     * Associar cliente a uma locação existente
+     *
+     * Usado quando o check-in foi feito sem cliente (check-in rápido)
+     * e o operador deseja associar o cliente posteriormente.
+     *
+     * Validações:
+     * - Locação deve existir
+     * - Locação deve estar EM_CURSO (não finalizada)
+     * - Locação não deve ter cliente já associado
+     * - Cliente deve existir
+     *
+     * @param tenantId Tenant ID
+     * @param locacaoId Locacao ID
+     * @param clienteId Cliente ID a associar
+     * @return Locacao atualizada
+     */
+    @Transactional
+    public Locacao associarCliente(UUID tenantId, UUID locacaoId, UUID clienteId) {
+        log.info("Associando cliente à locação: tenant={}, locacao={}, cliente={}",
+                 tenantId, locacaoId, clienteId);
+
+        // 1. Find locacao
+        Locacao locacao = locacaoRepository.findById(locacaoId)
+            .orElseThrow(() -> new NotFoundException("Locação não encontrada: " + locacaoId));
+
+        // 2. Validate tenant
+        if (!locacao.getTenantId().equals(tenantId)) {
+            throw new NotFoundException("Locação não encontrada: " + locacaoId);
+        }
+
+        // 3. Validate status - must be EM_CURSO
+        if (locacao.getStatus() != LocacaoStatus.EM_CURSO) {
+            throw new BusinessException(
+                String.format("Só é possível associar cliente a locações em curso (status atual: %s)",
+                              locacao.getStatus())
+            );
+        }
+
+        // 4. Validate no client already associated
+        if (locacao.getClienteId() != null) {
+            throw new BusinessException("Esta locação já possui um cliente associado");
+        }
+
+        // 5. Validate cliente exists
+        clienteService.findById(clienteId);
+
+        // 6. Associate cliente
+        locacao.setClienteId(clienteId);
+        locacao = locacaoRepository.save(locacao);
+
+        log.info("Cliente associado com sucesso: locacao={}, cliente={}", locacaoId, clienteId);
+
+        return locacao;
     }
 
     // ===================================================================

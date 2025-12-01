@@ -43,4 +43,13 @@ public class CheckOutRequest {
      */
     @NotNull(message = "Checklist de check-out é obrigatório")
     private String checklistEntradaJson;
+
+    /**
+     * Skip photo validation for check-out
+     * When true, the 4 mandatory check-out photos are not required.
+     * Photos can be added later if needed.
+     * Default: false (photos are required)
+     */
+    @Builder.Default
+    private Boolean skipPhotos = false;
 }

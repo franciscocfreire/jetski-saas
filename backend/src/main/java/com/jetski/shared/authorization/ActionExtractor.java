@@ -104,19 +104,67 @@ public class ActionExtractor {
     private String singularize(String resource) {
         // Remove plural (heurística para português)
         // Padrões: locacoes → locacao, reservas → reserva, jetskis → jetski
-        if (resource.endsWith("oes")) {
+
+        // Caso especial: palavras compostas com hífen (itens-opcionais → item-opcional)
+        if (resource.contains("-")) {
+            String[] parts = resource.split("-");
+            for (int i = 0; i < parts.length; i++) {
+                parts[i] = singularizePart(parts[i]);
+            }
+            return String.join("-", parts);
+        }
+
+        return singularizePart(resource);
+    }
+
+    /**
+     * Singulariza uma palavra individual.
+     */
+    private String singularizePart(String word) {
+        if (word.endsWith("oes")) {
             // locacoes → locacao, reservacoes → reservacao
             // Replace "oes" with "ao"
-            return resource.substring(0, resource.length() - 3) + "ao";
-        } else if (resource.endsWith("aes")) {
+            return word.substring(0, word.length() - 3) + "ao";
+        } else if (word.endsWith("aes")) {
             // manutencaes → manutencao (caso exista)
             // Replace "aes" with "ao"
-            return resource.substring(0, resource.length() - 3) + "ao";
-        } else if (resource.endsWith("s")) {
+            return word.substring(0, word.length() - 3) + "ao";
+        } else if (word.endsWith("ais")) {
+            // opcionais → opcional
+            return word.substring(0, word.length() - 3) + "al";
+        } else if (word.endsWith("eis")) {
+            // papeis → papel
+            return word.substring(0, word.length() - 3) + "el";
+        } else if (word.endsWith("ens")) {
+            // itens → item, viagens → viagem
+            // Replace "ens" with "em"
+            return word.substring(0, word.length() - 3) + "em";
+        } else if (word.endsWith("ores") || word.endsWith("eres") || word.endsWith("ires")) {
+            // vendedores → vendedor, clientes stays cliente (handled by 'es' below)
+            // professores → professor, etc.
+            return word.substring(0, word.length() - 2);
+        } else if (word.endsWith("es") && word.length() > 3) {
+            // clientes → cliente, modelos already handled by 's'
+            // But we need to check if it's a word ending in consonant+es
+            char beforeEs = word.charAt(word.length() - 3);
+            if (!isVowel(beforeEs)) {
+                // Consonant before 'es' → remove 'es' (e.g., clientes → cliente)
+                return word.substring(0, word.length() - 1);
+            }
+            // Vowel before 'es' → just remove 's' (e.g., cafes → cafe... but actually cafés → cafés)
+            return word.substring(0, word.length() - 1);
+        } else if (word.endsWith("s")) {
             // jetskis → jetski, modelos → modelo, reservas → reserva, users → user
-            return resource.substring(0, resource.length() - 1);
+            return word.substring(0, word.length() - 1);
         }
-        return resource;
+        return word;
+    }
+
+    /**
+     * Checks if a character is a vowel.
+     */
+    private boolean isVowel(char c) {
+        return "aeiouAEIOU".indexOf(c) >= 0;
     }
 
     /**

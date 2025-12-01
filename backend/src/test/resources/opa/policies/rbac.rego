@@ -38,7 +38,9 @@ role_permissions := {
         "cliente:view",
         "cliente:list",
         "reserva:view",
-        "reserva:list"
+        "reserva:list",
+        "item-opcional:view",
+        "item-opcional:list"
     ],
 
     "GERENTE": [
@@ -50,6 +52,7 @@ role_permissions := {
         "modelo:*",
         "cliente:*",
         "reserva:*",
+        "item-opcional:*",
 
         # Permissões específicas de GERENTE
         "desconto:aplicar",

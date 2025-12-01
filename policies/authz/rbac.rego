@@ -43,7 +43,9 @@ role_permissions := {
         "cliente:accept-terms",
         "reserva:view",
         "reserva:list",
-        "reserva:alocar-jetski"
+        "reserva:alocar-jetski",
+        "item-opcional:list",
+        "item-opcional:view"
     ],
 
     "GERENTE": [
@@ -55,6 +57,7 @@ role_permissions := {
         "modelo:*",
         "cliente:*",
         "reserva:*",
+        "item-opcional:*",  # Itens opcionais (coletes, equipamentos, etc)
 
         # Permissões específicas de GERENTE
         "desconto:aplicar",
@@ -65,6 +68,7 @@ role_permissions := {
         "comissao:*",    # Todas as operações de comissão (view, list, aprovar, create)
         "politica-comissao:*",
         "politicas-comissao:*",
+        "frota:*",       # Dashboard de frota e KPIs
         "relatorio:operacional",
         "relatorio:comissoes",
         "vendedor:view",
@@ -186,7 +190,9 @@ has_permission(user_role, action) if {
 }
 
 # ADMIN_TENANT tem acesso total (wildcard)
-has_permission("ADMIN_TENANT", _action) := true
+has_permission("ADMIN_TENANT", _action) if {
+    true
+}
 
 # Regra principal: permite acesso se usuário tem a permissão
 # Verifica role único (backward compatibility)

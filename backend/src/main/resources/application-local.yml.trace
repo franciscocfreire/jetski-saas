@@ -1,0 +1,8 @@
+# Adicionar ao application-local.yml para debug do Spring Boot
+
+logging:
+  level:
+    org.springframework.context: TRACE
+    org.springframework.beans.factory: DEBUG
+    org.springframework.web.servlet.mvc.method.annotation: DEBUG
+    com.jetski: DEBUG

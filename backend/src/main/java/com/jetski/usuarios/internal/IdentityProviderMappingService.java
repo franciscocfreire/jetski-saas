@@ -82,6 +82,42 @@ public class IdentityProviderMappingService {
     }
 
     /**
+     * Resolve internal user ID from email address
+     * Fallback method when JWT doesn't contain 'sub' claim
+     *
+     * WORKAROUND: Keycloak sometimes doesn't include 'sub' claim in access tokens
+     * even with proper protocol mappers configured. This method allows email-based
+     * user lookup as a fallback.
+     *
+     * @param email User email address (from JWT email claim)
+     * @return Internal user UUID
+     * @throws NotFoundException if user with email doesn't exist
+     */
+    @Cacheable(
+        value = "identity-provider-mapping-email",
+        key = "#email",
+        unless = "#result == null"
+    )
+    @Transactional(readOnly = true)
+    public UUID resolveUsuarioIdByEmail(String email) {
+        log.debug("Resolving usuario_id by email: {}", email);
+
+        Optional<Usuario> usuario = usuarioRepository.findByEmail(email);
+
+        if (usuario.isEmpty()) {
+            log.warn("User not found by email: {}", email);
+            throw new NotFoundException(
+                String.format("User not found with email '%s'", email)
+            );
+        }
+
+        UUID usuarioId = usuario.get().getId();
+        log.debug("Resolved usuario_id={} for email={}", usuarioId, email);
+
+        return usuarioId;
+    }
+
+    /**
      * Link a new identity provider to an existing user
      * Used for account linking (e.g., link Google to existing Keycloak account)
      *

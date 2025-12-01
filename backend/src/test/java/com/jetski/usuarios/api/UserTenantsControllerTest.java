@@ -101,11 +101,11 @@ class UserTenantsControllerTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.message").doesNotExist())
             .andExpect(jsonPath("$.tenants").isArray())
             .andExpect(jsonPath("$.tenants.length()").value(2))
-            .andExpect(jsonPath("$.tenants[0].tenantId").value(TENANT_ID_1.toString()))
+            .andExpect(jsonPath("$.tenants[0].id").value(TENANT_ID_1.toString()))
             .andExpect(jsonPath("$.tenants[0].roles").isArray())
             .andExpect(jsonPath("$.tenants[0].roles[0]").value("GERENTE"))
             .andExpect(jsonPath("$.tenants[0].roles[1]").value("OPERADOR"))
-            .andExpect(jsonPath("$.tenants[1].tenantId").value(TENANT_ID_2.toString()))
+            .andExpect(jsonPath("$.tenants[1].id").value(TENANT_ID_2.toString()))
             .andExpect(jsonPath("$.tenants[1].roles[0]").value("ADMIN_TENANT"));
     }
 
@@ -159,7 +159,7 @@ class UserTenantsControllerTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.accessType").value("LIMITED"))
             .andExpect(jsonPath("$.totalTenants").value(1))
             .andExpect(jsonPath("$.tenants.length()").value(1))
-            .andExpect(jsonPath("$.tenants[0].tenantId").value(TENANT_ID_1.toString()))
+            .andExpect(jsonPath("$.tenants[0].id").value(TENANT_ID_1.toString()))
             .andExpect(jsonPath("$.tenants[0].roles[0]").value("OPERADOR"));
     }
 

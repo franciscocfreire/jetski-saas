@@ -49,7 +49,7 @@ sleep 10
 cd /home/franciscocfreire/repos/jetski/backend
 
 # Foreground (vê logs diretamente)
-SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
+SPRING_PROFILES_ACTIVE=local mvn spring-boot:run 2>&1 | tee /tmp/spring-boot-local.log
 
 # OU Background
 SPRING_PROFILES_ACTIVE=local mvn spring-boot:run > /tmp/backend.log 2>&1 &

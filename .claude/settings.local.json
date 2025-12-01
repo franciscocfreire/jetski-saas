@@ -121,9 +121,21 @@
       "Bash(lynx:*)",
       "Bash(timeout 180 mvn test:*)",
       "Read(///**)",
-      "Bash(timeout 240 mvn test:*)"
+      "Bash(timeout 240 mvn test:*)",
+      "Bash(jq:*)",
+      "Bash(/tmp/test_action_extraction.sh)",
+      "Bash(/tmp/failures.json)",
+      "Bash(timeout:*)",
+      "Bash(newman run:*)",
+      "Bash(then echo \"✅ Backend iniciado com sucesso!\" curl -s http://localhost:8090/api/actuator/health)",
+      "Bash(/tmp/wait-backend.sh)",
+      "WebSearch",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "/mnt/c/repos/jetski-mobile/"
+    ]
   }
 }

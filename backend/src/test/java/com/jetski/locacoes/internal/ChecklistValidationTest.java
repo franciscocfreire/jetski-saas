@@ -62,6 +62,12 @@ class ChecklistValidationTest {
     @Mock
     private com.jetski.combustivel.internal.FuelPolicyService fuelPolicyService;
 
+    @Mock
+    private com.jetski.locacoes.internal.repository.LocacaoItemOpcionalRepository locacaoItemOpcionalRepository;
+
+    @Mock
+    private FotoRepository fotoRepository;
+
     @InjectMocks
     private LocacaoService locacaoService;
 
@@ -108,6 +114,10 @@ class ChecklistValidationTest {
         // Lenient because not all tests use checkout (some test check-in only)
         lenient().when(fuelPolicyService.calcularCustoCombustivel(any(), any(UUID.class)))
             .thenReturn(BigDecimal.ZERO);
+
+        // Mock optional items repository to return zero cost
+        lenient().when(locacaoItemOpcionalRepository.sumValorCobradoByLocacaoId(any(UUID.class)))
+            .thenReturn(BigDecimal.ZERO);
     }
 
     /**
@@ -120,7 +130,7 @@ class ChecklistValidationTest {
             .thenReturn(Optional.of(locacao));
         when(jetskiService.findById(jetskiId)).thenReturn(jetski);
         when(modeloService.findById(jetski.getModeloId())).thenReturn(modelo);
-        when(calculatorService.calculateUsedMinutes(any(BigDecimal.class), any(BigDecimal.class))).thenReturn(90);
+        when(calculatorService.calculateUsedMinutes(any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(90);
         when(calculatorService.calculateBillableMinutes(anyInt(), anyInt())).thenReturn(90);
         when(calculatorService.calculateBaseValue(anyInt(), any(BigDecimal.class))).thenReturn(new BigDecimal("150.00"));
 
@@ -129,7 +139,7 @@ class ChecklistValidationTest {
 
         // When & Then: Should throw BusinessException
         BusinessException exception = assertThrows(BusinessException.class, () -> {
-            locacaoService.checkOut(tenantId, locacaoId, horimetroFim, null, checklistEntrada);
+            locacaoService.checkOut(tenantId, locacaoId, horimetroFim, null, checklistEntrada, false);
         });
 
         assertTrue(exception.getMessage().contains("checklist obrigatório"));
@@ -146,7 +156,7 @@ class ChecklistValidationTest {
             .thenReturn(Optional.of(locacao));
         when(jetskiService.findById(jetskiId)).thenReturn(jetski);
         when(modeloService.findById(jetski.getModeloId())).thenReturn(modelo);
-        when(calculatorService.calculateUsedMinutes(any(BigDecimal.class), any(BigDecimal.class))).thenReturn(90);
+        when(calculatorService.calculateUsedMinutes(any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(90);
         when(calculatorService.calculateBillableMinutes(anyInt(), anyInt())).thenReturn(90);
         when(calculatorService.calculateBaseValue(anyInt(), any(BigDecimal.class))).thenReturn(new BigDecimal("150.00"));
 
@@ -155,7 +165,7 @@ class ChecklistValidationTest {
 
         // When & Then: Should throw BusinessException
         BusinessException exception = assertThrows(BusinessException.class, () -> {
-            locacaoService.checkOut(tenantId, locacaoId, horimetroFim, null, checklistEntrada);
+            locacaoService.checkOut(tenantId, locacaoId, horimetroFim, null, checklistEntrada, false);
         });
 
         assertTrue(exception.getMessage().contains("checklist obrigatório"));
@@ -171,7 +181,7 @@ class ChecklistValidationTest {
             .thenReturn(Optional.of(locacao));
         when(jetskiService.findById(jetskiId)).thenReturn(jetski);
         when(modeloService.findById(jetski.getModeloId())).thenReturn(modelo);
-        when(calculatorService.calculateUsedMinutes(any(BigDecimal.class), any(BigDecimal.class))).thenReturn(90);
+        when(calculatorService.calculateUsedMinutes(any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(90);
         when(calculatorService.calculateBillableMinutes(anyInt(), anyInt())).thenReturn(90);
         when(calculatorService.calculateBaseValue(anyInt(), any(BigDecimal.class))).thenReturn(new BigDecimal("150.00"));
 
@@ -184,7 +194,7 @@ class ChecklistValidationTest {
 
         // When & Then: Should throw BusinessException from photo validation
         BusinessException exception = assertThrows(BusinessException.class, () -> {
-            locacaoService.checkOut(tenantId, locacaoId, horimetroFim, null, checklistEntrada);
+            locacaoService.checkOut(tenantId, locacaoId, horimetroFim, null, checklistEntrada, false);
         });
 
         assertTrue(exception.getMessage().contains("4 fotos obrigatórias"));
@@ -201,7 +211,7 @@ class ChecklistValidationTest {
             .thenReturn(Optional.of(locacao));
         when(jetskiService.findById(jetskiId)).thenReturn(jetski);
         when(modeloService.findById(jetski.getModeloId())).thenReturn(modelo);
-        when(calculatorService.calculateUsedMinutes(any(BigDecimal.class), any(BigDecimal.class))).thenReturn(90);
+        when(calculatorService.calculateUsedMinutes(any(LocalDateTime.class), any(LocalDateTime.class))).thenReturn(90);
         when(calculatorService.calculateBillableMinutes(anyInt(), anyInt())).thenReturn(90);
         when(calculatorService.calculateBaseValue(anyInt(), any(BigDecimal.class))).thenReturn(new BigDecimal("150.00"));
         when(locacaoRepository.save(any(Locacao.class))).thenAnswer(i -> i.getArgument(0));
@@ -214,7 +224,7 @@ class ChecklistValidationTest {
         String checklistEntrada = "[\"motor_ok\",\"casco_ok\",\"limpeza_ok\",\"avarias_nenhuma\"]";
 
         // When: Check-out with valid checklist + photos
-        Locacao result = locacaoService.checkOut(tenantId, locacaoId, horimetroFim, null, checklistEntrada);
+        Locacao result = locacaoService.checkOut(tenantId, locacaoId, horimetroFim, null, checklistEntrada, false);
 
         // Then: Should complete successfully
         assertNotNull(result);
@@ -264,7 +274,7 @@ class ChecklistValidationTest {
 
         // When: Check-in with checklist
         Locacao result = locacaoService.checkInFromReservation(
-            tenantId, reservaId, horimetroInicio, null, checklistSaida
+            tenantId, reservaId, horimetroInicio, null, checklistSaida, null, null, null
         );
 
         // Then: Should save checklist
@@ -309,7 +319,7 @@ class ChecklistValidationTest {
 
         // When: Check-in without checklist (null)
         Locacao result = locacaoService.checkInFromReservation(
-            tenantId, reservaId, horimetroInicio, null, null
+            tenantId, reservaId, horimetroInicio, null, null, null, null, null
         );
 
         // Then: Should succeed with null checklist

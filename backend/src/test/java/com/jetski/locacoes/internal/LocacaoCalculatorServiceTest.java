@@ -139,36 +139,36 @@ class LocacaoCalculatorServiceTest {
     // ===================================================================
 
     @Test
-    @DisplayName("Calculate used minutes from horimeter: 1.5 hours = 90 minutes")
-    void testCalculateUsedMinutes_OnePointFiveHours() {
+    @DisplayName("Calculate engine minutes from horimeter: 1.5 hours = 90 minutes")
+    void testCalculateEngineMinutes_OnePointFiveHours() {
         BigDecimal horimetroInicio = new BigDecimal("100.0");
         BigDecimal horimetroFim = new BigDecimal("101.5");
 
-        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+        int engineMinutes = calculator.calculateEngineMinutes(horimetroInicio, horimetroFim);
 
-        assertThat(usedMinutes).isEqualTo(90);
+        assertThat(engineMinutes).isEqualTo(90);
     }
 
     @Test
-    @DisplayName("Calculate used minutes from horimeter: 0.25 hours = 15 minutes")
-    void testCalculateUsedMinutes_QuarterHour() {
+    @DisplayName("Calculate engine minutes from horimeter: 0.25 hours = 15 minutes")
+    void testCalculateEngineMinutes_QuarterHour() {
         BigDecimal horimetroInicio = new BigDecimal("100.0");
         BigDecimal horimetroFim = new BigDecimal("100.25");
 
-        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+        int engineMinutes = calculator.calculateEngineMinutes(horimetroInicio, horimetroFim);
 
-        assertThat(usedMinutes).isEqualTo(15);
+        assertThat(engineMinutes).isEqualTo(15);
     }
 
     @Test
-    @DisplayName("Calculate used minutes from horimeter: 2 hours = 120 minutes")
-    void testCalculateUsedMinutes_TwoHours() {
+    @DisplayName("Calculate engine minutes from horimeter: 2 hours = 120 minutes")
+    void testCalculateEngineMinutes_TwoHours() {
         BigDecimal horimetroInicio = new BigDecimal("50.0");
         BigDecimal horimetroFim = new BigDecimal("52.0");
 
-        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+        int engineMinutes = calculator.calculateEngineMinutes(horimetroInicio, horimetroFim);
 
-        assertThat(usedMinutes).isEqualTo(120);
+        assertThat(engineMinutes).isEqualTo(120);
     }
 
     // ===================================================================
@@ -289,8 +289,8 @@ class LocacaoCalculatorServiceTest {
         BigDecimal horimetroInicio = new BigDecimal("100.0");
         BigDecimal horimetroFim = new BigDecimal("101.5");
 
-        // Calculate used minutes: 1.5 hours = 90 minutes
-        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+        // Calculate engine minutes: 1.5 hours = 90 minutes
+        int usedMinutes = calculator.calculateEngineMinutes(horimetroInicio, horimetroFim);
         assertThat(usedMinutes).isEqualTo(90);
 
         // Apply RN01: 90-5=85min → ceil(85/15)*15 = 90min billable
@@ -310,8 +310,8 @@ class LocacaoCalculatorServiceTest {
         BigDecimal horimetroInicio = new BigDecimal("100.0");
         BigDecimal horimetroFim = new BigDecimal("100.1");
 
-        // Calculate used minutes: 0.1 hours = 6 minutes
-        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+        // Calculate engine minutes: 0.1 hours = 6 minutes
+        int usedMinutes = calculator.calculateEngineMinutes(horimetroInicio, horimetroFim);
         assertThat(usedMinutes).isEqualTo(6);
 
         // Apply RN01: 6-5=1min → ceil(1/15)*15 = 15min billable
@@ -404,7 +404,7 @@ class LocacaoCalculatorServiceTest {
         BigDecimal horimetroInicio = new BigDecimal("100.0");
         BigDecimal horimetroFim = new BigDecimal("100.166667");
 
-        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+        int usedMinutes = calculator.calculateEngineMinutes(horimetroInicio, horimetroFim);
 
         assertThat(usedMinutes).isEqualTo(10);
     }
@@ -415,7 +415,7 @@ class LocacaoCalculatorServiceTest {
         BigDecimal horimetroInicio = new BigDecimal("100.0");
         BigDecimal horimetroFim = new BigDecimal("100.083333");
 
-        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+        int usedMinutes = calculator.calculateEngineMinutes(horimetroInicio, horimetroFim);
 
         assertThat(usedMinutes).isEqualTo(5);
     }
@@ -426,7 +426,7 @@ class LocacaoCalculatorServiceTest {
         BigDecimal horimetroInicio = new BigDecimal("100.0");
         BigDecimal horimetroFim = new BigDecimal("100.0");
 
-        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+        int usedMinutes = calculator.calculateEngineMinutes(horimetroInicio, horimetroFim);
 
         assertThat(usedMinutes).isEqualTo(0);
     }
@@ -472,7 +472,7 @@ class LocacaoCalculatorServiceTest {
         BigDecimal horimetroInicio = new BigDecimal("100.0");
         BigDecimal horimetroFim = new BigDecimal("100.0084");
 
-        int usedMinutes = calculator.calculateUsedMinutes(horimetroInicio, horimetroFim);
+        int usedMinutes = calculator.calculateEngineMinutes(horimetroInicio, horimetroFim);
 
         assertThat(usedMinutes).isEqualTo(1);
     }

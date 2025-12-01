@@ -1,5 +1,6 @@
 package com.jetski.locacoes.api.dto;
 
+import com.jetski.locacoes.domain.ModalidadePreco;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,9 +31,9 @@ public class CheckInWalkInRequest {
     private UUID jetskiId;
 
     /**
-     * Cliente ID (customer)
+     * Cliente ID (customer) - opcional para check-in rápido
+     * Pode ser associado posteriormente via PATCH
      */
-    @NotNull(message = "Cliente ID é obrigatório")
     private UUID clienteId;
 
     /**
@@ -65,4 +66,36 @@ public class CheckInWalkInRequest {
      * RN05: Mandatory for check-out validation
      */
     private String checklistSaidaJson;
+
+    // ===================================================================
+    // Negotiated Price (Optional)
+    // ===================================================================
+
+    /**
+     * Negotiated price for this rental (optional).
+     * If set, this value will be used as valorBase instead of calculating
+     * from the model's hourly rate.
+     * Use case: Operator negotiates a discount or special price with customer.
+     */
+    @DecimalMin(value = "0.01", message = "Valor negociado deve ser maior que zero")
+    private BigDecimal valorNegociado;
+
+    /**
+     * Reason for the negotiated price/discount (optional, for audit trail).
+     * Examples: "Cliente frequente", "Promoção verão", "Desconto grupo"
+     */
+    private String motivoDesconto;
+
+    // ===================================================================
+    // Pricing Mode (Optional)
+    // ===================================================================
+
+    /**
+     * Pricing mode for this rental (optional, default: PRECO_FECHADO).
+     * - PRECO_FECHADO: Fixed/negotiated price or calculated from hourly rate
+     * - DIARIA: Full day rental price
+     * - MEIA_DIARIA: Half day rental price
+     */
+    @Builder.Default
+    private ModalidadePreco modalidadePreco = ModalidadePreco.PRECO_FECHADO;
 }

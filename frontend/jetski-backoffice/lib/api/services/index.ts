@@ -1,0 +1,8 @@
+export { jetskisService } from './jetskis'
+export { locacoesService } from './locacoes'
+export { reservasService } from './reservas'
+export { clientesService } from './clientes'
+export { vendedoresService } from './vendedores'
+export { modelosService } from './modelos'
+export { manutencoesService } from './manutencoes'
+export { userTenantsService } from './user-tenants'

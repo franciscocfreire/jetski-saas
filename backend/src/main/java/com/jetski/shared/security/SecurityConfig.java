@@ -12,6 +12,9 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
@@ -69,6 +72,56 @@ public class SecurityConfig {
     }
 
     /**
+     * JwtDecoder customizado que aceita múltiplos issuers válidos.
+     *
+     * Necessário para ambiente local onde:
+     * - Browser/Postman usam http://localhost:8081 (issuer no JWT)
+     * - Mobile usa http://172.30.197.110:8081 (IP do WSL)
+     *
+     * Ambos apontam para o mesmo Keycloak, mas o issuer no JWT vem como localhost.
+     */
+    @Bean
+    public JwtDecoder jwtDecoder() {
+        // Lista de issuers válidos (ambiente local)
+        List<String> validIssuers = List.of(
+            "http://localhost:8081/realms/jetski-saas",
+            "http://172.30.197.110:8081/realms/jetski-saas"
+        );
+
+        // Usar o primeiro issuer para buscar as chaves públicas (JWK Set)
+        String jwkSetUri = "http://localhost:8081/realms/jetski-saas/protocol/openid-connect/certs";
+
+        NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+
+        // Criar validadores para cada issuer
+        List<OAuth2TokenValidator<Jwt>> issuerValidators = validIssuers.stream()
+            .map(JwtIssuerValidator::new)
+            .map(v -> (OAuth2TokenValidator<Jwt>) v)
+            .toList();
+
+        // Validador customizado que aceita qualquer um dos issuers (OR logic)
+        OAuth2TokenValidator<Jwt> multiIssuerValidator = jwt -> {
+            for (OAuth2TokenValidator<Jwt> validator : issuerValidators) {
+                var result = validator.validate(jwt);
+                if (!result.hasErrors()) {
+                    return result; // Aceita se qualquer issuer for válido
+                }
+            }
+            // Se nenhum issuer for válido, retorna erro do primeiro validador
+            return issuerValidators.get(0).validate(jwt);
+        };
+
+        // Combinar timestamp validation + multi-issuer validation
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+            new JwtTimestampValidator(),
+            multiIssuerValidator
+        );
+
+        jwtDecoder.setJwtValidator(validator);
+        return jwtDecoder;
+    }
+
+    /**
      * SecurityFilterChain para endpoints PÚBLICOS (sem autenticação).
      * Este chain tem @Order(1) para rodar ANTES do chain principal.
      *
@@ -90,7 +143,8 @@ public class SecurityConfig {
                 new AntPathRequestMatcher("/v3/api-docs/**"),
                 new AntPathRequestMatcher("/v1/auth-test/public"),
                 new AntPathRequestMatcher("/v1/auth/complete-activation"),  // Account activation (Option 2: temp password flow)
-                new AntPathRequestMatcher("/v1/auth/magic-activate")        // Account activation (Magic link JWT - one-click UX)
+                new AntPathRequestMatcher("/v1/auth/magic-activate"),       // Account activation (Magic link JWT - one-click UX)
+                new AntPathRequestMatcher("/v1/storage/local/**")           // Local storage endpoints (simulated presigned URLs)
             ))
 
             // Exception filter FIRST to catch all downstream exceptions
@@ -188,6 +242,7 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(List.of(
             "http://localhost:3000",      // Frontend local (dev)
             "http://localhost:3001",      // Backoffice local (dev)
+            "http://localhost:3002",      // Backoffice Next.js (dev)
             "https://*.jetski.app",       // Mobile app (produção)
             "https://*.jetski.com.br"     // Web app (produção)
         ));

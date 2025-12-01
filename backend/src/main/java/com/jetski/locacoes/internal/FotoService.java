@@ -59,13 +59,21 @@ public class FotoService {
             .orElseThrow(() -> new NotFoundException("Locação não encontrada: " + request.getLocacaoId()));
 
         // 2. Verifica se já existe foto do mesmo tipo
-        boolean exists = fotoRepository.existsByTenantIdAndLocacaoIdAndTipo(
+        var existingFoto = fotoRepository.findByTenantIdAndLocacaoIdAndTipo(
             tenantId, request.getLocacaoId(), request.getTipoFoto()
         );
-        if (exists) {
-            throw new ConflictException(
-                String.format("Já existe foto do tipo %s para esta locação", request.getTipoFoto())
-            );
+        if (existingFoto.isPresent()) {
+            Foto foto = existingFoto.get();
+            if (foto.getUploadedAt() != null) {
+                // Foto já confirmada - não permite sobrescrever
+                throw new ConflictException(
+                    String.format("Já existe foto do tipo %s para esta locação", request.getTipoFoto())
+                );
+            }
+            // Foto órfã (uploadedAt = null) - remove para permitir nova tentativa
+            log.warn("Removing orphan foto record: id={}, tipo={}, locacao={}",
+                foto.getId(), foto.getTipo(), foto.getLocacaoId());
+            fotoRepository.delete(foto);
         }
 
         // 3. Gera chave única

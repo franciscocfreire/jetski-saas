@@ -272,6 +272,34 @@ class ActionExtractorTest {
         }
 
         @Test
+        @DisplayName("Should singularize vendedores to vendedor")
+        void shouldSingularizeVendedores() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setMethod("GET");
+            request.setContextPath("/api");
+            request.setRequestURI("/api/v1/vendedores");
+
+            String action = actionExtractor.extractAction(request);
+
+            // vendedores → vendedor (not vendedore!)
+            assertThat(action).isEqualTo("vendedor:list");
+        }
+
+        @Test
+        @DisplayName("Should singularize clientes to cliente")
+        void shouldSingularizeClientes() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setMethod("GET");
+            request.setContextPath("/api");
+            request.setRequestURI("/api/v1/clientes");
+
+            String action = actionExtractor.extractAction(request);
+
+            // clientes → cliente
+            assertThat(action).isEqualTo("cliente:list");
+        }
+
+        @Test
         @DisplayName("Should handle unknown HTTP method")
         void shouldHandleUnknownHttpMethod() {
             MockHttpServletRequest request = new MockHttpServletRequest();

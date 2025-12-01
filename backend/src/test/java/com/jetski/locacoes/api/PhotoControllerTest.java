@@ -95,10 +95,15 @@ class PhotoControllerTest extends AbstractIntegrationTest {
         // Break circular FK: reserva ↔ locacao
         jdbcTemplate.execute("UPDATE reserva SET locacao_id = NULL WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM locacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        // Delete ALL reservas that reference jetskis from this tenant (including cross-tenant reservas)
+        jdbcTemplate.execute("UPDATE reserva SET jetski_id = NULL WHERE jetski_id IN (SELECT id FROM jetski WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')");
         jdbcTemplate.execute("DELETE FROM reserva WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM os_manutencao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        // Delete ALL jetskis that reference models from this tenant (handles cross-tenant FK issues)
+        jdbcTemplate.execute("DELETE FROM jetski WHERE modelo_id IN (SELECT id FROM modelo WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')");
         jdbcTemplate.execute("DELETE FROM jetski WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM commission_policy WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM politica_comissao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM fuel_policy WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM modelo WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM cliente WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
@@ -212,7 +217,11 @@ class PhotoControllerTest extends AbstractIntegrationTest {
     @WithMockUser(username = "test@example.com", roles = {"OPERADOR"})
     @DisplayName("Should return 409 when photo of same type already exists")
     void testGenerateUploadUrl_DuplicatePhotoType() throws Exception {
-        // Given - First upload
+        // Given - First upload AND confirm (uploadedAt != null)
+        // Note: Without confirmation, orphan photos are removed and retry is allowed
+        createAndConfirmPhoto(FotoTipo.CHECKIN_FRENTE);
+
+        // When/Then - Second upload (duplicate) should fail with 409
         String requestBody = """
             {
                 "locacaoId": "%s",
@@ -223,13 +232,6 @@ class PhotoControllerTest extends AbstractIntegrationTest {
             }
             """.formatted(testLocacaoId);
 
-        mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
-                .header("X-Tenant-Id", TEST_TENANT_ID.toString())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestBody))
-            .andExpect(status().isOk());
-
-        // When/Then - Second upload (duplicate)
         mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
                 .header("X-Tenant-Id", TEST_TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)

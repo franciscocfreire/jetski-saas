@@ -307,7 +307,8 @@
                 <version>10.15.0</version>
                 <configuration>
                     <url>jdbc:postgresql://localhost:5433/jetski_local</url>
-                    <user>jetski</user>
+                    <!-- Usuario admin para migrations (tem BYPASSRLS para seed data) -->
+                    <user>jetski_admin</user>
                     <password>dev123</password>
                     <schemas>
                         <schema>public</schema>

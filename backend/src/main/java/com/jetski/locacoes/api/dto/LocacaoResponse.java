@@ -1,6 +1,7 @@
 package com.jetski.locacoes.api.dto;
 
 import com.jetski.locacoes.domain.LocacaoStatus;
+import com.jetski.locacoes.domain.ModalidadePreco;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -32,6 +33,11 @@ public class LocacaoResponse {
     private UUID clienteId;
     private UUID vendedorId;
 
+    // Denormalized fields for display
+    private String jetskiSerie;
+    private String jetskiModeloNome;
+    private String clienteNome;
+
     // Check-in data
     private LocalDateTime dataCheckIn;
     private BigDecimal horimetroInicio;
@@ -43,8 +49,16 @@ public class LocacaoResponse {
     private Integer minutosUsados;
     private Integer minutosFaturaveis;
 
+    // Negotiated price (set at check-in if price was negotiated)
+    private BigDecimal valorNegociado;
+    private String motivoDesconto;
+
+    // Pricing mode
+    private ModalidadePreco modalidadePreco;
+
     // Values
     private BigDecimal valorBase;
+    private BigDecimal valorItensOpcionais;
     private BigDecimal valorTotal;
 
     // Status

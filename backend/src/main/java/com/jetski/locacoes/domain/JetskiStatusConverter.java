@@ -6,8 +6,8 @@ import jakarta.persistence.Converter;
 /**
  * JPA converter for JetskiStatus enum
  *
- * Converts between Java enum (DISPONIVEL/MANUTENCAO/etc) and database values (disponivel/manutencao/etc)
- * to match PostgreSQL CHECK constraint
+ * Converts between Java enum and database string values.
+ * Uses UPPERCASE to match seed data and enum conventions.
  *
  * @author Jetski Team
  * @since 0.2.0
@@ -20,7 +20,8 @@ public class JetskiStatusConverter implements AttributeConverter<JetskiStatus, S
         if (attribute == null) {
             return null;
         }
-        return attribute.name().toLowerCase();
+        // Store as UPPERCASE to match enum conventions and seed data
+        return attribute.name();
     }
 
     @Override
@@ -28,6 +29,7 @@ public class JetskiStatusConverter implements AttributeConverter<JetskiStatus, S
         if (dbData == null || dbData.isEmpty()) {
             return null;
         }
+        // Handle both upper and lowercase from database
         return JetskiStatus.valueOf(dbData.toUpperCase());
     }
 }

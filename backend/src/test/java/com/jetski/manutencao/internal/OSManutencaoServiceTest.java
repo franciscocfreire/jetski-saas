@@ -2,7 +2,7 @@ package com.jetski.manutencao.internal;
 
 import com.jetski.locacoes.domain.Jetski;
 import com.jetski.locacoes.domain.JetskiStatus;
-import com.jetski.locacoes.internal.JetskiService;
+import com.jetski.locacoes.api.JetskiPublicService;
 import com.jetski.manutencao.domain.OSManutencao;
 import com.jetski.manutencao.domain.OSManutencaoPrioridade;
 import com.jetski.manutencao.domain.OSManutencaoStatus;
@@ -44,7 +44,7 @@ class OSManutencaoServiceTest {
     private OSManutencaoRepository osManutencaoRepository;
 
     @Mock
-    private JetskiService jetskiService;
+    private JetskiPublicService jetskiPublicService;
 
     @InjectMocks
     private OSManutencaoService service;
@@ -89,7 +89,7 @@ class OSManutencaoServiceTest {
             .horimetroAbertura(new BigDecimal("125.5"))
             .build();
 
-        when(jetskiService.findById(jetskiId)).thenReturn(jetski);
+        when(jetskiPublicService.findById(jetskiId)).thenReturn(jetski);
         when(osManutencaoRepository.save(any(OSManutencao.class)))
             .thenAnswer(invocation -> {
                 OSManutencao saved = invocation.getArgument(0);
@@ -109,7 +109,7 @@ class OSManutencaoServiceTest {
         assertThat(created.getHorimetroAbertura()).isEqualByComparingTo(new BigDecimal("125.5"));
 
         // Then: Should block jetski (RN06)
-        verify(jetskiService).updateStatus(jetskiId, JetskiStatus.MANUTENCAO);
+        verify(jetskiPublicService).updateStatus(jetskiId, JetskiStatus.MANUTENCAO);
     }
 
     @Test
@@ -122,7 +122,7 @@ class OSManutencaoServiceTest {
             .descricaoProblema("") // Empty!
             .build();
 
-        when(jetskiService.findById(jetskiId)).thenReturn(jetski);
+        when(jetskiPublicService.findById(jetskiId)).thenReturn(jetski);
 
         // When/Then: Should throw BusinessException
         assertThatThrownBy(() -> service.createOrder(os))
@@ -131,7 +131,7 @@ class OSManutencaoServiceTest {
 
         // Then: Should NOT save or block jetski
         verify(osManutencaoRepository, never()).save(any());
-        verify(jetskiService, never()).updateStatus(any(), any());
+        verify(jetskiPublicService, never()).updateStatus(any(), any());
     }
 
     @Test
@@ -145,7 +145,7 @@ class OSManutencaoServiceTest {
             .horimetroAbertura(null) // Not provided
             .build();
 
-        when(jetskiService.findById(jetskiId)).thenReturn(jetski);
+        when(jetskiPublicService.findById(jetskiId)).thenReturn(jetski);
         when(osManutencaoRepository.save(any(OSManutencao.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -289,7 +289,7 @@ class OSManutencaoServiceTest {
                 .build();
 
         when(osManutencaoRepository.findById(osId)).thenReturn(Optional.of(os));
-        when(jetskiService.findById(jetskiId)).thenReturn(jetski);
+        when(jetskiPublicService.findById(jetskiId)).thenReturn(jetski);
         when(osManutencaoRepository.hasActiveMaintenanceByJetskiId(jetskiId)).thenReturn(false);
         when(osManutencaoRepository.save(any(OSManutencao.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
@@ -306,7 +306,7 @@ class OSManutencaoServiceTest {
         assertThat(finished.getValorTotal()).isEqualTo(new java.math.BigDecimal("400.00"));
 
         // Then: Should release jetski (RN06)
-        verify(jetskiService).updateStatus(jetskiId, JetskiStatus.DISPONIVEL);
+        verify(jetskiPublicService).updateStatus(jetskiId, JetskiStatus.DISPONIVEL);
     }
 
     @Test
@@ -335,7 +335,7 @@ class OSManutencaoServiceTest {
         service.finishOrder(osId, finishRequest);
 
         // Then: Should NOT release jetski
-        verify(jetskiService, never()).updateStatus(eq(jetskiId), eq(JetskiStatus.DISPONIVEL));
+        verify(jetskiPublicService, never()).updateStatus(eq(jetskiId), eq(JetskiStatus.DISPONIVEL));
     }
 
     // ===================================================================
@@ -359,7 +359,7 @@ class OSManutencaoServiceTest {
         when(osManutencaoRepository.hasActiveMaintenanceByJetskiId(jetskiId)).thenReturn(false);
         when(osManutencaoRepository.save(any(OSManutencao.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
-        when(jetskiService.findById(jetskiId)).thenReturn(jetski);
+        when(jetskiPublicService.findById(jetskiId)).thenReturn(jetski);
 
         // When: Cancel order
         OSManutencao cancelled = service.cancelOrder(osId);
@@ -368,7 +368,7 @@ class OSManutencaoServiceTest {
         assertThat(cancelled.getStatus()).isEqualTo(OSManutencaoStatus.CANCELADA);
 
         // Then: Should release jetski
-        verify(jetskiService).updateStatus(jetskiId, JetskiStatus.DISPONIVEL);
+        verify(jetskiPublicService).updateStatus(jetskiId, JetskiStatus.DISPONIVEL);
     }
 
     @Test

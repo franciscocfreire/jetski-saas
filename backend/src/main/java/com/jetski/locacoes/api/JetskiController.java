@@ -57,22 +57,31 @@ public class JetskiController {
     @Operation(
         summary = "Listar jetskis da frota",
         description = "Lista todos os jetskis do tenant com informações de status e horímetro. " +
-                      "Por padrão, retorna apenas jetskis ativos. Use ?includeInactive=true para incluir inativos."
+                      "Por padrão, retorna apenas jetskis ativos. Use ?includeInactive=true para incluir inativos. " +
+                      "Use ?status=DISPONIVEL para filtrar apenas jetskis disponíveis."
     )
     public ResponseEntity<List<JetskiResponse>> listJetskis(
         @Parameter(description = "UUID do tenant")
         @PathVariable UUID tenantId,
+        @Parameter(description = "Filtrar por status (DISPONIVEL, LOCADO, MANUTENCAO, INATIVO)")
+        @RequestParam(required = false) JetskiStatus status,
         @Parameter(description = "Incluir jetskis inativos")
         @RequestParam(defaultValue = "false") boolean includeInactive
     ) {
-        log.info("GET /v1/tenants/{}/jetskis?includeInactive={}", tenantId, includeInactive);
+        log.info("GET /v1/tenants/{}/jetskis?status={}&includeInactive={}", tenantId, status, includeInactive);
 
         // Validate tenant context matches path parameter
         validateTenantContext(tenantId);
 
-        List<Jetski> jetskis = includeInactive
-            ? jetskiService.listAllJetskis()
-            : jetskiService.listActiveJetskis();
+        List<Jetski> jetskis;
+        if (status != null) {
+            // Filter by specific status
+            jetskis = jetskiService.listByStatus(status);
+        } else if (includeInactive) {
+            jetskis = jetskiService.listAllJetskis();
+        } else {
+            jetskis = jetskiService.listActiveJetskis();
+        }
 
         List<JetskiResponse> response = jetskis.stream()
             .map(this::toResponse)

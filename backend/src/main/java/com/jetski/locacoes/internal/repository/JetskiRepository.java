@@ -3,6 +3,7 @@ package com.jetski.locacoes.internal.repository;
 import com.jetski.locacoes.domain.Jetski;
 import com.jetski.locacoes.domain.JetskiStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -21,12 +22,13 @@ import java.util.UUID;
  * - List available jetskis for rental
  * - Find jetskis by model
  * - Check jetski availability (Business rule RN06)
+ * - Advanced filtering via JpaSpecificationExecutor (v0.9.0)
  *
  * @author Jetski Team
  * @since 0.2.0
  */
 @Repository
-public interface JetskiRepository extends JpaRepository<Jetski, UUID> {
+public interface JetskiRepository extends JpaRepository<Jetski, UUID>, JpaSpecificationExecutor<Jetski> {
 
     /**
      * Find all active jetskis for current tenant.

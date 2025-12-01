@@ -5,6 +5,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.time.Duration;
 
 /**
  * Service: LocacaoCalculatorService
@@ -70,22 +72,61 @@ public class LocacaoCalculatorService {
     }
 
     /**
-     * Calculate used minutes from hourmeter readings
+     * Calculate used minutes from actual rental time (check-in to check-out)
      *
-     * Formula: used_minutes = (horimetroFim - horimetroInicio) * 60
+     * This is the CORRECT way to calculate rental time, as the customer should be charged
+     * for the time they had the jetski, not just the time the motor was running.
+     *
+     * Hourmeter only counts when the motor is running, so it doesn't reflect the actual
+     * rental duration. For example, if a customer rents for 60 minutes but only uses the
+     * motor for 30 minutes, they should still pay for 60 minutes.
+     *
+     * Formula: used_minutes = Duration.between(dataCheckIn, dataCheckOut).toMinutes()
+     *
+     * @param dataCheckIn Check-in timestamp
+     * @param dataCheckOut Check-out timestamp
+     * @return Minutes used (actual rental duration)
+     */
+    public int calculateUsedMinutes(LocalDateTime dataCheckIn, LocalDateTime dataCheckOut) {
+        if (dataCheckIn == null || dataCheckOut == null) {
+            throw new IllegalArgumentException("dataCheckIn and dataCheckOut cannot be null");
+        }
+
+        if (dataCheckOut.isBefore(dataCheckIn)) {
+            throw new IllegalArgumentException("dataCheckOut cannot be before dataCheckIn");
+        }
+
+        Duration duration = Duration.between(dataCheckIn, dataCheckOut);
+        long minutes = duration.toMinutes();
+
+        log.debug("Used minutes calculated from timestamps: check_in={}, check_out={}, minutes={}",
+                  dataCheckIn, dataCheckOut, minutes);
+
+        return (int) minutes;
+    }
+
+    /**
+     * Calculate engine hours from hourmeter readings
+     *
+     * This method calculates how long the motor was actually running, which is useful
+     * for maintenance tracking but should NOT be used for billing purposes.
+     *
+     * Formula: engine_hours = (horimetroFim - horimetroInicio) * 60
      *
      * @param horimetroInicio Hourmeter reading at check-in (e.g., 100.5)
      * @param horimetroFim Hourmeter reading at check-out (e.g., 101.5)
-     * @return Minutes used (e.g., 60 minutes)
+     * @return Minutes the engine was running (e.g., 60 minutes)
+     * @deprecated Use calculateUsedMinutes(LocalDateTime, LocalDateTime) for billing
      */
-    public int calculateUsedMinutes(BigDecimal horimetroInicio, BigDecimal horimetroFim) {
+    @Deprecated
+    public int calculateEngineMinutes(BigDecimal horimetroInicio, BigDecimal horimetroFim) {
         BigDecimal hoursUsed = horimetroFim.subtract(horimetroInicio);
         BigDecimal minutesUsed = hoursUsed.multiply(BigDecimal.valueOf(60));
 
         // Round to nearest integer (half-up)
         int minutes = minutesUsed.setScale(0, RoundingMode.HALF_UP).intValue();
 
-        log.debug("Used minutes calculated: horimetro_ini={}, horimetro_fim={}, hours={}, minutes={}",
+        log.debug("Engine minutes calculated: horimetro_ini={}, horimetro_fim={}, hours={}, minutes={}",
                   horimetroInicio, horimetroFim, hoursUsed, minutes);
 
         return minutes;

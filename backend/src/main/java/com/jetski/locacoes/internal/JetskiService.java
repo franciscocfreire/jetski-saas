@@ -1,5 +1,6 @@
 package com.jetski.locacoes.internal;
 
+import com.jetski.locacoes.api.dto.JetskiSearchCriteria;
 import com.jetski.locacoes.domain.Jetski;
 import com.jetski.locacoes.domain.JetskiStatus;
 import com.jetski.locacoes.internal.repository.JetskiRepository;
@@ -7,6 +8,8 @@ import com.jetski.locacoes.internal.repository.ModeloRepository;
 import com.jetski.shared.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,6 +75,18 @@ public class JetskiService {
     public List<Jetski> listAvailableJetskis() {
         log.debug("Listing available jetskis for rental");
         return jetskiRepository.findAllByStatus(JetskiStatus.DISPONIVEL);
+    }
+
+    /**
+     * List jetskis by status.
+     *
+     * @param status JetskiStatus to filter by
+     * @return List of Jetski records with the specified status
+     */
+    @Transactional(readOnly = true)
+    public List<Jetski> listByStatus(JetskiStatus status) {
+        log.debug("Listing jetskis by status: {}", status);
+        return jetskiRepository.findAllByStatus(status);
     }
 
     /**
@@ -251,5 +266,49 @@ public class JetskiService {
 
         log.info("Jetski reactivated successfully: id={}", id);
         return saved;
+    }
+
+    /**
+     * Search jetskis with advanced filtering (v0.9.0).
+     *
+     * Supports multiple filters:
+     * - Status (multiple values)
+     * - Modelo
+     * - Serial number (partial match)
+     * - Hourmeter range
+     * - Active status
+     *
+     * @param criteria Search criteria
+     * @return List of Jetski records matching criteria
+     */
+    @Transactional(readOnly = true)
+    public List<Jetski> searchJetskis(JetskiSearchCriteria criteria) {
+        log.info("Searching jetskis with criteria: {}", criteria);
+
+        // Build specification from criteria
+        Specification<Jetski> spec = JetskiSpecification.fromCriteria(criteria);
+
+        // Build sort
+        Sort sort = buildSort(criteria);
+
+        // Execute query
+        List<Jetski> results = jetskiRepository.findAll(spec, sort);
+
+        log.info("Found {} jetskis matching criteria", results.size());
+        return results;
+    }
+
+    /**
+     * Build Sort object from search criteria
+     */
+    private Sort buildSort(JetskiSearchCriteria criteria) {
+        String sortBy = criteria.getSortBy() != null ? criteria.getSortBy() : "serie";
+        String sortDirection = criteria.getSortDirection() != null ? criteria.getSortDirection() : "asc";
+
+        Sort.Direction direction = sortDirection.equalsIgnoreCase("desc")
+                ? Sort.Direction.DESC
+                : Sort.Direction.ASC;
+
+        return Sort.by(direction, sortBy);
     }
 }

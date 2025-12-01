@@ -36,8 +36,8 @@
       }
     },
     {
-      "clientId": "jetski-web",
-      "name": "Jetski Web Backoffice",
+      "clientId": "jetski-backoffice",
+      "name": "Jetski Backoffice",
       "description": "Next.js backoffice application",
       "enabled": true,
       "publicClient": true,
@@ -47,16 +47,17 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "authorizationServicesEnabled": false,
-      "rootUrl": "http://localhost:3000",
+      "rootUrl": "http://localhost:3002",
       "baseUrl": "/",
       "redirectUris": [
-        "http://localhost:3000/*"
+        "http://localhost:3002/api/auth/callback/keycloak",
+        "http://localhost:3002/*"
       ],
       "webOrigins": [
-        "http://localhost:3000"
+        "http://localhost:3002"
       ],
       "attributes": {
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "false"
       },
       "protocolMappers": [
         {

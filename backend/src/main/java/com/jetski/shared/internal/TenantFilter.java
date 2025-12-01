@@ -215,6 +215,7 @@ public class TenantFilter extends OncePerRequestFilter {
                normalizedPath.startsWith("/v1/auth-test/public") ||  // Test endpoint
                normalizedPath.equals("/v1/user/tenants") ||  // User tenants list (no tenant needed)
                normalizedPath.equals("/v1/auth/complete-activation") ||  // Account activation (Option 2: temp password)
-               normalizedPath.equals("/v1/auth/magic-activate");  // Account activation (Magic link JWT - one-click UX)
+               normalizedPath.equals("/v1/auth/magic-activate") ||  // Account activation (Magic link JWT - one-click UX)
+               normalizedPath.startsWith("/v1/storage/local/");  // Local storage endpoints (simulated presigned URLs)
     }
 }

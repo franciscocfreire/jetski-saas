@@ -55,6 +55,11 @@ public interface FotoRepository extends JpaRepository<Foto, UUID> {
     boolean existsByTenantIdAndLocacaoIdAndTipo(UUID tenantId, UUID locacaoId, FotoTipo tipo);
 
     /**
+     * Find foto by tenant, locacao and tipo (for orphan cleanup)
+     */
+    Optional<Foto> findByTenantIdAndLocacaoIdAndTipo(UUID tenantId, UUID locacaoId, FotoTipo tipo);
+
+    /**
      * Find foto by S3 key (for integrity checks)
      */
     Optional<Foto> findByTenantIdAndS3Key(UUID tenantId, String s3Key);

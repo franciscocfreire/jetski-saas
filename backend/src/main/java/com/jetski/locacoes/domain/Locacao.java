@@ -67,9 +67,10 @@ public class Locacao {
     private UUID jetskiId;
 
     /**
-     * Customer renting the jetski
+     * Customer renting the jetski - opcional para check-in rápido
+     * Pode ser associado posteriormente via PATCH /locacoes/{id}/cliente
      */
-    @Column(name = "cliente_id", nullable = false)
+    @Column(name = "cliente_id")
     private UUID clienteId;
 
     /**
@@ -135,8 +136,35 @@ public class Locacao {
     // ===================================================================
 
     /**
+     * Negotiated price set at check-in (optional)
+     * If set, this value is used as valorBase instead of calculating from hourly rate.
+     * Allows operators to apply discounts or negotiate prices with customers.
+     */
+    @Column(name = "valor_negociado", precision = 10, scale = 2)
+    private BigDecimal valorNegociado;
+
+    /**
+     * Reason for the negotiated price/discount (optional, for audit trail)
+     * Examples: "Cliente frequente", "Promoção verão", "Desconto grupo"
+     */
+    @Column(name = "motivo_desconto", length = 255)
+    private String motivoDesconto;
+
+    /**
+     * Pricing mode selected at check-in.
+     * - PRECO_FECHADO (default): Fixed/negotiated price or calculated from hourly rate
+     * - DIARIA: Full day rental price
+     * - MEIA_DIARIA: Half day rental price
+     */
+    @Column(name = "modalidade_preco", nullable = false, length = 20)
+    @Convert(converter = ModalidadePrecoConverter.class)
+    @Builder.Default
+    private ModalidadePreco modalidadePreco = ModalidadePreco.PRECO_FECHADO;
+
+    /**
      * Base rental value before taxes/discounts
-     * valor_base = (minutos_faturaveis / 60.0) * preco_base_hora
+     * If valorNegociado is set, this equals valorNegociado.
+     * Otherwise: valor_base = (minutos_faturaveis / 60.0) * preco_base_hora
      */
     @Column(name = "valor_base", precision = 10, scale = 2)
     private BigDecimal valorBase;

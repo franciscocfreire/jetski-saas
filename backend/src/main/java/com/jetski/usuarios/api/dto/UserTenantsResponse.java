@@ -1,12 +1,9 @@
 package com.jetski.usuarios.api.dto;
 
-import com.jetski.usuarios.domain.Membro;
 import lombok.*;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * DTO: UserTenantsResponse
@@ -61,33 +58,14 @@ public class UserTenantsResponse {
     }
 
     /**
-     * Factory method: Limited access
+     * Factory method: Limited access with pre-built tenant summaries
      */
-    public static UserTenantsResponse limited(List<Membro> membros, long total) {
+    public static UserTenantsResponse limited(List<TenantSummary> tenants, long total) {
         return UserTenantsResponse.builder()
             .accessType("LIMITED")
             .totalTenants(total)
             .message(null)
-            .tenants(membros.stream()
-                .map(m -> TenantSummary.builder()
-                    .tenantId(m.getTenantId())
-                    .roles(Arrays.asList(m.getPapeis()))
-                    .build())
-                .collect(Collectors.toList()))
+            .tenants(tenants)
             .build();
     }
-}
-
-/**
- * DTO: TenantSummary
- *
- * Represents a single tenant in the user's access list.
- */
-@Data
-@AllArgsConstructor
-@NoArgsConstructor
-@Builder
-class TenantSummary {
-    private UUID tenantId;
-    private List<String> roles;
 }
