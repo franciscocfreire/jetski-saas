@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus,
@@ -16,11 +16,15 @@ import {
   ChevronUp,
   User,
   Timer,
+  Pencil,
 } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
-import { locacoesService, jetskisService, clientesService, vendedoresService } from '@/lib/api/services'
-import type { Locacao, LocacaoStatus, CheckInWalkInRequest, CheckOutRequest, ModalidadePreco } from '@/lib/api/types'
-import { formatDateTime, formatDuration, formatCurrency } from '@/lib/utils'
+import { locacoesService, jetskisService, clientesService, vendedoresService, itensOpcionaisService, modelosService } from '@/lib/api/services'
+import type { Locacao, LocacaoStatus, CheckInWalkInRequest, CheckOutRequest, ModalidadePreco, ItemOpcional, SelectedItemOpcional } from '@/lib/api/types'
+import { formatDateTime, formatDuration, formatCurrency, cn } from '@/lib/utils'
+import { RentalCountdown } from '@/components/notifications/rental-countdown'
+import { RentalAlertBanner } from '@/components/notifications/rental-alert-banner'
+import { useRentalNotifications } from '@/hooks/use-rental-notifications'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -123,6 +127,9 @@ function CheckInDialog({
     checkInChecklistItems.reduce((acc, item) => ({ ...acc, [item.id]: false }), {})
   )
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [selectedItensOpcionais, setSelectedItensOpcionais] = useState<Record<string, SelectedItemOpcional>>({})
+  const [useCustomStartTime, setUseCustomStartTime] = useState(false)
+  const [customStartTime, setCustomStartTime] = useState('')
 
   const { data: jetskis } = useQuery({
     queryKey: ['jetskis-disponiveis', currentTenant?.id],
@@ -142,6 +149,18 @@ function CheckInDialog({
     enabled: !!currentTenant && open,
   })
 
+  const { data: itensOpcionais, isLoading: isLoadingItens, error: itensError } = useQuery({
+    queryKey: ['itens-opcionais', currentTenant?.id],
+    queryFn: () => itensOpcionaisService.list(),
+    enabled: !!currentTenant && open,
+  })
+
+  const { data: modelos } = useQuery({
+    queryKey: ['modelos', currentTenant?.id],
+    queryFn: () => modelosService.list(),
+    enabled: !!currentTenant && open,
+  })
+
   const checkInMutation = useMutation({
     mutationFn: (data: CheckInWalkInRequest) => locacoesService.checkInWalkIn(data),
     onSuccess: () => {
@@ -158,6 +177,9 @@ function CheckInDialog({
         modalidadePreco: 'PRECO_FECHADO',
       })
       setChecklist(checkInChecklistItems.reduce((acc, item) => ({ ...acc, [item.id]: false }), {}))
+      setSelectedItensOpcionais({})
+      setUseCustomStartTime(false)
+      setCustomStartTime('')
     },
   })
 
@@ -167,11 +189,19 @@ function CheckInDialog({
       .filter(([, checked]) => checked)
       .map(([id]) => id)
 
+    // Convert selected items to array format
+    const itensOpcionaisArray = Object.values(selectedItensOpcionais)
+
     const request: CheckInWalkInRequest = {
       ...formData,
       clienteId: formData.clienteId || undefined,
       vendedorId: formData.vendedorId || undefined,
       checklistSaidaJson: JSON.stringify(checkedItems),
+      itensOpcionais: itensOpcionaisArray.length > 0 ? itensOpcionaisArray : undefined,
+      // Add custom start time if enabled (format: YYYY-MM-DDTHH:mm:ss)
+      dataCheckIn: useCustomStartTime && customStartTime
+        ? customStartTime + ':00'  // Append seconds to match ISO format
+        : undefined,
     }
     checkInMutation.mutate(request)
   }
@@ -189,6 +219,66 @@ function CheckInDialog({
   const toggleChecklistItem = (id: string) => {
     setChecklist(prev => ({ ...prev, [id]: !prev[id] }))
   }
+
+  const toggleItemOpcional = (item: ItemOpcional) => {
+    setSelectedItensOpcionais(prev => {
+      if (prev[item.id]) {
+        // Remove item
+        const { [item.id]: _removed, ...rest } = prev
+        void _removed // Silence unused variable warning
+        return rest
+      } else {
+        // Add item with default values
+        return {
+          ...prev,
+          [item.id]: {
+            itemOpcionalId: item.id,
+            quantidade: 1,
+            valorNegociado: item.precoBase,
+          }
+        }
+      }
+    })
+  }
+
+  const updateItemOpcionalQuantidade = (itemId: string, quantidade: number) => {
+    setSelectedItensOpcionais(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        quantidade: Math.max(1, quantidade),
+      }
+    }))
+  }
+
+  const updateItemOpcionalValor = (itemId: string, valor: number) => {
+    setSelectedItensOpcionais(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        valorNegociado: valor,
+      }
+    }))
+  }
+
+  // Calculate total of selected optional items
+  const totalItensOpcionais = Object.values(selectedItensOpcionais).reduce(
+    (sum, item) => sum + (item.valorNegociado || 0) * item.quantidade,
+    0
+  )
+
+  // Get selected jetski and its model to calculate base price
+  const selectedJetski = jetskis?.find(j => j.id === formData.jetskiId)
+  // Try to get price from embedded modelo first, otherwise lookup from modelos list
+  const modeloFromJetski = selectedJetski?.modelo
+  const modeloFromList = modelos?.find(m => m.id === selectedJetski?.modeloId)
+  const precoBaseHora = modeloFromJetski?.precoBaseHora || modeloFromList?.precoBaseHora || 0
+
+  // Calculate base value based on pricing mode
+  const valorBaseCalculado = (formData.duracaoPrevista / 60) * precoBaseHora
+  const valorBaseEstimado = formData.valorNegociado ?? valorBaseCalculado
+  const valorTotalEstimado = valorBaseEstimado + totalItensOpcionais
+  const usandoValorNegociado = formData.valorNegociado !== undefined && formData.valorNegociado !== null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -257,6 +347,37 @@ function CheckInDialog({
               </div>
             </div>
 
+            {/* Horário de Início Customizado - Visible in main form */}
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="useCustomStartTime"
+                  checked={useCustomStartTime}
+                  onCheckedChange={(checked) => {
+                    setUseCustomStartTime(checked === true)
+                    if (!checked) setCustomStartTime('')
+                  }}
+                />
+                <Label htmlFor="useCustomStartTime" className="cursor-pointer font-medium">
+                  Definir horário de início diferente
+                </Label>
+              </div>
+              {useCustomStartTime && (
+                <div className="mt-3">
+                  <Input
+                    id="customStartTime"
+                    type="datetime-local"
+                    value={customStartTime}
+                    onChange={(e) => setCustomStartTime(e.target.value)}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Use quando o check-in começou antes/depois do momento atual
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Cliente and Vendedor */}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
@@ -319,6 +440,90 @@ function CheckInDialog({
                   </label>
                 ))}
               </div>
+            </div>
+
+            {/* Itens Opcionais */}
+            <div className="grid gap-2">
+              <Label>Itens Opcionais</Label>
+              {isLoadingItens ? (
+                <div className="rounded-lg border p-3 text-center text-sm text-muted-foreground">
+                  Carregando itens opcionais...
+                </div>
+              ) : itensError ? (
+                <div className="rounded-lg border p-3 text-center text-sm text-destructive">
+                  Erro ao carregar itens: {(itensError as Error).message}
+                </div>
+              ) : (!itensOpcionais || itensOpcionais.filter(item => item.ativo).length === 0) ? (
+                <div className="rounded-lg border p-3 text-center text-sm text-muted-foreground">
+                  Nenhum item opcional cadastrado
+                </div>
+              ) : (
+              <div className="rounded-lg border p-3 space-y-3">
+                {itensOpcionais.filter(item => item.ativo).map((item) => {
+                    const isSelected = !!selectedItensOpcionais[item.id]
+                    const selectedItem = selectedItensOpcionais[item.id]
+                    return (
+                      <div
+                        key={item.id}
+                        className={`rounded-md border p-3 transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+                      >
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleItemOpcional(item)}
+                          />
+                          <div className="flex-1">
+                            <span className={isSelected ? 'text-foreground font-medium' : 'text-muted-foreground'}>
+                              {item.nome}
+                            </span>
+                            {item.descricao && (
+                              <p className="text-xs text-muted-foreground">{item.descricao}</p>
+                            )}
+                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {formatCurrency(item.precoBase)}
+                          </span>
+                        </label>
+
+                        {/* Quantidade e Valor quando selecionado */}
+                        {isSelected && selectedItem && (
+                          <div className="mt-3 pl-7 grid grid-cols-2 gap-3">
+                            <div className="grid gap-1">
+                              <Label className="text-xs">Quantidade</Label>
+                              <Input
+                                type="number"
+                                value={selectedItem.quantidade}
+                                onChange={(e) => updateItemOpcionalQuantidade(item.id, Number(e.target.value))}
+                                min={1}
+                                className="h-8"
+                              />
+                            </div>
+                            <div className="grid gap-1">
+                              <Label className="text-xs">Valor Unit. (R$)</Label>
+                              <Input
+                                type="number"
+                                value={selectedItem.valorNegociado || item.precoBase}
+                                onChange={(e) => updateItemOpcionalValor(item.id, Number(e.target.value))}
+                                min={0}
+                                step={1}
+                                className="h-8"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {/* Total dos itens opcionais */}
+                  {Object.keys(selectedItensOpcionais).length > 0 && (
+                    <div className="flex justify-between pt-2 border-t font-medium">
+                      <span>Total Itens Opcionais:</span>
+                      <span className="text-primary">{formatCurrency(totalItensOpcionais)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Advanced Options (Collapsible) */}
@@ -394,6 +599,38 @@ function CheckInDialog({
                 </div>
               </CollapsibleContent>
             </Collapsible>
+
+            {/* Resumo de Valores */}
+            {formData.jetskiId && (
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+                <h4 className="font-medium flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  Resumo Estimado
+                </h4>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      {usandoValorNegociado ? (
+                        `Aluguel (${formatDuration(formData.duracaoPrevista)} - Valor Negociado):`
+                      ) : (
+                        `Aluguel (${formatDuration(formData.duracaoPrevista)} × ${formatCurrency(precoBaseHora)}/h):`
+                      )}
+                    </span>
+                    <span>{formatCurrency(valorBaseEstimado)}</span>
+                  </div>
+                  {totalItensOpcionais > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Itens Opcionais:</span>
+                      <span>{formatCurrency(totalItensOpcionais)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between pt-2 border-t font-bold text-base">
+                    <span>Total Estimado:</span>
+                    <span className="text-primary">{formatCurrency(valorTotalEstimado)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -745,6 +982,115 @@ function LocacaoDetailDialog({
   )
 }
 
+// ============================================
+// Edit Start Time Dialog
+// ============================================
+
+function EditTimeDialog({
+  locacao,
+  open,
+  onOpenChange,
+}: {
+  locacao: Locacao
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const queryClient = useQueryClient()
+
+  // Format the current dataCheckIn for datetime-local input (local time, not UTC)
+  const formatForInput = (dateStr: string) => {
+    const date = new Date(dateStr)
+    // Format: YYYY-MM-DDTHH:mm in local timezone
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+  }
+
+  const [newDataCheckIn, setNewDataCheckIn] = useState(
+    formatForInput(locacao.dataCheckIn)
+  )
+
+  // Reset when locacao changes
+  useEffect(() => {
+    setNewDataCheckIn(formatForInput(locacao.dataCheckIn))
+  }, [locacao.dataCheckIn])
+
+  const updateMutation = useMutation({
+    mutationFn: (dataCheckIn: string) =>
+      locacoesService.updateDataCheckIn(locacao.id, dataCheckIn),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locacoes'] })
+      onOpenChange(false)
+    },
+  })
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newDataCheckIn) return
+
+    // Convert to ISO format with seconds
+    const isoDate = newDataCheckIn + ':00'
+    updateMutation.mutate(isoDate)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[400px]">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Alterar Horário de Início</DialogTitle>
+            <DialogDescription>
+              Ajuste o horário de check-in da locação
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <div className="flex items-center gap-2 text-sm">
+                <Ship className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">{locacao.jetskiSerie}</span>
+                {locacao.clienteNome && (
+                  <span className="text-muted-foreground">- {locacao.clienteNome}</span>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="newTime">Novo horário de início</Label>
+              <Input
+                id="newTime"
+                type="datetime-local"
+                value={newDataCheckIn}
+                onChange={(e) => setNewDataCheckIn(e.target.value)}
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Horário atual: {formatDateTime(locacao.dataCheckIn)}
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function LocacoesPage() {
   const { currentTenant } = useTenantStore()
 
@@ -753,6 +1099,7 @@ export default function LocacoesPage() {
   const [checkInOpen, setCheckInOpen] = useState(false)
   const [checkOutLocacao, setCheckOutLocacao] = useState<Locacao | null>(null)
   const [detailLocacao, setDetailLocacao] = useState<Locacao | null>(null)
+  const [editTimeLocacao, setEditTimeLocacao] = useState<Locacao | null>(null)
 
   const { data: locacoes, isLoading } = useQuery({
     queryKey: ['locacoes', currentTenant?.id, statusFilter],
@@ -769,6 +1116,50 @@ export default function LocacoesPage() {
     locacao.clienteNome?.toLowerCase().includes(search.toLowerCase())
   )
 
+  // Helper: calculate end time for a rental
+  const calculateEndTime = (dataCheckIn: string, duracaoPrevista?: number): Date => {
+    const checkIn = new Date(dataCheckIn)
+    return new Date(checkIn.getTime() + (duracaoPrevista || 0) * 60 * 1000)
+  }
+
+  // Helper: check if rental is expired (past end time but still EM_CURSO)
+  const isExpired = (locacao: Locacao): boolean => {
+    if (locacao.status !== 'EM_CURSO' || !locacao.duracaoPrevista) return false
+    return calculateEndTime(locacao.dataCheckIn, locacao.duracaoPrevista) < new Date()
+  }
+
+  // Sort by time remaining: expired first, then soonest ending, then completed/cancelled
+  const sortedLocacoes = useMemo(() => {
+    if (!filteredLocacoes) return []
+
+    return [...filteredLocacoes].sort((a, b) => {
+      // Completed/cancelled rentals go to end
+      if (a.status !== 'EM_CURSO' && b.status === 'EM_CURSO') return 1
+      if (a.status === 'EM_CURSO' && b.status !== 'EM_CURSO') return -1
+      if (a.status !== 'EM_CURSO' && b.status !== 'EM_CURSO') {
+        // Among non-active, sort by check-in date (most recent first)
+        return new Date(b.dataCheckIn).getTime() - new Date(a.dataCheckIn).getTime()
+      }
+
+      // For EM_CURSO: sort by end time (soonest/expired first)
+      const endA = calculateEndTime(a.dataCheckIn, a.duracaoPrevista).getTime()
+      const endB = calculateEndTime(b.dataCheckIn, b.duracaoPrevista).getTime()
+
+      return endA - endB
+    })
+  }, [filteredLocacoes])
+
+  // Rental notifications hook
+  const {
+    alerts,
+    soundEnabled,
+    toggleSound,
+    requestPushPermission,
+    handleWarning,
+    handleExpired,
+    initializeSound,
+  } = useRentalNotifications(locacoes)
+
   if (!currentTenant) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
@@ -784,11 +1175,19 @@ export default function LocacoesPage() {
           <h1 className="text-3xl font-bold">Locações</h1>
           <p className="text-muted-foreground">Gerencie as locações de jetskis</p>
         </div>
-        <Button onClick={() => setCheckInOpen(true)}>
+        <Button onClick={() => { setCheckInOpen(true); initializeSound(); }}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Check-in
         </Button>
       </div>
+
+      {/* Alert Banner for expiring/expired rentals */}
+      <RentalAlertBanner
+        alerts={alerts}
+        soundEnabled={soundEnabled}
+        onToggleSound={toggleSound}
+        onRequestPushPermission={requestPushPermission}
+      />
 
       <div className="flex gap-4">
         <div className="relative flex-1">
@@ -839,7 +1238,7 @@ export default function LocacoesPage() {
                   <TableCell><Skeleton className="h-8 w-8" /></TableCell>
                 </TableRow>
               ))
-            ) : filteredLocacoes?.length === 0 ? (
+            ) : sortedLocacoes?.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="h-24 text-center">
                   <div className="flex flex-col items-center gap-2">
@@ -849,8 +1248,13 @@ export default function LocacoesPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredLocacoes?.map((locacao) => (
-                <TableRow key={locacao.id}>
+              sortedLocacoes?.map((locacao) => (
+                <TableRow
+                  key={locacao.id}
+                  className={cn(
+                    isExpired(locacao) && 'bg-destructive/10 border-l-4 border-l-destructive'
+                  )}
+                >
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Ship className="h-4 w-4 text-muted-foreground" />
@@ -865,14 +1269,23 @@ export default function LocacoesPage() {
                   <TableCell>{locacao.clienteNome || 'Walk-in'}</TableCell>
                   <TableCell>{formatDateTime(locacao.dataCheckIn)}</TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      {locacao.minutosUsados
-                        ? formatDuration(locacao.minutosUsados)
-                        : locacao.duracaoPrevista
-                          ? `~${formatDuration(locacao.duracaoPrevista)}`
-                          : 'Em uso'}
-                    </div>
+                    {locacao.status === 'EM_CURSO' ? (
+                      <RentalCountdown
+                        dataCheckIn={locacao.dataCheckIn}
+                        duracaoPrevista={locacao.duracaoPrevista}
+                        onWarning={() => handleWarning(locacao)}
+                        onExpired={() => handleExpired(locacao)}
+                      />
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        {locacao.minutosUsados
+                          ? formatDuration(locacao.minutosUsados)
+                          : locacao.duracaoPrevista
+                            ? `~${formatDuration(locacao.duracaoPrevista)}`
+                            : '-'}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>
                     {locacao.valorTotal ? formatCurrency(locacao.valorTotal) : '-'}
@@ -895,10 +1308,16 @@ export default function LocacoesPage() {
                           Ver detalhes
                         </DropdownMenuItem>
                         {locacao.status === 'EM_CURSO' && (
-                          <DropdownMenuItem onClick={() => setCheckOutLocacao(locacao)}>
-                            <LogOut className="mr-2 h-4 w-4" />
-                            Fazer Check-out
-                          </DropdownMenuItem>
+                          <>
+                            <DropdownMenuItem onClick={() => setEditTimeLocacao(locacao)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Alterar horário
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setCheckOutLocacao(locacao)}>
+                              <LogOut className="mr-2 h-4 w-4" />
+                              Fazer Check-out
+                            </DropdownMenuItem>
+                          </>
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -925,6 +1344,14 @@ export default function LocacoesPage() {
           locacao={detailLocacao}
           open={!!detailLocacao}
           onOpenChange={(open) => !open && setDetailLocacao(null)}
+        />
+      )}
+
+      {editTimeLocacao && (
+        <EditTimeDialog
+          locacao={editTimeLocacao}
+          open={!!editTimeLocacao}
+          onOpenChange={(open) => !open && setEditTimeLocacao(null)}
         />
       )}
     </div>

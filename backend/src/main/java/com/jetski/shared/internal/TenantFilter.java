@@ -75,7 +75,11 @@ public class TenantFilter extends OncePerRequestFilter {
             // 2. Validate format (must be valid UUID)
             UUID tenantId = parseTenantId(tenantIdStr);
 
-            // 3. Extract user identity from JWT (provider + providerUserId)
+            // 3. Store tenant in context EARLY (before any DB queries)
+            // This ensures RLS works for access validation queries AND business queries
+            TenantContext.setTenantId(tenantId);
+
+            // 4. Extract user identity from JWT (provider + providerUserId)
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.isAuthenticated() &&
                 !auth.getPrincipal().equals("anonymousUser") &&
@@ -85,24 +89,21 @@ public class TenantFilter extends OncePerRequestFilter {
                 String provider = JwtAuthenticationConverter.extractProvider(jwt);
                 String providerUserId = JwtAuthenticationConverter.extractProviderUserId(jwt);
 
-                // 4. Validate access via database (resolves internal usuario_id via mapping)
+                // 5. Validate access via database (resolves internal usuario_id via mapping)
                 validateAccessViaDatabase(provider, providerUserId, tenantId);
             }
 
-            // 5. Store tenant in context
-            TenantContext.setTenantId(tenantId);
-
-            // 5.1. Record tenant context switch metric
+            // 6. Record tenant context switch metric
             businessMetrics.recordTenantContextSwitch(tenantId.toString());
 
             log.debug("Tenant context set successfully: tenantId={}, path={}, method={}",
                     tenantId, requestPath, request.getMethod());
 
-            // 6. Continue filter chain
+            // 7. Continue filter chain
             filterChain.doFilter(request, response);
 
         } finally {
-            // 6. ALWAYS clear context to prevent memory leaks
+            // 8. ALWAYS clear context to prevent memory leaks
             TenantContext.clear();
         }
     }
@@ -216,6 +217,8 @@ public class TenantFilter extends OncePerRequestFilter {
                normalizedPath.equals("/v1/user/tenants") ||  // User tenants list (no tenant needed)
                normalizedPath.equals("/v1/auth/complete-activation") ||  // Account activation (Option 2: temp password)
                normalizedPath.equals("/v1/auth/magic-activate") ||  // Account activation (Magic link JWT - one-click UX)
-               normalizedPath.startsWith("/v1/storage/local/");  // Local storage endpoints (simulated presigned URLs)
+               normalizedPath.startsWith("/v1/signup/") ||  // Self-service tenant signup (public)
+               normalizedPath.startsWith("/v1/storage/local/") ||  // Local storage endpoints (simulated presigned URLs)
+               normalizedPath.startsWith("/v1/test/");  // E2E test utilities (local/test/dev profile only)
     }
 }

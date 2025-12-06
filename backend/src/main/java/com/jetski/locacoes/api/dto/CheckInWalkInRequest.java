@@ -7,7 +7,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -59,6 +61,14 @@ public class CheckInWalkInRequest {
      * Optional notes
      */
     private String observacoes;
+
+    /**
+     * Custom check-in date/time (optional).
+     * If not provided, defaults to current time (LocalDateTime.now()).
+     * Allows operators to set past (late start) or future times.
+     */
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime dataCheckIn;
 
     /**
      * Check-in checklist (JSON array of verification items)

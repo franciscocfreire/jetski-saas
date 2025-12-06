@@ -76,7 +76,7 @@ fi
 # 9. Rodar migrations do Flyway
 echo "9️⃣  Executando migrations do banco..."
 cd "$BACKEND_DIR"
-mvn flyway:migrate -q
+mvn flyway:migrate -Dflyway.outOfOrder=true -q
 
 # 10. Verificar migrations aplicadas
 echo "🔍 Verificando migrations aplicadas..."

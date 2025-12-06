@@ -2,6 +2,7 @@ package jetski.business
 
 import future.keywords.if
 import future.keywords.in
+import future.keywords.contains
 
 # =============================================================================
 # Business Rules Policies
@@ -78,9 +79,6 @@ deny_conflito contains msg if {
 
     # Mesmo jetski
     reserva_existente.jetski_id == reserva_nova.jetski_id
-
-    # Ignora reservas canceladas
-    reserva_existente.status != "cancelada"
 
     # Sobreposição de horário
     horarios_sobrepoem(reserva_nova, reserva_existente)
@@ -168,6 +166,62 @@ deny_fotos contains msg if {
 }
 
 # =============================================================================
+# SECURITY: Role Management Protection
+# =============================================================================
+#
+# Previne vulnerabilidades em gerenciamento de roles:
+# 1. Self-modification: usuário não pode alterar próprios roles
+# 2. Privilege escalation: GERENTE não pode conceder ADMIN_TENANT
+# 3. Role hierarchy: apenas ADMIN_TENANT pode conceder ADMIN_TENANT ou GERENTE
+#
+# =============================================================================
+
+# Lista de roles privilegiados que apenas ADMIN_TENANT pode conceder
+privileged_roles := ["ADMIN_TENANT", "GERENTE"]
+
+# Nega auto-modificação de roles (usuário alterando seus próprios roles)
+deny_role_management contains msg if {
+    input.action == "member:update"
+    input.user.id == input.resource.id  # Usuário é o alvo da modificação
+    msg := "Não é permitido modificar seus próprios papéis (roles)"
+}
+
+# Nega privilege escalation: GERENTE tentando conceder ADMIN_TENANT
+deny_role_management contains msg if {
+    input.action == "member:update"
+
+    # Usuário tem role GERENTE (mas não ADMIN_TENANT)
+    "GERENTE" in input.user.roles
+    not "ADMIN_TENANT" in input.user.roles
+
+    # Está tentando conceder ADMIN_TENANT
+    operation := input.operation
+    "ADMIN_TENANT" in operation.new_roles
+
+    msg := "GERENTE não pode conceder papel ADMIN_TENANT. Apenas ADMIN_TENANT pode fazê-lo."
+}
+
+# Nega GERENTE concedendo GERENTE para outros (privilege escalation lateral)
+deny_role_management contains msg if {
+    input.action == "member:update"
+
+    # Usuário tem role GERENTE (mas não ADMIN_TENANT)
+    "GERENTE" in input.user.roles
+    not "ADMIN_TENANT" in input.user.roles
+
+    # Está tentando conceder GERENTE para alguém que não era GERENTE
+    operation := input.operation
+    "GERENTE" in operation.new_roles
+
+    # Alvo não tinha GERENTE antes
+    target := data.members[input.resource.id]
+    target != null
+    not "GERENTE" in target.current_roles
+
+    msg := "GERENTE não pode conceder papel GERENTE para outros. Apenas ADMIN_TENANT pode fazê-lo."
+}
+
+# =============================================================================
 # Decisão de Business Rules
 # =============================================================================
 
@@ -177,7 +231,8 @@ all_denies := deny_manutencao |
               deny_conflito |
               deny_combustivel |
               deny_fechamento |
-              deny_fotos
+              deny_fotos |
+              deny_role_management
 
 # Permite se não há nenhuma negação
 allow_business if {
@@ -188,7 +243,5 @@ allow_business if {
 # Exports
 # =============================================================================
 
-default business_allow := false
 business_allow := allow_business
-
 business_deny := all_denies

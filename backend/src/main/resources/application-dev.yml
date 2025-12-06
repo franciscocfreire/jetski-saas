@@ -1,11 +1,11 @@
 spring:
   application:
-    name: jetski-api
+    name: pegaojet-api
 
   datasource:
-    url: jdbc:postgresql://172.20.0.2:5432/jetski_dev?sslmode=disable&preferQueryMode=simple
-    username: jetski
-    password: dev123
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/jetski_dev}
+    username: ${SPRING_DATASOURCE_USERNAME:jetski}
+    password: ${SPRING_DATASOURCE_PASSWORD:dev123}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -17,7 +17,7 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     show-sql: true
     properties:
       hibernate:
@@ -31,26 +31,44 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
       timeout: 2000ms
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8080/realms/jetski-saas
-          jwk-set-uri: http://localhost:8080/realms/jetski-saas/protocol/openid-connect/certs
+          issuer-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI:http://localhost:8080/realms/jetski-saas}
+          jwk-set-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI:http://localhost:8080/realms/jetski-saas/protocol/openid-connect/certs}
 
   cache:
     type: redis
     redis:
       time-to-live: 3600000  # 1 hour
 
+  # Email SMTP Configuration (Gmail)
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${GMAIL_USER:}
+    password: ${GMAIL_APP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
 server:
   port: 8090
   servlet:
     context-path: /api
+  forward-headers-strategy: native
   error:
     include-message: always
     include-binding-errors: always
@@ -97,6 +115,25 @@ jetski:
     allowed-origins:
       - http://localhost:3000
       - http://localhost:3001
+    # External URL for ngrok or other tunneling services (JWT issuer validation)
+    external-url: ${JETSKI_EXTERNAL_URL:}
+  opa:
+    base-url: ${JETSKI_OPA_BASE_URL:http://localhost:8181}
+  email:
+    from: ${GMAIL_USER:noreply@pegaojet.com.br}
+    from-name: Pega o Jet
+  frontend:
+    url: ${JETSKI_FRONTEND_URL:http://localhost:3001}
+
+# Keycloak Admin Client
+keycloak:
+  admin:
+    server-url: ${KEYCLOAK_ADMIN_SERVER_URL:http://localhost:8080}
+    realm: ${KEYCLOAK_ADMIN_REALM:master}
+    client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:admin-cli}
+    username: ${KEYCLOAK_ADMIN_USERNAME:admin}
+    password: ${KEYCLOAK_ADMIN_PASSWORD:admin}
+    target-realm: ${KEYCLOAK_ADMIN_TARGET_REALM:jetski-saas}
 
 # Storage Configuration (MinIO S3-compatible)
 storage:

@@ -15,7 +15,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -86,9 +88,13 @@ public class KeycloakAdminService {
             user.setEnabled(true);
             user.setEmailVerified(true);  // Email já foi verificado no fluxo de convite
 
-            // Adicionar atributos personalizados
-            user.singleAttribute("tenant_id", tenantId.toString());
-            user.singleAttribute("postgresql_user_id", usuarioId.toString());
+            // Adicionar atributos personalizados (usando Map explícito para compatibilidade com Keycloak 26)
+            Map<String, List<String>> attributes = new HashMap<>();
+            attributes.put("tenant_id", Collections.singletonList(tenantId.toString()));
+            attributes.put("postgresql_user_id", Collections.singletonList(usuarioId.toString()));
+            user.setAttributes(attributes);
+
+            log.debug("User attributes set: tenant_id={}, postgresql_user_id={}", tenantId, usuarioId);
 
             // COM required action UPDATE_PASSWORD - força troca de senha no primeiro login
             user.setRequiredActions(Collections.singletonList("UPDATE_PASSWORD"));

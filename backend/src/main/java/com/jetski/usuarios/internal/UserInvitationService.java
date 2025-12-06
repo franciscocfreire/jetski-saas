@@ -141,6 +141,10 @@ public class UserInvitationService {
             temporaryPassword  // Plain password sent in email (backward compatibility + manual activation fallback)
         );
 
+        // 10. Record email sent and save (updates email_sent_count, email_sent_at)
+        convite.recordEmailSent(magicLink);
+        conviteRepository.save(convite);
+
         log.info("Invitation email sent to {} with magic link and temporary password", request.getEmail());
 
         return InviteUserResponse.success(
@@ -236,6 +240,18 @@ public class UserInvitationService {
 
         log.info("Created membro for usuario {} in tenant {}", usuarioId, convite.getTenantId());
 
+        // 7.1 Create tenant_access (required for TenantFilter validation)
+        entityManager.createNativeQuery(
+            "INSERT INTO tenant_access (usuario_id, tenant_id, roles, is_default, created_at, updated_at) " +
+            "VALUES (?1, ?2, ?3, true, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')"
+        )
+        .setParameter(1, usuarioId)
+        .setParameter(2, convite.getTenantId())
+        .setParameter(3, convite.getPapeis())
+        .executeUpdate();
+
+        log.info("Created tenant_access for usuario {} in tenant {}", usuarioId, convite.getTenantId());
+
         // 8. Provision user in Keycloak WITH TEMPORARY PASSWORD + UPDATE_PASSWORD required action
         // Keycloak will force password change on first login
         String providerUserId = userProvisioningService.provisionUserWithPassword(
@@ -289,7 +305,7 @@ public class UserInvitationService {
     private void validatePlanLimits(UUID tenantId) {
         // Query to get plan limit
         Integer maxUsuarios = (Integer) entityManager.createNativeQuery(
-            "SELECT (p.limites_json->>'usuarios_max')::int " +
+            "SELECT (p.limites->>'usuarios_max')::int " +
             "FROM assinatura a " +
             "JOIN plano p ON a.plano_id = p.id " +
             "WHERE a.tenant_id = ?1 AND a.status = 'ativa'"

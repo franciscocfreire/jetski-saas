@@ -115,6 +115,28 @@ export interface ReservaCreateRequest {
 export type LocacaoStatus = 'EM_CURSO' | 'FINALIZADA' | 'CANCELADA'
 export type ModalidadePreco = 'PRECO_FECHADO' | 'DIARIA' | 'MEIA_DIARIA'
 
+// Item Opcional Module
+export interface ItemOpcional extends BaseEntity {
+  nome: string
+  descricao?: string
+  precoBase: number
+  ativo: boolean
+}
+
+export interface ItemOpcionalCreateRequest {
+  nome: string
+  descricao?: string
+  precoBase: number
+  ativo?: boolean
+}
+
+// Selected optional item for check-in
+export interface SelectedItemOpcional {
+  itemOpcionalId: string
+  quantidade: number
+  valorNegociado?: number
+}
+
 export interface Locacao extends BaseEntity {
   reservaId?: string
   jetskiId: string
@@ -175,10 +197,12 @@ export interface CheckInWalkInRequest {
   horimetroInicio: number
   duracaoPrevista: number  // Required - minimum 15 minutes
   observacoes?: string
+  dataCheckIn?: string  // ISO 8601, optional - defaults to current time if not provided
   checklistSaidaJson?: string
   valorNegociado?: number
   motivoDesconto?: string
   modalidadePreco?: ModalidadePreco
+  itensOpcionais?: SelectedItemOpcional[]
 }
 
 export interface CheckOutRequest {
@@ -265,6 +289,17 @@ export interface UserTenantsResponse {
   tenants: TenantSummary[]
 }
 
+// Dashboard Metrics (cached)
+export interface DashboardMetrics {
+  receitaHoje: number
+  receitaMes: number
+  locacoesHoje: number
+  locacoesMes: number
+  dataReferencia: string
+  inicioMes: string
+  calculatedAt: string
+}
+
 // Pagination
 export interface Page<T> {
   content: T[]
@@ -287,4 +322,115 @@ export interface ApiError {
   status: number
   message: string
   errors?: Record<string, string[]>
+}
+
+// ==========================================
+// User/Member Management Types
+// ==========================================
+
+// Member Summary
+export interface MemberSummary {
+  usuarioId: string
+  email: string
+  nome: string
+  papeis: string[]
+  ativo: boolean
+  joinedAt: string
+  lastUpdated: string
+}
+
+// Plan Limit Info
+export interface PlanLimitInfo {
+  maxUsuarios: number
+  currentActive: number
+  available: number
+  limitReached: boolean
+}
+
+// List Members Response
+export interface ListMembersResponse {
+  members: MemberSummary[]
+  totalCount: number
+  activeCount: number
+  inactiveCount: number
+  planLimit: PlanLimitInfo
+}
+
+// Invite User Request
+export interface InviteUserRequest {
+  email: string
+  nome: string
+  papeis: string[]
+}
+
+// Update Roles Request
+export interface UpdateRolesRequest {
+  papeis: string[]
+}
+
+// Convite (Invitation) Summary
+export interface ConviteSummary {
+  id: string
+  email: string
+  nome: string
+  papeis: string[]
+  createdAt: string
+  expiresAt: string
+  status: 'PENDING' | 'EXPIRED'
+  emailSentCount: number
+  lastEmailSentAt?: string
+}
+
+// Available Roles
+export const AVAILABLE_ROLES = [
+  { value: 'ADMIN_TENANT', label: 'Administrador', description: 'Acesso total ao tenant' },
+  { value: 'GERENTE', label: 'Gerente', description: 'Gestão de operações e equipe' },
+  { value: 'OPERADOR', label: 'Operador', description: 'Check-in/out e operações de píer' },
+  { value: 'VENDEDOR', label: 'Vendedor', description: 'Reservas e comissões' },
+  { value: 'MECANICO', label: 'Mecânico', description: 'Ordens de manutenção' },
+  { value: 'FINANCEIRO', label: 'Financeiro', description: 'Fechamentos e relatórios' },
+] as const
+
+export type RoleValue = typeof AVAILABLE_ROLES[number]['value']
+
+// ==========================================
+// Tenant Signup Types
+// ==========================================
+
+// Request for new user creating a tenant (public signup)
+export interface TenantSignupRequest {
+  razaoSocial: string
+  slug: string
+  cnpj?: string
+  adminEmail: string
+  adminNome: string
+}
+
+// Request for existing user creating a new tenant (authenticated)
+export interface CreateTenantRequest {
+  razaoSocial: string
+  slug: string
+  cnpj?: string
+}
+
+// Response for tenant signup/creation
+export interface TenantSignupResponse {
+  tenantId: string
+  slug: string
+  razaoSocial: string
+  adminEmail?: string
+  message: string
+  trialExpiresAt: string
+  requiresActivation: boolean
+}
+
+// Signup activation request
+export interface SignupActivationRequest {
+  token: string
+  temporaryPassword: string
+}
+
+// Check slug availability response
+export interface SlugAvailabilityResponse {
+  available: boolean
 }

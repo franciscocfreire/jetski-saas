@@ -10,9 +10,11 @@ import {
   Calendar,
   AlertTriangle,
   Wrench,
+  Clock,
+  Timer,
 } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
-import { jetskisService, locacoesService, clientesService } from '@/lib/api/services'
+import { jetskisService, locacoesService, clientesService, dashboardService } from '@/lib/api/services'
 import { formatCurrency } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -78,6 +80,49 @@ function StatCardSkeleton() {
   )
 }
 
+// Helper functions for time display
+function formatTime(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function calculateEndTime(checkInDate: string, durationMinutes?: number): string {
+  if (!durationMinutes) return '--:--'
+  const date = new Date(checkInDate)
+  date.setMinutes(date.getMinutes() + durationMinutes)
+  return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function getTimeStatus(checkInDate: string, durationMinutes?: number): {
+  status: 'ok' | 'warning' | 'exceeded'
+  minutesRemaining: number
+} {
+  if (!durationMinutes) return { status: 'ok', minutesRemaining: 0 }
+
+  const checkIn = new Date(checkInDate)
+  const endTime = new Date(checkIn.getTime() + durationMinutes * 60 * 1000)
+  const now = new Date()
+  const minutesRemaining = Math.round((endTime.getTime() - now.getTime()) / (60 * 1000))
+
+  if (minutesRemaining < 0) return { status: 'exceeded', minutesRemaining }
+  if (minutesRemaining <= 15) return { status: 'warning', minutesRemaining }
+  return { status: 'ok', minutesRemaining }
+}
+
+function formatTimeRemaining(minutes: number): string {
+  if (minutes < 0) {
+    const exceeded = Math.abs(minutes)
+    if (exceeded >= 60) {
+      return `+${Math.floor(exceeded / 60)}h${exceeded % 60}min`
+    }
+    return `+${exceeded}min`
+  }
+  if (minutes >= 60) {
+    return `${Math.floor(minutes / 60)}h${minutes % 60}min`
+  }
+  return `${minutes}min`
+}
+
 export default function DashboardPage() {
   const { currentTenant } = useTenantStore()
 
@@ -99,7 +144,16 @@ export default function DashboardPage() {
     enabled: !!currentTenant,
   })
 
-  const isLoading = loadingJetskis || loadingLocacoes || loadingClientes
+  // Dashboard metrics (cached on backend)
+  const { data: metrics, isLoading: loadingMetrics } = useQuery({
+    queryKey: ['dashboard-metrics', currentTenant?.id],
+    queryFn: () => dashboardService.getMetrics(),
+    enabled: !!currentTenant,
+    staleTime: 1000 * 60 * 5, // 5 minutes (match backend cache TTL)
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
+  })
+
+  const isLoading = loadingJetskis || loadingLocacoes || loadingClientes || loadingMetrics
 
   // Calculate stats - backend returns simple arrays, not paginated
   const totalJetskis = jetskis?.length || 0
@@ -109,9 +163,11 @@ export default function DashboardPage() {
   const locacoesAtivas = locacoes?.length || 0
   const totalClientes = clientes?.length || 0
 
-  // Mock revenue data (would come from API)
-  const receitaHoje = 4500.00
-  const receitaMes = 45000.00
+  // Revenue metrics from API (cached)
+  const receitaHoje = metrics?.receitaHoje || 0
+  const receitaMes = metrics?.receitaMes || 0
+  const locacoesHoje = metrics?.locacoesHoje || 0
+  const locacoesMes = metrics?.locacoesMes || 0
 
   if (!currentTenant) {
     return (
@@ -150,8 +206,8 @@ export default function DashboardPage() {
             <StatCard
               title="Receita Hoje"
               value={formatCurrency(receitaHoje)}
+              description={`${locacoesHoje} locações finalizadas`}
               icon={<DollarSign className="h-6 w-6" />}
-              trend={{ value: 12, label: 'vs ontem' }}
               variant="success"
             />
             <StatCard
@@ -164,13 +220,12 @@ export default function DashboardPage() {
               title="Clientes"
               value={totalClientes}
               icon={<Users className="h-6 w-6" />}
-              trend={{ value: 8, label: 'este mês' }}
             />
             <StatCard
               title="Receita Mensal"
               value={formatCurrency(receitaMes)}
+              description={`${locacoesMes} locações no mês`}
               icon={<Calendar className="h-6 w-6" />}
-              trend={{ value: 15, label: 'vs mês anterior' }}
             />
           </>
         )}
@@ -214,28 +269,65 @@ export default function DashboardPage() {
       {/* Recent Activity */}
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border bg-card p-6">
-          <h3 className="text-lg font-semibold">Locações Recentes</h3>
-          <p className="text-sm text-muted-foreground">Últimas 5 locações realizadas</p>
+          <h3 className="text-lg font-semibold">Locações em Curso</h3>
+          <p className="text-sm text-muted-foreground">Acompanhamento em tempo real</p>
 
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 space-y-3">
             {locacoes && locacoes.length > 0 ? (
-              locacoes.slice(0, 5).map((locacao) => (
-                <div key={locacao.id} className="flex items-center justify-between border-b pb-2 last:border-0">
-                  <div>
-                    <p className="font-medium">{locacao.jetskiSerie || `Jetski #${locacao.jetskiId.slice(0, 8)}`}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {locacao.clienteNome || 'Cliente não informado'}
-                    </p>
+              locacoes.slice(0, 5).map((locacao) => {
+                const timeStatus = getTimeStatus(locacao.dataCheckIn, locacao.duracaoPrevista)
+                const statusColors = {
+                  ok: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100',
+                  warning: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100',
+                  exceeded: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100',
+                }
+
+                return (
+                  <div key={locacao.id} className="rounded-lg border p-3 hover:bg-accent/50 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold">{locacao.jetskiSerie || `Jetski #${locacao.jetskiId.slice(0, 8)}`}</p>
+                          {locacao.jetskiModeloNome && (
+                            <span className="text-xs text-muted-foreground">({locacao.jetskiModeloNome})</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          {locacao.clienteNome || 'Cliente walk-in'}
+                        </p>
+                      </div>
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[timeStatus.status]}`}>
+                        {timeStatus.status === 'exceeded' ? 'Excedido' : timeStatus.status === 'warning' ? 'Atenção' : 'Em curso'}
+                      </span>
+                    </div>
+
+                    <div className="mt-2 flex items-center gap-4 text-sm">
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5" />
+                        <span>Início: <span className="font-medium text-foreground">{formatTime(locacao.dataCheckIn)}</span></span>
+                      </div>
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Timer className="h-3.5 w-3.5" />
+                        <span>Término: <span className="font-medium text-foreground">{calculateEndTime(locacao.dataCheckIn, locacao.duracaoPrevista)}</span></span>
+                      </div>
+                    </div>
+
+                    {locacao.duracaoPrevista && (
+                      <div className="mt-2">
+                        <div className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${statusColors[timeStatus.status]}`}>
+                          {timeStatus.status === 'exceeded' ? (
+                            <>Excedeu {formatTimeRemaining(timeStatus.minutesRemaining)}</>
+                          ) : (
+                            <>Restam {formatTimeRemaining(timeStatus.minutesRemaining)}</>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-right">
-                    <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-100">
-                      Em curso
-                    </span>
-                  </div>
-                </div>
-              ))
+                )
+              })
             ) : (
-              <p className="text-center text-muted-foreground py-4">
+              <p className="text-center text-muted-foreground py-8">
                 Nenhuma locação ativa no momento
               </p>
             )}

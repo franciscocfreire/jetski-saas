@@ -14,8 +14,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Jetski SaaS - Backoffice",
-  description: "Sistema de Gestão de Locação de Jetskis",
+  title: "Pega o Jet - Backoffice",
+  description: "Sistema de Gestão de Locação de Jet Skis - Pega o Jet",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({

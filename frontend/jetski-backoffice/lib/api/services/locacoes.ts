@@ -39,4 +39,9 @@ export const locacoesService = {
     const { data } = await apiClient.post<Locacao>(`${getBasePath()}/${id}/check-out`, request)
     return data
   },
+
+  async updateDataCheckIn(id: string, dataCheckIn: string): Promise<Locacao> {
+    const { data } = await apiClient.patch<Locacao>(`${getBasePath()}/${id}/data-check-in`, { dataCheckIn })
+    return data
+  },
 }

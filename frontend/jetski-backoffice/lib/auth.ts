@@ -11,7 +11,16 @@ declare module "next-auth" {
   }
 }
 
+// Disable __Secure- cookie prefix for E2E testing with Playwright
+// When NEXTAUTH_E2E_TESTING is set, cookies won't have the __Secure- prefix
+// which allows Playwright to properly handle them across page navigations
+const isE2ETesting = process.env.NEXTAUTH_E2E_TESTING === 'true'
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true, // Required for ngrok/reverse proxy
+  // In E2E mode, use non-secure cookies to work around Playwright limitations
+  // See: https://github.com/nextauthjs/next-auth/issues/8914
+  useSecureCookies: !isE2ETesting,
   providers: [
     Keycloak({
       clientId: process.env.KEYCLOAK_CLIENT_ID!,

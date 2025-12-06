@@ -29,6 +29,7 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
+    out-of-order: true  # Allow migrations to run out of order (V1000+ after V998/V999)
     locations: classpath:db/migration
     schemas: public
     clean-disabled: false  # Allow flyway:clean in dev environment
@@ -55,6 +56,9 @@ server:
   port: 8090
   servlet:
     context-path: /api
+  max-http-request-header-size: 64KB
+  tomcat:
+    max-http-header-size: 64KB
   error:
     include-message: always
     include-binding-errors: always
@@ -107,6 +111,8 @@ jetski:
     allowed-origins:
       - http://localhost:3000
       - http://localhost:3001
+      - http://localhost
+      - https://539d02e90662.ngrok-free.app
   frontend:
     url: http://localhost:3000
 

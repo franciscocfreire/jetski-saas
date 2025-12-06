@@ -2,6 +2,7 @@ package com.jetski.locacoes.internal;
 
 import com.jetski.combustivel.internal.LocacaoFuelData;
 import com.jetski.locacoes.domain.*;
+import com.jetski.locacoes.domain.event.RentalCompletedEvent;
 import com.jetski.locacoes.internal.repository.LocacaoItemOpcionalRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
@@ -9,6 +10,7 @@ import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +52,7 @@ public class LocacaoService {
     private final LocacaoCalculatorService calculatorService;
     private final com.jetski.locacoes.internal.PhotoValidationService photoValidationService;
     private final com.jetski.combustivel.internal.FuelPolicyService fuelPolicyService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Check-in: Create rental from reservation
@@ -171,13 +174,14 @@ public class LocacaoService {
      * @param valorNegociado Optional negotiated price (if set, used instead of calculated value)
      * @param motivoDesconto Optional reason for negotiated price
      * @param modalidadePreco Pricing mode (PRECO_FECHADO, DIARIA, MEIA_DIARIA)
+     * @param dataCheckIn Custom check-in time (if null, uses current time)
      * @return Created Locacao
      */
     @Transactional
     public Locacao checkInWalkIn(UUID tenantId, UUID jetskiId, UUID clienteId, UUID vendedorId,
                                   BigDecimal horimetroInicio, Integer duracaoPrevista, String observacoes,
                                   String checklistSaidaJson, BigDecimal valorNegociado, String motivoDesconto,
-                                  ModalidadePreco modalidadePreco) {
+                                  ModalidadePreco modalidadePreco, LocalDateTime dataCheckIn) {
         log.info("Walk-in check-in: tenant={}, jetski={}, cliente={}", tenantId, jetskiId, clienteId);
 
         // 1. Validate jetski
@@ -196,7 +200,7 @@ public class LocacaoService {
             .jetskiId(jetskiId)
             .clienteId(clienteId)
             .vendedorId(vendedorId)
-            .dataCheckIn(LocalDateTime.now())
+            .dataCheckIn(dataCheckIn != null ? dataCheckIn : LocalDateTime.now())
             .horimetroInicio(horimetroInicio)
             .duracaoPrevista(duracaoPrevista)
             .status(LocacaoStatus.EM_CURSO)
@@ -397,6 +401,15 @@ public class LocacaoService {
         // 11. Update jetski status
         jetskiService.updateStatus(jetski.getId(), JetskiStatus.DISPONIVEL);
 
+        // 12. Publish rental completed event (for cache invalidation, metrics, etc.)
+        eventPublisher.publishEvent(RentalCompletedEvent.of(
+            tenantId,
+            locacao.getId(),
+            locacao.getValorTotal(),
+            locacao.getDataCheckOut()
+        ));
+        log.debug("Published RentalCompletedEvent for locacao={}", locacaoId);
+
         log.info("Check-out completed: locacao={}", locacaoId);
 
         return locacao;
@@ -495,6 +508,54 @@ public class LocacaoService {
         locacao = locacaoRepository.save(locacao);
 
         log.info("Cliente associado com sucesso: locacao={}, cliente={}", locacaoId, clienteId);
+
+        return locacao;
+    }
+
+    /**
+     * Update check-in date/time of an existing rental.
+     *
+     * Allows operator to correct the start time if check-in was registered
+     * at a different time than the actual start.
+     *
+     * Validations:
+     * - Rental must exist
+     * - Rental must be EM_CURSO (not finished)
+     *
+     * @param tenantId Tenant ID
+     * @param locacaoId Locacao ID
+     * @param dataCheckIn New check-in date/time
+     * @return Updated Locacao
+     */
+    @Transactional
+    public Locacao updateDataCheckIn(UUID tenantId, UUID locacaoId, LocalDateTime dataCheckIn) {
+        log.info("Atualizando data de check-in: tenant={}, locacao={}, novaData={}",
+                 tenantId, locacaoId, dataCheckIn);
+
+        // 1. Find locacao
+        Locacao locacao = locacaoRepository.findById(locacaoId)
+            .orElseThrow(() -> new NotFoundException("Locação não encontrada: " + locacaoId));
+
+        // 2. Validate tenant
+        if (!locacao.getTenantId().equals(tenantId)) {
+            throw new NotFoundException("Locação não encontrada: " + locacaoId);
+        }
+
+        // 3. Validate status - must be EM_CURSO
+        if (locacao.getStatus() != LocacaoStatus.EM_CURSO) {
+            throw new BusinessException(
+                String.format("Só é possível alterar o horário de locações em curso (status atual: %s)",
+                              locacao.getStatus())
+            );
+        }
+
+        // 4. Update dataCheckIn
+        LocalDateTime oldDataCheckIn = locacao.getDataCheckIn();
+        locacao.setDataCheckIn(dataCheckIn);
+        locacao = locacaoRepository.save(locacao);
+
+        log.info("Data de check-in atualizada: locacao={}, de {} para {}",
+                 locacaoId, oldDataCheckIn, dataCheckIn);
 
         return locacao;
     }

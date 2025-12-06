@@ -75,7 +75,12 @@ role_permissions := {
         "vendedor:list",
         "member:list",
         "member:view",
-        "member:deactivate"
+        "member:update",
+        "member:deactivate",
+        "member:reactivate",
+        "invitation:list",
+        "invitation:resend",
+        "invitation:cancel"
     ],
 
     "FINANCEIRO": [

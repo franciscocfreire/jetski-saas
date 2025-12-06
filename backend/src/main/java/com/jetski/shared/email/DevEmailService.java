@@ -1,5 +1,6 @@
 package com.jetski.shared.email;
 
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -9,8 +10,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Development email service - logs emails instead of sending.
@@ -20,6 +24,7 @@ import java.time.format.DateTimeFormatter;
  * Behavior:
  * - Logs email details to console
  * - Saves email to /tmp/emails/{timestamp}_{email}.txt
+ * - Stores last email data for E2E testing
  * - NO actual email is sent
  *
  * @author Jetski Team
@@ -27,12 +32,63 @@ import java.time.format.DateTimeFormatter;
  */
 @Slf4j
 @Service
-@Profile({"local", "dev", "test"})
+@Profile({"local", "test", "dev"})
 public class DevEmailService implements EmailService {
 
     private static final String EMAIL_DIR = "/tmp/emails";
     private static final DateTimeFormatter TIMESTAMP_FORMAT =
         DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+
+    // Pattern to extract magic token from activation link
+    private static final Pattern MAGIC_TOKEN_PATTERN =
+        Pattern.compile("magic-activate\\?token=([^\\s\"]+)");
+
+    /**
+     * Last email data - stored for E2E testing purposes.
+     * Allows automated tests to retrieve activation tokens without email access.
+     */
+    @Getter
+    private static volatile LastEmailData lastEmail;
+
+    /**
+     * Data class for last email sent.
+     */
+    @Getter
+    public static class LastEmailData {
+        private final String to;
+        private final String name;
+        private final String subject;
+        private final String activationLink;
+        private final String magicToken;
+        private final String temporaryPassword;
+        private final Instant sentAt;
+
+        public LastEmailData(String to, String name, String subject,
+                            String activationLink, String temporaryPassword) {
+            this.to = to;
+            this.name = name;
+            this.subject = subject;
+            this.activationLink = activationLink;
+            this.temporaryPassword = temporaryPassword;
+            this.sentAt = Instant.now();
+
+            // Extract magic token from activation link
+            if (activationLink != null) {
+                Matcher matcher = MAGIC_TOKEN_PATTERN.matcher(activationLink);
+                this.magicToken = matcher.find() ? matcher.group(1) : null;
+            } else {
+                this.magicToken = null;
+            }
+        }
+    }
+
+    /**
+     * Clear last email data (useful for test isolation).
+     */
+    public static void clearLastEmail() {
+        lastEmail = null;
+        log.debug("Last email data cleared");
+    }
 
     public DevEmailService() {
         try {
@@ -45,15 +101,20 @@ public class DevEmailService implements EmailService {
 
     @Override
     public void sendInvitationEmail(String to, String name, String activationLink, String temporaryPassword) {
-        String subject = "Você foi convidado para o Jetski SaaS";
+        String subject = "Você foi convidado para o Pega o Jet";
         String body = buildInvitationEmailBody(name, activationLink, temporaryPassword);
+
+        // Store last email data for E2E testing
+        lastEmail = new LastEmailData(to, name, subject, activationLink, temporaryPassword);
+        log.info("📧 Last email data stored for E2E testing: to={}, magicToken={}", to,
+            lastEmail.getMagicToken() != null ? lastEmail.getMagicToken().substring(0, 20) + "..." : "null");
 
         logAndSaveEmail(to, subject, body);
     }
 
     @Override
     public void sendPasswordResetEmail(String to, String name, String resetLink) {
-        String subject = "Jetski SaaS - Redefinição de senha";
+        String subject = "Pega o Jet - Redefinição de senha";
         String body = buildPasswordResetEmailBody(name, resetLink);
 
         logAndSaveEmail(to, subject, body);
@@ -93,7 +154,7 @@ public class DevEmailService implements EmailService {
         return String.format("""
             Olá %s,
 
-            Você foi convidado para se juntar ao Jetski SaaS!
+            Você foi convidado para se juntar ao Pega o Jet!
 
             Para ativar sua conta, você precisará do link de ativação e da senha temporária abaixo:
 
@@ -110,7 +171,7 @@ public class DevEmailService implements EmailService {
             Se você não esperava este convite, ignore este email.
 
             Atenciosamente,
-            Equipe Jetski SaaS
+            Equipe Pega o Jet
 
             ---
             [DEV MODE] Este email NÃO foi enviado. Apenas logado.
@@ -132,7 +193,7 @@ public class DevEmailService implements EmailService {
         return String.format("""
             Olá %s,
 
-            Recebemos uma solicitação para redefinir sua senha.
+            Recebemos uma solicitação para redefinir sua senha no Pega o Jet.
 
             Clique no link abaixo para criar uma nova senha:
 
@@ -144,7 +205,7 @@ public class DevEmailService implements EmailService {
             Sua senha atual permanecerá inalterada.
 
             Atenciosamente,
-            Equipe Jetski SaaS
+            Equipe Pega o Jet
 
             ---
             [DEV MODE] Este email NÃO foi enviado. Apenas logado.

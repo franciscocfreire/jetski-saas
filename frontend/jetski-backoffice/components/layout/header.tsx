@@ -1,16 +1,22 @@
 'use client'
 
+import Link from 'next/link'
 import { Bell, Search } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+import { useRentalNotifications } from '@/components/providers/rental-notification-provider'
+import { cn } from '@/lib/utils'
 
 interface HeaderProps {
   title?: string
 }
 
 export function Header({ title }: HeaderProps) {
+  const { alertCount, expiredRentals } = useRentalNotifications()
+  const hasExpired = expiredRentals.length > 0
+
   return (
     <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
       <SidebarTrigger className="-ml-1" />
@@ -28,12 +34,28 @@ export function Header({ title }: HeaderProps) {
           />
         </div>
 
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground flex items-center justify-center">
-            3
-          </span>
-        </Button>
+        <Link href="/dashboard/locacoes">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "relative",
+              hasExpired && "text-destructive"
+            )}
+          >
+            <Bell className={cn("h-5 w-5", hasExpired && "animate-pulse")} />
+            {alertCount > 0 && (
+              <span className={cn(
+                "absolute -top-1 -right-1 h-4 w-4 rounded-full text-[10px] font-medium flex items-center justify-center",
+                hasExpired
+                  ? "bg-destructive text-destructive-foreground animate-pulse"
+                  : "bg-warning text-warning-foreground"
+              )}>
+                {alertCount > 9 ? '9+' : alertCount}
+              </span>
+            )}
+          </Button>
+        </Link>
       </div>
     </header>
   )

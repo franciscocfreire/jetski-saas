@@ -8,6 +8,7 @@ import {
   ChartBar,
   FileText,
   Home,
+  Waves,
   Ship,
   Users,
   UserCircle,
@@ -16,8 +17,6 @@ import {
   Building2,
   ChevronDown,
 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
-
 import {
   Sidebar,
   SidebarContent,
@@ -97,19 +96,16 @@ const operationsItems = [
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const router = useRouter()
   const { currentTenant, tenants, setCurrentTenant } = useTenantStore()
 
-  const handleSignOut = async () => {
-    // Fazer logout do NextAuth e Keycloak através da rota de logout
-    // A rota /api/logout vai:
-    // 1. Fazer logout do Keycloak
-    // 2. Limpar a sessão do NextAuth
-    // 3. Redirecionar para /login
-    const response = await fetch('/api/logout', { method: 'GET' })
-    if (response.ok || response.status === 307 || response.status === 302) {
-      router.push('/login')
-    }
+  const handleSignOut = () => {
+    // Navegar para a página de logout que:
+    // 1. Limpa o tenant do localStorage (client-side)
+    // 2. Redireciona para /api/logout que:
+    //    - Limpa cookies de autenticação
+    //    - Faz logout do Keycloak (via redirect)
+    //    - Redireciona para /login
+    window.location.href = '/logout'
   }
 
   return (
@@ -124,11 +120,11 @@ export function AppSidebar() {
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <Ship className="size-4" />
+                    <Waves className="size-4" />
                   </div>
                   <div className="flex flex-col gap-0.5 leading-none">
                     <span className="font-semibold">
-                      {currentTenant?.razaoSocial || 'Jetski SaaS'}
+                      {currentTenant?.razaoSocial || 'Pega o Jet'}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {currentTenant?.slug || 'Selecione um tenant'}
@@ -245,6 +241,12 @@ export function AppSidebar() {
               >
                 <DropdownMenuItem>Perfil</DropdownMenuItem>
                 <DropdownMenuItem>Configurações</DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/usuarios">
+                    <Users className="mr-2 size-4" />
+                    Gerenciar Usuários
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
                   <LogOut className="mr-2 size-4" />

@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.JdkSerializationRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
@@ -59,8 +60,55 @@ public class CacheConfig {
             .cacheDefaults(defaultConfig)
             // Use simple serialization for identity provider mapping (returns UUID)
             .withCacheConfiguration("identity-provider-mapping", simpleConfig)
+            // Dashboard metrics cache with 5 minute TTL (also invalidated by events)
+            .withCacheConfiguration("dashboard-metrics",
+                createComplexObjectCacheConfig().entryTtl(Duration.ofMinutes(5)))
             .transactionAware()  // Participate in Spring transactions
             .build();
+    }
+
+    /**
+     * RedisTemplate for programmatic cache access
+     *
+     * Used by DashboardMetricsService for:
+     * - Direct cache operations (get/set with TTL)
+     * - Event-driven cache invalidation
+     * - Pattern-based key deletion
+     *
+     * @param connectionFactory Redis connection factory
+     * @return Configured RedisTemplate with JSON serialization
+     */
+    @Bean
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, Object> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+
+        // Configure object mapper with type information for proper deserialization
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.findAndRegisterModules();
+
+        PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
+            .allowIfSubType("java.util.")
+            .allowIfSubType("java.time.")
+            .allowIfSubType("java.math.")
+            .allowIfSubType("com.jetski.")
+            .build();
+
+        objectMapper.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL);
+
+        GenericJackson2JsonRedisSerializer jsonSerializer =
+            new GenericJackson2JsonRedisSerializer(objectMapper);
+
+        // Use String serializer for keys
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setHashKeySerializer(new StringRedisSerializer());
+
+        // Use JSON serializer for values (with type info)
+        template.setValueSerializer(jsonSerializer);
+        template.setHashValueSerializer(jsonSerializer);
+
+        template.afterPropertiesSet();
+        return template;
     }
 
     /**

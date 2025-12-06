@@ -235,9 +235,12 @@ public class ActionExtractor {
 
         // Tenta extrair dos path variables primeiro (disponível após handler mapping)
         if (pathVariables != null && !pathVariables.isEmpty()) {
+            // Prioriza IDs de recursos específicos sobre IDs de containers (tenantId)
             String id = pathVariables.getOrDefault("id",
                     pathVariables.getOrDefault("locacaoId",
-                            pathVariables.getOrDefault("jetskiId", null)));
+                            pathVariables.getOrDefault("jetskiId",
+                                    pathVariables.getOrDefault("usuarioId",
+                                            pathVariables.getOrDefault("reservaId", null)))));
             if (id != null) {
                 return id;
             }

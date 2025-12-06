@@ -63,29 +63,44 @@ public class JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthen
     }
 
     /**
-     * Extrai realm roles do claim "roles" e converte para GrantedAuthority.
+     * Extrai realm roles do claim "realm_access.roles" do Keycloak e converte para GrantedAuthority.
      * Prefixo "ROLE_" é adicionado para compatibilidade com Spring Security.
      *
-     * Exemplo de JWT:
+     * Exemplo de JWT Keycloak:
      * {
      *   "sub": "user123",
-     *   "tenant_id": "abc-def-ghi",
-     *   "roles": ["OPERADOR", "VENDEDOR"],
+     *   "realm_access": {
+     *     "roles": ["ADMIN_TENANT", "GERENTE"]
+     *   },
      *   ...
      * }
      *
-     * Resultado: [ROLE_OPERADOR, ROLE_VENDEDOR]
+     * Resultado: [ROLE_ADMIN_TENANT, ROLE_GERENTE]
      */
+    @SuppressWarnings("unchecked")
     private Collection<GrantedAuthority> extractKeycloakRealmRoles(Jwt jwt) {
-        List<String> roles = jwt.getClaimAsStringList("roles");
-
-        if (roles == null || roles.isEmpty()) {
-            return List.of();
+        // Try realm_access.roles first (standard Keycloak structure)
+        Object realmAccessObj = jwt.getClaim("realm_access");
+        if (realmAccessObj instanceof java.util.Map) {
+            java.util.Map<String, Object> realmAccess = (java.util.Map<String, Object>) realmAccessObj;
+            Object rolesObj = realmAccess.get("roles");
+            if (rolesObj instanceof List) {
+                List<String> roles = (List<String>) rolesObj;
+                return roles.stream()
+                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                    .collect(Collectors.toList());
+            }
         }
 
-        return roles.stream()
-            .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-            .collect(Collectors.toList());
+        // Fallback: try direct "roles" claim
+        List<String> roles = jwt.getClaimAsStringList("roles");
+        if (roles != null && !roles.isEmpty()) {
+            return roles.stream()
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                .collect(Collectors.toList());
+        }
+
+        return List.of();
     }
 
     /**

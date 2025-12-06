@@ -164,6 +164,7 @@ mvn flyway:migrate \
     -Dflyway.password=${PG_PASSWORD} \
     -Dflyway.baselineOnMigrate=true \
     -Dflyway.baselineVersion=0 \
+    -Dflyway.outOfOrder=true \
     -q
 echo "   OK - Migrations executadas com usuario ${PG_ADMIN_USER}!"
 

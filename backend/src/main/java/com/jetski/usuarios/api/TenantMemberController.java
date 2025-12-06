@@ -2,7 +2,10 @@ package com.jetski.usuarios.api;
 
 import com.jetski.usuarios.api.dto.DeactivateMemberResponse;
 import com.jetski.usuarios.api.dto.ListMembersResponse;
+import com.jetski.usuarios.api.dto.MemberSummaryDTO;
+import com.jetski.usuarios.api.dto.UpdateRolesRequest;
 import com.jetski.usuarios.internal.MemberManagementService;
+import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -95,6 +98,75 @@ public class TenantMemberController {
         log.info("DELETE /v1/tenants/{}/members/{}", tenantId, usuarioId);
 
         DeactivateMemberResponse response = memberManagementService.deactivateMember(tenantId, usuarioId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Update member roles.
+     *
+     * Validations:
+     * - All roles must be valid (ADMIN_TENANT, GERENTE, OPERADOR, VENDEDOR, MECANICO, FINANCEIRO)
+     * - Cannot remove ADMIN_TENANT role from the last admin
+     * - Member must be active
+     *
+     * Requires: ADMIN_TENANT or GERENTE role
+     *
+     * @param tenantId Tenant UUID (from path)
+     * @param usuarioId User UUID (from path)
+     * @param request New roles to assign
+     * @return Updated member summary
+     */
+    @PatchMapping("/{usuarioId}/roles")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Atualizar papéis do membro",
+        description = "Atualiza os papéis (roles) de um membro do tenant. " +
+                      "Não é possível remover o papel ADMIN_TENANT do último administrador."
+    )
+    public ResponseEntity<MemberSummaryDTO> updateMemberRoles(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID do usuário")
+        @PathVariable UUID usuarioId,
+        @Valid @RequestBody UpdateRolesRequest request
+    ) {
+        log.info("PATCH /v1/tenants/{}/members/{}/roles - newRoles: {}", tenantId, usuarioId, request.papeis());
+
+        MemberSummaryDTO response = memberManagementService.updateRoles(tenantId, usuarioId, request.papeis());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Reactivate a deactivated member.
+     *
+     * Validations:
+     * - Member must exist and be inactive
+     * - Plan user limit must not be exceeded
+     *
+     * Requires: ADMIN_TENANT or GERENTE role
+     *
+     * @param tenantId Tenant UUID (from path)
+     * @param usuarioId User UUID to reactivate (from path)
+     * @return Reactivated member summary
+     */
+    @PostMapping("/{usuarioId}/reactivate")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Reativar membro do tenant",
+        description = "Reativa um membro que foi desativado anteriormente. " +
+                      "Valida o limite de usuários do plano antes de reativar."
+    )
+    public ResponseEntity<MemberSummaryDTO> reactivateMember(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID do usuário a reativar")
+        @PathVariable UUID usuarioId
+    ) {
+        log.info("POST /v1/tenants/{}/members/{}/reactivate", tenantId, usuarioId);
+
+        MemberSummaryDTO response = memberManagementService.reactivateMember(tenantId, usuarioId);
 
         return ResponseEntity.ok(response);
     }

@@ -63,6 +63,31 @@ tenant_is_valid if {
     input.action == "member:deactivate"
 }
 
+# Ação de atualizar papéis do membro
+tenant_is_valid if {
+    input.action == "member:update"
+}
+
+# Ação de reativar membro do tenant
+tenant_is_valid if {
+    input.action == "member:reactivate"
+}
+
+# Ação de listar convites pendentes
+tenant_is_valid if {
+    input.action == "invitation:list"
+}
+
+# Ação de reenviar convite
+tenant_is_valid if {
+    input.action == "invitation:resend"
+}
+
+# Ação de cancelar convite
+tenant_is_valid if {
+    input.action == "invitation:cancel"
+}
+
 # =============================================================================
 # Tenant Membership Validation
 # =============================================================================

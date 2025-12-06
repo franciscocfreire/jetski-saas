@@ -181,7 +181,7 @@ VALUES
  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'VXCRU001', 'JET-0003', 2022, 250.8, 'DISPONIVEL', TRUE),
 
 ('d4444444-4444-4444-4444-444444444444', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
- 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'VXCRU002', 'JET-0004', 2022, 310.2, 'LOCADO', TRUE),
+ 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'VXCRU002', 'JET-0004', 2022, 310.2, 'DISPONIVEL', TRUE),
 
 ('d5555555-5555-5555-5555-555555555555', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
  'cccccccc-cccc-cccc-cccc-cccccccccccc', 'ULTRA001', 'JET-0005', 2024, 45.7, 'MANUTENCAO', TRUE),
@@ -196,7 +196,7 @@ VALUES
 ('e3333333-3333-3333-3333-333333333333', 'b0000000-0000-0000-0000-000000000002',
  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'COPA-001', 'CPJ-001', 2023, 95.3, 'DISPONIVEL', TRUE),
 ('e4444444-4444-4444-4444-444444444444', 'b0000000-0000-0000-0000-000000000002',
- 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'COPA-002', 'CPJ-002', 2024, 30.0, 'LOCADO', TRUE),
+ 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'COPA-002', 'CPJ-002', 2024, 30.0, 'DISPONIVEL', TRUE),
 
 -- Jetskis for Ipanema Beach Rentals (b0000000-0000-0000-0000-000000000003)
 ('e5555555-5555-5555-5555-555555555555', 'b0000000-0000-0000-0000-000000000003',
@@ -347,7 +347,7 @@ VALUES
 ('f1111111-1111-1111-1111-111111111111', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
  NULL, 'c2222222-2222-2222-2222-222222222222', 'd4444444-4444-4444-4444-444444444444', 'a1111111-1111-1111-1111-111111111111',
  NOW() - INTERVAL '30 minutes', 310.2, '33333333-3333-3333-3333-333333333333',
- '["motor_ok", "casco_ok", "gasolina_ok", "colete_entregue"]'::jsonb, 'em_andamento');
+ '["motor_ok", "casco_ok", "gasolina_ok", "colete_entregue"]'::jsonb, 'EM_CURSO');
 
 -- =====================================================
 -- Sample OS Manutencao (Open maintenance order)

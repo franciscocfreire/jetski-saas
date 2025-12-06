@@ -143,7 +143,8 @@ public class LocacaoController {
             request.getChecklistSaidaJson(),
             request.getValorNegociado(),
             request.getMotivoDesconto(),
-            request.getModalidadePreco()
+            request.getModalidadePreco(),
+            request.getDataCheckIn()
         );
 
         LocacaoResponse response = toResponse(locacao);
@@ -248,6 +249,36 @@ public class LocacaoController {
         validateTenantContext(tenantId);
 
         Locacao locacao = locacaoService.associarCliente(tenantId, id, request.getClienteId());
+        LocacaoResponse response = toResponse(locacao);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * PATCH /v1/tenants/{tenantId}/locacoes/{id}/data-check-in
+     *
+     * Update check-in date/time of an existing rental.
+     * Useful when the operator needs to correct the start time.
+     *
+     * @param tenantId Tenant ID from path
+     * @param id Locacao ID from path
+     * @param request UpdateDataCheckInRequest with new dataCheckIn
+     * @return 200 OK with updated LocacaoResponse
+     */
+    @PatchMapping("/{id}/data-check-in")
+    @Operation(summary = "Update check-in time",
+               description = "Update the check-in date/time of a rental in progress")
+    public ResponseEntity<LocacaoResponse> updateDataCheckIn(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @Valid @RequestBody UpdateDataCheckInRequest request
+    ) {
+        log.info("PATCH /v1/tenants/{}/locacoes/{}/data-check-in - dataCheckIn={}",
+                 tenantId, id, request.getDataCheckIn());
+
+        validateTenantContext(tenantId);
+
+        Locacao locacao = locacaoService.updateDataCheckIn(tenantId, id, request.getDataCheckIn());
         LocacaoResponse response = toResponse(locacao);
 
         return ResponseEntity.ok(response);

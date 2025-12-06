@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -53,6 +54,7 @@ public class UserInvitationController {
      * @return Invitation details with expiration
      */
     @PostMapping("/invite")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
     @Operation(
         summary = "Invite user to tenant",
         description = "Send invitation email to new user. Token valid for 48 hours."

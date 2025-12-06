@@ -128,28 +128,39 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
 
     /**
      * Constrói UserContext do Authentication (JWT ou mock user para testes).
+     *
+     * SECURITY FIX: Usa roles do TenantContext (específicos do tenant atual) ao invés de
+     * roles do JWT. Isso previne que um usuário com GERENTE no tenant A acesse recursos
+     * de admin no tenant B onde ele é apenas OPERADOR.
+     *
+     * TenantFilter já resolve e valida os roles corretos via TenantAccessValidator.
      */
     private OPAInput.UserContext buildUserContext(Authentication authentication) {
-        // Extrai role de negócio (GERENTE, OPERADOR, etc.) e ignora roles padrão do Keycloak
-        // Priority: business roles > default Keycloak roles
-        List<String> businessRoles = List.of("ADMIN_TENANT", "GERENTE", "FINANCEIRO", "OPERADOR", "VENDEDOR", "MECANICO");
-        String role = authentication.getAuthorities().stream()
-            .map(GrantedAuthority::getAuthority)
-            .filter(auth -> auth.startsWith("ROLE_"))
-            .map(auth -> auth.substring(5))  // Remove "ROLE_" prefix
-            .filter(r -> businessRoles.contains(r))  // Only business roles
-            .findFirst()
-            .orElse("NONE");
-
-        // Extrai todas as roles de negócio (filtra roles padrão do Keycloak)
-        List<String> roles = authentication.getAuthorities().stream()
-            .map(GrantedAuthority::getAuthority)
-            .filter(auth -> auth.startsWith("ROLE_"))
-            .map(auth -> auth.substring(5))
-            .filter(r -> businessRoles.contains(r))  // Only business roles
-            .toList();
-
         UUID tenantId = TenantContext.getTenantId();
+
+        // SECURITY: Usa roles do TenantContext (específicos do tenant atual)
+        // TenantFilter já resolveu os roles corretos via TenantAccessValidator
+        List<String> tenantRoles = TenantContext.getUserRoles();
+
+        // Fallback para JWT apenas se TenantContext não tiver roles (ex: testes)
+        List<String> roles;
+        if (tenantRoles != null && !tenantRoles.isEmpty()) {
+            roles = tenantRoles;
+            log.debug("Using tenant-specific roles from TenantContext: {}", roles);
+        } else {
+            // Fallback: extrai do JWT (apenas para compatibilidade com testes antigos)
+            log.warn("No tenant-specific roles in TenantContext, falling back to JWT authorities");
+            List<String> businessRoles = List.of("ADMIN_TENANT", "GERENTE", "FINANCEIRO", "OPERADOR", "VENDEDOR", "MECANICO");
+            roles = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .filter(auth -> auth.startsWith("ROLE_"))
+                .map(auth -> auth.substring(5))
+                .filter(r -> businessRoles.contains(r))
+                .toList();
+        }
+
+        // Role principal (primeiro da lista ou NONE)
+        String role = roles.isEmpty() ? "NONE" : roles.get(0);
 
         // IMPORTANT: Use resolved PostgreSQL usuario_id from TenantContext
         // TenantFilter already resolved: Keycloak UUID → PostgreSQL UUID

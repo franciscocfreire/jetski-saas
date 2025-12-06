@@ -38,19 +38,29 @@ import java.util.List;
  * Fluxo de Autenticação/Autorização:
  * Request → CORS → OAuth2 (valida JWT) → TenantFilter (valida tenant) → ABACAuthorizationInterceptor (OPA) → Controller
  *
- * Nota: @EnableMethodSecurity DESABILITADO - não usamos mais @PreAuthorize, apenas ABAC via OPA.
+ * Nota: @EnableMethodSecurity HABILITADO para suportar @PreAuthorize em controllers.
+ * ABAC via OPA também continua ativo para regras mais complexas.
  *
  * @author Jetski Team
  */
 @Configuration
 @EnableWebSecurity
-// @EnableMethodSecurity - DESABILITADO: migrado para ABAC via ABACAuthorizationInterceptor
+@EnableMethodSecurity  // Habilitado para @PreAuthorize funcionar nos controllers
 public class SecurityConfig {
 
     private final JwtAuthenticationConverter jwtAuthenticationConverter;
     private final TenantAccessValidator tenantAccessValidator;
     private final FilterChainExceptionFilter filterChainExceptionFilter;
     private final BusinessMetrics businessMetrics;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}")
+    private String jwkSetUri;
+
+    @org.springframework.beans.factory.annotation.Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
+    private String issuerUri;
+
+    @org.springframework.beans.factory.annotation.Value("${jetski.security.external-url:}")
+    private String externalUrl;
 
     public SecurityConfig(
             JwtAuthenticationConverter jwtAuthenticationConverter,
@@ -74,23 +84,30 @@ public class SecurityConfig {
     /**
      * JwtDecoder customizado que aceita múltiplos issuers válidos.
      *
-     * Necessário para ambiente local onde:
-     * - Browser/Postman usam http://localhost:8081 (issuer no JWT)
-     * - Mobile usa http://172.30.197.110:8081 (IP do WSL)
+     * Configurado via application.yml:
+     * - spring.security.oauth2.resourceserver.jwt.jwk-set-uri
+     * - spring.security.oauth2.resourceserver.jwt.issuer-uri
      *
-     * Ambos apontam para o mesmo Keycloak, mas o issuer no JWT vem como localhost.
+     * Para ambiente local (8081) e Docker (8080/keycloak), configure os valores adequados.
+     * Aceita múltiplos issuers para suportar acesso via localhost, IP do WSL, e ngrok.
      */
     @Bean
     public JwtDecoder jwtDecoder() {
-        // Lista de issuers válidos (ambiente local)
-        List<String> validIssuers = List.of(
+        // Lista de issuers válidos - inclui o configurado + variantes comuns
+        java.util.ArrayList<String> validIssuers = new java.util.ArrayList<>(List.of(
+            issuerUri,  // Configurado via application.yml
             "http://localhost:8081/realms/jetski-saas",
-            "http://172.30.197.110:8081/realms/jetski-saas"
-        );
+            "http://localhost:8080/realms/jetski-saas",
+            "http://172.30.197.110:8081/realms/jetski-saas",
+            "http://keycloak:8080/realms/jetski-saas"
+        ));
 
-        // Usar o primeiro issuer para buscar as chaves públicas (JWK Set)
-        String jwkSetUri = "http://localhost:8081/realms/jetski-saas/protocol/openid-connect/certs";
+        // Adicionar external URL se configurada (ex: ngrok)
+        if (externalUrl != null && !externalUrl.isBlank()) {
+            validIssuers.add(externalUrl + "/realms/jetski-saas");
+        }
 
+        // Usar jwkSetUri configurado via application.yml
         NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
 
         // Criar validadores para cada issuer
@@ -144,7 +161,9 @@ public class SecurityConfig {
                 new AntPathRequestMatcher("/v1/auth-test/public"),
                 new AntPathRequestMatcher("/v1/auth/complete-activation"),  // Account activation (Option 2: temp password flow)
                 new AntPathRequestMatcher("/v1/auth/magic-activate"),       // Account activation (Magic link JWT - one-click UX)
-                new AntPathRequestMatcher("/v1/storage/local/**")           // Local storage endpoints (simulated presigned URLs)
+                new AntPathRequestMatcher("/v1/storage/local/**"),          // Local storage endpoints (simulated presigned URLs)
+                new AntPathRequestMatcher("/v1/signup/**"),                 // Self-service tenant signup (public)
+                new AntPathRequestMatcher("/v1/test/**")                    // E2E test utilities (local/test profile only)
             ))
 
             // Exception filter FIRST to catch all downstream exceptions
@@ -243,6 +262,7 @@ public class SecurityConfig {
             "http://localhost:3000",      // Frontend local (dev)
             "http://localhost:3001",      // Backoffice local (dev)
             "http://localhost:3002",      // Backoffice Next.js (dev)
+            "https://*.ngrok-free.app",   // ngrok URLs (dev)
             "https://*.jetski.app",       // Mobile app (produção)
             "https://*.jetski.com.br"     // Web app (produção)
         ));
