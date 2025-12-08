@@ -459,3 +459,41 @@ export interface SignupActivationRequest {
 export interface SlugAvailabilityResponse {
   available: boolean
 }
+
+// Auditoria Module
+export type AuditoriaAcao = 'CHECK_IN' | 'CHECK_OUT' | string
+export type AuditoriaEntidade = 'LOCACAO' | 'JETSKI' | 'RESERVA' | string
+
+export interface Auditoria {
+  id: string
+  acao: AuditoriaAcao
+  entidade: AuditoriaEntidade
+  entidadeId: string
+  usuarioId?: string
+  usuarioNome: string
+  ip?: string
+  traceId?: string
+  createdAt: string
+  dadosAnteriores?: Record<string, unknown>
+  dadosNovos?: Record<string, unknown>
+}
+
+export interface AuditoriaFilters {
+  acao?: string
+  entidade?: string
+  entidadeId?: string
+  usuarioId?: string
+  dataInicio?: string
+  dataFim?: string
+}
+
+export interface Page<T> {
+  content: T[]
+  totalElements: number
+  totalPages: number
+  size: number
+  number: number
+  first: boolean
+  last: boolean
+  empty: boolean
+}

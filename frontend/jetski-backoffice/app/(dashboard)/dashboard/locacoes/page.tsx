@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus,
@@ -17,6 +18,7 @@ import {
   User,
   Timer,
   Pencil,
+  History,
 } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { locacoesService, jetskisService, clientesService, vendedoresService, itensOpcionaisService, modelosService } from '@/lib/api/services'
@@ -1096,6 +1098,7 @@ function EditTimeDialog({
 
 export default function LocacoesPage() {
   const { currentTenant } = useTenantStore()
+  const router = useRouter()
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -1309,6 +1312,10 @@ export default function LocacoesPage() {
                         <DropdownMenuItem onClick={() => setDetailLocacao(locacao)}>
                           <Eye className="mr-2 h-4 w-4" />
                           Ver detalhes
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push(`/dashboard/auditoria?entidade=LOCACAO&entidadeId=${locacao.id}`)}>
+                          <History className="mr-2 h-4 w-4" />
+                          Ver hist&oacute;rico
                         </DropdownMenuItem>
                         {locacao.status === 'EM_CURSO' && (
                           <>

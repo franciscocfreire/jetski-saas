@@ -2,7 +2,10 @@ package com.jetski.locacoes.internal;
 
 import com.jetski.combustivel.internal.LocacaoFuelData;
 import com.jetski.locacoes.domain.*;
+import com.jetski.locacoes.domain.event.CheckInEvent;
+import com.jetski.locacoes.domain.event.CheckOutEvent;
 import com.jetski.locacoes.domain.event.RentalCompletedEvent;
+import com.jetski.shared.security.TenantContext;
 import com.jetski.locacoes.internal.repository.LocacaoItemOpcionalRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
@@ -151,6 +154,20 @@ public class LocacaoService {
 
         log.info("Check-in completed: locacao={}, reserva={}", locacao.getId(), reservaId);
 
+        // Publish check-in event for audit logging
+        UUID operadorId = TenantContext.getUsuarioId();
+        eventPublisher.publishEvent(CheckInEvent.fromReservation(
+            tenantId,
+            locacao.getId(),
+            jetski.getId(),
+            reservaId,
+            reserva.getClienteId(),
+            operadorId,
+            horimetroInicio != null ? horimetroInicio.intValue() : null,
+            locacao.getDataCheckIn()
+        ));
+        log.debug("Published CheckInEvent (from reservation) for locacao={}", locacao.getId());
+
         return locacao;
     }
 
@@ -222,6 +239,19 @@ public class LocacaoService {
         jetskiService.updateStatus(jetskiId, JetskiStatus.LOCADO);
 
         log.info("Walk-in check-in completed: locacao={}", locacao.getId());
+
+        // Publish check-in event for audit logging
+        UUID operadorId = TenantContext.getUsuarioId();
+        eventPublisher.publishEvent(CheckInEvent.walkIn(
+            tenantId,
+            locacao.getId(),
+            jetskiId,
+            clienteId,
+            operadorId,
+            horimetroInicio != null ? horimetroInicio.intValue() : null,
+            locacao.getDataCheckIn()
+        ));
+        log.debug("Published CheckInEvent (walk-in) for locacao={}", locacao.getId());
 
         return locacao;
     }
@@ -409,6 +439,21 @@ public class LocacaoService {
             locacao.getDataCheckOut()
         ));
         log.debug("Published RentalCompletedEvent for locacao={}", locacaoId);
+
+        // 13. Publish check-out event for audit logging
+        UUID operadorId = TenantContext.getUsuarioId();
+        eventPublisher.publishEvent(CheckOutEvent.of(
+            tenantId,
+            locacao.getId(),
+            locacao.getJetskiId(),
+            locacao.getClienteId(),
+            operadorId,
+            horimetroFim != null ? horimetroFim.intValue() : null,
+            minutosUsados,
+            valorTotal,
+            dataCheckOut
+        ));
+        log.debug("Published CheckOutEvent for locacao={}", locacaoId);
 
         log.info("Check-out completed: locacao={}", locacaoId);
 

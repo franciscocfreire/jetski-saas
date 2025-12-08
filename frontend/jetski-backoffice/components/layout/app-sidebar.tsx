@@ -6,6 +6,7 @@ import {
   Anchor,
   Calendar,
   ChartBar,
+  ClipboardList,
   FileText,
   Home,
   Waves,
@@ -91,6 +92,11 @@ const operationsItems = [
     title: 'Relatórios',
     href: '/dashboard/relatorios',
     icon: ChartBar,
+  },
+  {
+    title: 'Auditoria',
+    href: '/dashboard/auditoria',
+    icon: ClipboardList,
   },
 ]
 
