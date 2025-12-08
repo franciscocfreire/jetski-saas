@@ -77,17 +77,21 @@ public class TenantAwareDataSourceConfig {
         private void setTenantContext(Connection connection) {
             UUID tenantId = TenantContext.getTenantId();
             log.debug("TenantAwareDataSource.setTenantContext called, tenantId={}", tenantId);
-            if (tenantId != null) {
-                try (Statement statement = connection.createStatement()) {
+            try (Statement statement = connection.createStatement()) {
+                if (tenantId != null) {
                     // is_local = false: config persists for the entire connection/session, not just current transaction
                     String sql = String.format("SELECT set_config('app.tenant_id', '%s', false)", tenantId);
                     statement.execute(sql);
                     log.info("RLS tenant context set: {}", tenantId);
-                } catch (SQLException e) {
-                    log.warn("Failed to set RLS tenant context: {}", e.getMessage());
+                } else {
+                    // IMPORTANT: Reset tenant context for public endpoints (marketplace, etc.)
+                    // HikariCP reuses connections, so we must clear any previous tenant context
+                    // Using RESET clears the setting to its default (empty/null)
+                    statement.execute("RESET app.tenant_id");
+                    log.debug("RLS tenant context cleared for public access");
                 }
-            } else {
-                log.debug("TenantContext.tenantId is null, skipping RLS set_config");
+            } catch (SQLException e) {
+                log.warn("Failed to set/reset RLS tenant context: {}", e.getMessage());
             }
         }
     }

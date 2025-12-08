@@ -29,4 +29,14 @@ export const jetskisService = {
     const { data } = await apiClient.post<Jetski>(`${getBasePath()}/${id}/reactivate`)
     return data
   },
+
+  async updateStatus(id: string, status: JetskiStatus): Promise<Jetski> {
+    const { data } = await apiClient.patch<Jetski>(`${getBasePath()}/${id}/status`, null, { params: { status } })
+    return data
+  },
+
+  async deactivate(id: string): Promise<Jetski> {
+    const { data } = await apiClient.delete<Jetski>(`${getBasePath()}/${id}`)
+    return data
+  },
 }

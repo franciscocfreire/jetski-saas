@@ -91,6 +91,48 @@ public class Tenant {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    // ========== CAMPOS DE CONTATO E LOCALIZAÇÃO ==========
+
+    /**
+     * WhatsApp para contato no marketplace
+     * Formato: 5548999999999 (código país + DDD + número)
+     */
+    @Column(length = 20)
+    private String whatsapp;
+
+    /**
+     * Cidade para exibição no marketplace
+     * Exemplo: "Florianópolis"
+     */
+    @Column(length = 100)
+    private String cidade;
+
+    /**
+     * UF (Unidade Federativa) para exibição no marketplace
+     * Exemplo: "SC", "SP", "RJ"
+     */
+    @Column(length = 2)
+    private String uf;
+
+    // ========== CAMPOS DE MARKETPLACE ==========
+
+    /**
+     * Controla se o tenant aparece no marketplace público
+     * Se false, nenhum modelo deste tenant será listado
+     */
+    @Column(name = "exibir_no_marketplace", nullable = false)
+    @Builder.Default
+    private Boolean exibirNoMarketplace = true;
+
+    /**
+     * Prioridade para ordenação no marketplace (0-100)
+     * Quanto maior o valor, mais destaque na listagem
+     * Usado para sistema de anúncios pagos/premium
+     */
+    @Column(name = "prioridade_marketplace", nullable = false)
+    @Builder.Default
+    private Integer prioridadeMarketplace = 0;
+
     @PrePersist
     protected void onCreate() {
         createdAt = Instant.now();

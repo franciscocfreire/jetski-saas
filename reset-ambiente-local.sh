@@ -189,6 +189,58 @@ echo "8.5. Verificando migrations aplicadas..."
 MIGRATION_COUNT=$(PGPASSWORD=$PG_PASSWORD psql -h $PG_HOST -p $PG_PORT -U $PG_USER -d $PG_DB_LOCAL -t -c "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true;" | xargs)
 echo "   OK - ${MIGRATION_COUNT} migrations aplicadas com sucesso!"
 
+# 8.6. Configurar politicas RLS para marketplace publico
+echo "8.6. Configurando politicas RLS para marketplace..."
+sudo -u postgres psql -d ${PG_DB_LOCAL} << 'EOF' > /dev/null
+-- Corrigir tenant_isolation_modelo para tratar string vazia (HikariCP reutiliza conexoes)
+DROP POLICY IF EXISTS tenant_isolation_modelo ON modelo;
+CREATE POLICY tenant_isolation_modelo ON modelo
+    FOR ALL
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+-- Politica para leitura publica do marketplace (modelo)
+DROP POLICY IF EXISTS marketplace_public_read ON modelo;
+CREATE POLICY marketplace_public_read ON modelo
+    FOR SELECT
+    USING (
+        exibir_no_marketplace = true
+        AND ativo = true
+        AND EXISTS (
+            SELECT 1 FROM tenant t
+            WHERE t.id = modelo.tenant_id
+            AND t.status = 'ATIVO'
+            AND t.exibir_no_marketplace = true
+        )
+    );
+
+-- Politica para leitura publica do marketplace (tenant)
+DROP POLICY IF EXISTS marketplace_public_read ON tenant;
+CREATE POLICY marketplace_public_read ON tenant
+    FOR SELECT
+    USING (
+        exibir_no_marketplace = true
+        AND status = 'ATIVO'
+    );
+EOF
+echo "   OK - Politicas RLS do marketplace configuradas!"
+
+# 8.7. Configurar dados do marketplace (tenant ACME)
+echo "8.7. Configurando dados do marketplace..."
+sudo -u postgres psql -d ${PG_DB_LOCAL} << 'EOF' > /dev/null
+-- Atualizar tenant ACME com dados de contato e marketplace
+UPDATE tenant SET
+    whatsapp = '5548999999999',
+    cidade = 'Florianópolis',
+    uf = 'SC',
+    exibir_no_marketplace = true,
+    prioridade_marketplace = 50
+WHERE slug = 'acme';
+
+-- Marcar modelos como visiveis no marketplace
+UPDATE modelo SET exibir_no_marketplace = true WHERE ativo = true;
+EOF
+echo "   OK - Dados do marketplace configurados!"
+
 cd "$SCRIPT_DIR"
 
 # 9. Configurar Keycloak (realm, usuarios)
@@ -303,10 +355,13 @@ echo ""
 echo "13. Verificando dados seed..."
 PGPASSWORD=$PG_PASSWORD psql -h $PG_HOST -p $PG_PORT -U $PG_USER -d $PG_DB_LOCAL << EOF
 \echo '   Tenants cadastrados:'
-SELECT '      ' || slug || ' - ' || razao_social FROM tenant;
+SELECT '      ' || slug || ' - ' || razao_social || CASE WHEN exibir_no_marketplace THEN ' [MARKETPLACE]' ELSE '' END FROM tenant;
 \echo ''
 \echo '   Usuarios cadastrados:'
 SELECT '      ' || email || ' (' || nome || ')' FROM usuario LIMIT 10;
+\echo ''
+\echo '   Modelos (marketplace):'
+SELECT '      ' || nome || ' - R$' || preco_base_hora || '/h' || CASE WHEN exibir_no_marketplace THEN ' [PUBLICO]' ELSE '' END FROM modelo LIMIT 5;
 \echo ''
 \echo '   Jetskis cadastrados:'
 SELECT '      ' || j.serie || ' - ' || j.status FROM jetski j LIMIT 10;
@@ -328,9 +383,11 @@ echo "   2. SPRING_PROFILES_ACTIVE=local mvn spring-boot:run"
 echo ""
 echo "URLs do ambiente LOCAL:"
 echo "   - Backend:   http://localhost:8090/api"
+echo "   - Marketplace API: http://localhost:8090/api/v1/public/marketplace/modelos"
 echo "   - Keycloak:  http://localhost:8081 (admin/admin)"
 echo "   - PostgreSQL: localhost:5433 (jetski/dev123)"
 echo "   - Redis:     localhost:6379"
+echo "   - Swagger:   http://localhost:8090/api/swagger-ui.html"
 echo ""
 echo "Usuarios de teste (senha: test123):"
 echo "   - admin@acme.com (ADMIN_TENANT)"

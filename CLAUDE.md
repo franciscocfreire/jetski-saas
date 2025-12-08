@@ -248,3 +248,4 @@ Gherkin scenarios in `inicial.md` lines 415-600 covering:
 5. KMM mobile app setup: AppAuth + tenant selection + offline queue
 6. Photo capture POC: 4 mandatory photos → SHA-256 → presigned S3 upload
 7. CI/CD pipeline: GitHub Actions (backend), fastlane (mobile)
+- Toda alteração de tabela ou inclusao devem ser inseridas no arquito reset-ambiente-dev.sh

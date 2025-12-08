@@ -278,6 +278,178 @@ CREATE POLICY fuel_policy_tenant_insert ON fuel_policy
 EOSQL
 echo -e "${GREEN}   OK - Politicas RLS corrigidas!${NC}"
 
+# 7.4 Corrigir politicas RLS para marketplace publico (leitura sem tenant)
+echo -e "${YELLOW}7.4 Corrigindo politicas RLS para marketplace publico...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- =====================================================
+-- Corrigir tenant_isolation_modelo para tratar string vazia
+-- HikariCP pode reusar conexoes com app.tenant_id = ''
+-- NULLIF converte '' para NULL, evitando erro de cast UUID
+-- =====================================================
+DROP POLICY IF EXISTS tenant_isolation_modelo ON modelo;
+
+CREATE POLICY tenant_isolation_modelo ON modelo
+    FOR ALL
+    USING (
+        tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+    );
+
+COMMENT ON POLICY tenant_isolation_modelo ON modelo IS 'Tenant isolation using NULLIF for safe UUID handling';
+
+-- =====================================================
+-- Politica para leitura publica do marketplace (modelo)
+-- Permite SELECT quando modelo e tenant estao marcados para exibicao
+-- =====================================================
+DROP POLICY IF EXISTS marketplace_public_read ON modelo;
+
+CREATE POLICY marketplace_public_read ON modelo
+    FOR SELECT
+    USING (
+        exibir_no_marketplace = true
+        AND ativo = true
+        AND EXISTS (
+            SELECT 1 FROM tenant t
+            WHERE t.id = modelo.tenant_id
+            AND t.status = 'ATIVO'
+            AND t.exibir_no_marketplace = true
+        )
+    );
+
+COMMENT ON POLICY marketplace_public_read ON modelo IS 'Allows public read access to marketplace-visible models';
+
+-- =====================================================
+-- Politica para leitura publica do marketplace (tenant)
+-- Permite SELECT de tenants marcados para exibicao
+-- =====================================================
+DROP POLICY IF EXISTS marketplace_public_read ON tenant;
+
+CREATE POLICY marketplace_public_read ON tenant
+    FOR SELECT
+    USING (
+        exibir_no_marketplace = true
+        AND status = 'ATIVO'
+    );
+
+COMMENT ON POLICY marketplace_public_read ON tenant IS 'Allows public read access to marketplace-visible tenants';
+EOSQL
+echo -e "${GREEN}   OK - Politicas RLS do marketplace configuradas!${NC}"
+
+# 7.5 Atualizar dados seed para marketplace (tenant ACME)
+echo -e "${YELLOW}7.5 Configurando dados do marketplace...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- Atualizar tenant ACME com dados de contato e marketplace
+UPDATE tenant SET
+    whatsapp = '5548999999999',
+    cidade = 'Florianópolis',
+    uf = 'SC',
+    exibir_no_marketplace = true,
+    prioridade_marketplace = 50
+WHERE slug = 'acme';
+
+-- Marcar modelos como visiveis no marketplace
+UPDATE modelo SET exibir_no_marketplace = true WHERE ativo = true;
+EOSQL
+echo -e "${GREEN}   OK - Dados do marketplace configurados!${NC}"
+
+# 7.6 Configurar politicas RLS para modelo_midia
+echo -e "${YELLOW}7.6 Configurando politicas RLS para modelo_midia...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- Verificar se a tabela existe antes de criar politicas
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'modelo_midia') THEN
+        -- Habilitar RLS
+        ALTER TABLE modelo_midia ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE modelo_midia FORCE ROW LEVEL SECURITY;
+
+        -- Drop politicas existentes
+        DROP POLICY IF EXISTS tenant_isolation_modelo_midia ON modelo_midia;
+        DROP POLICY IF EXISTS marketplace_public_read ON modelo_midia;
+
+        -- Politica de isolamento por tenant
+        CREATE POLICY tenant_isolation_modelo_midia ON modelo_midia
+            FOR ALL
+            USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+        -- Politica de leitura publica para marketplace
+        CREATE POLICY marketplace_public_read ON modelo_midia
+            FOR SELECT
+            USING (
+                EXISTS (
+                    SELECT 1 FROM modelo m
+                    JOIN tenant t ON m.tenant_id = t.id
+                    WHERE m.id = modelo_midia.modelo_id
+                    AND m.ativo = true
+                    AND m.exibir_no_marketplace = true
+                    AND t.status = 'ATIVO'
+                    AND t.exibir_no_marketplace = true
+                )
+            );
+    END IF;
+END $$;
+EOSQL
+echo -e "${GREEN}   OK - Politicas RLS do modelo_midia configuradas!${NC}"
+
+# 7.7 Inserir midias de exemplo para modelos
+echo -e "${YELLOW}7.7 Inserindo midias de exemplo...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- Inserir midias de exemplo para os modelos existentes
+DO $$
+DECLARE
+    v_tenant_id UUID;
+    v_modelo_id UUID;
+BEGIN
+    -- Obter tenant ACME
+    SELECT id INTO v_tenant_id FROM tenant WHERE slug = 'acme' LIMIT 1;
+
+    IF v_tenant_id IS NOT NULL THEN
+        -- Para cada modelo, adicionar imagens de exemplo
+        FOR v_modelo_id IN SELECT id FROM modelo WHERE tenant_id = v_tenant_id AND ativo = true LOOP
+            -- Verificar se ja tem midias
+            IF NOT EXISTS (SELECT 1 FROM modelo_midia WHERE modelo_id = v_modelo_id) THEN
+                -- Inserir imagem principal (Sea-Doo)
+                INSERT INTO modelo_midia (tenant_id, modelo_id, tipo, url, ordem, principal, titulo)
+                VALUES (
+                    v_tenant_id,
+                    v_modelo_id,
+                    'IMAGEM',
+                    'https://sea-doo.brp.com/content/dam/global/en/sea-doo/my26/studio/recreation/gti/SEA-MY26-GTI-Standard-NoSS-M130-Bright-White-Neo-Mint-00038TB00-Studio-RSIDE-CU.png',
+                    0,
+                    true,
+                    'Imagem principal'
+                );
+
+                -- Inserir segunda imagem
+                INSERT INTO modelo_midia (tenant_id, modelo_id, tipo, url, ordem, principal, titulo)
+                VALUES (
+                    v_tenant_id,
+                    v_modelo_id,
+                    'IMAGEM',
+                    'https://sea-doo.brp.com/content/dam/global/en/sea-doo/my26/studio/performance/rxt-x/SEA-MY26-RXT-X-X-Integrated100W-M325-Gulfstream-Blue-Premium-00022TD00-Studio-RSIDE-CU.png',
+                    1,
+                    false,
+                    'Imagem secundaria'
+                );
+
+                -- Inserir video de exemplo (YouTube)
+                INSERT INTO modelo_midia (tenant_id, modelo_id, tipo, url, thumbnail_url, ordem, principal, titulo)
+                VALUES (
+                    v_tenant_id,
+                    v_modelo_id,
+                    'VIDEO',
+                    'https://www.youtube.com/embed/dQw4w9WgXcQ',
+                    'https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+                    2,
+                    false,
+                    'Video demonstrativo'
+                );
+            END IF;
+        END LOOP;
+    END IF;
+END $$;
+EOSQL
+echo -e "${GREEN}   OK - Midias de exemplo inseridas!${NC}"
+
 # 8. Verificar se realm foi importado automaticamente
 echo -e "${YELLOW}8. Verificando realm Keycloak...${NC}"
 if curl -sf "http://${KC_HOST}:${KC_PORT}/realms/${KC_REALM}" > /dev/null 2>&1; then
@@ -471,10 +643,13 @@ echo "   Frontend:  $(curl -s -o /dev/null -w '%{http_code}' http://localhost:30
 echo ""
 echo -e "${YELLOW}17. Dados seed carregados:${NC}"
 echo "   Tenants:"
-docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} -t -c "SELECT '      ' || slug || ' - ' || razao_social FROM tenant;" 2>/dev/null || echo "      (nenhum)"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} -t -c "SELECT '      ' || slug || ' - ' || razao_social || CASE WHEN exibir_no_marketplace THEN ' [MARKETPLACE]' ELSE '' END FROM tenant;" 2>/dev/null || echo "      (nenhum)"
 echo ""
 echo "   Usuarios:"
 docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} -t -c "SELECT '      ' || email || ' (' || nome || ')' FROM usuario LIMIT 5;" 2>/dev/null || echo "      (nenhum)"
+echo ""
+echo "   Modelos (marketplace):"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} -t -c "SELECT '      ' || nome || ' - R\$' || preco_base_hora || '/h' || CASE WHEN exibir_no_marketplace THEN ' [PUBLICO]' ELSE '' END FROM modelo LIMIT 5;" 2>/dev/null || echo "      (nenhum)"
 echo ""
 echo "   Jetskis:"
 docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} -t -c "SELECT '      ' || serie || ' - ' || status FROM jetski LIMIT 5;" 2>/dev/null || echo "      (nenhum)"
@@ -493,7 +668,9 @@ if [ -n "$NGROK_URL" ]; then
 fi
 echo "URLs do ambiente DEV (Local):"
 echo "   - Frontend:   http://localhost:3001 (via nginx: http://localhost)"
+echo "   - Marketplace: http://localhost/ (pagina publica)"
 echo "   - Backend:    http://localhost:8090/api"
+echo "   - Marketplace API: http://localhost/api/v1/public/marketplace/modelos"
 echo "   - Keycloak:   http://localhost:8080 (admin/Mazuca@123)"
 echo "   - PostgreSQL: localhost:5432 (jetski/dev123)"
 echo "   - Redis:      localhost:6379"

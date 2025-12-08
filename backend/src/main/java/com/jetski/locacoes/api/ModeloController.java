@@ -1,9 +1,12 @@
 package com.jetski.locacoes.api;
 
 import com.jetski.locacoes.api.dto.ModeloCreateRequest;
+import com.jetski.locacoes.api.dto.ModeloMidiaRequest;
+import com.jetski.locacoes.api.dto.ModeloMidiaResponse;
 import com.jetski.locacoes.api.dto.ModeloResponse;
 import com.jetski.locacoes.api.dto.ModeloUpdateRequest;
 import com.jetski.locacoes.domain.Modelo;
+import com.jetski.locacoes.internal.ModeloMidiaService;
 import com.jetski.locacoes.internal.ModeloService;
 import com.jetski.shared.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,6 +42,7 @@ import java.util.stream.Collectors;
 public class ModeloController {
 
     private final ModeloService modeloService;
+    private final ModeloMidiaService midiaService;
 
     /**
      * List all active jetski models for a tenant.
@@ -271,6 +275,169 @@ public class ModeloController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Partially update a jetski model.
+     *
+     * Similar to PUT but only updates provided fields.
+     *
+     * @param tenantId Tenant UUID (from path)
+     * @param id Model UUID (from path)
+     * @param request Partial model update request
+     * @return Updated model details
+     */
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Atualizar parcialmente modelo de jetski",
+        description = "Atualiza apenas os campos fornecidos de um modelo existente."
+    )
+    public ResponseEntity<ModeloResponse> patchModelo(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID do modelo")
+        @PathVariable UUID id,
+        @RequestBody ModeloUpdateRequest request
+    ) {
+        log.info("PATCH /v1/tenants/{}/modelos/{}", tenantId, id);
+
+        // Validate tenant context matches path parameter
+        validateTenantContext(tenantId);
+
+        Modelo updates = toEntity(request);
+        Modelo updated = modeloService.updateModelo(id, updates);
+        ModeloResponse response = toResponse(updated);
+
+        return ResponseEntity.ok(response);
+    }
+
+    // ========== Media Endpoints ==========
+
+    /**
+     * List all media (images/videos) for a model.
+     */
+    @GetMapping("/{id}/midias")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Listar mídias do modelo",
+        description = "Lista todas as imagens e vídeos associados a um modelo de jetski."
+    )
+    public ResponseEntity<List<ModeloMidiaResponse>> listMidias(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id
+    ) {
+        log.info("GET /v1/tenants/{}/modelos/{}/midias", tenantId, id);
+        validateTenantContext(tenantId);
+
+        List<ModeloMidiaResponse> midias = midiaService.listByModelo(id);
+        return ResponseEntity.ok(midias);
+    }
+
+    /**
+     * Add a new media item (image/video) to a model.
+     */
+    @PostMapping("/{id}/midias")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Adicionar mídia ao modelo",
+        description = "Adiciona uma nova imagem ou vídeo ao modelo de jetski."
+    )
+    public ResponseEntity<ModeloMidiaResponse> addMidia(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @Valid @RequestBody ModeloMidiaRequest request
+    ) {
+        log.info("POST /v1/tenants/{}/modelos/{}/midias - tipo: {}", tenantId, id, request.tipo());
+        validateTenantContext(tenantId);
+
+        ModeloMidiaResponse created = midiaService.addMidia(id, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    /**
+     * Update an existing media item.
+     */
+    @PutMapping("/{id}/midias/{midiaId}")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Atualizar mídia",
+        description = "Atualiza uma imagem ou vídeo existente."
+    )
+    public ResponseEntity<ModeloMidiaResponse> updateMidia(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @PathVariable UUID midiaId,
+        @Valid @RequestBody ModeloMidiaRequest request
+    ) {
+        log.info("PUT /v1/tenants/{}/modelos/{}/midias/{}", tenantId, id, midiaId);
+        validateTenantContext(tenantId);
+
+        ModeloMidiaResponse updated = midiaService.updateMidia(midiaId, request);
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * Delete a media item.
+     */
+    @DeleteMapping("/{id}/midias/{midiaId}")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Remover mídia",
+        description = "Remove uma imagem ou vídeo do modelo."
+    )
+    public ResponseEntity<Void> deleteMidia(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @PathVariable UUID midiaId
+    ) {
+        log.info("DELETE /v1/tenants/{}/modelos/{}/midias/{}", tenantId, id, midiaId);
+        validateTenantContext(tenantId);
+
+        midiaService.deleteMidia(midiaId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Set a media item as the principal (main) image.
+     */
+    @PostMapping("/{id}/midias/{midiaId}/principal")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Definir mídia como principal",
+        description = "Define uma imagem como a imagem principal do modelo (exibida no marketplace)."
+    )
+    public ResponseEntity<ModeloMidiaResponse> setPrincipal(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @PathVariable UUID midiaId
+    ) {
+        log.info("POST /v1/tenants/{}/modelos/{}/midias/{}/principal", tenantId, id, midiaId);
+        validateTenantContext(tenantId);
+
+        ModeloMidiaResponse updated = midiaService.setPrincipal(midiaId);
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * Reorder media items for a model.
+     */
+    @PutMapping("/{id}/midias/reorder")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Reordenar mídias",
+        description = "Reordena as mídias do modelo conforme a lista de IDs fornecida."
+    )
+    public ResponseEntity<List<ModeloMidiaResponse>> reorderMidias(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @RequestBody List<UUID> orderedIds
+    ) {
+        log.info("PUT /v1/tenants/{}/modelos/{}/midias/reorder - count: {}", tenantId, id, orderedIds.size());
+        validateTenantContext(tenantId);
+
+        List<ModeloMidiaResponse> reordered = midiaService.reorder(id, orderedIds);
+        return ResponseEntity.ok(reordered);
+    }
+
     // ========== Private Helper Methods ==========
 
     private void validateTenantContext(UUID tenantId) {
@@ -297,6 +464,7 @@ public class ModeloController {
             .fotoReferenciaUrl(modelo.getFotoReferenciaUrl())
             .pacotesJson(modelo.getPacotesJson())
             .ativo(modelo.getAtivo())
+            .exibirNoMarketplace(modelo.getExibirNoMarketplace())
             .createdAt(modelo.getCreatedAt())
             .updatedAt(modelo.getUpdatedAt())
             .build();
@@ -333,6 +501,7 @@ public class ModeloController {
             .caucao(request.getCaucao())
             .fotoReferenciaUrl(request.getFotoReferenciaUrl())
             .pacotesJson(request.getPacotesJson())
+            .exibirNoMarketplace(request.getExibirNoMarketplace())
             .build();
     }
 }

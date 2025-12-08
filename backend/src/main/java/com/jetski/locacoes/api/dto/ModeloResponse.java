@@ -37,6 +37,7 @@ public class ModeloResponse {
     private String fotoReferenciaUrl;
     private String pacotesJson;
     private Boolean ativo;
+    private Boolean exibirNoMarketplace;
     private Instant createdAt;
     private Instant updatedAt;
 }

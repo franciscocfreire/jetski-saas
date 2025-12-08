@@ -54,4 +54,6 @@ public class ModeloUpdateRequest {
     private String fotoReferenciaUrl;
 
     private String pacotesJson;
+
+    private Boolean exibirNoMarketplace;
 }

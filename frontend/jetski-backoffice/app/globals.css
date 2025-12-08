@@ -8,6 +8,9 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-playfair);
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -70,6 +73,9 @@
   --border: oklch(0.9 0.02 240);
   --input: oklch(0.9 0.02 240);
   --ring: oklch(0.685 0.169 237.323);
+  /* Gold accent for premium */
+  --gold: oklch(0.75 0.12 85);
+  --gold-foreground: oklch(0.15 0.02 85);
   /* Charts com paleta oceano */
   --chart-1: oklch(0.685 0.169 237.323);
   --chart-2: oklch(0.702 0.183 55.093);
@@ -154,4 +160,145 @@
     oklch(0.9 0.04 220) 50%,
     oklch(0.95 0.03 55) 100%
   );
+}
+
+/* ========================================
+   PREMIUM DARK THEME UTILITIES
+   ======================================== */
+
+/* Premium Dark Background */
+.bg-premium-dark {
+  background: linear-gradient(180deg,
+    oklch(0.08 0.02 240) 0%,
+    oklch(0.05 0.015 240) 100%
+  );
+}
+
+/* Premium Navy Gradient */
+.bg-premium-navy {
+  background: linear-gradient(135deg,
+    oklch(0.12 0.04 240) 0%,
+    oklch(0.08 0.03 220) 50%,
+    oklch(0.06 0.02 200) 100%
+  );
+}
+
+/* Gold Gradient */
+.bg-gold-gradient {
+  background: linear-gradient(135deg,
+    oklch(0.75 0.12 85) 0%,
+    oklch(0.65 0.15 75) 50%,
+    oklch(0.55 0.12 65) 100%
+  );
+}
+
+/* Gold text gradient */
+.text-gold-gradient {
+  background: linear-gradient(135deg,
+    oklch(0.85 0.1 85) 0%,
+    oklch(0.75 0.12 75) 50%,
+    oklch(0.85 0.1 85) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Glassmorphism card */
+.glass {
+  background: oklch(0.15 0.02 240 / 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid oklch(1 0 0 / 0.1);
+}
+
+.glass-light {
+  background: oklch(1 0 0 / 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid oklch(1 0 0 / 0.1);
+}
+
+/* Premium shadow */
+.shadow-premium {
+  box-shadow:
+    0 4px 6px -1px oklch(0 0 0 / 0.3),
+    0 2px 4px -2px oklch(0 0 0 / 0.2),
+    0 0 0 1px oklch(1 0 0 / 0.05);
+}
+
+.shadow-glow {
+  box-shadow:
+    0 0 30px oklch(0.685 0.169 237.323 / 0.3),
+    0 0 60px oklch(0.685 0.169 237.323 / 0.1);
+}
+
+.shadow-gold-glow {
+  box-shadow:
+    0 0 30px oklch(0.75 0.12 85 / 0.3),
+    0 0 60px oklch(0.75 0.12 85 / 0.1);
+}
+
+/* Premium serif heading */
+.font-display {
+  font-family: var(--font-playfair), Georgia, serif;
+}
+
+/* Smooth transitions */
+.transition-premium {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Premium hover lift */
+.hover-lift {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-8px);
+  box-shadow:
+    0 20px 40px oklch(0 0 0 / 0.3),
+    0 0 0 1px oklch(1 0 0 / 0.1);
+}
+
+/* Decorative line */
+.line-gold {
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    oklch(0.75 0.12 85) 20%,
+    oklch(0.75 0.12 85) 80%,
+    transparent 100%
+  );
+}
+
+/* Animated gradient border */
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.border-gradient-animated {
+  position: relative;
+}
+
+.border-gradient-animated::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    oklch(0.75 0.12 85) 0%,
+    oklch(0.685 0.169 237.323) 50%,
+    oklch(0.75 0.12 85) 100%
+  );
+  background-size: 200% 200%;
+  animation: gradient-shift 4s ease infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
 }

@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, MoreHorizontal, FileText, Edit, DollarSign } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, Search, MoreHorizontal, FileText, Edit, DollarSign, Eye, Globe } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { modelosService, type ModeloCreateRequest } from '@/lib/api/services/modelos'
 import type { Modelo } from '@/lib/api/types'
@@ -216,6 +217,7 @@ function ModeloFormDialog({
 
 export default function ModelosPage() {
   const { currentTenant } = useTenantStore()
+  const router = useRouter()
 
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -283,6 +285,7 @@ export default function ModelosPage() {
               <TableHead>Preço/Hora</TableHead>
               <TableHead>Hora Extra</TableHead>
               <TableHead>Capacidade</TableHead>
+              <TableHead>Marketplace</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
@@ -297,12 +300,13 @@ export default function ModelosPage() {
                   <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+                  <TableCell><Skeleton className="h-6 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-8 w-8" /></TableCell>
                 </TableRow>
               ))
             ) : filteredModelos?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={8} className="h-24 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <FileText className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">Nenhum modelo encontrado</p>
@@ -311,7 +315,11 @@ export default function ModelosPage() {
               </TableRow>
             ) : (
               filteredModelos?.map((modelo) => (
-                <TableRow key={modelo.id}>
+                <TableRow
+                  key={modelo.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => router.push(`/dashboard/modelos/${modelo.id}`)}
+                >
                   <TableCell className="font-medium">{modelo.nome}</TableCell>
                   <TableCell>
                     {modelo.fabricante || '-'}
@@ -327,11 +335,21 @@ export default function ModelosPage() {
                   </TableCell>
                   <TableCell>{modelo.capacidadePessoas} pessoas</TableCell>
                   <TableCell>
+                    {modelo.exibirNoMarketplace !== false ? (
+                      <Badge variant="outline" className="gap-1">
+                        <Globe className="h-3 w-3" />
+                        Visível
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">Oculto</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <Badge variant={modelo.ativo ? 'success' : 'destructive'}>
                       {modelo.ativo ? 'Ativo' : 'Inativo'}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
@@ -339,9 +357,13 @@ export default function ModelosPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => router.push(`/dashboard/modelos/${modelo.id}`)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Ver Detalhes
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleEdit(modelo)}>
                           <Edit className="mr-2 h-4 w-4" />
-                          Editar
+                          Editar Rápido
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

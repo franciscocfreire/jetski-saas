@@ -94,6 +94,14 @@ public class Modelo {
     @Builder.Default
     private Boolean ativo = true;
 
+    /**
+     * Controla se o modelo aparece no marketplace público
+     * Sujeito também ao tenant estar visível (exibirNoMarketplace = true)
+     */
+    @Column(name = "exibir_no_marketplace", nullable = false)
+    @Builder.Default
+    private Boolean exibirNoMarketplace = true;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

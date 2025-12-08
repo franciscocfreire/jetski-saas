@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, MoreHorizontal, Ship, Edit, Power } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, Search, MoreHorizontal, Ship, Edit, Power, Eye } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { jetskisService, modelosService } from '@/lib/api/services'
 import type { Jetski, JetskiStatus, JetskiCreateRequest } from '@/lib/api/types'
@@ -185,6 +186,7 @@ function JetskiFormDialog({
 export default function JetskisPage() {
   const { currentTenant } = useTenantStore()
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -301,7 +303,11 @@ export default function JetskisPage() {
               </TableRow>
             ) : (
               filteredJetskis?.map((jetski) => (
-                <TableRow key={jetski.id}>
+                <TableRow
+                  key={jetski.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => router.push(`/dashboard/jetskis/${jetski.id}`)}
+                >
                   <TableCell className="font-medium">{jetski.serie}</TableCell>
                   <TableCell>{jetski.modelo?.nome || '-'}</TableCell>
                   <TableCell>{jetski.ano || '-'}</TableCell>
@@ -311,7 +317,7 @@ export default function JetskisPage() {
                       {statusConfig[jetski.status].label}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
@@ -319,9 +325,13 @@ export default function JetskisPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => router.push(`/dashboard/jetskis/${jetski.id}`)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Ver Detalhes
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleEdit(jetski)}>
                           <Edit className="mr-2 h-4 w-4" />
-                          Editar
+                          Editar Rápido
                         </DropdownMenuItem>
                         {jetski.status === 'INATIVO' && (
                           <DropdownMenuItem

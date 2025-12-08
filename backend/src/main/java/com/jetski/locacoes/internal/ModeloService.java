@@ -172,6 +172,9 @@ public class ModeloService {
         if (updates.getPacotesJson() != null) {
             existing.setPacotesJson(updates.getPacotesJson());
         }
+        if (updates.getExibirNoMarketplace() != null) {
+            existing.setExibirNoMarketplace(updates.getExibirNoMarketplace());
+        }
 
         Modelo saved = modeloRepository.save(existing);
         log.info("Model updated successfully: id={}", saved.getId());

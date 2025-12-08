@@ -22,6 +22,31 @@ export interface Modelo extends BaseEntity {
   fotoReferenciaUrl?: string
   pacotesJson?: string
   ativo: boolean
+  exibirNoMarketplace?: boolean
+}
+
+// Modelo Midia (Photos/Videos)
+export type TipoMidia = 'IMAGEM' | 'VIDEO'
+
+export interface ModeloMidia {
+  id: string
+  modeloId: string
+  tipo: TipoMidia
+  url: string
+  thumbnailUrl?: string
+  ordem: number
+  principal: boolean
+  titulo?: string
+  createdAt?: string
+}
+
+export interface ModeloMidiaCreateRequest {
+  tipo: TipoMidia
+  url: string
+  thumbnailUrl?: string
+  ordem?: number
+  principal?: boolean
+  titulo?: string
 }
 
 export interface Jetski extends BaseEntity {

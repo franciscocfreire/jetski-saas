@@ -136,7 +136,11 @@
       "Bash(JETSKI_EXTERNAL_URL=\"https://233b866ae3f8.ngrok-free.app\" docker compose build frontend backend)",
       "Bash(ls:*)",
       "Bash(npm install:*)",
-      "Bash(npx playwright test:*)"
+      "Bash(npx playwright test:*)",
+      "WebFetch(domain:sea-doo.brp.com)",
+      "WebFetch(domain:www.yamahaboats.com)",
+      "WebFetch(domain:www.yamahawaverunners.com)",
+      "WebFetch(domain:www.kawasaki.com)"
     ],
     "deny": [],
     "ask": [],
