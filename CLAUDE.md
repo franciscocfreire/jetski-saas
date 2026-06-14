@@ -8,7 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Status
 
-This repository is in the **specification phase**. The main specification document is `inicial.md` (in Portuguese).
+This repository is in **active development** (version **0.8.0**), well past the initial specification phase.
+
+- **Backend**: Functional Spring Boot 3.3+ / Java 21 **modular monolith** (Spring Modulith). 385+ Java files, ~747 tests. Multi-tenant isolation (RLS + `TenantContext`), Keycloak 26 (OIDC), and OPA (Open Policy Agent) for ABAC/RBAC are all implemented. 36 Flyway migrations (V001→V036).
+- **Implemented modules**: `tenant`/`usuarios`/`signup` (onboarding & invitations), `frota`, `reservas`, `locacoes` (check-in/out + billing), `manutencao`, `comissoes`, `fechamento` (daily/monthly), `combustivel`, `despesas`, `pagamentos`, `bonus`, `dashboard`, `marketplace`. Recent work added an async audit-event system and is focused on the sellers/commissions domain (presence, daily rates, bonuses, PIX payouts).
+- **Backoffice web** (`frontend/jetski-backoffice`): Functional Next.js 15 + React 19 + shadcn/ui, NextAuth + OIDC (Keycloak), TanStack Query/Table, Recharts, Playwright e2e tests.
+- **Mobile** (KMM): Documentation only so far (`mobile/*.md`); code lives in a separate working dir (`/mnt/c/repos/jetski-mobile`).
+
+The original specification document is `inicial.md` (in Portuguese). See `IMPLEMENTATION_STATUS.md` for the detailed feature-by-feature status.
 
 ## Multi-tenant Architecture
 

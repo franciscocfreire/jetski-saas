@@ -5,7 +5,7 @@ Sistema SaaS B2B multi-tenant para gestão completa de locações de jetski, inc
 ## 🏗️ Arquitetura
 
 - **Backend:** Spring Boot 3.3 + Java 21 + PostgreSQL 16
-- **Frontend:** Next.js 14 + TypeScript + shadcn/ui
+- **Frontend:** Next.js 15 + React 19 + TypeScript + shadcn/ui
 - **Mobile:** Kotlin Multiplatform Mobile (KMM)
 - **Auth:** Keycloak 26 (OIDC + PKCE)
 - **Cache:** Redis 7
@@ -241,6 +241,6 @@ TBD
 
 ---
 
-**Status:** 🚧 Em desenvolvimento
-**Sprint Atual:** Sprint 01 (EPIC-01: Multi-tenant Foundation)
-**Última atualização:** 2025-01-15
+**Status:** 🚧 Em desenvolvimento ativo (v0.8.0)
+**Módulos:** Multi-tenant, usuários/convites, frota, reservas, locações (check-in/out + billing), manutenção, comissões, fechamentos, combustível, despesas, pagamentos, bônus, dashboard, marketplace
+**Última atualização:** 2026-06-14
