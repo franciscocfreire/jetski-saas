@@ -5,6 +5,7 @@ import type {
   CheckInFromReservaRequest,
   CheckInWalkInRequest,
   CheckOutRequest,
+  EditFinalizadaRequest,
 } from '../types'
 
 const getBasePath = () => `/v1/tenants/${getTenantId()}/locacoes`
@@ -42,6 +43,14 @@ export const locacoesService = {
 
   async updateDataCheckIn(id: string, dataCheckIn: string): Promise<Locacao> {
     const { data } = await apiClient.patch<Locacao>(`${getBasePath()}/${id}/data-check-in`, { dataCheckIn })
+    return data
+  },
+
+  async editarFinalizada(id: string, request: EditFinalizadaRequest, recalcular = false): Promise<Locacao> {
+    const { data } = await apiClient.patch<Locacao>(
+      `${getBasePath()}/${id}/editar-finalizada?recalcular=${recalcular}`,
+      request
+    )
     return data
   },
 }

@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Type;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -57,6 +58,33 @@ public class Vendedor {
     private String documento;
 
     /**
+     * Contact email
+     */
+    @Column
+    private String email;
+
+    /**
+     * Contact phone
+     */
+    @Column
+    private String telefone;
+
+    /**
+     * PIX key for payment transfers.
+     * Can be CPF, CNPJ, email, phone number, or random key.
+     */
+    @Column(name = "chave_pix", length = 100)
+    private String chavePix;
+
+    /**
+     * Type of PIX key (CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA).
+     * Required when chavePix is set.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_chave_pix", length = 20)
+    private TipoChavePix tipoChavePix;
+
+    /**
      * Seller type: INTERNO (employee) or PARCEIRO (external partner)
      */
     @Convert(converter = VendedorTipoConverter.class)
@@ -87,6 +115,15 @@ public class Vendedor {
     @Type(JsonBinaryType.class)
     @Column(name = "regra_comissao_json", columnDefinition = "jsonb")
     private String regraComissaoJson;
+
+    /**
+     * Valor base da diária do vendedor.
+     * Usado como referência no registro de presença diária.
+     * Pode ser ajustado por dia via PresencaVendedor.
+     */
+    @Column(name = "diaria_base", precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal diariaBase = BigDecimal.ZERO;
 
     /**
      * Soft delete flag - inactive sellers cannot create new rentals

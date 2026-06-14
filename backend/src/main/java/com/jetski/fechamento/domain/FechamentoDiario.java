@@ -3,6 +3,7 @@ package com.jetski.fechamento.domain;
 import com.jetski.shared.exception.BusinessException;
 import jakarta.persistence.*;
 import lombok.*;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -81,6 +82,18 @@ public class FechamentoDiario {
     @Builder.Default
     private BigDecimal totalPix = BigDecimal.ZERO;
 
+    @Column(name = "total_despesas_operacionais", precision = 12, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal totalDespesasOperacionais = BigDecimal.ZERO;
+
+    /**
+     * Total de diárias pagas aos vendedores no dia.
+     * Calculado a partir da tabela presenca_vendedor.
+     */
+    @Column(name = "total_diarias_vendedores", precision = 12, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal totalDiariasVendedores = BigDecimal.ZERO;
+
     // Status & Lock
     @Column(name = "status", nullable = false, columnDefinition = "TEXT")
     @Builder.Default
@@ -100,6 +113,13 @@ public class FechamentoDiario {
     @Column(name = "divergencias_json")
     @JdbcTypeCode(SqlTypes.JSON)
     private String divergenciasJson;
+
+    /**
+     * Hash SHA-256 dos valores consolidados para detecção de divergências.
+     * Formato: totalLocacoes|totalFaturado|totalCombustivel|totalComissoes
+     */
+    @Column(name = "valores_hash", length = 64)
+    private String valoresHash;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -157,5 +177,46 @@ public class FechamentoDiario {
         this.status = "aberto";
         this.dtFechamento = null;
         this.bloqueado = false;
+    }
+
+    /**
+     * Calcula hash SHA-256 dos valores consolidados.
+     * Formato: totalLocacoes|totalFaturado|totalCombustivel|totalComissoes|totalDespesasOperacionais|totalDiariasVendedores
+     *
+     * <p>Usado para detectar divergências quando locações são editadas
+     * após a consolidação do fechamento.</p>
+     *
+     * @return hash SHA-256 em formato hexadecimal (64 caracteres)
+     */
+    public String calcularHash() {
+        String dados = String.format("%d|%.2f|%.2f|%.2f|%.2f|%.2f",
+            totalLocacoes != null ? totalLocacoes : 0,
+            totalFaturado != null ? totalFaturado : BigDecimal.ZERO,
+            totalCombustivel != null ? totalCombustivel : BigDecimal.ZERO,
+            totalComissoes != null ? totalComissoes : BigDecimal.ZERO,
+            totalDespesasOperacionais != null ? totalDespesasOperacionais : BigDecimal.ZERO,
+            totalDiariasVendedores != null ? totalDiariasVendedores : BigDecimal.ZERO
+        );
+        return DigestUtils.sha256Hex(dados);
+    }
+
+    /**
+     * Verifica se há divergência entre o hash armazenado e os valores atuais.
+     *
+     * @return true se houver divergência, false caso contrário
+     */
+    public boolean hasDivergencia() {
+        if (valoresHash == null) {
+            return false;
+        }
+        return !valoresHash.equals(calcularHash());
+    }
+
+    /**
+     * Atualiza o hash dos valores consolidados.
+     * Deve ser chamado após cada consolidação.
+     */
+    public void atualizarHash() {
+        this.valoresHash = calcularHash();
     }
 }

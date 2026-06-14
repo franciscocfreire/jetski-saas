@@ -6,11 +6,13 @@ import com.jetski.locacoes.domain.Jetski;
 import com.jetski.locacoes.domain.Locacao;
 import com.jetski.locacoes.domain.LocacaoStatus;
 import com.jetski.locacoes.domain.Modelo;
+import com.jetski.locacoes.domain.Vendedor;
 import com.jetski.locacoes.internal.LocacaoService;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.locacoes.internal.repository.JetskiRepository;
 import com.jetski.locacoes.internal.repository.LocacaoItemOpcionalRepository;
 import com.jetski.locacoes.internal.repository.ModeloRepository;
+import com.jetski.locacoes.internal.repository.VendedorRepository;
 import com.jetski.shared.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -59,6 +61,7 @@ public class LocacaoController {
     private final JetskiRepository jetskiRepository;
     private final ModeloRepository modeloRepository;
     private final ClienteRepository clienteRepository;
+    private final VendedorRepository vendedorRepository;
 
     /**
      * POST /v1/tenants/{tenantId}/locacoes/check-in/reserva
@@ -285,6 +288,42 @@ public class LocacaoController {
     }
 
     /**
+     * PATCH /v1/tenants/{tenantId}/locacoes/{id}/editar-finalizada
+     *
+     * Edit a finalized rental.
+     * Only allowed when the daily closure for the rental's date is not locked.
+     * Requires GERENTE or ADMIN_TENANT role.
+     *
+     * @param tenantId   Tenant ID from path
+     * @param id         Locacao ID from path
+     * @param request    Edit request with fields to update
+     * @param recalcular If true, recalculate derived values after edit
+     * @return 200 OK with updated LocacaoResponse
+     */
+    @PatchMapping("/{id}/editar-finalizada")
+    @Operation(summary = "Edit finalized rental",
+               description = "Edit a finalized rental before daily closure is locked. " +
+                            "Requires GERENTE or ADMIN_TENANT role.")
+    public ResponseEntity<LocacaoResponse> editLocacaoFinalizada(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @Valid @RequestBody EditFinalizadaLocacaoRequest request,
+        @Parameter(description = "If true, recalculate derived values (minutosFaturaveis, valorBase, valorTotal)")
+        @RequestParam(defaultValue = "false") boolean recalcular
+    ) {
+        log.info("PATCH /v1/tenants/{}/locacoes/{}/editar-finalizada - recalcular={}",
+                 tenantId, id, recalcular);
+
+        validateTenantContext(tenantId);
+
+        Locacao locacao = locacaoService.editLocacaoFinalizada(tenantId, id, request, recalcular);
+        LocacaoResponse response = toResponse(locacao);
+
+        log.info("Finalized locacao edited: id={}", id);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * GET /v1/tenants/{tenantId}/locacoes
      *
      * List rentals with optional filters
@@ -373,6 +412,15 @@ public class LocacaoController {
             }
         }
 
+        // Get vendedor name (if exists)
+        String vendedorNome = null;
+        if (locacao.getVendedorId() != null) {
+            Vendedor vendedor = vendedorRepository.findById(locacao.getVendedorId()).orElse(null);
+            if (vendedor != null) {
+                vendedorNome = vendedor.getNome();
+            }
+        }
+
         return LocacaoResponse.builder()
             .id(locacao.getId())
             .tenantId(locacao.getTenantId())
@@ -383,6 +431,7 @@ public class LocacaoController {
             .jetskiSerie(jetskiSerie)
             .jetskiModeloNome(jetskiModeloNome)
             .clienteNome(clienteNome)
+            .vendedorNome(vendedorNome)
             .dataCheckIn(locacao.getDataCheckIn())
             .horimetroInicio(locacao.getHorimetroInicio())
             .duracaoPrevista(locacao.getDuracaoPrevista())

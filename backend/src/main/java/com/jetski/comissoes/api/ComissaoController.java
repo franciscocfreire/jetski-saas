@@ -6,7 +6,6 @@ import com.jetski.comissoes.api.dto.PagarComissaoRequest;
 import com.jetski.comissoes.domain.Comissao;
 import com.jetski.comissoes.internal.CommissionService;
 import com.jetski.shared.security.TenantContext;
-import com.jetski.usuarios.api.UsuarioService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +43,6 @@ import java.util.stream.Collectors;
 public class ComissaoController {
 
     private final CommissionService commissionService;
-    private final UsuarioService usuarioService;
 
     /**
      * Buscar comissão por ID
@@ -187,6 +185,7 @@ public class ComissaoController {
                 .percentualAplicado(comissao.getPercentualAplicado())
                 .politicaNome(comissao.getPoliticaNome())
                 .politicaNivel(comissao.getPoliticaNivel())
+                .vendaAcimaPrecoBase(comissao.getVendaAcimaPrecoBase())
                 .aprovadoPor(comissao.getAprovadoPor())
                 .aprovadoEm(comissao.getAprovadoEm())
                 .pagoPor(comissao.getPagoPor())
@@ -199,8 +198,10 @@ public class ComissaoController {
 
     /**
      * Obtém ID do usuário autenticado
+     * Uses TenantContext.getUsuarioId() which is already resolved from Keycloak UUID
+     * to internal PostgreSQL UUID by TenantFilter via usuario_identity_provider table
      */
     private UUID obterUsuarioId(Authentication authentication) {
-        return usuarioService.getUserIdFromAuthentication(authentication);
+        return TenantContext.getUsuarioId();
     }
 }

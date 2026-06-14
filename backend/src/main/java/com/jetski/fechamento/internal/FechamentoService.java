@@ -2,12 +2,16 @@ package com.jetski.fechamento.internal;
 
 import com.jetski.comissoes.api.ComissaoQueryService;
 import com.jetski.comissoes.domain.Comissao;
+import com.jetski.despesas.internal.DespesaOperacionalService;
+import com.jetski.fechamento.api.dto.DivergenciaResponse;
+import com.jetski.fechamento.api.dto.LocacaoAlterada;
 import com.jetski.fechamento.domain.FechamentoDiario;
 import com.jetski.fechamento.domain.FechamentoMensal;
 import com.jetski.fechamento.internal.repository.FechamentoDiarioRepository;
 import com.jetski.fechamento.internal.repository.FechamentoMensalRepository;
 import com.jetski.locacoes.api.LocacaoQueryService;
 import com.jetski.locacoes.domain.Locacao;
+import com.jetski.locacoes.internal.repository.PresencaVendedorRepository;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +25,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -50,6 +56,8 @@ public class FechamentoService {
     private final FechamentoMensalRepository fechamentoMensalRepository;
     private final LocacaoQueryService locacaoQueryService;
     private final ComissaoQueryService comissaoQueryService;
+    private final DespesaOperacionalService despesaOperacionalService;
+    private final PresencaVendedorRepository presencaVendedorRepository;
 
     // ====================
     // Fechamento Diário
@@ -109,6 +117,12 @@ public class FechamentoService {
                 .filter(v -> v != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // Buscar despesas operacionais do dia
+        BigDecimal totalDespesasOperacionais = despesaOperacionalService.somarDespesasDia(tenantId, data);
+
+        // Buscar total de diárias de vendedores do dia
+        BigDecimal totalDiariasVendedores = presencaVendedorRepository.sumTotalDiariasByDate(tenantId, data);
+
         // Criar ou atualizar fechamento (idempotente)
         boolean isUpdate = fechamento != null;
 
@@ -124,6 +138,8 @@ public class FechamentoService {
                     .totalDinheiro(totalDinheiro)
                     .totalCartao(totalCartao)
                     .totalPix(totalPix)
+                    .totalDespesasOperacionais(totalDespesasOperacionais)
+                    .totalDiariasVendedores(totalDiariasVendedores)
                     .status("aberto")
                     .bloqueado(false)
                     .build();
@@ -136,7 +152,12 @@ public class FechamentoService {
             fechamento.setTotalDinheiro(totalDinheiro);
             fechamento.setTotalCartao(totalCartao);
             fechamento.setTotalPix(totalPix);
+            fechamento.setTotalDespesasOperacionais(totalDespesasOperacionais);
+            fechamento.setTotalDiariasVendedores(totalDiariasVendedores);
         }
+
+        // Calcular e armazenar hash dos valores consolidados
+        fechamento.atualizarHash();
 
         FechamentoDiario salvo = fechamentoDiarioRepository.save(fechamento);
 
@@ -256,6 +277,181 @@ public class FechamentoService {
         return fechamentoDiarioRepository.existsBloqueadoParaData(tenantId, data);
     }
 
+    /**
+     * Verifica divergências entre valores consolidados e valores atuais das locações.
+     *
+     * <p>Compara o hash armazenado no fechamento com um hash recalculado
+     * a partir dos valores atuais das locações.</p>
+     *
+     * @param tenantId   ID do tenant
+     * @param dataInicio Data inicial do período
+     * @param dataFim    Data final do período
+     * @return Lista de divergências encontradas
+     */
+    @Transactional(readOnly = true)
+    public List<DivergenciaResponse> verificarDivergencias(UUID tenantId, LocalDate dataInicio, LocalDate dataFim) {
+        List<FechamentoDiario> fechamentos = fechamentoDiarioRepository
+                .findByTenantIdAndDtReferenciaBetweenOrderByDtReferenciaDesc(tenantId, dataInicio, dataFim);
+
+        List<DivergenciaResponse> divergencias = new ArrayList<>();
+
+        for (FechamentoDiario f : fechamentos) {
+            // Recalcular valores atuais das locações
+            ValoresConsolidados atuais = calcularValoresAtuais(tenantId, f.getDtReferencia());
+
+            // Comparar com valores armazenados
+            if (!valoresIguais(f, atuais)) {
+                // Buscar locações alteradas para detalhamento
+                List<LocacaoAlterada> locacoesAlteradas = identificarLocacoesAlteradas(
+                        tenantId, f.getDtReferencia(), f.getUpdatedAt());
+
+                divergencias.add(DivergenciaResponse.builder()
+                        .fechamentoId(f.getId())
+                        .dtReferencia(f.getDtReferencia())
+                        .status(f.getStatus())
+                        .totalLocacoesArmazenado(f.getTotalLocacoes())
+                        .totalFaturadoArmazenado(f.getTotalFaturado())
+                        .totalCombustivelArmazenado(f.getTotalCombustivel())
+                        .totalComissoesArmazenado(f.getTotalComissoes())
+                        .totalLocacoesAtual(atuais.totalLocacoes)
+                        .totalFaturadoAtual(atuais.totalFaturado)
+                        .totalCombustivelAtual(atuais.totalCombustivel)
+                        .totalComissoesAtual(atuais.totalComissoes)
+                        .diferencaLocacoes(atuais.totalLocacoes - f.getTotalLocacoes())
+                        .diferencaFaturado(atuais.totalFaturado.subtract(
+                                f.getTotalFaturado() != null ? f.getTotalFaturado() : BigDecimal.ZERO))
+                        .diferencaCombustivel(atuais.totalCombustivel.subtract(
+                                f.getTotalCombustivel() != null ? f.getTotalCombustivel() : BigDecimal.ZERO))
+                        .diferencaComissoes(atuais.totalComissoes.subtract(
+                                f.getTotalComissoes() != null ? f.getTotalComissoes() : BigDecimal.ZERO))
+                        .locacoesAlteradas(locacoesAlteradas)
+                        .ultimaConsolidacao(f.getUpdatedAt())
+                        .mensagem("Reconsolidacao necessaria: valores foram alterados apos ultima consolidacao")
+                        .build());
+            }
+        }
+
+        return divergencias;
+    }
+
+    /**
+     * Classe interna para armazenar valores consolidados calculados
+     */
+    private record ValoresConsolidados(
+            int totalLocacoes,
+            BigDecimal totalFaturado,
+            BigDecimal totalCombustivel,
+            BigDecimal totalComissoes
+    ) {}
+
+    /**
+     * Calcula os valores atuais das locações para uma data específica
+     */
+    private ValoresConsolidados calcularValoresAtuais(UUID tenantId, LocalDate data) {
+        LocalDateTime inicioDia = data.atStartOfDay();
+        LocalDateTime fimDia = data.plusDays(1).atStartOfDay();
+
+        List<Locacao> locacoes = locacaoQueryService.findByTenantIdAndDateRange(tenantId, inicioDia, fimDia);
+
+        // Filtrar apenas locações finalizadas (com check-out)
+        locacoes = locacoes.stream()
+                .filter(l -> l.getDataCheckOut() != null &&
+                             l.getDataCheckOut().toLocalDate().equals(data))
+                .toList();
+
+        int totalLocacoes = locacoes.size();
+        BigDecimal totalFaturado = locacoes.stream()
+                .map(Locacao::getValorTotal)
+                .filter(v -> v != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalCombustivel = locacoes.stream()
+                .map(Locacao::getCombustivelCusto)
+                .filter(v -> v != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Buscar comissões do dia
+        Instant inicioInstant = inicioDia.atZone(ZoneId.systemDefault()).toInstant();
+        Instant fimInstant = fimDia.atZone(ZoneId.systemDefault()).toInstant();
+
+        List<Comissao> comissoes = comissaoQueryService.findByPeriodo(tenantId, inicioInstant, fimInstant);
+        BigDecimal totalComissoes = comissoes.stream()
+                .map(Comissao::getValorComissao)
+                .filter(v -> v != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return new ValoresConsolidados(totalLocacoes, totalFaturado, totalCombustivel, totalComissoes);
+    }
+
+    /**
+     * Verifica se os valores do fechamento são iguais aos valores atuais
+     */
+    private boolean valoresIguais(FechamentoDiario f, ValoresConsolidados atuais) {
+        // Compara número de locações
+        if (f.getTotalLocacoes() != atuais.totalLocacoes) {
+            return false;
+        }
+
+        // Compara valores com tolerância para arredondamento
+        BigDecimal faturadoArmazenado = f.getTotalFaturado() != null ? f.getTotalFaturado() : BigDecimal.ZERO;
+        if (faturadoArmazenado.compareTo(atuais.totalFaturado) != 0) {
+            return false;
+        }
+
+        BigDecimal combustivelArmazenado = f.getTotalCombustivel() != null ? f.getTotalCombustivel() : BigDecimal.ZERO;
+        if (combustivelArmazenado.compareTo(atuais.totalCombustivel) != 0) {
+            return false;
+        }
+
+        BigDecimal comissoesArmazenado = f.getTotalComissoes() != null ? f.getTotalComissoes() : BigDecimal.ZERO;
+        if (comissoesArmazenado.compareTo(atuais.totalComissoes) != 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Identifica locações que foram alteradas após a consolidação
+     */
+    private List<LocacaoAlterada> identificarLocacoesAlteradas(UUID tenantId, LocalDate data, Instant ultimaConsolidacao) {
+        LocalDateTime inicioDia = data.atStartOfDay();
+        LocalDateTime fimDia = data.plusDays(1).atStartOfDay();
+
+        List<Locacao> locacoes = locacaoQueryService.findByTenantIdAndDateRange(tenantId, inicioDia, fimDia);
+
+        // Filtrar apenas locações finalizadas deste dia
+        locacoes = locacoes.stream()
+                .filter(l -> l.getDataCheckOut() != null &&
+                             l.getDataCheckOut().toLocalDate().equals(data))
+                .toList();
+
+        List<LocacaoAlterada> alteradas = new ArrayList<>();
+
+        for (Locacao locacao : locacoes) {
+            // Verificar se a locação foi alterada após a consolidação
+            if (locacao.getUpdatedAt() != null && ultimaConsolidacao != null &&
+                locacao.getUpdatedAt().isAfter(ultimaConsolidacao)) {
+
+                alteradas.add(LocacaoAlterada.builder()
+                        .locacaoId(locacao.getId())
+                        // Locacao armazena apenas IDs; para nomes seria necessário join
+                        .clienteNome(locacao.getClienteId() != null ? locacao.getClienteId().toString() : "N/A")
+                        .jetskiIdentificacao(locacao.getJetskiId() != null ?
+                                locacao.getJetskiId().toString() : "N/A")
+                        .dataCheckOut(locacao.getDataCheckOut())
+                        .valorAnterior(null) // Não temos snapshot, seria necessário auditoria
+                        .valorAtual(locacao.getValorTotal())
+                        .diferenca(null) // Sem snapshot, não podemos calcular
+                        .dataAlteracao(locacao.getUpdatedAt())
+                        .alteradoPor(null) // Necessitaria integração com auditoria
+                        .build());
+            }
+        }
+
+        return alteradas;
+    }
+
     // ====================
     // Fechamento Mensal
     // ====================
@@ -301,6 +497,18 @@ public class FechamentoService {
                 .filter(v -> v != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // Somar despesas operacionais dos fechamentos diários
+        BigDecimal totalDespesasOperacionais = fechamentosDiarios.stream()
+                .map(FechamentoDiario::getTotalDespesasOperacionais)
+                .filter(v -> v != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Somar diárias de vendedores dos fechamentos diários
+        BigDecimal totalDiariasVendedores = fechamentosDiarios.stream()
+                .map(FechamentoDiario::getTotalDiariasVendedores)
+                .filter(v -> v != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         // TODO: Calcular total de manutenções do mês (quando módulo de manutenção estiver implementado)
         BigDecimal totalManutencoes = BigDecimal.ZERO;
 
@@ -318,6 +526,8 @@ public class FechamentoService {
                     .totalCustos(totalCustos)
                     .totalComissoes(totalComissoes)
                     .totalManutencoes(totalManutencoes)
+                    .totalDespesasOperacionais(totalDespesasOperacionais)
+                    .totalDiariasVendedores(totalDiariasVendedores)
                     .status("aberto")
                     .bloqueado(false)
                     .build();
@@ -328,10 +538,15 @@ public class FechamentoService {
             fechamento.setTotalCustos(totalCustos);
             fechamento.setTotalComissoes(totalComissoes);
             fechamento.setTotalManutencoes(totalManutencoes);
+            fechamento.setTotalDespesasOperacionais(totalDespesasOperacionais);
+            fechamento.setTotalDiariasVendedores(totalDiariasVendedores);
         }
 
         // Calcular resultado líquido
         fechamento.calcularResultadoLiquido();
+
+        // Calcular e armazenar hash dos valores consolidados
+        fechamento.atualizarHash();
 
         FechamentoMensal salvo = fechamentoMensalRepository.save(fechamento);
 
@@ -425,6 +640,15 @@ public class FechamentoService {
     public FechamentoMensal buscarFechamentoMensalPorPeriodo(UUID tenantId, int ano, int mes) {
         return fechamentoMensalRepository.findByTenantIdAndAnoAndMes(tenantId, ano, mes)
                 .orElseThrow(() -> new NotFoundException(String.format("Fechamento mensal não encontrado para %d/%d", mes, ano)));
+    }
+
+    /**
+     * Busca fechamento mensal por ano e mês (retorna Optional)
+     * Usado quando não queremos lançar exceção se não existir.
+     */
+    @Transactional(readOnly = true)
+    public Optional<FechamentoMensal> buscarFechamentoMensalPorPeriodoOptional(UUID tenantId, int ano, int mes) {
+        return fechamentoMensalRepository.findByTenantIdAndAnoAndMes(tenantId, ano, mes);
     }
 
     /**

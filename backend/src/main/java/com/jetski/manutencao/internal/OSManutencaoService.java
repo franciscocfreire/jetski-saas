@@ -10,10 +10,13 @@ import com.jetski.manutencao.internal.repository.OSManutencaoRepository;
 import com.jetski.shared.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,11 +43,20 @@ import java.util.UUID;
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class OSManutencaoService {
 
     private final OSManutencaoRepository osManutencaoRepository;
     private final JetskiPublicService jetskiPublicService;
+    private final DespesaManutencaoService despesaManutencaoService;
+
+    public OSManutencaoService(
+            OSManutencaoRepository osManutencaoRepository,
+            JetskiPublicService jetskiPublicService,
+            @Lazy DespesaManutencaoService despesaManutencaoService) {
+        this.osManutencaoRepository = osManutencaoRepository;
+        this.jetskiPublicService = jetskiPublicService;
+        this.despesaManutencaoService = despesaManutencaoService;
+    }
 
     /**
      * List all active maintenance orders for current tenant.
@@ -352,6 +364,7 @@ public class OSManutencaoService {
      * <p>Side effects:
      * <ul>
      *   <li>Sets jetski status to DISPONIVEL if no other active OS exists</li>
+     *   <li>Automatically generates maintenance expense with APROVADA status if value > 0</li>
      * </ul>
      *
      * @param id OSManutencao UUID
@@ -377,7 +390,8 @@ public class OSManutencaoService {
         os.setValorMaoObra(request.getValorMaoObra());
 
         // Calculate total
-        os.setValorTotal(request.getValorPecas().add(request.getValorMaoObra()));
+        BigDecimal valorTotal = request.getValorPecas().add(request.getValorMaoObra());
+        os.setValorTotal(valorTotal);
 
         // Update observacoes if provided
         if (request.getObservacoesFinais() != null && !request.getObservacoesFinais().isBlank()) {
@@ -390,6 +404,24 @@ public class OSManutencaoService {
 
         // RN06: Release jetski if no other active OS
         releaseJetskiFromMaintenance(saved.getJetskiId());
+
+        // Automatically generate maintenance expense with APROVADA status if value > 0
+        if (valorTotal.compareTo(BigDecimal.ZERO) > 0) {
+            try {
+                // Generate single expense (1 parcela) with today as vencimento, already approved
+                despesaManutencaoService.gerarDespesasParceladasAprovadas(
+                        saved.getTenantId(),
+                        saved.getId(),
+                        1,  // 1 parcela
+                        LocalDate.now(),  // vencimento hoje
+                        "Despesa gerada automaticamente ao concluir OS"
+                );
+                log.info("Maintenance expense automatically generated for OS: id={}, valor={}", saved.getId(), valorTotal);
+            } catch (Exception e) {
+                log.warn("Failed to auto-generate maintenance expense for OS {}: {}", saved.getId(), e.getMessage());
+                // Don't fail the OS conclusion if expense generation fails
+            }
+        }
 
         return saved;
     }

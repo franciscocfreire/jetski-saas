@@ -454,20 +454,30 @@ CREATE TABLE comissao (
     CONSTRAINT comissao_status_check CHECK (status IN ('PENDENTE', 'APROVADA', 'PAGA', 'CANCELADA'))
 );
 
--- Ordens de manutenção
+-- Ordens de manutenção (alinhado com entidade OSManutencao)
 CREATE TABLE os_manutencao (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenant(id) ON DELETE CASCADE,
     jetski_id UUID NOT NULL REFERENCES jetski(id),
     tipo VARCHAR(20) NOT NULL,
-    descricao TEXT,
+    descricao_problema TEXT NOT NULL,
+    diagnostico TEXT,
+    solucao TEXT,
     status VARCHAR(20) DEFAULT 'ABERTA',
-    prioridade VARCHAR(10) DEFAULT 'MEDIA',
-    custo_estimado NUMERIC(10,2),
-    custo_real NUMERIC(10,2),
-    aberta_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    fechada_em TIMESTAMPTZ,
-    responsavel_id UUID REFERENCES usuario(id),
+    prioridade VARCHAR(20) DEFAULT 'MEDIA',
+    pecas_json JSONB,
+    valor_pecas NUMERIC(10,2) DEFAULT 0,
+    valor_mao_obra NUMERIC(10,2) DEFAULT 0,
+    valor_total NUMERIC(10,2) DEFAULT 0,
+    horimetro_abertura NUMERIC(10,2),
+    horimetro_conclusao NUMERIC(10,2),
+    dt_abertura TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    dt_prevista_inicio TIMESTAMPTZ,
+    dt_inicio_real TIMESTAMPTZ,
+    dt_prevista_fim TIMESTAMPTZ,
+    dt_conclusao TIMESTAMPTZ,
+    mecanico_id UUID,
+    observacoes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT os_tipo_check CHECK (tipo IN ('PREVENTIVA', 'CORRETIVA', 'REVISAO')),
@@ -563,6 +573,7 @@ CREATE INDEX idx_comissao_vendedor ON comissao(tenant_id, vendedor_id);
 CREATE INDEX idx_politica_comissao_tenant ON politica_comissao(tenant_id);
 CREATE INDEX idx_os_manutencao_tenant ON os_manutencao(tenant_id);
 CREATE INDEX idx_os_manutencao_jetski ON os_manutencao(tenant_id, jetski_id);
+CREATE INDEX idx_os_manutencao_mecanico ON os_manutencao(tenant_id, mecanico_id);
 CREATE INDEX idx_fechamento_diario_tenant ON fechamento_diario(tenant_id);
 CREATE INDEX idx_fechamento_mensal_tenant ON fechamento_mensal(tenant_id);
 CREATE INDEX idx_auditoria_tenant ON auditoria(tenant_id);

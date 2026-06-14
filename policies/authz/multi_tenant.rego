@@ -88,6 +88,41 @@ tenant_is_valid if {
     input.action == "invitation:cancel"
 }
 
+# Ações de configuração do tenant (tenant validado via path variable no backend)
+tenant_is_valid if {
+    startswith(input.action, "config:")
+}
+
+# Ações de pagamento (tenant validado via path variable no backend)
+tenant_is_valid if {
+    startswith(input.action, "pagamento:")
+}
+
+# Ações de comissão (tenant validado via path variable no backend)
+tenant_is_valid if {
+    startswith(input.action, "comissao:")
+}
+
+# Ações de presença/diária (tenant validado via path variable no backend)
+tenant_is_valid if {
+    startswith(input.action, "presenca:")
+}
+
+# Ações de locação (tenant validado via path variable no backend)
+tenant_is_valid if {
+    startswith(input.action, "locacao:")
+}
+
+# Ações de vendedor (tenant validado via path variable no backend)
+tenant_is_valid if {
+    startswith(input.action, "vendedor:")
+}
+
+# Ações de jetski (tenant validado via path variable no backend)
+tenant_is_valid if {
+    startswith(input.action, "jetski:")
+}
+
 # =============================================================================
 # Tenant Membership Validation
 # =============================================================================

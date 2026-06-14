@@ -1,11 +1,14 @@
 package com.jetski.usuarios.internal;
 
+import com.jetski.shared.email.EmailService;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.security.MagicLinkTokenService;
 import com.jetski.usuarios.api.dto.ConviteSummaryDTO;
 import com.jetski.usuarios.domain.Convite;
 import com.jetski.usuarios.internal.repository.ConviteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +37,11 @@ import java.util.stream.Collectors;
 public class ConviteManagementService {
 
     private final ConviteRepository conviteRepository;
+    private final EmailService emailService;
+    private final MagicLinkTokenService magicLinkTokenService;
+
+    @Value("${jetski.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
 
     // Token generation constants
     private static final String ALPHANUMERIC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -97,15 +105,25 @@ public class ConviteManagementService {
         String temporaryPassword = generateTemporaryPassword();
         convite.setTemporaryPassword(temporaryPassword);
 
-        // Record email resend
-        convite.recordEmailSent(null); // Will be updated with actual link
+        // Generate Magic Link JWT (contains token + temp password encrypted)
+        String magicToken = magicLinkTokenService.generateMagicToken(newToken, temporaryPassword);
+        String magicLink = String.format("%s/magic-activate?token=%s", frontendUrl, magicToken);
 
+        log.info("Magic link generated for resend: convite={}", conviteId);
+
+        // Send invitation email with magic link
+        emailService.sendInvitationEmail(
+            convite.getEmail(),
+            convite.getNome(),
+            magicLink,
+            temporaryPassword
+        );
+
+        // Record email resend
+        convite.recordEmailSent(magicLink);
         conviteRepository.save(convite);
 
         log.info("Invitation resent successfully: convite={}, newExpiration={}", conviteId, convite.getExpiresAt());
-
-        // TODO: Send actual email with new link
-        // emailService.sendInvitationEmail(convite, temporaryPassword);
 
         return toSummaryDTO(convite);
     }

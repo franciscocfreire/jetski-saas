@@ -37,6 +37,7 @@ public class LocacaoResponse {
     private String jetskiSerie;
     private String jetskiModeloNome;
     private String clienteNome;
+    private String vendedorNome;
 
     // Check-in data
     private LocalDateTime dataCheckIn;

@@ -4,12 +4,15 @@ import com.jetski.fechamento.api.dto.*;
 import com.jetski.fechamento.domain.FechamentoDiario;
 import com.jetski.fechamento.domain.FechamentoMensal;
 import com.jetski.fechamento.internal.FechamentoService;
+import com.jetski.fechamento.internal.report.FechamentoReportService;
 import com.jetski.shared.security.TenantContext;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -51,6 +54,7 @@ import java.util.stream.Collectors;
 public class FechamentoController {
 
     private final FechamentoService fechamentoService;
+    private final FechamentoReportService reportService;
 
     // ====================
     // Fechamento Diário
@@ -177,6 +181,27 @@ public class FechamentoController {
 
         FechamentoDiario fechamento = fechamentoService.forcarReabrirFechamentoDiario(tenantId, id);
         return ResponseEntity.ok(mapDiarioToResponse(fechamento));
+    }
+
+    /**
+     * Verificar divergências em fechamentos de um período.
+     * Retorna lista de fechamentos cujos valores armazenados diferem dos valores atuais das locações.
+     * Permissão: GERENTE, ADMIN_TENANT, FINANCEIRO
+     */
+    @GetMapping("/dia/divergencias")
+    public ResponseEntity<List<DivergenciaResponse>> verificarDivergencias(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+
+        List<DivergenciaResponse> divergencias = fechamentoService.verificarDivergencias(
+                tenantId, dataInicio, dataFim);
+
+        log.info("Verificação de divergências: {} encontradas para período {} a {} (tenant: {})",
+                divergencias.size(), dataInicio, dataFim, tenantId);
+
+        return ResponseEntity.ok(divergencias);
     }
 
     // ====================
@@ -333,6 +358,8 @@ public class FechamentoController {
                 .totalDinheiro(fechamento.getTotalDinheiro())
                 .totalCartao(fechamento.getTotalCartao())
                 .totalPix(fechamento.getTotalPix())
+                .totalDespesasOperacionais(fechamento.getTotalDespesasOperacionais())
+                .totalDiariasVendedores(fechamento.getTotalDiariasVendedores())
                 .status(fechamento.getStatus())
                 .dtFechamento(fechamento.getDtFechamento())
                 .bloqueado(fechamento.getBloqueado())
@@ -340,6 +367,8 @@ public class FechamentoController {
                 .divergenciasJson(fechamento.getDivergenciasJson())
                 .createdAt(fechamento.getCreatedAt())
                 .updatedAt(fechamento.getUpdatedAt())
+                .valoresHash(fechamento.getValoresHash())
+                .hasDivergencia(fechamento.hasDivergencia())
                 .build();
     }
 
@@ -354,6 +383,8 @@ public class FechamentoController {
                 .totalCustos(fechamento.getTotalCustos())
                 .totalComissoes(fechamento.getTotalComissoes())
                 .totalManutencoes(fechamento.getTotalManutencoes())
+                .totalDespesasOperacionais(fechamento.getTotalDespesasOperacionais())
+                .totalDiariasVendedores(fechamento.getTotalDiariasVendedores())
                 .resultadoLiquido(fechamento.getResultadoLiquido())
                 .status(fechamento.getStatus())
                 .dtFechamento(fechamento.getDtFechamento())
@@ -364,6 +395,86 @@ public class FechamentoController {
                 .updatedAt(fechamento.getUpdatedAt())
                 .build();
     }
+
+    // ====================
+    // Relatórios
+    // ====================
+
+    /**
+     * Gerar relatório de fechamento diário
+     * Formato: pdf ou excel
+     */
+    @GetMapping("/dia/{id}/relatorio")
+    public ResponseEntity<byte[]> gerarRelatorioDiario(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "pdf") String formato
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        FechamentoDiario fechamento = fechamentoService.buscarFechamentoDiario(tenantId, id);
+
+        // TODO: Get tenant name from TenantService
+        String tenantName = "Jetski SaaS";
+
+        byte[] content;
+        String contentType;
+        String filename;
+        String dataFormatted = fechamento.getDtReferencia().toString();
+
+        if ("excel".equalsIgnoreCase(formato)) {
+            content = reportService.generateDiarioExcel(fechamento, tenantName);
+            contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            filename = "fechamento_diario_" + dataFormatted + ".xlsx";
+        } else {
+            content = reportService.generateDiarioPdf(fechamento, tenantName);
+            contentType = "application/pdf";
+            filename = "fechamento_diario_" + dataFormatted + ".pdf";
+        }
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(content);
+    }
+
+    /**
+     * Gerar relatório de fechamento mensal
+     * Formato: pdf ou excel
+     */
+    @GetMapping("/mes/{id}/relatorio")
+    public ResponseEntity<byte[]> gerarRelatorioMensal(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "pdf") String formato
+    ) {
+        UUID tenantId = TenantContext.getTenantId();
+        FechamentoMensal fechamento = fechamentoService.buscarFechamentoMensal(tenantId, id);
+
+        // TODO: Get tenant name from TenantService
+        String tenantName = "Jetski SaaS";
+
+        byte[] content;
+        String contentType;
+        String filename;
+        String periodo = fechamento.getAno() + "_" + String.format("%02d", fechamento.getMes());
+
+        if ("excel".equalsIgnoreCase(formato)) {
+            content = reportService.generateMensalExcel(fechamento, tenantName);
+            contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            filename = "fechamento_mensal_" + periodo + ".xlsx";
+        } else {
+            content = reportService.generateMensalPdf(fechamento, tenantName);
+            contentType = "application/pdf";
+            filename = "fechamento_mensal_" + periodo + ".pdf";
+        }
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(content);
+    }
+
+    // ====================
+    // Helper Methods
+    // ====================
 
     /**
      * Obtém ID do usuário autenticado

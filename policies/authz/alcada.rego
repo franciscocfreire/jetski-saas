@@ -224,7 +224,10 @@ actions_no_alcada := {
     "politica-comissao:list", "politica-comissao:view", "politica-comissao:create",
 
     # User management
-    "user:list"
+    "user:list",
+
+    # Configurações do tenant
+    "config:view", "config:update", "config:list"
 }
 
 # Permite se é uma ação que não requer alçada

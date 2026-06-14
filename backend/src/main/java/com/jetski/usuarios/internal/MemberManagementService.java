@@ -7,11 +7,14 @@ import com.jetski.usuarios.api.dto.ListMembersResponse;
 import com.jetski.usuarios.api.dto.MemberSummaryDTO;
 import com.jetski.usuarios.domain.Membro;
 import com.jetski.usuarios.domain.Usuario;
+import com.jetski.usuarios.domain.event.MemberDeactivatedEvent;
+import com.jetski.usuarios.domain.event.MemberRolesChangedEvent;
 import com.jetski.usuarios.internal.repository.MembroRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +42,7 @@ import java.util.stream.Collectors;
 public class MemberManagementService {
 
     private final MembroRepository membroRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @PersistenceContext
     private final EntityManager entityManager;
@@ -158,6 +162,15 @@ public class MemberManagementService {
 
         log.info("Member deactivated successfully: usuario={}, tenant={}", usuarioId, tenantId);
 
+        // Publish audit event
+        eventPublisher.publishEvent(MemberDeactivatedEvent.of(
+            tenantId,
+            usuarioId,
+            usuario.getEmail(),
+            TenantContext.getUsuarioId()
+        ));
+        log.debug("Published MemberDeactivatedEvent for usuario: {}", usuarioId);
+
         return DeactivateMemberResponse.success(usuarioId, usuario.getEmail(), tenantId);
     }
 
@@ -215,6 +228,9 @@ public class MemberManagementService {
             }
         }
 
+        // Capture previous roles for audit
+        String[] previousRoles = membro.getPapeis() != null ? membro.getPapeis().clone() : new String[0];
+
         // Update roles
         membro.setPapeis(papeis.toArray(new String[0]));
         membroRepository.save(membro);
@@ -223,6 +239,17 @@ public class MemberManagementService {
         Usuario usuario = entityManager.find(Usuario.class, usuarioId);
 
         log.info("Roles updated successfully: usuario={}, tenant={}, newRoles={}", usuarioId, tenantId, papeis);
+
+        // Publish audit event
+        eventPublisher.publishEvent(MemberRolesChangedEvent.of(
+            tenantId,
+            usuarioId,
+            usuario.getEmail(),
+            previousRoles,
+            membro.getPapeis(),
+            TenantContext.getUsuarioId()
+        ));
+        log.debug("Published MemberRolesChangedEvent for usuario: {}", usuarioId);
 
         return MemberSummaryDTO.builder()
             .usuarioId(usuario.getId())

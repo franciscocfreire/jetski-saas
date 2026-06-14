@@ -88,12 +88,26 @@ export interface ClienteCreateRequest {
   observacoes?: string
 }
 
+// PIX Key Types
+export type TipoChavePix = 'CPF' | 'CNPJ' | 'EMAIL' | 'TELEFONE' | 'ALEATORIA'
+
+export const TIPOS_CHAVE_PIX = [
+  { value: 'CPF', label: 'CPF' },
+  { value: 'CNPJ', label: 'CNPJ' },
+  { value: 'EMAIL', label: 'E-mail' },
+  { value: 'TELEFONE', label: 'Telefone' },
+  { value: 'ALEATORIA', label: 'Chave Aleatória' },
+] as const
+
 // Vendedor Module
 export interface Vendedor extends BaseEntity {
   nome: string
   email?: string
   telefone?: string
+  chavePix?: string
+  tipoChavePix?: TipoChavePix
   comissaoPercentual: number
+  diariaBase?: number
   ativo: boolean
 }
 
@@ -101,7 +115,20 @@ export interface VendedorCreateRequest {
   nome: string
   email?: string
   telefone?: string
+  chavePix?: string
+  tipoChavePix?: TipoChavePix
   comissaoPercentual: number
+  diariaBase?: number
+}
+
+export interface VendedorUpdateRequest {
+  nome?: string
+  email?: string
+  telefone?: string
+  chavePix?: string
+  tipoChavePix?: TipoChavePix
+  comissaoPercentual?: number
+  diariaBase?: number
 }
 
 // Reserva Module
@@ -172,6 +199,7 @@ export interface Locacao extends BaseEntity {
   jetskiSerie?: string
   jetskiModeloNome?: string
   clienteNome?: string
+  vendedorNome?: string
 
   // Check-in data
   dataCheckIn: string
@@ -237,14 +265,40 @@ export interface CheckOutRequest {
   skipPhotos?: boolean
 }
 
+// Request for editing a finalized rental (before daily closing)
+export interface EditFinalizadaRequest {
+  dataCheckIn?: string
+  dataCheckOut?: string
+  horimetroInicio?: number
+  horimetroFim?: number
+  minutosUsados?: number
+  minutosFaturaveis?: number
+  valorBase?: number
+  valorNegociado?: number
+  valorTotal?: number
+  combustivelCusto?: number
+  vendedorId?: string
+  motivoDesconto?: string
+  observacoes?: string
+  motivoEdicao: string  // Required - audit trail
+}
+
 // Manutencao Module
 export type ManutencaoTipo = 'PREVENTIVA' | 'CORRETIVA'
-export type ManutencaoStatus = 'ABERTA' | 'EM_ANDAMENTO' | 'CONCLUIDA' | 'CANCELADA'
+export type ManutencaoStatus = 'ABERTA' | 'EM_ANDAMENTO' | 'AGUARDANDO_PECAS' | 'CONCLUIDA' | 'CANCELADA'
 export type ManutencaoPrioridade = 'BAIXA' | 'MEDIA' | 'ALTA' | 'URGENTE'
+
+// Resumo do jetski retornado na resposta de manutenção
+export interface JetskiResumo {
+  id: string
+  serie: string
+  modeloNome?: string
+  status?: string
+}
 
 export interface Manutencao extends BaseEntity {
   jetskiId: string
-  jetski?: Jetski
+  jetski?: JetskiResumo
   mecanicoId?: string
   tipo: ManutencaoTipo
   prioridade: ManutencaoPrioridade
@@ -275,28 +329,111 @@ export interface ManutencaoCreateRequest {
   observacoes?: string
 }
 
-// Fechamento Module
-export interface FechamentoDiario extends BaseEntity {
-  data: string
-  totalLocacoes: number
-  valorTotalBruto: number
-  valorTotalLiquido: number
-  totalCombustivel: number
-  totalComissoes: number
-  fechado: boolean
+export interface ManutencaoFinishRequest {
+  horimetroFechamento: number
+  valorPecas?: number
+  valorMaoObra?: number
+  observacoesFinais?: string
 }
 
-export interface FechamentoMensal extends BaseEntity {
-  mes: number
-  ano: number
+// Fechamento Module
+export type FechamentoStatus = 'aberto' | 'fechado' | 'aprovado'
+
+export interface FechamentoDiarioResponse {
+  id: string
+  dtReferencia: string
+  operadorId?: string
+  // Consolidacao
   totalLocacoes: number
-  valorTotalBruto: number
-  valorTotalLiquido: number
+  totalFaturado: number
   totalCombustivel: number
   totalComissoes: number
-  totalManutencao: number
-  fechado: boolean
+  totalDinheiro: number
+  totalCartao: number
+  totalPix: number
+  totalDespesasOperacionais?: number
+  totalDiariasVendedores?: number
+  // Status & Lock
+  status: FechamentoStatus
+  dtFechamento?: string
+  bloqueado: boolean
+  // Metadata
+  observacoes?: string
+  divergenciasJson?: string
+  createdAt: string
+  updatedAt: string
+  // Hash e divergencia
+  valoresHash?: string
+  hasDivergencia?: boolean
 }
+
+// Locacao alterada apos consolidacao
+export interface LocacaoAlterada {
+  locacaoId: string
+  clienteNome?: string
+  jetskiIdentificacao?: string
+  dataCheckOut?: string
+  valorAnterior?: number
+  valorAtual?: number
+  diferenca?: number
+  dataAlteracao?: string
+  alteradoPor?: string
+}
+
+// Divergencia detectada em fechamento
+export interface DivergenciaResponse {
+  fechamentoId: string
+  dtReferencia: string
+  status: FechamentoStatus
+  // Valores armazenados (consolidacao anterior)
+  totalLocacoesArmazenado: number
+  totalFaturadoArmazenado: number
+  totalCombustivelArmazenado: number
+  totalComissoesArmazenado: number
+  // Valores atuais (recalculados)
+  totalLocacoesAtual: number
+  totalFaturadoAtual: number
+  totalCombustivelAtual: number
+  totalComissoesAtual: number
+  // Diferencas
+  diferencaLocacoes: number
+  diferencaFaturado: number
+  diferencaCombustivel: number
+  diferencaComissoes: number
+  // Lista detalhada de locacoes alteradas
+  locacoesAlteradas?: LocacaoAlterada[]
+  ultimaConsolidacao?: string
+  mensagem?: string
+}
+
+export interface FechamentoMensalResponse {
+  id: string
+  ano: number
+  mes: number
+  operadorId?: string
+  // Consolidação
+  totalLocacoes: number
+  totalFaturado: number
+  totalCustos: number
+  totalComissoes: number
+  totalManutencoes: number
+  totalDespesasOperacionais?: number
+  totalDiariasVendedores?: number
+  resultadoLiquido: number
+  // Status & Lock
+  status: FechamentoStatus
+  dtFechamento?: string
+  bloqueado: boolean
+  // Metadata
+  observacoes?: string
+  relatorioUrl?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// Legacy aliases (mantidos para compatibilidade)
+export type FechamentoDiario = FechamentoDiarioResponse
+export type FechamentoMensal = FechamentoMensalResponse
 
 // User Tenants
 export interface TenantSummary {
@@ -497,3 +634,509 @@ export interface Page<T> {
   last: boolean
   empty: boolean
 }
+
+// ==========================================
+// Despesa Operacional Module
+// ==========================================
+
+export type CategoriaDespesa =
+  | 'DIARIA_FUNCIONARIO'
+  | 'REFEICAO'
+  | 'COMBUSTIVEL_PROPRIO'
+  | 'LIMPEZA'
+  | 'TAXA_ADMINISTRATIVA'
+  | 'TRANSPORTE'
+  | 'MATERIAL_ESCRITORIO'
+  | 'OUTROS'
+
+export type StatusDespesa = 'PENDENTE' | 'APROVADA' | 'REJEITADA' | 'PAGA'
+
+export interface DespesaOperacional extends BaseEntity {
+  dtReferencia: string
+  categoria: CategoriaDespesa
+  descricao?: string
+  valor: number
+  responsavelId?: string
+  status: StatusDespesa
+  aprovadoPor?: string
+  aprovadoEm?: string
+  pagoPor?: string
+  pagoEm?: string
+  referenciaPagamento?: string
+  observacoes?: string
+}
+
+export interface DespesaOperacionalCreateRequest {
+  dtReferencia: string
+  categoria: CategoriaDespesa
+  descricao?: string
+  valor: number
+  responsavelId?: string
+  observacoes?: string
+}
+
+export interface DespesaOperacionalUpdateRequest {
+  dtReferencia?: string
+  categoria?: CategoriaDespesa
+  descricao?: string
+  valor?: number
+  responsavelId?: string
+  observacoes?: string
+}
+
+export interface PagarDespesaRequest {
+  referenciaPagamento?: string
+}
+
+export const CATEGORIAS_DESPESA = [
+  { value: 'DIARIA_FUNCIONARIO', label: 'Diária Funcionário', icon: 'user' },
+  { value: 'REFEICAO', label: 'Refeição', icon: 'utensils' },
+  { value: 'COMBUSTIVEL_PROPRIO', label: 'Combustível Interno', icon: 'fuel' },
+  { value: 'LIMPEZA', label: 'Limpeza', icon: 'sparkles' },
+  { value: 'TAXA_ADMINISTRATIVA', label: 'Taxa Administrativa', icon: 'receipt' },
+  { value: 'TRANSPORTE', label: 'Transporte', icon: 'car' },
+  { value: 'MATERIAL_ESCRITORIO', label: 'Material Escritório', icon: 'package' },
+  { value: 'OUTROS', label: 'Outros', icon: 'more-horizontal' },
+] as const
+
+export const STATUS_DESPESA = [
+  { value: 'PENDENTE', label: 'Pendente', color: 'yellow' },
+  { value: 'APROVADA', label: 'Aprovada', color: 'blue' },
+  { value: 'REJEITADA', label: 'Rejeitada', color: 'red' },
+  { value: 'PAGA', label: 'Paga', color: 'green' },
+] as const
+
+// ==========================================
+// Dashboard Financeiro Module
+// ==========================================
+
+export type IndicadorFinanceiro = 'POSITIVO' | 'NEGATIVO' | 'NEUTRO'
+
+export interface DiaFinanceiro {
+  data: string
+  receita: number
+  despesasOperacionais: number
+  combustivel: number
+  comissoes: number
+  diariasVendedores: number
+  manutencoes: number
+  totalDespesas: number
+  saldo: number
+  indicador: IndicadorFinanceiro
+  statusFechamento?: FechamentoStatus
+  temFechamento: boolean
+}
+
+export interface CalendarioFinanceiroResponse {
+  ano: number
+  mes: number
+  totalReceitas: number
+  totalDespesas: number
+  saldoMes: number
+  diasPositivos: number
+  diasNegativos: number
+  diasNeutros: number
+  dias: DiaFinanceiro[]
+}
+
+export interface ReceitaDespesaDia {
+  data: string
+  receita: number
+  despesasOperacionais: number
+  combustivel: number
+  comissoes: number
+  diariasVendedores: number
+  manutencoes: number
+  totalDespesas: number
+  saldo: number
+}
+
+export interface DRESimplificado {
+  ano: number
+  mes: number
+  // (+) Receita Bruta
+  receitaBruta: number
+  // (-) Deduções
+  deducoes: number
+  // (=) Receita Líquida
+  receitaLiquida: number
+  // (-) Custos Variáveis
+  combustivel: number
+  comissoes: number
+  totalCustosVariaveis: number
+  // (=) Lucro Bruto
+  lucroBruto: number
+  // (-) Despesas Operacionais
+  despesasDiarias: number
+  diariasVendedores: number
+  despesasRefeicao: number
+  despesasTransporte: number
+  despesasLimpeza: number
+  outrasDesepsas: number
+  totalDespesasOperacionais: number
+  // (-) Manutenções
+  manutencoes: number
+  // (=) Resultado Líquido
+  resultadoLiquido: number
+  // Margem %
+  margemLiquida: number
+}
+
+export interface ComissaoPendenteItem {
+  id: string
+  vendedorId: string
+  vendedorNome?: string
+  valor: number
+  dtReferencia: string
+}
+
+export interface DespesaPendenteItem {
+  id: string
+  dtReferencia: string
+  categoria: CategoriaDespesa
+  descricao?: string
+  valor: number
+}
+
+export interface FechamentoAbertoItem {
+  id: string
+  dtReferencia: string
+  totalFaturado: number
+}
+
+export interface RegistrosPendentes {
+  // Comissões
+  quantidadeComissoesPendentes: number
+  totalComissoesPendentes: number
+  comissoesPendentes: ComissaoPendenteItem[]
+  // Despesas pendentes de aprovação
+  quantidadeDespesasPendentes: number
+  totalDespesasPendentes: number
+  despesasPendentes: DespesaPendenteItem[]
+  // Despesas aguardando pagamento
+  quantidadeDespesasAguardandoPagamento: number
+  totalDespesasAguardandoPagamento: number
+  // Dias sem fechamento
+  quantidadeDiasSemFechamento: number
+  diasSemFechamento: string[]
+  // Fechamentos abertos
+  quantidadeFechamentosAbertos: number
+  fechamentosAbertos: FechamentoAbertoItem[]
+  // Manutenções
+  quantidadeManutencoesAbertas: number
+  totalManutencoesAbertas?: number
+}
+
+// ==========================================
+// Vendedor Management Module (Enhanced)
+// ==========================================
+
+export type VendedorTipo = 'INTERNO' | 'PARCEIRO'
+
+// Vendedor with commission summary (for list views)
+export interface VendedorResumo {
+  id: string
+  nome: string
+  email?: string
+  tipo: VendedorTipo
+  ativo: boolean
+  diariaBase: number
+  totalPendentes: number
+  totalAprovadas: number
+  totalPagas: number
+  qtdLocacoes: number
+}
+
+// Bonus status for a seller
+export interface BonusStatus {
+  elegivel: boolean
+  metaAtual: number
+  metaNecessaria: number
+  valorBonus: number
+  vendasFaltando: number
+}
+
+// Vendedor with full details including bonus status
+export interface VendedorDetalhe extends VendedorResumo {
+  tenantId: string
+  documento?: string
+  telefone?: string
+  qtdAcimaPrecoBase: number
+  bonusStatus: BonusStatus
+  createdAt?: string
+  updatedAt?: string
+}
+
+// Bulk payment request
+export interface PagamentoLoteRequest {
+  referenciaPagamento: string
+  observacao?: string
+}
+
+// Bulk payment response
+export interface PagamentoLoteResponse {
+  vendedorId: string
+  nomeVendedor: string
+  qtdComissoesPagas: number
+  valorTotalPago: number
+  dataHoraPagamento: string
+  referenciaPagamento: string
+}
+
+// Bonus types
+export type StatusBonus = 'PENDENTE' | 'APROVADO' | 'PAGO' | 'CANCELADO'
+
+export interface BonusVendedor {
+  id: string
+  tenantId: string
+  vendedorId: string
+  metaAtingida: number
+  valorBonus: number
+  status: StatusBonus
+  aprovadoPor?: string
+  aprovadoEm?: string
+  pagoPor?: string
+  pagoEm?: string
+  referenciaPagamento?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// Comissao status types
+export type StatusComissao = 'PENDENTE' | 'APROVADA' | 'PAGA' | 'CANCELADA'
+
+export interface Comissao {
+  id: string
+  tenantId: string
+  locacaoId: string
+  vendedorId: string
+  status: StatusComissao
+  dataLocacao: string
+  valorTotalLocacao: number
+  valorComissionavel: number
+  valorComissao: number
+  percentualAplicado?: number
+  vendaAcimaPrecoBase?: boolean
+  aprovadoPor?: string
+  aprovadoEm?: string
+  pagoPor?: string
+  pagoEm?: string
+  referenciaPagamento?: string
+  createdAt: string
+}
+
+// ==========================================
+// Tenant Configuration Module
+// ==========================================
+
+// Configuração de comissões e bônus do tenant
+export interface ComissaoConfig {
+  percentualPadrao: number
+  percentualAbaixoBase: number
+  bonusAtivo: boolean
+  bonusMetaVendas: number | null
+  bonusValor: number | null
+}
+
+// Request para atualizar configuração de comissões
+export interface ComissaoConfigRequest {
+  percentualPadrao: number
+  percentualAbaixoBase: number
+  bonusAtivo: boolean
+  bonusMetaVendas?: number | null
+  bonusValor?: number | null
+}
+
+// ==========================================
+// Presença de Vendedores Module (Diárias)
+// ==========================================
+
+export type TipoPresenca = 'INTEGRAL' | 'MEIA_DIARIA'
+
+export interface PresencaVendedorRequest {
+  vendedorId: string
+  tipo: TipoPresenca
+  valorAjustado?: number
+  motivoAjuste?: string
+}
+
+export interface RegistrarPresencasRequest {
+  dtReferencia: string
+  presencas: PresencaVendedorRequest[]
+}
+
+export interface PresencaVendedorResponse {
+  id: string
+  vendedorId: string
+  vendedorNome?: string
+  dtReferencia: string
+  tipo: TipoPresenca
+  valorDiariaBase?: number
+  valorDiariaCalculado: number
+  valorAjustado?: number
+  valorEfetivo: number
+  motivoAjuste?: string
+  createdAt?: string
+}
+
+export interface ResumoDiariasResponse {
+  dtReferencia: string
+  totalVendedoresPresentes: number
+  totalIntegral: number
+  totalMeiaDiaria: number
+  totalDiarias: number
+  detalhes: PresencaVendedorResponse[]
+}
+
+// Constants for tipo presença
+export const TIPOS_PRESENCA = [
+  { value: 'INTEGRAL', label: 'Integral', fator: 1.0 },
+  { value: 'MEIA_DIARIA', label: 'Meia Diária', fator: 0.5 },
+] as const
+
+// ==========================================
+// Pagamento Vendedor Module
+// ==========================================
+
+// Payment types
+export type TipoPagamento = 'PIX' | 'DINHEIRO'
+
+export const TIPOS_PAGAMENTO = [
+  { value: 'PIX', label: 'PIX' },
+  { value: 'DINHEIRO', label: 'Dinheiro' },
+] as const
+
+// Pending payment summary for a seller
+export interface PendenciasPagamento {
+  vendedorId: string
+  vendedorNome: string
+  vendedorEmail?: string
+  // PIX Info
+  chavePix?: string
+  tipoChavePix?: TipoChavePix
+  temPixCadastrado: boolean
+  // Commissions (approved)
+  valorComissoes: number
+  qtdComissoes: number
+  // Daily Allowances (not paid)
+  valorDiarias: number
+  qtdDiarias: number
+  // Bonus (approved)
+  valorBonus: number
+  qtdBonus: number
+  // Total
+  valorTotal: number
+  qtdTotal: number
+}
+
+// Individual pending item for partial payment
+export interface ItemPendente {
+  id: string
+  tipo: 'COMISSAO' | 'DIARIA' | 'BONUS'
+  dataReferencia: string
+  descricao: string
+  valor: number
+}
+
+// Detailed pending items for partial payment
+export interface DetalhesPendencias {
+  vendedorId: string
+  vendedorNome: string
+  chavePix?: string
+  tipoChavePix?: TipoChavePix
+  temPixCadastrado: boolean
+  itens: ItemPendente[]
+  valorTotal: number
+}
+
+// Request to register a payment
+export interface RegistrarPagamentoRequest {
+  tipoPagamento: TipoPagamento
+  referenciaPagamento?: string
+  observacoes?: string
+  // Optional: for partial payment (if empty, pays all)
+  comissaoIds?: string[]
+  presencaIds?: string[]
+  bonusIds?: string[]
+}
+
+// Payment record response
+export interface PagamentoVendedor {
+  id: string
+  tenantId: string
+  vendedorId: string
+  vendedorNome: string
+  // Payment Type
+  tipoPagamento: TipoPagamento
+  // Values
+  valorComissoes: number
+  valorDiarias: number
+  valorBonus: number
+  valorTotal: number
+  // PIX Snapshot
+  chavePix?: string
+  tipoChavePix?: TipoChavePix
+  // Payment Reference
+  referenciaPagamento?: string
+  comprovanteUrl?: string
+  // Quantities
+  qtdComissoes: number
+  qtdDiarias: number
+  qtdBonus: number
+  // Period
+  periodoInicio?: string
+  periodoFim?: string
+  // Audit
+  pagoPor?: string
+  observacoes?: string
+  createdAt: string
+}
+
+// ==========================================
+// Despesa Manutencao Module
+// ==========================================
+
+export type StatusDespesaManutencao = 'PENDENTE' | 'APROVADA' | 'REJEITADA' | 'PAGA' | 'CANCELADA'
+
+export interface DespesaManutencao extends BaseEntity {
+  osManutencaoId: string
+  osNumero?: string
+  dtVencimento: string
+  numeroParcela: number
+  totalParcelas: number
+  descricaoParcela?: string
+  valor: number
+  status: StatusDespesaManutencao
+  aprovadoPor?: string
+  aprovadoEm?: string
+  pagoPor?: string
+  pagoEm?: string
+  referenciaPagamento?: string
+  observacoes?: string
+  // Dados da OS para contexto
+  jetskiNome?: string
+  descricaoProblema?: string
+  valorTotalOS?: number
+}
+
+export interface GerarDespesaManutencaoRequest {
+  numeroParcelas: number
+  primeiroVencimento: string
+  observacoes?: string
+}
+
+export interface PagarDespesaManutencaoRequest {
+  referenciaPagamento?: string
+}
+
+export interface RejeitarDespesaRequest {
+  motivo?: string
+}
+
+export const STATUS_DESPESA_MANUTENCAO = [
+  { value: 'PENDENTE', label: 'Pendente', color: 'yellow' },
+  { value: 'APROVADA', label: 'Aprovada', color: 'blue' },
+  { value: 'REJEITADA', label: 'Rejeitada', color: 'red' },
+  { value: 'PAGA', label: 'Paga', color: 'green' },
+  { value: 'CANCELADA', label: 'Cancelada', color: 'gray' },
+] as const

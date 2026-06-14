@@ -34,6 +34,8 @@ public class FechamentoDiarioResponse {
     private BigDecimal totalDinheiro;
     private BigDecimal totalCartao;
     private BigDecimal totalPix;
+    private BigDecimal totalDespesasOperacionais;
+    private BigDecimal totalDiariasVendedores;
 
     // Status & Lock
     private String status;
@@ -45,4 +47,8 @@ public class FechamentoDiarioResponse {
     private String divergenciasJson;
     private Instant createdAt;
     private Instant updatedAt;
+
+    // Hash e divergência
+    private String valoresHash;
+    private Boolean hasDivergencia;
 }

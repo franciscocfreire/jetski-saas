@@ -139,13 +139,16 @@ export function RentalNotificationProvider({ children }: { children: React.React
 
   const alertCount = warningRentals.length + expiredRentals.length
 
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
+    activeRentals,
+    warningRentals,
+    expiredRentals,
+    alertCount
+  }), [activeRentals, warningRentals, expiredRentals, alertCount])
+
   return (
-    <RentalNotificationContext.Provider value={{
-      activeRentals,
-      warningRentals,
-      expiredRentals,
-      alertCount
-    }}>
+    <RentalNotificationContext.Provider value={contextValue}>
       {children}
     </RentalNotificationContext.Provider>
   )

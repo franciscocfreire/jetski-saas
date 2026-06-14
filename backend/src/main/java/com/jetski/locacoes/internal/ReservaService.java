@@ -9,9 +9,15 @@ import com.jetski.locacoes.domain.Reserva.ReservaStatus;
 import com.jetski.locacoes.domain.ReservaConfig;
 import com.jetski.locacoes.internal.repository.JetskiRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
+import com.jetski.reservas.domain.event.ReservationCancelledEvent;
+import com.jetski.reservas.domain.event.ReservationConfirmedEvent;
+import com.jetski.reservas.domain.event.ReservationCreatedEvent;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.security.TenantContext;
+import com.jetski.shared.time.TenantTimeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +64,8 @@ public class ReservaService {
     private final ModeloService modeloService;
     private final ReservaConfigService reservaConfigService;
     private final JetskiRepository jetskiRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final TenantTimeService tenantTimeService;
 
     /**
      * List all active reservations for current tenant.
@@ -137,7 +145,7 @@ public class ReservaService {
      */
     @Transactional(readOnly = true)
     public List<Reserva> listTodayReservations() {
-        LocalDateTime startOfDay = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime startOfDay = tenantTimeService.today().atStartOfDay();
         LocalDateTime endOfDay = startOfDay.plusDays(1);
         log.debug("Listing today's confirmed reservations: {} to {}", startOfDay, endOfDay);
         return reservaRepository.findTodayConfirmedReservations(startOfDay, endOfDay);
@@ -191,7 +199,7 @@ public class ReservaService {
             throw new BusinessException("Data de início deve ser anterior à data de fim");
         }
 
-        if (reserva.getDataInicio().isBefore(LocalDateTime.now())) {
+        if (reserva.getDataInicio().isBefore(tenantTimeService.now())) {
             throw new BusinessException("Não é possível criar reserva com data no passado");
         }
 
@@ -326,6 +334,21 @@ public class ReservaService {
         log.info("Reservation created successfully: id={}, modelo={}, jetski={}, prioridade={}, expiraEm={}, status={}",
                  saved.getId(), saved.getModeloId(), saved.getJetskiId(),
                  saved.getPrioridade(), saved.getExpiraEm(), saved.getStatus());
+
+        // Publish audit event
+        eventPublisher.publishEvent(ReservationCreatedEvent.of(
+            TenantContext.getTenantId(),
+            saved.getId(),
+            saved.getModeloId(),
+            saved.getClienteId(),
+            saved.getVendedorId(),
+            TenantContext.getUsuarioId(),
+            saved.getDataInicio(),
+            saved.getDataFimPrevista(),
+            saved.getSinalPago()
+        ));
+        log.debug("Published ReservationCreatedEvent for reservation: {}", saved.getId());
+
         return saved;
     }
 
@@ -469,6 +492,16 @@ public class ReservaService {
         Reserva saved = reservaRepository.save(reserva);
 
         log.info("Reservation confirmed successfully: id={}", saved.getId());
+
+        // Publish audit event
+        eventPublisher.publishEvent(ReservationConfirmedEvent.of(
+            TenantContext.getTenantId(),
+            saved.getId(),
+            saved.getClienteId(),
+            TenantContext.getUsuarioId()
+        ));
+        log.debug("Published ReservationConfirmedEvent for reservation: {}", saved.getId());
+
         return saved;
     }
 
@@ -498,6 +531,16 @@ public class ReservaService {
         Reserva saved = reservaRepository.save(reserva);
 
         log.info("Reservation cancelled successfully: id={}", saved.getId());
+
+        // Publish audit event
+        eventPublisher.publishEvent(ReservationCancelledEvent.of(
+            TenantContext.getTenantId(),
+            saved.getId(),
+            saved.getClienteId(),
+            TenantContext.getUsuarioId()
+        ));
+        log.debug("Published ReservationCancelledEvent for reservation: {}", saved.getId());
+
         return saved;
     }
 

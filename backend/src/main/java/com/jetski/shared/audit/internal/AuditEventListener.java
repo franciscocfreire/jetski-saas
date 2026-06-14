@@ -2,9 +2,18 @@ package com.jetski.shared.audit.internal;
 
 import com.jetski.locacoes.domain.event.CheckInEvent;
 import com.jetski.locacoes.domain.event.CheckOutEvent;
+import com.jetski.locacoes.domain.event.DataCheckInAlteradaEvent;
+import com.jetski.locacoes.domain.event.LocacaoEditadaEvent;
+import com.jetski.reservas.domain.event.ReservationCancelledEvent;
+import com.jetski.reservas.domain.event.ReservationConfirmedEvent;
+import com.jetski.reservas.domain.event.ReservationCreatedEvent;
 import com.jetski.shared.audit.domain.Auditoria;
 import com.jetski.shared.audit.domain.AuditoriaRepository;
 import com.jetski.shared.observability.MDCKeys;
+import com.jetski.usuarios.domain.event.MemberActivatedEvent;
+import com.jetski.usuarios.domain.event.MemberDeactivatedEvent;
+import com.jetski.usuarios.domain.event.MemberInvitedEvent;
+import com.jetski.usuarios.domain.event.MemberRolesChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -14,6 +23,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -161,6 +171,393 @@ public class AuditEventListener {
             // Log but don't throw - audit failures should not break business flow
             log.error("Failed to create audit entry for check-out: locacaoId={}, error={}",
                     event.locacaoId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Handles check-in time change events.
+     *
+     * <p>Captures when the check-in time of an active rental is modified.
+     *
+     * @param event the data check-in altered domain event
+     */
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onDataCheckInAlterada(DataCheckInAlteradaEvent event) {
+        try {
+            log.debug("Processing audit for data check-in alterada event: locacaoId={}", event.locacaoId());
+
+            Map<String, Object> dadosAnteriores = new HashMap<>();
+            dadosAnteriores.put("dataCheckIn", event.dataAnterior() != null ? event.dataAnterior().toString() : null);
+
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("locacaoId", event.locacaoId().toString());
+            dadosNovos.put("dataCheckIn", event.dataNova() != null ? event.dataNova().toString() : null);
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.operadorId())
+                    .acao("DATA_CHECKIN_ALTERADA")
+                    .entidade("LOCACAO")
+                    .entidadeId(event.locacaoId())
+                    .dadosAnteriores(dadosAnteriores)
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+
+            auditoriaRepository.save(auditoria);
+            log.info("Audit entry created for data check-in alterada: locacaoId={}, auditId={}, de {} para {}",
+                    event.locacaoId(), auditoria.getId(), event.dataAnterior(), event.dataNova());
+
+        } catch (Exception e) {
+            log.error("Failed to create audit entry for data check-in alterada: locacaoId={}, error={}",
+                    event.locacaoId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Handles locacao edited events (finalized rentals edited before closure).
+     *
+     * <p>Captures the before/after state when a finalized rental is edited,
+     * including all changed fields and the reason for the edit.
+     *
+     * @param event the locacao edited domain event
+     */
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onLocacaoEditada(LocacaoEditadaEvent event) {
+        try {
+            log.debug("Processing audit for locacao edited event: locacaoId={}", event.locacaoId());
+
+            // Add edit reason to dadosNovos
+            Map<String, Object> dadosNovos = new HashMap<>(event.dadosNovos());
+            dadosNovos.put("motivoEdicao", event.motivoEdicao());
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.operadorId())
+                    .acao("LOCACAO_FINALIZADA_EDITADA")
+                    .entidade("LOCACAO")
+                    .entidadeId(event.locacaoId())
+                    .dadosAnteriores(event.dadosAnteriores())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+
+            auditoriaRepository.save(auditoria);
+            log.info("Audit entry created for locacao edited: locacaoId={}, auditId={}, motivo={}",
+                    event.locacaoId(), auditoria.getId(), event.motivoEdicao());
+
+        } catch (Exception e) {
+            log.error("Failed to create audit entry for locacao edited: locacaoId={}, error={}",
+                    event.locacaoId(), e.getMessage(), e);
+        }
+    }
+
+    // ===================================================================
+    // Reservation Event Handlers
+    // ===================================================================
+
+    /**
+     * Handles reservation created events.
+     *
+     * @param event the reservation created domain event
+     */
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onReservationCreated(ReservationCreatedEvent event) {
+        try {
+            log.debug("Processing audit for reservation created event: reservaId={}", event.reservaId());
+
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("reservaId", event.reservaId().toString());
+            dadosNovos.put("modeloId", event.modeloId().toString());
+            dadosNovos.put("dataInicio", event.dataInicio().toString());
+            dadosNovos.put("dataFimPrevista", event.dataFimPrevista().toString());
+            dadosNovos.put("sinalPago", event.sinalPago());
+
+            if (event.clienteId() != null) {
+                dadosNovos.put("clienteId", event.clienteId().toString());
+            }
+            if (event.vendedorId() != null) {
+                dadosNovos.put("vendedorId", event.vendedorId().toString());
+            }
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.operadorId())
+                    .acao("RESERVATION_CREATED")
+                    .entidade("RESERVA")
+                    .entidadeId(event.reservaId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+
+            auditoriaRepository.save(auditoria);
+            log.info("Audit entry created for reservation created: reservaId={}, auditId={}",
+                    event.reservaId(), auditoria.getId());
+
+        } catch (Exception e) {
+            log.error("Failed to create audit entry for reservation created: reservaId={}, error={}",
+                    event.reservaId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Handles reservation confirmed events.
+     *
+     * @param event the reservation confirmed domain event
+     */
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onReservationConfirmed(ReservationConfirmedEvent event) {
+        try {
+            log.debug("Processing audit for reservation confirmed event: reservaId={}", event.reservaId());
+
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("reservaId", event.reservaId().toString());
+            dadosNovos.put("confirmedBy", event.confirmedBy() != null ? event.confirmedBy().toString() : null);
+
+            if (event.clienteId() != null) {
+                dadosNovos.put("clienteId", event.clienteId().toString());
+            }
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.confirmedBy())
+                    .acao("RESERVATION_CONFIRMED")
+                    .entidade("RESERVA")
+                    .entidadeId(event.reservaId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+
+            auditoriaRepository.save(auditoria);
+            log.info("Audit entry created for reservation confirmed: reservaId={}, auditId={}",
+                    event.reservaId(), auditoria.getId());
+
+        } catch (Exception e) {
+            log.error("Failed to create audit entry for reservation confirmed: reservaId={}, error={}",
+                    event.reservaId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Handles reservation cancelled events.
+     *
+     * @param event the reservation cancelled domain event
+     */
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onReservationCancelled(ReservationCancelledEvent event) {
+        try {
+            log.debug("Processing audit for reservation cancelled event: reservaId={}", event.reservaId());
+
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("reservaId", event.reservaId().toString());
+            dadosNovos.put("cancelledBy", event.cancelledBy() != null ? event.cancelledBy().toString() : null);
+
+            if (event.clienteId() != null) {
+                dadosNovos.put("clienteId", event.clienteId().toString());
+            }
+            if (event.reason() != null) {
+                dadosNovos.put("reason", event.reason());
+            }
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.cancelledBy())
+                    .acao("RESERVATION_CANCELLED")
+                    .entidade("RESERVA")
+                    .entidadeId(event.reservaId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+
+            auditoriaRepository.save(auditoria);
+            log.info("Audit entry created for reservation cancelled: reservaId={}, auditId={}",
+                    event.reservaId(), auditoria.getId());
+
+        } catch (Exception e) {
+            log.error("Failed to create audit entry for reservation cancelled: reservaId={}, error={}",
+                    event.reservaId(), e.getMessage(), e);
+        }
+    }
+
+    // ===================================================================
+    // Member Event Handlers
+    // ===================================================================
+
+    /**
+     * Handles member invited events.
+     *
+     * @param event the member invited domain event
+     */
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onMemberInvited(MemberInvitedEvent event) {
+        try {
+            log.debug("Processing audit for member invited event: email={}", event.email());
+
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("conviteId", event.conviteId().toString());
+            dadosNovos.put("email", event.email());
+            dadosNovos.put("nome", event.nome());
+            dadosNovos.put("papeis", Arrays.asList(event.papeis()));
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.invitedBy())
+                    .acao("MEMBER_INVITED")
+                    .entidade("MEMBRO")
+                    .entidadeId(event.conviteId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+
+            auditoriaRepository.save(auditoria);
+            log.info("Audit entry created for member invited: email={}, auditId={}",
+                    event.email(), auditoria.getId());
+
+        } catch (Exception e) {
+            log.error("Failed to create audit entry for member invited: email={}, error={}",
+                    event.email(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Handles member activated events.
+     *
+     * @param event the member activated domain event
+     */
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onMemberActivated(MemberActivatedEvent event) {
+        try {
+            log.debug("Processing audit for member activated event: usuarioId={}", event.usuarioId());
+
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("usuarioId", event.usuarioId().toString());
+            dadosNovos.put("email", event.email());
+            dadosNovos.put("nome", event.nome());
+            dadosNovos.put("papeis", Arrays.asList(event.papeis()));
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.usuarioId())
+                    .acao("MEMBER_ACTIVATED")
+                    .entidade("MEMBRO")
+                    .entidadeId(event.usuarioId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+
+            auditoriaRepository.save(auditoria);
+            log.info("Audit entry created for member activated: usuarioId={}, auditId={}",
+                    event.usuarioId(), auditoria.getId());
+
+        } catch (Exception e) {
+            log.error("Failed to create audit entry for member activated: usuarioId={}, error={}",
+                    event.usuarioId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Handles member roles changed events.
+     *
+     * @param event the member roles changed domain event
+     */
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onMemberRolesChanged(MemberRolesChangedEvent event) {
+        try {
+            log.debug("Processing audit for member roles changed event: usuarioId={}", event.usuarioId());
+
+            Map<String, Object> dadosAnteriores = new HashMap<>();
+            dadosAnteriores.put("papeis", Arrays.asList(event.previousRoles()));
+
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("usuarioId", event.usuarioId().toString());
+            dadosNovos.put("email", event.email());
+            dadosNovos.put("papeis", Arrays.asList(event.newRoles()));
+            dadosNovos.put("changedBy", event.changedBy() != null ? event.changedBy().toString() : null);
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.changedBy())
+                    .acao("MEMBER_ROLES_CHANGED")
+                    .entidade("MEMBRO")
+                    .entidadeId(event.usuarioId())
+                    .dadosAnteriores(dadosAnteriores)
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+
+            auditoriaRepository.save(auditoria);
+            log.info("Audit entry created for member roles changed: usuarioId={}, auditId={}",
+                    event.usuarioId(), auditoria.getId());
+
+        } catch (Exception e) {
+            log.error("Failed to create audit entry for member roles changed: usuarioId={}, error={}",
+                    event.usuarioId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Handles member deactivated events.
+     *
+     * @param event the member deactivated domain event
+     */
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onMemberDeactivated(MemberDeactivatedEvent event) {
+        try {
+            log.debug("Processing audit for member deactivated event: usuarioId={}", event.usuarioId());
+
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("usuarioId", event.usuarioId().toString());
+            dadosNovos.put("email", event.email());
+            dadosNovos.put("deactivatedBy", event.deactivatedBy() != null ? event.deactivatedBy().toString() : null);
+
+            if (event.reason() != null) {
+                dadosNovos.put("reason", event.reason());
+            }
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.deactivatedBy())
+                    .acao("MEMBER_DEACTIVATED")
+                    .entidade("MEMBRO")
+                    .entidadeId(event.usuarioId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+
+            auditoriaRepository.save(auditoria);
+            log.info("Audit entry created for member deactivated: usuarioId={}, auditId={}",
+                    event.usuarioId(), auditoria.getId());
+
+        } catch (Exception e) {
+            log.error("Failed to create audit entry for member deactivated: usuarioId={}, error={}",
+                    event.usuarioId(), e.getMessage(), e);
         }
     }
 

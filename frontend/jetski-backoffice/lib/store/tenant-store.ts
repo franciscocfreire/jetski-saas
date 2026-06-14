@@ -6,9 +6,11 @@ import { setTenantId } from '../api/client'
 interface TenantState {
   currentTenant: TenantSummary | null
   tenants: TenantSummary[]
+  _hasHydrated: boolean
   setCurrentTenant: (tenant: TenantSummary | null) => void
   setTenants: (tenants: TenantSummary[]) => void
   clearTenant: () => void
+  setHasHydrated: (state: boolean) => void
 }
 
 export const useTenantStore = create<TenantState>()(
@@ -16,6 +18,7 @@ export const useTenantStore = create<TenantState>()(
     (set) => ({
       currentTenant: null,
       tenants: [],
+      _hasHydrated: false,
       setCurrentTenant: (tenant) => {
         setTenantId(tenant?.id ?? null)
         set({ currentTenant: tenant })
@@ -25,6 +28,7 @@ export const useTenantStore = create<TenantState>()(
         setTenantId(null)
         set({ currentTenant: null, tenants: [] })
       },
+      setHasHydrated: (state) => set({ _hasHydrated: state }),
     }),
     {
       name: 'tenant-storage',
@@ -32,6 +36,9 @@ export const useTenantStore = create<TenantState>()(
         currentTenant: state.currentTenant,
         tenants: state.tenants,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true)
+      },
     }
   )
 )

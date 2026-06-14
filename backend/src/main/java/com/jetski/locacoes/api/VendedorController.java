@@ -1,8 +1,15 @@
 package com.jetski.locacoes.api;
 
-import com.jetski.locacoes.api.dto.VendedorCreateRequest;
-import com.jetski.locacoes.api.dto.VendedorResponse;
-import com.jetski.locacoes.api.dto.VendedorUpdateRequest;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jetski.bonus.domain.BonusVendedor;
+import com.jetski.bonus.internal.BonusService;
+import com.jetski.comissoes.domain.Comissao;
+import com.jetski.comissoes.internal.CommissionService;
+import com.jetski.comissoes.api.dto.ComissaoResponse;
+import com.jetski.comissoes.internal.repository.ComissaoRepository;
+import com.jetski.locacoes.api.dto.*;
 import com.jetski.locacoes.domain.Vendedor;
 import com.jetski.locacoes.internal.VendedorService;
 import com.jetski.shared.security.TenantContext;
@@ -15,8 +22,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -39,6 +49,10 @@ import java.util.stream.Collectors;
 public class VendedorController {
 
     private final VendedorService vendedorService;
+    private final CommissionService commissionService;
+    private final ComissaoRepository comissaoRepository;
+    private final BonusService bonusService;
+    private final ObjectMapper objectMapper;
 
     /**
      * List all sellers/partners for a tenant.
@@ -272,6 +286,212 @@ public class VendedorController {
         return ResponseEntity.ok(response);
     }
 
+    // ========== NOVOS ENDPOINTS: RESUMO E PAGAMENTO EM LOTE ==========
+
+    /**
+     * List sellers with commission summary.
+     *
+     * Returns list of sellers with total pending, approved, and paid commissions.
+     *
+     * Requires: ADMIN_TENANT, GERENTE, or FINANCEIRO role
+     *
+     * @param tenantId Tenant UUID (from path)
+     * @param includeInactive Include inactive sellers (default: false)
+     * @return List of sellers with commission summary
+     */
+    @GetMapping("/resumo")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'FINANCEIRO')")
+    @Operation(
+        summary = "Listar vendedores com resumo de comissões",
+        description = "Lista vendedores com totais de comissões pendentes, aprovadas e pagas."
+    )
+    public ResponseEntity<List<VendedorResumoResponse>> listVendedoresWithSummary(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "Incluir vendedores inativos")
+        @RequestParam(defaultValue = "false") boolean includeInactive
+    ) {
+        log.info("GET /v1/tenants/{}/vendedores/resumo?includeInactive={}", tenantId, includeInactive);
+
+        validateTenantContext(tenantId);
+
+        List<VendedorResumoResponse> response = vendedorService.listSellersWithSummary(tenantId, includeInactive);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get seller details with commission totals and bonus status.
+     *
+     * Returns detailed information about a seller including:
+     * - Basic info (name, email, phone, type)
+     * - Commission totals (pending, approved, paid)
+     * - Bonus status (eligible, progress towards next bonus)
+     *
+     * Requires: ADMIN_TENANT, GERENTE, or FINANCEIRO role
+     *
+     * @param tenantId Tenant UUID (from path)
+     * @param id Vendedor UUID (from path)
+     * @return Seller details with commission summary and bonus status
+     */
+    @GetMapping("/{id}/detalhes")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'FINANCEIRO')")
+    @Operation(
+        summary = "Obter detalhes do vendedor com resumo de comissões",
+        description = "Retorna detalhes completos do vendedor com totais de comissões e status do bonus."
+    )
+    public ResponseEntity<VendedorDetalheResponse> getVendedorDetails(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID do vendedor")
+        @PathVariable UUID id
+    ) {
+        log.info("GET /v1/tenants/{}/vendedores/{}/detalhes", tenantId, id);
+
+        validateTenantContext(tenantId);
+
+        VendedorDetalheResponse response = vendedorService.getSellerDetails(tenantId, id);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Pay all approved commissions for a seller in bulk.
+     *
+     * Marks all APPROVED commissions for the seller as PAID.
+     * Requires a payment reference (e.g., PIX-2024-001).
+     *
+     * Requires: FINANCEIRO role
+     *
+     * @param tenantId Tenant UUID (from path)
+     * @param vendedorId Vendedor UUID (from path)
+     * @param request Payment details (reference, observation)
+     * @param jwt JWT token for user identification
+     * @return Payment result with total amount and number of commissions paid
+     */
+    @PostMapping("/{vendedorId}/comissoes/pagar-lote")
+    @PreAuthorize("hasRole('FINANCEIRO')")
+    @Operation(
+        summary = "Pagar comissões em lote",
+        description = "Paga todas as comissões aprovadas de um vendedor de uma vez. " +
+                      "Requer referência de pagamento (ex: PIX-2024-001)."
+    )
+    public ResponseEntity<PagamentoLoteResponse> pagarComissoesEmLote(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID do vendedor")
+        @PathVariable UUID vendedorId,
+        @Valid @RequestBody PagamentoLoteRequest request,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        log.info("POST /v1/tenants/{}/vendedores/{}/comissoes/pagar-lote", tenantId, vendedorId);
+
+        validateTenantContext(tenantId);
+
+        // Extrair user ID do JWT
+        UUID userId = UUID.fromString(jwt.getSubject());
+
+        // Executar pagamento em lote
+        CommissionService.PagamentoLoteResult result = commissionService.pagarComissoesVendedor(
+                tenantId, vendedorId, userId, request.getReferenciaPagamento()
+        );
+
+        // Construir resposta
+        PagamentoLoteResponse response = PagamentoLoteResponse.builder()
+                .vendedorId(result.vendedorId())
+                .nomeVendedor(result.nomeVendedor())
+                .qtdComissoesPagas(result.qtdComissoesPagas())
+                .valorTotalPago(result.valorTotalPago())
+                .dataHoraPagamento(result.dataHoraPagamento())
+                .referenciaPagamento(result.referenciaPagamento())
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * List commissions for a seller.
+     *
+     * Returns all commissions for the specified seller.
+     * Can filter by status (PENDENTE, APROVADA, PAGA, CANCELADA).
+     *
+     * Requires: ADMIN_TENANT, GERENTE, or FINANCEIRO role
+     *
+     * @param tenantId Tenant UUID (from path)
+     * @param vendedorId Vendedor UUID (from path)
+     * @param status Optional status filter
+     * @return List of commissions
+     */
+    @GetMapping("/{vendedorId}/comissoes")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'FINANCEIRO')")
+    @Operation(
+        summary = "Listar comissões do vendedor",
+        description = "Lista todas as comissões de um vendedor. Pode filtrar por status."
+    )
+    public ResponseEntity<List<ComissaoResponse>> listComissoes(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID do vendedor")
+        @PathVariable UUID vendedorId,
+        @Parameter(description = "Filtrar por status (PENDENTE, APROVADA, PAGA, CANCELADA)")
+        @RequestParam(required = false) String status
+    ) {
+        log.info("GET /v1/tenants/{}/vendedores/{}/comissoes?status={}", tenantId, vendedorId, status);
+
+        validateTenantContext(tenantId);
+
+        List<Comissao> comissoes;
+        if (status != null && !status.isBlank()) {
+            comissoes = comissaoRepository.findByTenantIdAndVendedorIdAndStatusOrderByCreatedAtDesc(
+                tenantId, vendedorId, com.jetski.comissoes.domain.StatusComissao.valueOf(status)
+            );
+        } else {
+            comissoes = comissaoRepository.findByTenantIdAndVendedorIdOrderByCreatedAtDesc(tenantId, vendedorId);
+        }
+
+        List<ComissaoResponse> response = comissoes.stream()
+            .map(this::toComissaoResponse)
+            .toList();
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * List bonuses for a seller.
+     *
+     * Returns all bonuses achieved by the seller.
+     *
+     * Requires: ADMIN_TENANT, GERENTE, or FINANCEIRO role
+     *
+     * @param tenantId Tenant UUID (from path)
+     * @param vendedorId Vendedor UUID (from path)
+     * @return List of bonuses
+     */
+    @GetMapping("/{vendedorId}/bonus")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'FINANCEIRO')")
+    @Operation(
+        summary = "Listar bônus do vendedor",
+        description = "Lista todos os bônus conquistados pelo vendedor."
+    )
+    public ResponseEntity<List<BonusVendedorResponse>> listBonus(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID do vendedor")
+        @PathVariable UUID vendedorId
+    ) {
+        log.info("GET /v1/tenants/{}/vendedores/{}/bonus", tenantId, vendedorId);
+
+        validateTenantContext(tenantId);
+
+        List<BonusVendedor> bonuses = bonusService.listarPorVendedor(tenantId, vendedorId);
+
+        List<BonusVendedorResponse> response = bonuses.stream()
+            .map(this::toBonusResponse)
+            .toList();
+
+        return ResponseEntity.ok(response);
+    }
+
     // ========== Private Helper Methods ==========
 
     private void validateTenantContext(UUID tenantId) {
@@ -283,13 +503,21 @@ public class VendedorController {
     }
 
     private VendedorResponse toResponse(Vendedor vendedor) {
+        BigDecimal comissaoPercentual = extractComissaoPercentual(vendedor.getRegraComissaoJson());
+
         return VendedorResponse.builder()
             .id(vendedor.getId())
             .tenantId(vendedor.getTenantId())
             .nome(vendedor.getNome())
             .documento(vendedor.getDocumento())
+            .email(vendedor.getEmail())
+            .telefone(vendedor.getTelefone())
+            .chavePix(vendedor.getChavePix())
+            .tipoChavePix(vendedor.getTipoChavePix())
             .tipo(vendedor.getTipo())
+            .comissaoPercentual(comissaoPercentual)
             .regraComissaoJson(vendedor.getRegraComissaoJson())
+            .diariaBase(vendedor.getDiariaBase())
             .ativo(vendedor.getAtivo())
             .createdAt(vendedor.getCreatedAt())
             .updatedAt(vendedor.getUpdatedAt())
@@ -297,22 +525,127 @@ public class VendedorController {
     }
 
     private Vendedor toEntity(VendedorCreateRequest request, UUID tenantId) {
+        String regraJson = request.getRegraComissaoJson();
+        // If comissaoPercentual is provided and no custom JSON, create default JSON
+        if ((regraJson == null || regraJson.isBlank()) && request.getComissaoPercentual() != null) {
+            regraJson = createDefaultRegraJson(request.getComissaoPercentual());
+        }
+
         return Vendedor.builder()
             .tenantId(tenantId)
             .nome(request.getNome())
             .documento(request.getDocumento())
-            .tipo(request.getTipo())
-            .regraComissaoJson(request.getRegraComissaoJson())
+            .email(request.getEmail())
+            .telefone(request.getTelefone())
+            .chavePix(request.getChavePix())
+            .tipoChavePix(request.getTipoChavePix())
+            .tipo(request.getTipo() != null ? request.getTipo() : com.jetski.locacoes.domain.VendedorTipo.INTERNO)
+            .regraComissaoJson(regraJson)
+            .diariaBase(request.getDiariaBase())
             .ativo(true)
             .build();
     }
 
     private Vendedor toEntity(VendedorUpdateRequest request) {
+        String regraJson = request.getRegraComissaoJson();
+        // If comissaoPercentual is provided and no custom JSON, create default JSON
+        if ((regraJson == null || regraJson.isBlank()) && request.getComissaoPercentual() != null) {
+            regraJson = createDefaultRegraJson(request.getComissaoPercentual());
+        }
+
         return Vendedor.builder()
             .nome(request.getNome())
             .documento(request.getDocumento())
+            .email(request.getEmail())
+            .telefone(request.getTelefone())
+            .chavePix(request.getChavePix())
+            .tipoChavePix(request.getTipoChavePix())
             .tipo(request.getTipo())
-            .regraComissaoJson(request.getRegraComissaoJson())
+            .regraComissaoJson(regraJson)
+            .diariaBase(request.getDiariaBase())
+            .build();
+    }
+
+    /**
+     * Extract percentual_padrao from regraComissaoJson.
+     * Returns null if JSON is invalid or field not found.
+     */
+    private BigDecimal extractComissaoPercentual(String regraJson) {
+        if (regraJson == null || regraJson.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode node = objectMapper.readTree(regraJson);
+            JsonNode percentualNode = node.get("percentual_padrao");
+            if (percentualNode != null && percentualNode.isNumber()) {
+                return BigDecimal.valueOf(percentualNode.asDouble());
+            }
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to parse regraComissaoJson: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Create default regraComissaoJson with just percentual_padrao.
+     */
+    private String createDefaultRegraJson(BigDecimal percentual) {
+        try {
+            return objectMapper.writeValueAsString(
+                java.util.Map.of("percentual_padrao", percentual)
+            );
+        } catch (JsonProcessingException e) {
+            log.error("Failed to create regraComissaoJson: {}", e.getMessage());
+            return "{\"percentual_padrao\": " + percentual + "}";
+        }
+    }
+
+    /**
+     * Convert Comissao entity to response DTO.
+     */
+    private ComissaoResponse toComissaoResponse(Comissao comissao) {
+        return ComissaoResponse.builder()
+            .id(comissao.getId())
+            .locacaoId(comissao.getLocacaoId())
+            .vendedorId(comissao.getVendedorId())
+            .politicaId(comissao.getPoliticaId())
+            .status(comissao.getStatus())
+            .dataLocacao(comissao.getDataLocacao())
+            .valorTotalLocacao(comissao.getValorTotalLocacao())
+            .valorCombustivel(comissao.getValorCombustivel())
+            .valorMultas(comissao.getValorMultas())
+            .valorTaxas(comissao.getValorTaxas())
+            .valorComissionavel(comissao.getValorComissionavel())
+            .valorComissao(comissao.getValorComissao())
+            .tipoComissao(comissao.getTipoComissao())
+            .percentualAplicado(comissao.getPercentualAplicado())
+            .vendaAcimaPrecoBase(comissao.getVendaAcimaPrecoBase())
+            .aprovadoPor(comissao.getAprovadoPor())
+            .aprovadoEm(comissao.getAprovadoEm())
+            .pagoPor(comissao.getPagoPor())
+            .pagoEm(comissao.getPagoEm())
+            .referenciaPagamento(comissao.getReferenciaPagamento())
+            .createdAt(comissao.getCreatedAt())
+            .updatedAt(comissao.getUpdatedAt())
+            .build();
+    }
+
+    /**
+     * Convert BonusVendedor entity to response DTO.
+     */
+    private BonusVendedorResponse toBonusResponse(BonusVendedor bonus) {
+        return BonusVendedorResponse.builder()
+            .id(bonus.getId())
+            .vendedorId(bonus.getVendedorId())
+            .metaAtingida(bonus.getMetaAtingida())
+            .valorBonus(bonus.getValorBonus())
+            .status(bonus.getStatus())
+            .aprovadoPor(bonus.getAprovadoPor())
+            .aprovadoEm(bonus.getAprovadoEm())
+            .pagoPor(bonus.getPagoPor())
+            .pagoEm(bonus.getPagoEm())
+            .referenciaPagamento(bonus.getReferenciaPagamento())
+            .createdAt(bonus.getCreatedAt())
             .build();
     }
 }

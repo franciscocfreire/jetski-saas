@@ -2,6 +2,7 @@ package com.jetski.fechamento.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.apache.commons.codec.digest.DigestUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -73,6 +74,14 @@ public class FechamentoMensal {
     @Builder.Default
     private BigDecimal totalManutencoes = BigDecimal.ZERO;
 
+    @Column(name = "total_despesas_operacionais", precision = 12, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal totalDespesasOperacionais = BigDecimal.ZERO;
+
+    @Column(name = "total_diarias_vendedores", precision = 12, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal totalDiariasVendedores = BigDecimal.ZERO;
+
     @Column(name = "resultado_liquido", precision = 12, scale = 2, nullable = false)
     @Builder.Default
     private BigDecimal resultadoLiquido = BigDecimal.ZERO;
@@ -95,6 +104,12 @@ public class FechamentoMensal {
 
     @Column(name = "relatorio_url", columnDefinition = "TEXT")
     private String relatorioUrl;
+
+    /**
+     * Hash SHA-256 dos valores consolidados para detecção de divergências.
+     */
+    @Column(name = "valores_hash", length = 64)
+    private String valoresHash;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -156,13 +171,15 @@ public class FechamentoMensal {
 
     /**
      * Calcula o resultado líquido:
-     * resultado_liquido = total_faturado - total_custos - total_comissoes - total_manutencoes
+     * resultado_liquido = total_faturado - total_custos - total_comissoes - total_manutencoes - total_despesas_operacionais - total_diarias_vendedores
      */
     public void calcularResultadoLiquido() {
         this.resultadoLiquido = totalFaturado
                 .subtract(totalCustos != null ? totalCustos : BigDecimal.ZERO)
                 .subtract(totalComissoes != null ? totalComissoes : BigDecimal.ZERO)
-                .subtract(totalManutencoes != null ? totalManutencoes : BigDecimal.ZERO);
+                .subtract(totalManutencoes != null ? totalManutencoes : BigDecimal.ZERO)
+                .subtract(totalDespesasOperacionais != null ? totalDespesasOperacionais : BigDecimal.ZERO)
+                .subtract(totalDiariasVendedores != null ? totalDiariasVendedores : BigDecimal.ZERO);
     }
 
     /**
@@ -175,5 +192,44 @@ public class FechamentoMensal {
         if (mes == null || mes < 1 || mes > 12) {
             throw new IllegalArgumentException("Mês deve estar entre 1 e 12");
         }
+    }
+
+    /**
+     * Calcula hash SHA-256 dos valores consolidados.
+     * Formato: totalLocacoes|totalFaturado|totalCustos|totalComissoes|totalManutencoes|totalDespesasOperacionais|totalDiariasVendedores
+     *
+     * @return hash SHA-256 em formato hexadecimal (64 caracteres)
+     */
+    public String calcularHash() {
+        String dados = String.format("%d|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f",
+            totalLocacoes != null ? totalLocacoes : 0,
+            totalFaturado != null ? totalFaturado : BigDecimal.ZERO,
+            totalCustos != null ? totalCustos : BigDecimal.ZERO,
+            totalComissoes != null ? totalComissoes : BigDecimal.ZERO,
+            totalManutencoes != null ? totalManutencoes : BigDecimal.ZERO,
+            totalDespesasOperacionais != null ? totalDespesasOperacionais : BigDecimal.ZERO,
+            totalDiariasVendedores != null ? totalDiariasVendedores : BigDecimal.ZERO
+        );
+        return DigestUtils.sha256Hex(dados);
+    }
+
+    /**
+     * Verifica se há divergência entre o hash armazenado e os valores atuais.
+     *
+     * @return true se houver divergência, false caso contrário
+     */
+    public boolean hasDivergencia() {
+        if (valoresHash == null) {
+            return false;
+        }
+        return !valoresHash.equals(calcularHash());
+    }
+
+    /**
+     * Atualiza o hash dos valores consolidados.
+     * Deve ser chamado após cada consolidação.
+     */
+    public void atualizarHash() {
+        this.valoresHash = calcularHash();
     }
 }

@@ -4,23 +4,28 @@
 # Rebuild Backend e Frontend (Docker)
 #
 # Uso:
-#   ./rebuild.sh              # Rebuild backend e frontend (usa ngrok padrao)
+#   ./rebuild.sh              # Rebuild backend e frontend
 #   ./rebuild.sh backend      # Rebuild apenas backend
 #   ./rebuild.sh frontend     # Rebuild apenas frontend
 #   ./rebuild.sh --no-cache   # Rebuild sem cache (mais lento, mas garante fresh build)
 #   ./rebuild.sh --local      # Usa localhost em vez de ngrok
+#   ./rebuild.sh --migrate    # Executa migrations pendentes do Flyway
+#   ./rebuild.sh --clear-cache # Limpa cache Redis
 #   NGROK_URL=https://xxx.ngrok-free.app ./rebuild.sh  # Com ngrok customizado
 #
 # Exemplos:
 #   ./rebuild.sh                           # Rebuild tudo com ngrok padrao
 #   ./rebuild.sh frontend                  # Rebuild frontend com ngrok padrao
 #   ./rebuild.sh --local                   # Rebuild tudo para localhost
-#   ./rebuild.sh frontend --no-cache       # Rebuild frontend sem cache
+#   ./rebuild.sh backend --no-cache        # Rebuild backend sem cache
+#   ./rebuild.sh backend --migrate         # Rebuild backend e executa migrations
+#   ./rebuild.sh --clear-cache             # Rebuild tudo e limpa cache Redis
 ###############################################################################
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$SCRIPT_DIR/backend"
 cd "$SCRIPT_DIR"
 
 # Cores para output
@@ -35,9 +40,15 @@ REBUILD_BACKEND=true
 REBUILD_FRONTEND=true
 NO_CACHE=""
 USE_LOCAL=false
+RUN_MIGRATE=false
+CLEAR_CACHE=false
 
 # URL do ngrok padrao
-DEFAULT_NGROK_URL="https://539d02e90662.ngrok-free.app"
+DEFAULT_NGROK_URL="https://pegaojet.com.br"
+
+# Configuracoes do ambiente DEV (Docker)
+PG_USER="jetski"
+PG_DB="jetski_dev"
 
 # Parse arguments
 for arg in "$@"; do
@@ -54,17 +65,25 @@ for arg in "$@"; do
         --local)
             USE_LOCAL=true
             ;;
+        --migrate)
+            RUN_MIGRATE=true
+            ;;
+        --clear-cache)
+            CLEAR_CACHE=true
+            ;;
         -h|--help)
-            echo "Uso: $0 [backend|frontend] [--no-cache] [--local]"
+            echo "Uso: $0 [backend|frontend] [--no-cache] [--local] [--migrate] [--clear-cache]"
             echo ""
             echo "Opções:"
-            echo "  backend      Rebuild apenas o backend"
-            echo "  frontend     Rebuild apenas o frontend"
-            echo "  --no-cache   Rebuild sem cache Docker (mais lento)"
-            echo "  --local      Usa localhost em vez de ngrok (para desenvolvimento local)"
+            echo "  backend       Rebuild apenas o backend"
+            echo "  frontend      Rebuild apenas o frontend"
+            echo "  --no-cache    Rebuild sem cache Docker (mais lento)"
+            echo "  --local       Usa localhost em vez de ngrok (para desenvolvimento local)"
+            echo "  --migrate     Executa migrations pendentes do Flyway"
+            echo "  --clear-cache Limpa cache Redis (recomendado após mudanças no backend)"
             echo ""
             echo "Variáveis de ambiente:"
-            echo "  NGROK_URL    URL do ngrok (default: $DEFAULT_NGROK_URL)"
+            echo "  NGROK_URL     URL do ngrok (default: $DEFAULT_NGROK_URL)"
             echo ""
             echo "Exemplos:"
             echo "  $0                              # Rebuild tudo com ngrok padrao"
@@ -72,8 +91,9 @@ for arg in "$@"; do
             echo "  $0 frontend                     # Rebuild apenas frontend"
             echo "  $0 --no-cache                   # Rebuild tudo sem cache"
             echo "  $0 --local                      # Rebuild para localhost"
-            echo "  $0 backend --no-cache           # Rebuild backend sem cache"
-            echo "  NGROK_URL=https://xxx.ngrok-free.app $0  # Com ngrok customizado"
+            echo "  $0 backend --migrate            # Rebuild backend com migrations"
+            echo "  $0 --clear-cache                # Rebuild tudo e limpa cache"
+            echo "  NGROK_URL=https://pegaojet.com.br $0  # Com ngrok customizado"
             exit 0
             ;;
     esac
@@ -86,6 +106,8 @@ if [ "$USE_LOCAL" = true ]; then
 else
     BASE_URL="${NGROK_URL:-$DEFAULT_NGROK_URL}"
     KEYCLOAK_ISSUER="${BASE_URL}/realms/jetski-saas"
+    JETSKI_FRONTEND_URL="${BASE_URL}"
+    JETSKI_EXTERNAL_URL="${BASE_URL}"
 fi
 
 echo -e "${BLUE}========================================"
@@ -111,20 +133,61 @@ echo -e "${YELLOW}Serviços a rebuildar:${NC}$SERVICES"
 if [ -n "$NO_CACHE" ]; then
     echo -e "${YELLOW}Modo: --no-cache (build completo)${NC}"
 fi
+if [ "$RUN_MIGRATE" = true ]; then
+    echo -e "${YELLOW}Migrations: habilitadas${NC}"
+fi
+if [ "$CLEAR_CACHE" = true ]; then
+    echo -e "${YELLOW}Cache: será limpo${NC}"
+fi
 echo -e "${GREEN}NEXTAUTH_URL:    ${BASE_URL}${NC}"
 echo -e "${GREEN}KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}${NC}"
 echo ""
 
 # Step 1: Stop services
-echo -e "${BLUE}[1/4] Parando serviços...${NC}"
+echo -e "${BLUE}[1/6] Parando serviços...${NC}"
 docker compose stop $SERVICES 2>/dev/null || true
 
 # Step 2: Remove containers
-echo -e "${BLUE}[2/4] Removendo containers antigos...${NC}"
+echo -e "${BLUE}[2/6] Removendo containers antigos...${NC}"
 docker compose rm -f $SERVICES 2>/dev/null || true
 
-# Step 3: Build images
-echo -e "${BLUE}[3/4] Buildando imagens...${NC}"
+# Step 3: Clear Redis cache (if requested)
+if [ "$CLEAR_CACHE" = true ]; then
+    echo -e "${BLUE}[3/6] Limpando cache Redis...${NC}"
+    docker compose exec -T redis redis-cli FLUSHDB > /dev/null 2>&1 || true
+    echo -e "${GREEN}   OK - Cache limpo!${NC}"
+else
+    echo -e "${BLUE}[3/6] Cache Redis mantido (use --clear-cache para limpar)${NC}"
+fi
+
+# Step 4: Run migrations (if requested and rebuilding backend)
+if [ "$RUN_MIGRATE" = true ] && [ "$REBUILD_BACKEND" = true ]; then
+    echo -e "${BLUE}[4/6] Executando migrations do Flyway...${NC}"
+
+    # Verificar se PostgreSQL está rodando
+    if docker compose exec -T postgres pg_isready -U $PG_USER > /dev/null 2>&1; then
+        # Rodar Flyway via container temporario
+        docker run --rm \
+            --network jetski_jetski-network \
+            -v "$BACKEND_DIR/src/main/resources/db/migration:/flyway/sql:ro" \
+            flyway/flyway:10-alpine \
+            -url=jdbc:postgresql://postgres:5432/${PG_DB} \
+            -user=${PG_USER} \
+            -password=dev123 \
+            -baselineOnMigrate=true \
+            -baselineVersion=0 \
+            -outOfOrder=true \
+            migrate 2>&1 | tail -5
+        echo -e "${GREEN}   OK - Migrations executadas!${NC}"
+    else
+        echo -e "${YELLOW}   AVISO: PostgreSQL não está rodando, migrations ignoradas${NC}"
+    fi
+else
+    echo -e "${BLUE}[4/6] Migrations ignoradas (use --migrate para executar)${NC}"
+fi
+
+# Step 5: Build images
+echo -e "${BLUE}[5/6] Buildando imagens...${NC}"
 if [ "$REBUILD_BACKEND" = true ]; then
     echo -e "${YELLOW}  -> Backend (Maven + Java 21)...${NC}"
     docker compose build $NO_CACHE backend
@@ -134,18 +197,56 @@ if [ "$REBUILD_FRONTEND" = true ]; then
     docker compose build $NO_CACHE frontend
 fi
 
-# Step 4: Start services with environment variables
-echo -e "${BLUE}[4/4] Iniciando serviços...${NC}"
+# Step 6: Start services with environment variables
+# --force-recreate ensures containers are recreated with new env vars
+echo -e "${BLUE}[6/6] Iniciando serviços...${NC}"
 NEXTAUTH_URL="$BASE_URL" \
 KEYCLOAK_ISSUER="$KEYCLOAK_ISSUER" \
-docker compose up -d $SERVICES
+JETSKI_FRONTEND_URL="$BASE_URL" \
+JETSKI_EXTERNAL_URL="$BASE_URL" \
+docker compose up -d --force-recreate $SERVICES
 
-# Wait and show status
+# Wait for services to be healthy
 echo ""
 echo -e "${YELLOW}Aguardando serviços iniciarem...${NC}"
-sleep 5
 
-# Health check
+# Wait for backend health check (if rebuilding backend)
+if [ "$REBUILD_BACKEND" = true ]; then
+    echo -n "   Backend: "
+    for i in {1..60}; do
+        if curl -sf "http://localhost:8090/api/actuator/health" > /dev/null 2>&1; then
+            echo -e "${GREEN}UP${NC}"
+            break
+        fi
+        echo -n "."
+        sleep 2
+    done
+    # Check if we timed out
+    if ! curl -sf "http://localhost:8090/api/actuator/health" > /dev/null 2>&1; then
+        echo -e "${YELLOW}STARTING (pode demorar mais)${NC}"
+    fi
+fi
+
+# Wait for frontend health check (if rebuilding frontend)
+if [ "$REBUILD_FRONTEND" = true ]; then
+    echo -n "   Frontend: "
+    for i in {1..30}; do
+        HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/ 2>/dev/null || echo "000")
+        if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "307" ] || [ "$HTTP_CODE" = "302" ]; then
+            echo -e "${GREEN}UP${NC}"
+            break
+        fi
+        echo -n "."
+        sleep 2
+    done
+    # Final check
+    HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/ 2>/dev/null || echo "000")
+    if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "307" ] && [ "$HTTP_CODE" != "302" ]; then
+        echo -e "${YELLOW}STARTING${NC}"
+    fi
+fi
+
+# Show status
 echo ""
 echo -e "${BLUE}Status dos serviços:${NC}"
 docker compose ps $SERVICES
@@ -166,4 +267,9 @@ else
     echo "   - Backend:    $BASE_URL/api"
 fi
 echo ""
-echo -e "${YELLOW}Para ver logs: docker compose logs -f $SERVICES${NC}"
+echo -e "${YELLOW}Dicas:${NC}"
+echo "   - Se o login não funcionar, tente limpar cookies do navegador"
+echo "   - Para limpar cache: ./rebuild.sh --clear-cache"
+echo "   - Para executar migrations: ./rebuild.sh --migrate"
+echo "   - Para ver logs: docker compose logs -f $SERVICES"
+echo ""

@@ -158,6 +158,16 @@ public class Comissao {
     @Column(name = "observacoes", length = 500)
     private String observacoes;
 
+    /**
+     * Indica se a venda foi feita no preço base ou acima.
+     * Usado para cálculo de bonus do vendedor.
+     * true = preço cobrado >= preço base do modelo
+     * false = preço cobrado < preço base (com desconto)
+     */
+    @Column(name = "venda_acima_preco_base")
+    @Builder.Default
+    private Boolean vendaAcimaPrecoBase = true;
+
     // ========== Aprovação e pagamento ==========
 
     /**

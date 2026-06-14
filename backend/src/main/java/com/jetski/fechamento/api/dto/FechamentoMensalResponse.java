@@ -32,6 +32,8 @@ public class FechamentoMensalResponse {
     private BigDecimal totalCustos;
     private BigDecimal totalComissoes;
     private BigDecimal totalManutencoes;
+    private BigDecimal totalDespesasOperacionais;
+    private BigDecimal totalDiariasVendedores;
     private BigDecimal resultadoLiquido;
 
     // Status & Lock

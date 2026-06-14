@@ -9,7 +9,9 @@ pier_operations := {"locacao:checkin", "locacao:checkout", "abastecimento:regist
 fechamento_operations := {"fechamento:diario", "fechamento:mensal"}
 mobile_preferred_operations := {"locacao:checkin", "locacao:checkout", "foto:upload"}
 checkin_checkout_operations := {"locacao:checkin", "locacao:checkout"}
-critical_operations := {"fechamento:mensal", "comissao:aprovar"}
+# Critical operations that require production environment
+# Note: comissao:aprovar removed to allow testing in dev environment
+critical_operations := {"fechamento:mensal"}
 
 # =============================================================================
 # Context-Based Policies

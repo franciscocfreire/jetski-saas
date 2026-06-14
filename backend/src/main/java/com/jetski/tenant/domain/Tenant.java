@@ -2,6 +2,8 @@ package com.jetski.tenant.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -132,6 +134,20 @@ public class Tenant {
     @Column(name = "prioridade_marketplace", nullable = false)
     @Builder.Default
     private Integer prioridadeMarketplace = 0;
+
+    // ========== CONFIGURAÇÃO DE COMISSÃO ==========
+
+    /**
+     * Configuração de comissão e bonus por tenant (JSONB)
+     * - percentualPadrao: Comissão % para vendas >= preço base
+     * - percentualAbaixoBase: Comissão % para vendas < preço base
+     * - bonusAtivo: Se sistema de bonus está habilitado
+     * - bonusMetaVendas: Vendas acima do preço base para ganhar bonus
+     * - bonusValor: Valor do bonus em moeda do tenant
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "comissao_config", columnDefinition = "jsonb")
+    private ComissaoConfig comissaoConfig;
 
     @PrePersist
     protected void onCreate() {

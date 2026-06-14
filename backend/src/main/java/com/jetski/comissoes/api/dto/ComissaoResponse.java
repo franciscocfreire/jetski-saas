@@ -46,6 +46,13 @@ public class ComissaoResponse {
     private String politicaNome;
     private NivelPolitica politicaNivel;
 
+    /**
+     * Indica se a venda foi feita no preço base ou acima.
+     * true = preço cobrado >= preço base do modelo
+     * false = preço cobrado < preço base (com desconto)
+     */
+    private Boolean vendaAcimaPrecoBase;
+
     // Aprovação
     private UUID aprovadoPor;
     private Instant aprovadoEm;

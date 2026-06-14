@@ -99,7 +99,8 @@ public class SecurityConfig {
             "http://localhost:8081/realms/jetski-saas",
             "http://localhost:8080/realms/jetski-saas",
             "http://172.30.197.110:8081/realms/jetski-saas",
-            "http://keycloak:8080/realms/jetski-saas"
+            "http://keycloak:8080/realms/jetski-saas",
+            "https://pegaojet.com.br/realms/jetski-saas"  // Cloudflare tunnel
         ));
 
         // Adicionar external URL se configurada (ex: ngrok)
@@ -265,7 +266,9 @@ public class SecurityConfig {
             "http://localhost:3002",      // Backoffice Next.js (dev)
             "https://*.ngrok-free.app",   // ngrok URLs (dev)
             "https://*.jetski.app",       // Mobile app (produção)
-            "https://*.jetski.com.br"     // Web app (produção)
+            "https://*.jetski.com.br",    // Web app (produção)
+            "https://pegaojet.com.br",    // Cloudflare tunnel (produção)
+            "https://*.pegaojet.com.br"   // Cloudflare tunnel subdomains (produção)
         ));
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));

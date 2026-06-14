@@ -38,9 +38,18 @@ import {
 const getAcaoBadgeVariant = (acao: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
   switch (acao) {
     case 'CHECK_IN':
+    case 'RESERVATION_CREATED':
+    case 'MEMBER_INVITED':
       return 'default'
     case 'CHECK_OUT':
+    case 'RESERVATION_CONFIRMED':
+    case 'MEMBER_ACTIVATED':
       return 'secondary'
+    case 'RESERVATION_CANCELLED':
+    case 'MEMBER_DEACTIVATED':
+      return 'destructive'
+    case 'MEMBER_ROLES_CHANGED':
+      return 'outline'
     default:
       return 'outline'
   }
@@ -217,6 +226,13 @@ function AuditoriaContent() {
             <SelectItem value="ALL">Todas as acoes</SelectItem>
             <SelectItem value="CHECK_IN">Check-in</SelectItem>
             <SelectItem value="CHECK_OUT">Check-out</SelectItem>
+            <SelectItem value="RESERVATION_CREATED">Reserva criada</SelectItem>
+            <SelectItem value="RESERVATION_CONFIRMED">Reserva confirmada</SelectItem>
+            <SelectItem value="RESERVATION_CANCELLED">Reserva cancelada</SelectItem>
+            <SelectItem value="MEMBER_INVITED">Membro convidado</SelectItem>
+            <SelectItem value="MEMBER_ACTIVATED">Membro ativado</SelectItem>
+            <SelectItem value="MEMBER_ROLES_CHANGED">Papeis alterados</SelectItem>
+            <SelectItem value="MEMBER_DEACTIVATED">Membro desativado</SelectItem>
           </SelectContent>
         </Select>
 
@@ -227,8 +243,9 @@ function AuditoriaContent() {
           <SelectContent>
             <SelectItem value="ALL">Todas as entidades</SelectItem>
             <SelectItem value="LOCACAO">Locacao</SelectItem>
-            <SelectItem value="JETSKI">Jetski</SelectItem>
             <SelectItem value="RESERVA">Reserva</SelectItem>
+            <SelectItem value="MEMBRO">Membro</SelectItem>
+            <SelectItem value="JETSKI">Jetski</SelectItem>
           </SelectContent>
         </Select>
 

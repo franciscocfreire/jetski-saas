@@ -66,8 +66,10 @@ role_permissions := {
         "manutencao:*",  # Alias para os:* (manutenção)
         "fechamento:*",  # Todas as operações de fechamento
         "comissao:*",    # Todas as operações de comissão (view, list, aprovar, create)
+        "pagamento:*",   # Pagamento de vendedores (view, list, registrar)
         "politica-comissao:*",
         "politicas-comissao:*",
+        "config:*",      # Configurações do tenant (comissões, bônus, etc)
         "frota:*",       # Dashboard de frota e KPIs
         "relatorio:operacional",
         "relatorio:comissoes",
@@ -98,6 +100,7 @@ role_permissions := {
         "comissao:pagar",
         "comissao:view",
         "comissao:list",
+        "pagamento:*",   # Pagamento de vendedores (full access)
         "politica-comissao:list",
         "politica-comissao:view",
         "politica-comissao:create",

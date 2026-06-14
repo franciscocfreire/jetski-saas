@@ -13,6 +13,8 @@ import com.jetski.usuarios.api.dto.*;
 import com.jetski.usuarios.domain.Convite;
 import com.jetski.usuarios.domain.Membro;
 import com.jetski.usuarios.domain.Usuario;
+import com.jetski.usuarios.domain.event.MemberActivatedEvent;
+import com.jetski.usuarios.domain.event.MemberInvitedEvent;
 import com.jetski.usuarios.internal.repository.ConviteRepository;
 import com.jetski.usuarios.internal.repository.MembroRepository;
 import org.springframework.context.ApplicationEventPublisher;
@@ -146,6 +148,17 @@ public class UserInvitationService {
         conviteRepository.save(convite);
 
         log.info("Invitation email sent to {} with magic link and temporary password", request.getEmail());
+
+        // Publish audit event
+        eventPublisher.publishEvent(MemberInvitedEvent.of(
+            tenantId,
+            convite.getId(),
+            convite.getEmail(),
+            convite.getNome(),
+            convite.getPapeis(),
+            invitedBy
+        ));
+        log.debug("Published MemberInvitedEvent for invitation: {}", convite.getId());
 
         return InviteUserResponse.success(
             convite.getId(),
@@ -287,6 +300,16 @@ public class UserInvitationService {
         conviteRepository.save(convite);
 
         log.info("Account activation completed successfully for {}", convite.getEmail());
+
+        // Publish audit event
+        eventPublisher.publishEvent(MemberActivatedEvent.of(
+            convite.getTenantId(),
+            usuarioId,
+            convite.getEmail(),
+            convite.getNome(),
+            convite.getPapeis()
+        ));
+        log.debug("Published MemberActivatedEvent for usuario: {}", usuarioId);
 
         return CompleteActivationResponse.success(
             usuarioId,

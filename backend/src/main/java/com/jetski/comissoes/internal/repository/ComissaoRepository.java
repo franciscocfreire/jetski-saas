@@ -70,4 +70,68 @@ public interface ComissaoRepository extends JpaRepository<Comissao, UUID> {
                                        @Param("vendedorId") UUID vendedorId,
                                        @Param("inicio") Instant inicio,
                                        @Param("fim") Instant fim);
+
+    // ========== NOVOS MÉTODOS PARA VENDEDOR SERVICE ==========
+
+    /**
+     * Total de comissões pendentes por vendedor
+     */
+    @Query("SELECT COALESCE(SUM(c.valorComissao), 0) FROM Comissao c WHERE c.tenantId = :tenantId " +
+           "AND c.vendedorId = :vendedorId AND c.status = 'PENDENTE'")
+    java.math.BigDecimal sumComissoesPendentesByVendedor(@Param("tenantId") UUID tenantId,
+                                                          @Param("vendedorId") UUID vendedorId);
+
+    /**
+     * Total de comissões aprovadas por vendedor
+     */
+    @Query("SELECT COALESCE(SUM(c.valorComissao), 0) FROM Comissao c WHERE c.tenantId = :tenantId " +
+           "AND c.vendedorId = :vendedorId AND c.status = 'APROVADA'")
+    java.math.BigDecimal sumComissoesAprovadasByVendedor(@Param("tenantId") UUID tenantId,
+                                                          @Param("vendedorId") UUID vendedorId);
+
+    /**
+     * Conta comissões aprovadas por vendedor (para pagamento)
+     */
+    @Query("SELECT COUNT(c) FROM Comissao c WHERE c.tenantId = :tenantId " +
+           "AND c.vendedorId = :vendedorId AND c.status = 'APROVADA'")
+    int countComissoesAprovadasByVendedor(@Param("tenantId") UUID tenantId,
+                                          @Param("vendedorId") UUID vendedorId);
+
+    /**
+     * Total de comissões pagas por vendedor (all time)
+     */
+    @Query("SELECT COALESCE(SUM(c.valorComissao), 0) FROM Comissao c WHERE c.tenantId = :tenantId " +
+           "AND c.vendedorId = :vendedorId AND c.status = 'PAGA'")
+    java.math.BigDecimal sumComissoesPagasAllTimeByVendedor(@Param("tenantId") UUID tenantId,
+                                                             @Param("vendedorId") UUID vendedorId);
+
+    /**
+     * Conta total de locações por vendedor
+     */
+    @Query("SELECT COUNT(c) FROM Comissao c WHERE c.tenantId = :tenantId AND c.vendedorId = :vendedorId")
+    Long countLocacoesByVendedor(@Param("tenantId") UUID tenantId, @Param("vendedorId") UUID vendedorId);
+
+    /**
+     * Conta vendas acima do preço base por vendedor (para bonus)
+     */
+    @Query("SELECT COUNT(c) FROM Comissao c WHERE c.tenantId = :tenantId AND c.vendedorId = :vendedorId " +
+           "AND c.vendaAcimaPrecoBase = true")
+    Long countVendasAcimaPrecoBaseByVendedor(@Param("tenantId") UUID tenantId, @Param("vendedorId") UUID vendedorId);
+
+    /**
+     * Busca comissões aprovadas por vendedor (para pagamento em lote)
+     */
+    @Query("SELECT c FROM Comissao c WHERE c.tenantId = :tenantId AND c.vendedorId = :vendedorId " +
+           "AND c.status = 'APROVADA' ORDER BY c.dataLocacao ASC")
+    List<Comissao> findAprovadasByVendedor(@Param("tenantId") UUID tenantId, @Param("vendedorId") UUID vendedorId);
+
+    /**
+     * Busca comissões por vendedor ordenadas por data de criação
+     */
+    List<Comissao> findByTenantIdAndVendedorIdOrderByCreatedAtDesc(UUID tenantId, UUID vendedorId);
+
+    /**
+     * Busca comissões por vendedor e status ordenadas por data de criação
+     */
+    List<Comissao> findByTenantIdAndVendedorIdAndStatusOrderByCreatedAtDesc(UUID tenantId, UUID vendedorId, StatusComissao status);
 }

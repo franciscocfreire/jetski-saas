@@ -1,5 +1,9 @@
 package com.jetski.manutencao.api;
 
+import com.jetski.locacoes.api.JetskiPublicService;
+import com.jetski.locacoes.domain.Jetski;
+import com.jetski.locacoes.internal.ModeloService;
+import com.jetski.locacoes.domain.Modelo;
 import com.jetski.manutencao.api.dto.JetskiDisponibilidadeResponse;
 import com.jetski.manutencao.api.dto.OSManutencaoCreateRequest;
 import com.jetski.manutencao.api.dto.OSManutencaoFinishRequest;
@@ -49,6 +53,8 @@ import java.util.stream.Collectors;
 public class OSManutencaoController {
 
     private final OSManutencaoService osManutencaoService;
+    private final JetskiPublicService jetskiPublicService;
+    private final ModeloService modeloService;
 
     /**
      * List all maintenance orders for a tenant.
@@ -503,10 +509,34 @@ public class OSManutencaoController {
     }
 
     private OSManutencaoResponse toResponse(OSManutencao os) {
+        // Busca dados do jetski para enriquecer a resposta
+        OSManutencaoResponse.JetskiResumo jetskiResumo = null;
+        try {
+            Jetski jetski = jetskiPublicService.findById(os.getJetskiId());
+            String modeloNome = null;
+            if (jetski.getModeloId() != null) {
+                try {
+                    Modelo modelo = modeloService.findById(jetski.getModeloId());
+                    modeloNome = modelo.getNome();
+                } catch (Exception e) {
+                    log.debug("Modelo não encontrado: {}", jetski.getModeloId());
+                }
+            }
+            jetskiResumo = OSManutencaoResponse.JetskiResumo.builder()
+                .id(jetski.getId())
+                .serie(jetski.getSerie())
+                .modeloNome(modeloNome)
+                .status(jetski.getStatus() != null ? jetski.getStatus().name() : null)
+                .build();
+        } catch (Exception e) {
+            log.debug("Jetski não encontrado: {}", os.getJetskiId());
+        }
+
         return OSManutencaoResponse.builder()
             .id(os.getId())
             .tenantId(os.getTenantId())
             .jetskiId(os.getJetskiId())
+            .jetski(jetskiResumo)
             .mecanicoId(os.getMecanicoId())
             .tipo(os.getTipo())
             .prioridade(os.getPrioridade())

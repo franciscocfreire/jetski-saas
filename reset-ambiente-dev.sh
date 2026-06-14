@@ -39,7 +39,7 @@ KC_REALM="jetski-saas"
 TENANT_ID="a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
 
 # URL do ngrok (argumento ou variavel de ambiente ou padrao)
-DEFAULT_NGROK_URL="https://233b866ae3f8.ngrok-free.app"
+DEFAULT_NGROK_URL="https://pegaojet.com.br"
 NGROK_URL="${1:-${NGROK_URL:-$DEFAULT_NGROK_URL}}"
 
 echo -e "${BLUE}========================================"
@@ -351,8 +351,29 @@ UPDATE modelo SET exibir_no_marketplace = true WHERE ativo = true;
 EOSQL
 echo -e "${GREEN}   OK - Dados do marketplace configurados!${NC}"
 
-# 7.6 Configurar politicas RLS para modelo_midia
-echo -e "${YELLOW}7.6 Configurando politicas RLS para modelo_midia...${NC}"
+# 7.6 Configurar politicas RLS para despesa_operacional
+echo -e "${YELLOW}7.6 Configurando politicas RLS para despesa_operacional...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- Verificar se a tabela existe antes de criar politicas
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'despesa_operacional') THEN
+        -- Drop politica existente
+        DROP POLICY IF EXISTS tenant_isolation_despesa_operacional ON despesa_operacional;
+
+        -- Criar politica com NULLIF para tratar string vazia
+        CREATE POLICY tenant_isolation_despesa_operacional ON despesa_operacional
+            FOR ALL
+            USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+        COMMENT ON POLICY tenant_isolation_despesa_operacional ON despesa_operacional IS 'Tenant isolation using NULLIF for safe UUID handling';
+    END IF;
+END $$;
+EOSQL
+echo -e "${GREEN}   OK - Politicas RLS do despesa_operacional configuradas!${NC}"
+
+# 7.8 Configurar politicas RLS para modelo_midia
+echo -e "${YELLOW}7.8 Configurando politicas RLS para modelo_midia...${NC}"
 docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
 -- Verificar se a tabela existe antes de criar politicas
 DO $$
@@ -390,8 +411,102 @@ END $$;
 EOSQL
 echo -e "${GREEN}   OK - Politicas RLS do modelo_midia configuradas!${NC}"
 
-# 7.7 Inserir midias de exemplo para modelos
-echo -e "${YELLOW}7.7 Inserindo midias de exemplo...${NC}"
+# 7.9 Configurar politicas RLS para presenca_vendedor
+echo -e "${YELLOW}7.9 Configurando politicas RLS para presenca_vendedor...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- Verificar se a tabela existe antes de criar politicas
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'presenca_vendedor') THEN
+        -- Habilitar RLS
+        ALTER TABLE presenca_vendedor ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE presenca_vendedor FORCE ROW LEVEL SECURITY;
+
+        -- Drop politica existente
+        DROP POLICY IF EXISTS tenant_isolation_presenca_vendedor ON presenca_vendedor;
+
+        -- Criar politica com NULLIF para tratar string vazia
+        CREATE POLICY tenant_isolation_presenca_vendedor ON presenca_vendedor
+            FOR ALL
+            USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+        COMMENT ON POLICY tenant_isolation_presenca_vendedor ON presenca_vendedor IS 'Tenant isolation using NULLIF for safe UUID handling';
+    END IF;
+END $$;
+EOSQL
+echo -e "${GREEN}   OK - Politicas RLS do presenca_vendedor configuradas!${NC}"
+
+# 7.10 Atualizar vendedores com diaria_base e PIX de exemplo
+echo -e "${YELLOW}7.10 Atualizando vendedores com diaria_base e PIX...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- Atualizar vendedores existentes com valores de diaria_base e PIX
+UPDATE vendedor SET
+    diaria_base = 100.00,
+    chave_pix = '123.456.789-00',
+    tipo_chave_pix = 'CPF'
+WHERE diaria_base IS NULL OR diaria_base = 0;
+
+-- Atualizar vendedor com tipo diferente de PIX para teste
+UPDATE vendedor SET
+    chave_pix = 'vendedor@acme.com.br',
+    tipo_chave_pix = 'EMAIL'
+WHERE nome LIKE '%Parceiro%' OR nome LIKE '%Agencia%'
+    AND (chave_pix IS NULL OR chave_pix = '');
+EOSQL
+echo -e "${GREEN}   OK - Vendedores atualizados com diaria_base e PIX!${NC}"
+
+# 7.10.1 Configurar politicas RLS para pagamento_vendedor
+echo -e "${YELLOW}7.10.1 Configurando politicas RLS para pagamento_vendedor...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- Verificar se a tabela existe antes de criar politicas
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'pagamento_vendedor') THEN
+        -- Habilitar RLS
+        ALTER TABLE pagamento_vendedor ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE pagamento_vendedor FORCE ROW LEVEL SECURITY;
+
+        -- Drop politica existente
+        DROP POLICY IF EXISTS tenant_isolation_pagamento_vendedor ON pagamento_vendedor;
+
+        -- Criar politica com NULLIF para tratar string vazia
+        CREATE POLICY tenant_isolation_pagamento_vendedor ON pagamento_vendedor
+            FOR ALL
+            USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+        COMMENT ON POLICY tenant_isolation_pagamento_vendedor ON pagamento_vendedor IS 'Tenant isolation using NULLIF for safe UUID handling';
+    END IF;
+END $$;
+EOSQL
+echo -e "${GREEN}   OK - Politicas RLS do pagamento_vendedor configuradas!${NC}"
+
+# 7.10.2 Configurar politicas RLS para bonus_vendedor
+echo -e "${YELLOW}7.10.2 Configurando politicas RLS para bonus_vendedor...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- Verificar se a tabela existe antes de criar politicas
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'bonus_vendedor') THEN
+        -- Habilitar RLS
+        ALTER TABLE bonus_vendedor ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE bonus_vendedor FORCE ROW LEVEL SECURITY;
+
+        -- Drop politica existente
+        DROP POLICY IF EXISTS tenant_isolation_bonus_vendedor ON bonus_vendedor;
+
+        -- Criar politica com NULLIF para tratar string vazia
+        CREATE POLICY tenant_isolation_bonus_vendedor ON bonus_vendedor
+            FOR ALL
+            USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+        COMMENT ON POLICY tenant_isolation_bonus_vendedor ON bonus_vendedor IS 'Tenant isolation using NULLIF for safe UUID handling';
+    END IF;
+END $$;
+EOSQL
+echo -e "${GREEN}   OK - Politicas RLS do bonus_vendedor configuradas!${NC}"
+
+# 7.11 Inserir midias de exemplo para modelos
+echo -e "${YELLOW}7.11 Inserindo midias de exemplo...${NC}"
 docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
 -- Inserir midias de exemplo para os modelos existentes
 DO $$
@@ -449,6 +564,217 @@ BEGIN
 END $$;
 EOSQL
 echo -e "${GREEN}   OK - Midias de exemplo inseridas!${NC}"
+
+# 7.12 Corrigir schema da tabela os_manutencao (alinhar com entidade JPA)
+echo -e "${YELLOW}7.12 Corrigindo schema da tabela os_manutencao...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- =====================================================
+-- Alinhar os_manutencao com entidade OSManutencao
+-- (fallback caso migration V034 não tenha executado)
+-- =====================================================
+
+-- Renomear colunas existentes (se existirem com nome antigo)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'os_manutencao' AND column_name = 'descricao') THEN
+        ALTER TABLE os_manutencao RENAME COLUMN descricao TO descricao_problema;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'os_manutencao' AND column_name = 'aberta_em') THEN
+        ALTER TABLE os_manutencao RENAME COLUMN aberta_em TO dt_abertura;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'os_manutencao' AND column_name = 'fechada_em') THEN
+        ALTER TABLE os_manutencao RENAME COLUMN fechada_em TO dt_conclusao;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'os_manutencao' AND column_name = 'responsavel_id') THEN
+        ALTER TABLE os_manutencao RENAME COLUMN responsavel_id TO mecanico_id;
+    END IF;
+END $$;
+
+-- Remover colunas antigas que foram substituídas
+ALTER TABLE os_manutencao DROP COLUMN IF EXISTS custo_estimado;
+ALTER TABLE os_manutencao DROP COLUMN IF EXISTS custo_real;
+
+-- Remover FK antiga do responsavel_id
+ALTER TABLE os_manutencao DROP CONSTRAINT IF EXISTS os_manutencao_responsavel_id_fkey;
+
+-- Adicionar novas colunas requeridas pela entidade
+ALTER TABLE os_manutencao ADD COLUMN IF NOT EXISTS diagnostico TEXT;
+ALTER TABLE os_manutencao ADD COLUMN IF NOT EXISTS solucao TEXT;
+ALTER TABLE os_manutencao ADD COLUMN IF NOT EXISTS pecas_json JSONB;
+ALTER TABLE os_manutencao ADD COLUMN IF NOT EXISTS valor_pecas DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE os_manutencao ADD COLUMN IF NOT EXISTS valor_mao_obra DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE os_manutencao ADD COLUMN IF NOT EXISTS valor_total DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE os_manutencao ADD COLUMN IF NOT EXISTS horimetro_abertura DECIMAL(10,2);
+ALTER TABLE os_manutencao ADD COLUMN IF NOT EXISTS horimetro_conclusao DECIMAL(10,2);
+ALTER TABLE os_manutencao ADD COLUMN IF NOT EXISTS observacoes TEXT;
+ALTER TABLE os_manutencao ADD COLUMN IF NOT EXISTS dt_prevista_inicio TIMESTAMP WITH TIME ZONE;
+ALTER TABLE os_manutencao ADD COLUMN IF NOT EXISTS dt_inicio_real TIMESTAMP WITH TIME ZONE;
+ALTER TABLE os_manutencao ADD COLUMN IF NOT EXISTS dt_prevista_fim TIMESTAMP WITH TIME ZONE;
+
+-- Atualizar tamanho da coluna prioridade
+ALTER TABLE os_manutencao ALTER COLUMN prioridade TYPE VARCHAR(20);
+
+-- Garantir que descricao_problema não seja null
+UPDATE os_manutencao SET descricao_problema = 'Descrição não informada' WHERE descricao_problema IS NULL;
+
+-- Remover check constraint antigo
+ALTER TABLE os_manutencao DROP CONSTRAINT IF EXISTS os_manutencao_prioridade_check;
+
+-- Corrigir constraints para usar valores lowercase (V035)
+ALTER TABLE os_manutencao DROP CONSTRAINT IF EXISTS os_status_check;
+ALTER TABLE os_manutencao DROP CONSTRAINT IF EXISTS os_tipo_check;
+ALTER TABLE os_manutencao DROP CONSTRAINT IF EXISTS os_prioridade_check;
+
+ALTER TABLE os_manutencao ADD CONSTRAINT os_status_check
+    CHECK (status IN ('aberta', 'em_andamento', 'aguardando_pecas', 'concluida', 'cancelada'));
+ALTER TABLE os_manutencao ADD CONSTRAINT os_tipo_check
+    CHECK (tipo IN ('preventiva', 'corretiva', 'revisao'));
+ALTER TABLE os_manutencao ADD CONSTRAINT os_prioridade_check
+    CHECK (prioridade IN ('baixa', 'media', 'alta', 'urgente'));
+
+-- Adicionar índice para mecanico_id
+CREATE INDEX IF NOT EXISTS idx_os_manutencao_mecanico ON os_manutencao(tenant_id, mecanico_id);
+
+COMMENT ON TABLE os_manutencao IS 'Ordens de Serviço de Manutenção - OSManutencao entity aligned';
+EOSQL
+echo -e "${GREEN}   OK - Schema da tabela os_manutencao corrigido!${NC}"
+
+# 7.13 Configurar politicas RLS para os_manutencao
+echo -e "${YELLOW}7.13 Configurando politicas RLS para os_manutencao...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- Verificar se a tabela existe antes de criar politicas
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'os_manutencao') THEN
+        -- Habilitar RLS
+        ALTER TABLE os_manutencao ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE os_manutencao FORCE ROW LEVEL SECURITY;
+
+        -- Drop politica existente
+        DROP POLICY IF EXISTS tenant_isolation_os_manutencao ON os_manutencao;
+
+        -- Criar politica com NULLIF para tratar string vazia
+        CREATE POLICY tenant_isolation_os_manutencao ON os_manutencao
+            FOR ALL
+            USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+        COMMENT ON POLICY tenant_isolation_os_manutencao ON os_manutencao IS 'Tenant isolation using NULLIF for safe UUID handling';
+    END IF;
+END $$;
+EOSQL
+echo -e "${GREEN}   OK - Politicas RLS do os_manutencao configuradas!${NC}"
+
+# 7.14 Inserir OS de manutenção para jetski ULTRA001 (consistência com status MANUTENCAO)
+echo -e "${YELLOW}7.14 Inserindo OS de manutencao para jetski ULTRA001...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- Desabilitar RLS temporariamente para inserir dados
+SET LOCAL app.tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+
+-- Inserir OS para o jetski ULTRA001 que está com status MANUTENCAO
+-- Usando ON CONFLICT para evitar erro se já existir
+INSERT INTO os_manutencao (
+    id,
+    tenant_id,
+    jetski_id,
+    tipo,
+    prioridade,
+    status,
+    descricao_problema,
+    diagnostico,
+    horimetro_abertura,
+    dt_abertura,
+    dt_prevista_inicio,
+    dt_prevista_fim,
+    observacoes,
+    created_at,
+    updated_at
+) VALUES (
+    'e1111111-1111-1111-1111-111111111111',
+    'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    'd5555555-5555-5555-5555-555555555555',  -- ULTRA001
+    'preventiva',
+    'media',
+    'em_andamento',
+    'Revisão preventiva de 50 horas - verificação geral do motor e sistema de propulsão',
+    'Motor em bom estado. Necessário troca de óleo e verificação de velas.',
+    45.7,
+    NOW() - INTERVAL '2 days',
+    NOW() - INTERVAL '1 day',
+    NOW() + INTERVAL '1 day',
+    'Manutenção preventiva programada para Kawasaki Ultra 310. Jetski premium.',
+    NOW(),
+    NOW()
+) ON CONFLICT (id) DO NOTHING;
+EOSQL
+echo -e "${GREEN}   OK - OS de manutencao inserida para ULTRA001!${NC}"
+
+# 7.15 Configurar tabela despesa_manutencao
+echo -e "${YELLOW}7.15 Configurando tabela despesa_manutencao...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- Criar tabela despesa_manutencao se não existir
+CREATE TABLE IF NOT EXISTS despesa_manutencao (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenant(id),
+    os_manutencao_id UUID NOT NULL REFERENCES os_manutencao(id),
+    dt_vencimento DATE NOT NULL,
+    numero_parcela INTEGER NOT NULL DEFAULT 1,
+    total_parcelas INTEGER NOT NULL DEFAULT 1,
+    valor NUMERIC(10,2) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDENTE',
+    aprovado_por INTEGER REFERENCES membro(id),
+    aprovado_em TIMESTAMPTZ,
+    pago_por INTEGER REFERENCES membro(id),
+    pago_em TIMESTAMPTZ,
+    referencia_pagamento VARCHAR(100),
+    observacoes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT despesa_manutencao_status_check
+        CHECK (status IN ('PENDENTE', 'APROVADA', 'REJEITADA', 'PAGA', 'CANCELADA')),
+    CONSTRAINT despesa_manutencao_valor_positivo CHECK (valor > 0),
+    CONSTRAINT despesa_manutencao_parcela_valida CHECK (numero_parcela > 0 AND numero_parcela <= total_parcelas)
+);
+
+-- Verificar se a tabela existe antes de criar politicas
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'despesa_manutencao') THEN
+        -- Habilitar RLS
+        ALTER TABLE despesa_manutencao ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE despesa_manutencao FORCE ROW LEVEL SECURITY;
+
+        -- Drop politica existente
+        DROP POLICY IF EXISTS tenant_isolation_despesa_manutencao ON despesa_manutencao;
+
+        -- Criar politica com NULLIF para tratar string vazia
+        CREATE POLICY tenant_isolation_despesa_manutencao ON despesa_manutencao
+            FOR ALL
+            USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
+        COMMENT ON POLICY tenant_isolation_despesa_manutencao ON despesa_manutencao IS 'Tenant isolation using NULLIF for safe UUID handling';
+    END IF;
+END $$;
+
+-- Criar indexes se não existirem
+CREATE INDEX IF NOT EXISTS idx_despesa_manutencao_tenant ON despesa_manutencao(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_despesa_manutencao_os ON despesa_manutencao(os_manutencao_id);
+CREATE INDEX IF NOT EXISTS idx_despesa_manutencao_vencimento ON despesa_manutencao(tenant_id, dt_vencimento);
+CREATE INDEX IF NOT EXISTS idx_despesa_manutencao_status ON despesa_manutencao(tenant_id, status);
+EOSQL
+echo -e "${GREEN}   OK - Tabela despesa_manutencao configurada!${NC}"
 
 # 8. Verificar se realm foi importado automaticamente
 echo -e "${YELLOW}8. Verificando realm Keycloak...${NC}"
@@ -659,6 +985,14 @@ echo -e "${BLUE}========================================"
 echo "  RESET FINALIZADO COM SUCESSO!"
 echo -e "========================================${NC}"
 echo ""
+echo -e "${RED}IMPORTANTE: Após o reset, limpe os cookies do navegador!${NC}"
+echo "   O reset recriou todos os usuários no Keycloak."
+echo "   Se você estava logado antes, precisa:"
+echo "   1. Abrir DevTools (F12) → Application → Cookies"
+echo "   2. Limpar todos os cookies do site (ou fazer logout)"
+echo "   3. Limpar sessionStorage (DevTools → Application → Session Storage)"
+echo "   4. Fazer login novamente"
+echo ""
 if [ -n "$NGROK_URL" ]; then
     echo -e "${GREEN}URLs do ambiente DEV (Ngrok):${NC}"
     echo "   - Frontend:   $NGROK_URL"
@@ -688,5 +1022,9 @@ if [ -z "$NGROK_URL" ]; then
     echo "Para expor na internet (ngrok):"
     echo "   ngrok http 80"
     echo "   # Depois execute: ./reset-ambiente-dev.sh https://xxx.ngrok-free.app"
+    echo ""
+    echo "Para expor na internet (cloudflare):"
+    echo "   cloudflared tunnel --url http://localhost:80 run pegaojet"
+    echo "   # Depois execute: ./reset-ambiente-dev.sh https://pegaojet.com.br"
     echo ""
 fi

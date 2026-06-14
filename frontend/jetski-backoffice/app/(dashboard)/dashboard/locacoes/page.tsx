@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { locacoesService, jetskisService, clientesService, vendedoresService, itensOpcionaisService, modelosService } from '@/lib/api/services'
-import type { Locacao, LocacaoStatus, CheckInWalkInRequest, CheckOutRequest, ModalidadePreco, ItemOpcional, SelectedItemOpcional } from '@/lib/api/types'
+import type { Locacao, LocacaoStatus, CheckInWalkInRequest, CheckOutRequest, ModalidadePreco, ItemOpcional, SelectedItemOpcional, EditFinalizadaRequest } from '@/lib/api/types'
 import { formatDateTime, formatDuration, formatCurrency, cn } from '@/lib/utils'
 import { RentalCountdown } from '@/components/notifications/rental-countdown'
 import { RentalAlertBanner } from '@/components/notifications/rental-alert-banner'
@@ -1096,6 +1096,383 @@ function EditTimeDialog({
   )
 }
 
+// ============================================
+// Edit Finalizada Dialog (for FINALIZADA rentals)
+// ============================================
+
+function EditFinalizadaDialog({
+  locacao,
+  open,
+  onOpenChange,
+}: {
+  locacao: Locacao
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const queryClient = useQueryClient()
+  const { currentTenant } = useTenantStore()
+
+  // Fetch vendedores for selector
+  const { data: vendedores } = useQuery({
+    queryKey: ['vendedores-select', currentTenant?.id],
+    queryFn: () => vendedoresService.list(),
+    enabled: !!currentTenant && open,
+  })
+
+  // Format datetime for input
+  const formatForInput = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+  }
+
+  // Form state
+  const [formData, setFormData] = useState<Partial<EditFinalizadaRequest> & { vendedorId?: string }>({
+    dataCheckIn: locacao.dataCheckIn,
+    dataCheckOut: locacao.dataCheckOut,
+    horimetroInicio: locacao.horimetroInicio,
+    horimetroFim: locacao.horimetroFim,
+    minutosUsados: locacao.minutosUsados,
+    minutosFaturaveis: locacao.minutosFaturaveis,
+    valorBase: locacao.valorBase,
+    valorNegociado: locacao.valorNegociado,
+    valorTotal: locacao.valorTotal,
+    vendedorId: locacao.vendedorId,
+    motivoDesconto: locacao.motivoDesconto || '',
+    observacoes: locacao.observacoes || '',
+    motivoEdicao: '',
+  })
+  const [recalcular, setRecalcular] = useState(false)
+
+  // Reset form when locacao changes
+  useEffect(() => {
+    setFormData({
+      dataCheckIn: locacao.dataCheckIn,
+      dataCheckOut: locacao.dataCheckOut,
+      horimetroInicio: locacao.horimetroInicio,
+      horimetroFim: locacao.horimetroFim,
+      minutosUsados: locacao.minutosUsados,
+      minutosFaturaveis: locacao.minutosFaturaveis,
+      valorBase: locacao.valorBase,
+      valorNegociado: locacao.valorNegociado,
+      valorTotal: locacao.valorTotal,
+      vendedorId: locacao.vendedorId,
+      motivoDesconto: locacao.motivoDesconto || '',
+      observacoes: locacao.observacoes || '',
+      motivoEdicao: '',
+    })
+    setRecalcular(false)
+  }, [locacao])
+
+  const editMutation = useMutation({
+    mutationFn: (data: EditFinalizadaRequest) =>
+      locacoesService.editarFinalizada(locacao.id, data, recalcular),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locacoes'] })
+      onOpenChange(false)
+    },
+  })
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.motivoEdicao?.trim()) return
+
+    // Build request with only changed fields
+    const request: EditFinalizadaRequest = {
+      motivoEdicao: formData.motivoEdicao.trim(),
+    }
+
+    // Add changed fields
+    if (formData.dataCheckIn !== locacao.dataCheckIn) {
+      request.dataCheckIn = formData.dataCheckIn
+    }
+    if (formData.dataCheckOut !== locacao.dataCheckOut) {
+      request.dataCheckOut = formData.dataCheckOut
+    }
+    if (formData.horimetroInicio !== locacao.horimetroInicio) {
+      request.horimetroInicio = formData.horimetroInicio
+    }
+    if (formData.horimetroFim !== locacao.horimetroFim) {
+      request.horimetroFim = formData.horimetroFim
+    }
+    if (formData.minutosUsados !== locacao.minutosUsados) {
+      request.minutosUsados = formData.minutosUsados
+    }
+    if (formData.minutosFaturaveis !== locacao.minutosFaturaveis) {
+      request.minutosFaturaveis = formData.minutosFaturaveis
+    }
+    if (formData.valorBase !== locacao.valorBase) {
+      request.valorBase = formData.valorBase
+    }
+    if (formData.valorNegociado !== locacao.valorNegociado) {
+      request.valorNegociado = formData.valorNegociado
+    }
+    if (formData.valorTotal !== locacao.valorTotal) {
+      request.valorTotal = formData.valorTotal
+    }
+    if (formData.motivoDesconto !== (locacao.motivoDesconto || '')) {
+      request.motivoDesconto = formData.motivoDesconto
+    }
+    if (formData.vendedorId !== locacao.vendedorId) {
+      request.vendedorId = formData.vendedorId
+    }
+    if (formData.observacoes !== (locacao.observacoes || '')) {
+      request.observacoes = formData.observacoes
+    }
+
+    editMutation.mutate(request)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Editar Locação Finalizada</DialogTitle>
+            <DialogDescription>
+              Edite os dados da locação antes do fechamento do dia ser bloqueado.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            {/* Rental Info Summary */}
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <div className="flex items-center gap-2 text-sm">
+                <Ship className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">{locacao.jetskiSerie}</span>
+                {locacao.clienteNome && (
+                  <span className="text-muted-foreground">- {locacao.clienteNome}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Vendedor Section */}
+            <div className="grid gap-2">
+              <Label htmlFor="vendedor">Vendedor</Label>
+              <Select
+                value={formData.vendedorId || '__none__'}
+                onValueChange={(value) => setFormData({
+                  ...formData,
+                  vendedorId: value === '__none__' ? undefined : value
+                })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar vendedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem vendedor</SelectItem>
+                  {vendedores?.filter(v => v.ativo).map((vendedor) => (
+                    <SelectItem key={vendedor.id} value={vendedor.id}>
+                      {vendedor.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Datas Section */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="dataCheckIn">Check-in</Label>
+                <Input
+                  id="dataCheckIn"
+                  type="datetime-local"
+                  value={formData.dataCheckIn ? formatForInput(formData.dataCheckIn) : ''}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    dataCheckIn: e.target.value ? e.target.value + ':00' : undefined
+                  })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="dataCheckOut">Check-out</Label>
+                <Input
+                  id="dataCheckOut"
+                  type="datetime-local"
+                  value={formData.dataCheckOut ? formatForInput(formData.dataCheckOut) : ''}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    dataCheckOut: e.target.value ? e.target.value + ':00' : undefined
+                  })}
+                />
+              </div>
+            </div>
+
+            {/* Horímetro Section */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="horimetroInicio">Horímetro Início</Label>
+                <Input
+                  id="horimetroInicio"
+                  type="number"
+                  value={formData.horimetroInicio || 0}
+                  onChange={(e) => setFormData({ ...formData, horimetroInicio: Number(e.target.value) })}
+                  step={0.1}
+                  min={0}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="horimetroFim">Horímetro Fim</Label>
+                <Input
+                  id="horimetroFim"
+                  type="number"
+                  value={formData.horimetroFim || 0}
+                  onChange={(e) => setFormData({ ...formData, horimetroFim: Number(e.target.value) })}
+                  step={0.1}
+                  min={0}
+                />
+              </div>
+            </div>
+
+            {/* Minutos Section */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="minutosUsados">Minutos Usados</Label>
+                <Input
+                  id="minutosUsados"
+                  type="number"
+                  value={formData.minutosUsados || 0}
+                  onChange={(e) => setFormData({ ...formData, minutosUsados: Number(e.target.value) })}
+                  min={0}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="minutosFaturaveis">Minutos Faturáveis</Label>
+                <Input
+                  id="minutosFaturaveis"
+                  type="number"
+                  value={formData.minutosFaturaveis || 0}
+                  onChange={(e) => setFormData({ ...formData, minutosFaturaveis: Number(e.target.value) })}
+                  min={0}
+                />
+              </div>
+            </div>
+
+            {/* Valores Section */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="valorBase">Valor Base (R$)</Label>
+                <Input
+                  id="valorBase"
+                  type="number"
+                  value={formData.valorBase || 0}
+                  onChange={(e) => setFormData({ ...formData, valorBase: Number(e.target.value) })}
+                  step={1}
+                  min={0}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="valorNegociado">Valor Negociado (R$)</Label>
+                <Input
+                  id="valorNegociado"
+                  type="number"
+                  value={formData.valorNegociado || ''}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    valorNegociado: e.target.value ? Number(e.target.value) : undefined
+                  })}
+                  step={1}
+                  min={0}
+                  placeholder="Opcional"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="valorTotal">Valor Total (R$)</Label>
+                <Input
+                  id="valorTotal"
+                  type="number"
+                  value={formData.valorTotal || 0}
+                  onChange={(e) => setFormData({ ...formData, valorTotal: Number(e.target.value) })}
+                  step={1}
+                  min={0}
+                />
+              </div>
+            </div>
+
+            {/* Motivo Desconto */}
+            <div className="grid gap-2">
+              <Label htmlFor="motivoDesconto">Motivo Desconto</Label>
+              <Input
+                id="motivoDesconto"
+                value={formData.motivoDesconto || ''}
+                onChange={(e) => setFormData({ ...formData, motivoDesconto: e.target.value })}
+                placeholder="Ex: Cliente frequente"
+              />
+            </div>
+
+            {/* Observações */}
+            <div className="grid gap-2">
+              <Label htmlFor="observacoes">Observações</Label>
+              <Input
+                id="observacoes"
+                value={formData.observacoes || ''}
+                onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                placeholder="Observações adicionais"
+              />
+            </div>
+
+            {/* Recalcular checkbox */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="recalcular"
+                checked={recalcular}
+                onCheckedChange={(checked) => setRecalcular(checked === true)}
+              />
+              <Label htmlFor="recalcular" className="text-sm cursor-pointer">
+                Recalcular valores automaticamente (sobrescreve valores manuais)
+              </Label>
+            </div>
+
+            {/* Motivo da Edição (obrigatório) */}
+            <div className="grid gap-2">
+              <Label htmlFor="motivoEdicao" className="flex items-center gap-1">
+                Motivo da Edição <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="motivoEdicao"
+                value={formData.motivoEdicao || ''}
+                onChange={(e) => setFormData({ ...formData, motivoEdicao: e.target.value })}
+                placeholder="Ex: Correção de horímetro registrado incorretamente"
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Este motivo será registrado na auditoria
+              </p>
+            </div>
+
+            {/* Error message */}
+            {editMutation.isError && (
+              <div className="rounded-lg border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+                {(editMutation.error as Error)?.message || 'Erro ao editar locação'}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              disabled={editMutation.isPending || !formData.motivoEdicao?.trim()}
+            >
+              {editMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function LocacoesPage() {
   const { currentTenant } = useTenantStore()
   const router = useRouter()
@@ -1106,6 +1483,7 @@ export default function LocacoesPage() {
   const [checkOutLocacao, setCheckOutLocacao] = useState<Locacao | null>(null)
   const [detailLocacao, setDetailLocacao] = useState<Locacao | null>(null)
   const [editTimeLocacao, setEditTimeLocacao] = useState<Locacao | null>(null)
+  const [editFinalizadaLocacao, setEditFinalizadaLocacao] = useState<Locacao | null>(null)
 
   const { data: locacoes, isLoading } = useQuery({
     queryKey: ['locacoes', currentTenant?.id, statusFilter],
@@ -1224,6 +1602,7 @@ export default function LocacoesPage() {
             <TableRow>
               <TableHead>Jetski</TableHead>
               <TableHead>Cliente</TableHead>
+              <TableHead>Vendedor</TableHead>
               <TableHead>Check-in</TableHead>
               <TableHead>Duração</TableHead>
               <TableHead>Valor</TableHead>
@@ -1237,6 +1616,7 @@ export default function LocacoesPage() {
                 <TableRow key={i}>
                   <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-20" /></TableCell>
@@ -1246,7 +1626,7 @@ export default function LocacoesPage() {
               ))
             ) : sortedLocacoes?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={8} className="h-24 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <Anchor className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">Nenhuma locação encontrada</p>
@@ -1273,6 +1653,9 @@ export default function LocacoesPage() {
                     </div>
                   </TableCell>
                   <TableCell>{locacao.clienteNome || 'Walk-in'}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {locacao.vendedorNome || '-'}
+                  </TableCell>
                   <TableCell>{formatDateTime(locacao.dataCheckIn)}</TableCell>
                   <TableCell>
                     {locacao.status === 'EM_CURSO' ? (
@@ -1294,7 +1677,17 @@ export default function LocacoesPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {locacao.valorTotal ? formatCurrency(locacao.valorTotal) : '-'}
+                    {locacao.valorTotal ? (
+                      formatCurrency(locacao.valorTotal)
+                    ) : locacao.valorNegociado ? (
+                      <span className="text-muted-foreground" title="Valor negociado">
+                        ~{formatCurrency(locacao.valorNegociado)}
+                      </span>
+                    ) : locacao.valorBase ? (
+                      <span className="text-muted-foreground" title="Valor estimado">
+                        ~{formatCurrency(locacao.valorBase)}
+                      </span>
+                    ) : '-'}
                   </TableCell>
                   <TableCell>
                     <Badge variant={statusConfig[locacao.status].variant}>
@@ -1329,6 +1722,12 @@ export default function LocacoesPage() {
                             </DropdownMenuItem>
                           </>
                         )}
+                        {locacao.status === 'FINALIZADA' && (
+                          <DropdownMenuItem onClick={() => setEditFinalizadaLocacao(locacao)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar locação
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -1362,6 +1761,14 @@ export default function LocacoesPage() {
           locacao={editTimeLocacao}
           open={!!editTimeLocacao}
           onOpenChange={(open) => !open && setEditTimeLocacao(null)}
+        />
+      )}
+
+      {editFinalizadaLocacao && (
+        <EditFinalizadaDialog
+          locacao={editFinalizadaLocacao}
+          open={!!editFinalizadaLocacao}
+          onOpenChange={(open) => !open && setEditFinalizadaLocacao(null)}
         />
       )}
     </div>

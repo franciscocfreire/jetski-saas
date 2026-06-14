@@ -19,7 +19,7 @@ export default function DashboardLayout({
 }) {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const { currentTenant, setTenants, setCurrentTenant, clearTenant } = useTenantStore()
+  const { currentTenant, setTenants, setCurrentTenant, clearTenant, _hasHydrated } = useTenantStore()
   const [tenantsLoaded, setTenantsLoaded] = useState(false)
   const lastTokenRef = useRef<string | null>(null)
 
@@ -46,8 +46,9 @@ export default function DashboardLayout({
     }
   }, [session?.accessToken])
 
-  // Load tenants only once on initial auth
+  // Load tenants only once on initial auth (after hydration)
   useEffect(() => {
+    if (!_hasHydrated) return // Wait for Zustand hydration
     if (session?.accessToken && !tenantsLoaded) {
       // Load user tenants
       console.log('📡 Fetching user tenants...')
@@ -69,7 +70,7 @@ export default function DashboardLayout({
           setTenantsLoaded(true) // Mark as loaded even on error to avoid infinite retries
         })
     }
-  }, [session?.accessToken, tenantsLoaded, currentTenant, setTenants, setCurrentTenant])
+  }, [session?.accessToken, tenantsLoaded, currentTenant, setTenants, setCurrentTenant, _hasHydrated])
 
   useEffect(() => {
     if (currentTenant) {
@@ -78,7 +79,7 @@ export default function DashboardLayout({
     }
   }, [currentTenant])
 
-  if (status === 'loading') {
+  if (status === 'loading' || !_hasHydrated) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="space-y-4">

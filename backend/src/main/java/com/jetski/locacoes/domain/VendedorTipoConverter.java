@@ -20,7 +20,7 @@ public class VendedorTipoConverter implements AttributeConverter<VendedorTipo, S
         if (attribute == null) {
             return null;
         }
-        return attribute.name().toLowerCase();
+        return attribute.name();
     }
 
     @Override

@@ -35,8 +35,32 @@ public class OSManutencaoResponse {
     @Schema(description = "UUID do jetski em manutenção", example = "7c9e6679-7425-40de-944b-e07fc1f90ae7")
     private UUID jetskiId;
 
+    @Schema(description = "Dados resumidos do jetski")
+    private JetskiResumo jetski;
+
     @Schema(description = "UUID do mecânico responsável", example = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d")
     private UUID mecanicoId;
+
+    /**
+     * Inner class para dados resumidos do jetski
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class JetskiResumo {
+        @Schema(description = "UUID do jetski")
+        private UUID id;
+
+        @Schema(description = "Número de série do jetski", example = "JS-001")
+        private String serie;
+
+        @Schema(description = "Nome do modelo", example = "Sea-Doo GTI 130")
+        private String modeloNome;
+
+        @Schema(description = "Status atual do jetski", example = "MANUTENCAO")
+        private String status;
+    }
 
     @Schema(description = "Tipo de manutenção", example = "PREVENTIVA")
     private OSManutencaoTipo tipo;

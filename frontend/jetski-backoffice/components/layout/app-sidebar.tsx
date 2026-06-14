@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   Anchor,
   Calendar,
+  CalendarCheck,
   ChartBar,
   ClipboardList,
   FileText,
@@ -17,6 +18,11 @@ import {
   LogOut,
   Building2,
   ChevronDown,
+  PieChart,
+  Receipt,
+  Settings,
+  Wallet,
+  Percent,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -89,6 +95,11 @@ const operationsItems = [
     icon: Wrench,
   },
   {
+    title: 'Fechamentos',
+    href: '/dashboard/fechamentos/diario',
+    icon: CalendarCheck,
+  },
+  {
     title: 'Relatórios',
     href: '/dashboard/relatorios',
     icon: ChartBar,
@@ -97,6 +108,37 @@ const operationsItems = [
     title: 'Auditoria',
     href: '/dashboard/auditoria',
     icon: ClipboardList,
+  },
+]
+
+const financeiroItems = [
+  {
+    title: 'Dashboard Financeiro',
+    href: '/dashboard/financeiro',
+    icon: PieChart,
+  },
+  {
+    title: 'Comissões',
+    href: '/dashboard/comissoes',
+    icon: Percent,
+  },
+  {
+    title: 'Pagamentos',
+    href: '/dashboard/financeiro/pagamentos',
+    icon: Wallet,
+  },
+  {
+    title: 'Despesas Operacionais',
+    href: '/dashboard/despesas-operacionais',
+    icon: Receipt,
+  },
+]
+
+const sistemaItems = [
+  {
+    title: 'Configurações',
+    href: '/dashboard/configuracoes',
+    icon: Settings,
   },
 ]
 
@@ -205,7 +247,61 @@ export function AppSidebar() {
           <SidebarGroupLabel>Operações</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {operationsItems.map((item) => (
+              {operationsItems.map((item) => {
+                // Para Fechamentos, destacar se estiver em qualquer sub-página
+                const isActive = item.href.includes('/fechamentos')
+                  ? pathname.startsWith('/dashboard/fechamentos')
+                  : pathname === item.href
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <Link href={item.href}>
+                        <item.icon className="size-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Financeiro</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {financeiroItems.map((item) => {
+                // Para Dashboard Financeiro, destacar se estiver em qualquer sub-página
+                const isActive = item.href === '/dashboard/financeiro'
+                  ? pathname === '/dashboard/financeiro'
+                  : item.href.includes('/financeiro/pagamentos')
+                  ? pathname.startsWith('/dashboard/financeiro/pagamentos')
+                  : item.href.includes('/comissoes')
+                  ? pathname.startsWith('/dashboard/comissoes')
+                  : item.href.includes('/despesas-operacionais')
+                  ? pathname.startsWith('/dashboard/despesas-operacionais')
+                  : pathname === item.href
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <Link href={item.href}>
+                        <item.icon className="size-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Sistema</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {sistemaItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild isActive={pathname === item.href}>
                     <Link href={item.href}>

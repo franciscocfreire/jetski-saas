@@ -210,7 +210,8 @@ public class ActionExtractor {
             "calcular", "diario", "mensal", "invite", "activate",
             "accept-terms", "confirmar-sinal", "confirmar", "alocar-jetski",
             "consolidar",  // Fechamento diário consolidação
-            "reabrir"  // Reabrir fechamento
+            "reabrir",     // Reabrir fechamento
+            "editar-finalizada"  // Editar locação finalizada antes do fechamento
         };
 
         for (String subAction : knownSubActions) {

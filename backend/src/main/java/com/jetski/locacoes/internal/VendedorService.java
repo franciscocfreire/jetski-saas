@@ -1,16 +1,24 @@
 package com.jetski.locacoes.internal;
 
+import com.jetski.comissoes.internal.repository.ComissaoRepository;
+import com.jetski.locacoes.api.dto.VendedorDetalheResponse;
+import com.jetski.locacoes.api.dto.VendedorResumoResponse;
 import com.jetski.locacoes.domain.Vendedor;
 import com.jetski.locacoes.domain.VendedorTipo;
 import com.jetski.locacoes.internal.repository.VendedorRepository;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.tenant.domain.ComissaoConfig;
+import com.jetski.tenant.domain.Tenant;
+import com.jetski.tenant.internal.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Service: Vendedor Management
@@ -34,6 +42,8 @@ import java.util.UUID;
 public class VendedorService {
 
     private final VendedorRepository vendedorRepository;
+    private final ComissaoRepository comissaoRepository;
+    private final TenantRepository tenantRepository;
 
     /**
      * List all active sellers for current tenant.
@@ -145,12 +155,30 @@ public class VendedorService {
             existing.setDocumento(updates.getDocumento());
         }
 
+        if (updates.getEmail() != null) {
+            existing.setEmail(updates.getEmail());
+        }
+
+        if (updates.getTelefone() != null) {
+            existing.setTelefone(updates.getTelefone());
+        }
+
+        // PIX key fields - update both together or not at all
+        if (updates.getChavePix() != null) {
+            existing.setChavePix(updates.getChavePix());
+            existing.setTipoChavePix(updates.getTipoChavePix());
+        }
+
         if (updates.getTipo() != null) {
             existing.setTipo(updates.getTipo());
         }
 
         if (updates.getRegraComissaoJson() != null) {
             existing.setRegraComissaoJson(updates.getRegraComissaoJson());
+        }
+
+        if (updates.getDiariaBase() != null) {
+            existing.setDiariaBase(updates.getDiariaBase());
         }
 
         Vendedor saved = vendedorRepository.save(existing);
@@ -204,5 +232,137 @@ public class VendedorService {
 
         log.info("Seller reactivated successfully: id={}", id);
         return saved;
+    }
+
+    // ========== NOVOS MÉTODOS PARA RESUMO DE COMISSÕES ==========
+
+    /**
+     * List all sellers with commission summary.
+     *
+     * @param tenantId Tenant UUID
+     * @param includeInactive Include inactive sellers
+     * @return List of VendedorResumoResponse
+     */
+    @Transactional(readOnly = true)
+    public List<VendedorResumoResponse> listSellersWithSummary(UUID tenantId, boolean includeInactive) {
+        log.debug("Listing sellers with commission summary for tenant: {}", tenantId);
+
+        List<Vendedor> vendedores = includeInactive
+                ? vendedorRepository.findAll()
+                : vendedorRepository.findAllActive();
+
+        return vendedores.stream()
+                .map(v -> buildResumoResponse(tenantId, v))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get seller details with commission summary and bonus status.
+     *
+     * @param tenantId Tenant UUID
+     * @param vendedorId Vendedor UUID
+     * @return VendedorDetalheResponse
+     */
+    @Transactional(readOnly = true)
+    public VendedorDetalheResponse getSellerDetails(UUID tenantId, UUID vendedorId) {
+        log.debug("Getting seller details for vendedor: {}", vendedorId);
+
+        Vendedor vendedor = findById(vendedorId);
+        return buildDetalheResponse(tenantId, vendedor);
+    }
+
+    /**
+     * Build resumo response with commission totals.
+     */
+    private VendedorResumoResponse buildResumoResponse(UUID tenantId, Vendedor vendedor) {
+        BigDecimal totalPendentes = comissaoRepository.sumComissoesPendentesByVendedor(tenantId, vendedor.getId());
+        BigDecimal totalAprovadas = comissaoRepository.sumComissoesAprovadasByVendedor(tenantId, vendedor.getId());
+        BigDecimal totalPagas = comissaoRepository.sumComissoesPagasAllTimeByVendedor(tenantId, vendedor.getId());
+        Long qtdLocacoes = comissaoRepository.countLocacoesByVendedor(tenantId, vendedor.getId());
+
+        return VendedorResumoResponse.builder()
+                .id(vendedor.getId())
+                .nome(vendedor.getNome())
+                .email(vendedor.getEmail())
+                .tipo(vendedor.getTipo())
+                .ativo(vendedor.getAtivo())
+                .diariaBase(vendedor.getDiariaBase())
+                .totalPendentes(totalPendentes != null ? totalPendentes : BigDecimal.ZERO)
+                .totalAprovadas(totalAprovadas != null ? totalAprovadas : BigDecimal.ZERO)
+                .totalPagas(totalPagas != null ? totalPagas : BigDecimal.ZERO)
+                .qtdLocacoes(qtdLocacoes != null ? qtdLocacoes : 0L)
+                .build();
+    }
+
+    /**
+     * Build detalhe response with commission totals and bonus status.
+     */
+    private VendedorDetalheResponse buildDetalheResponse(UUID tenantId, Vendedor vendedor) {
+        BigDecimal totalPendentes = comissaoRepository.sumComissoesPendentesByVendedor(tenantId, vendedor.getId());
+        BigDecimal totalAprovadas = comissaoRepository.sumComissoesAprovadasByVendedor(tenantId, vendedor.getId());
+        BigDecimal totalPagas = comissaoRepository.sumComissoesPagasAllTimeByVendedor(tenantId, vendedor.getId());
+        Long qtdLocacoes = comissaoRepository.countLocacoesByVendedor(tenantId, vendedor.getId());
+        Long qtdAcimaPrecoBase = comissaoRepository.countVendasAcimaPrecoBaseByVendedor(tenantId, vendedor.getId());
+
+        // Calcular status do bonus
+        VendedorDetalheResponse.BonusStatusResponse bonusStatus = calculateBonusStatus(tenantId, qtdAcimaPrecoBase);
+
+        return VendedorDetalheResponse.builder()
+                .id(vendedor.getId())
+                .tenantId(vendedor.getTenantId())
+                .nome(vendedor.getNome())
+                .documento(vendedor.getDocumento())
+                .email(vendedor.getEmail())
+                .telefone(vendedor.getTelefone())
+                .tipo(vendedor.getTipo())
+                .ativo(vendedor.getAtivo())
+                .createdAt(vendedor.getCreatedAt())
+                .updatedAt(vendedor.getUpdatedAt())
+                .totalPendentes(totalPendentes != null ? totalPendentes : BigDecimal.ZERO)
+                .totalAprovadas(totalAprovadas != null ? totalAprovadas : BigDecimal.ZERO)
+                .totalPagas(totalPagas != null ? totalPagas : BigDecimal.ZERO)
+                .qtdLocacoes(qtdLocacoes != null ? qtdLocacoes : 0L)
+                .qtdAcimaPrecoBase(qtdAcimaPrecoBase != null ? qtdAcimaPrecoBase : 0L)
+                .bonusStatus(bonusStatus)
+                .build();
+    }
+
+    /**
+     * Calculate bonus status for a seller.
+     */
+    private VendedorDetalheResponse.BonusStatusResponse calculateBonusStatus(UUID tenantId, Long qtdAcimaPrecoBase) {
+        // Buscar configuração do tenant
+        ComissaoConfig config = tenantRepository.findById(tenantId)
+                .map(Tenant::getComissaoConfig)
+                .orElse(null);
+
+        if (config == null || !Boolean.TRUE.equals(config.bonusAtivo())) {
+            return VendedorDetalheResponse.BonusStatusResponse.builder()
+                    .elegivel(false)
+                    .metaAtual(qtdAcimaPrecoBase != null ? qtdAcimaPrecoBase : 0L)
+                    .metaNecessaria(0)
+                    .valorBonus(BigDecimal.ZERO)
+                    .vendasFaltando(0L)
+                    .build();
+        }
+
+        long metaAtual = qtdAcimaPrecoBase != null ? qtdAcimaPrecoBase : 0L;
+        int metaNecessaria = config.bonusMetaVendas() != null ? config.bonusMetaVendas() : 50;
+        BigDecimal valorBonus = config.bonusValor() != null ? config.bonusValor() : BigDecimal.ZERO;
+
+        // Calcular quantas vendas faltam para o próximo bonus
+        // O bonus é acumulativo contínuo, então se meta=50, bonus em 50, 100, 150...
+        long proximaMeta = ((metaAtual / metaNecessaria) + 1) * metaNecessaria;
+        long vendasFaltando = proximaMeta - metaAtual;
+
+        boolean elegivel = metaAtual > 0 && metaAtual >= metaNecessaria;
+
+        return VendedorDetalheResponse.BonusStatusResponse.builder()
+                .elegivel(elegivel)
+                .metaAtual(metaAtual)
+                .metaNecessaria(metaNecessaria)
+                .valorBonus(valorBonus)
+                .vendasFaltando(vendasFaltando)
+                .build();
     }
 }

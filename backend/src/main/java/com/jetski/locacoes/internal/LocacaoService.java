@@ -1,14 +1,22 @@
 package com.jetski.locacoes.internal;
 
 import com.jetski.combustivel.internal.LocacaoFuelData;
+import com.jetski.fechamento.internal.repository.FechamentoDiarioRepository;
+import com.jetski.locacoes.api.dto.EditFinalizadaLocacaoRequest;
 import com.jetski.locacoes.domain.*;
 import com.jetski.locacoes.domain.event.CheckInEvent;
 import com.jetski.locacoes.domain.event.CheckOutEvent;
+import com.jetski.locacoes.domain.event.DataCheckInAlteradaEvent;
+import com.jetski.locacoes.domain.event.LocacaoEditadaEvent;
 import com.jetski.locacoes.domain.event.RentalCompletedEvent;
 import com.jetski.shared.security.TenantContext;
+import com.jetski.shared.time.TenantTimeService;
+import com.jetski.comissoes.internal.CommissionService;
 import com.jetski.locacoes.internal.repository.LocacaoItemOpcionalRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
+import com.jetski.locacoes.internal.repository.PresencaVendedorRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
+import com.jetski.locacoes.internal.repository.VendedorRepository;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -18,8 +26,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -49,6 +60,9 @@ public class LocacaoService {
     private final LocacaoRepository locacaoRepository;
     private final ReservaRepository reservaRepository;
     private final LocacaoItemOpcionalRepository locacaoItemOpcionalRepository;
+    private final FechamentoDiarioRepository fechamentoDiarioRepository;
+    private final PresencaVendedorRepository presencaVendedorRepository;
+    private final VendedorRepository vendedorRepository;
     private final JetskiService jetskiService;
     private final ModeloService modeloService;
     private final ClienteService clienteService;
@@ -56,6 +70,8 @@ public class LocacaoService {
     private final com.jetski.locacoes.internal.PhotoValidationService photoValidationService;
     private final com.jetski.combustivel.internal.FuelPolicyService fuelPolicyService;
     private final ApplicationEventPublisher eventPublisher;
+    private final TenantTimeService tenantTimeService;
+    private final CommissionService commissionService;
 
     /**
      * Check-in: Create rental from reservation
@@ -120,7 +136,7 @@ public class LocacaoService {
             .jetskiId(jetski.getId())
             .clienteId(reserva.getClienteId())
             .vendedorId(reserva.getVendedorId())
-            .dataCheckIn(LocalDateTime.now())
+            .dataCheckIn(tenantTimeService.now())
             .horimetroInicio(horimetroInicio)
             .duracaoPrevista(duracaoPrevista)
             .status(LocacaoStatus.EM_CURSO)
@@ -131,8 +147,23 @@ public class LocacaoService {
             .modalidadePreco(modalidadePreco != null ? modalidadePreco : ModalidadePreco.PRECO_FECHADO)
             .build();
 
+        // 4.1 Calculate estimated valorBase for display while rental is in progress
+        // IMPORTANTE: valorBase é sempre o preço tabelado (calculado a partir do modelo)
+        // O valorNegociado é armazenado separadamente para permitir comparação
+        if (duracaoPrevista > 0) {
+            Modelo modelo = modeloService.findById(jetski.getModeloId());
+            if (modelo != null && modelo.getPrecoBaseHora() != null) {
+                BigDecimal estimatedValue = calculatorService.calculateBaseValue(
+                    duracaoPrevista,
+                    modelo.getPrecoBaseHora()
+                );
+                locacao.setValorBase(estimatedValue);
+            }
+        }
+
         locacao = locacaoRepository.save(locacao);
-        log.info("Locacao created: id={}, jetski={}, valorNegociado={}, modalidade={}", locacao.getId(), jetski.getId(), valorNegociado, locacao.getModalidadePreco());
+        log.info("Locacao created: id={}, jetski={}, valorNegociado={}, valorBase={}, modalidade={}",
+                 locacao.getId(), jetski.getId(), valorNegociado, locacao.getValorBase(), locacao.getModalidadePreco());
 
         // 5. Validate 4 mandatory check-in photos
         // TODO FASE 2: Photo validation temporarily disabled during check-in
@@ -217,7 +248,7 @@ public class LocacaoService {
             .jetskiId(jetskiId)
             .clienteId(clienteId)
             .vendedorId(vendedorId)
-            .dataCheckIn(dataCheckIn != null ? dataCheckIn : LocalDateTime.now())
+            .dataCheckIn(dataCheckIn != null ? dataCheckIn : tenantTimeService.now())
             .horimetroInicio(horimetroInicio)
             .duracaoPrevista(duracaoPrevista)
             .status(LocacaoStatus.EM_CURSO)
@@ -228,8 +259,23 @@ public class LocacaoService {
             .modalidadePreco(modalidadePreco != null ? modalidadePreco : ModalidadePreco.PRECO_FECHADO)
             .build();
 
+        // 3.1 Calculate estimated valorBase for display while rental is in progress
+        // IMPORTANTE: valorBase é sempre o preço tabelado (calculado a partir do modelo)
+        // O valorNegociado é armazenado separadamente para permitir comparação
+        if (duracaoPrevista != null && duracaoPrevista > 0) {
+            Modelo modelo = modeloService.findById(jetski.getModeloId());
+            if (modelo != null && modelo.getPrecoBaseHora() != null) {
+                BigDecimal estimatedValue = calculatorService.calculateBaseValue(
+                    duracaoPrevista,
+                    modelo.getPrecoBaseHora()
+                );
+                locacao.setValorBase(estimatedValue);
+            }
+        }
+
         locacao = locacaoRepository.save(locacao);
-        log.info("Locacao created (walk-in): id={}, valorNegociado={}, modalidade={}", locacao.getId(), valorNegociado, locacao.getModalidadePreco());
+        log.info("Locacao created (walk-in): id={}, valorNegociado={}, valorBase={}, modalidade={}",
+                 locacao.getId(), valorNegociado, locacao.getValorBase(), locacao.getModalidadePreco());
 
         // 4. Validate 4 mandatory check-in photos
         // TODO FASE 2: Photo validation temporarily disabled during check-in (same reason as above)
@@ -296,7 +342,7 @@ public class LocacaoService {
 
         // 3. Calculate used minutes from actual rental time (not hourmeter)
         // IMPORTANT: We charge for the time the customer had the jetski, not the engine runtime
-        LocalDateTime dataCheckOut = LocalDateTime.now();
+        LocalDateTime dataCheckOut = tenantTimeService.now();
         int minutosUsados = calculatorService.calculateUsedMinutes(
             locacao.getDataCheckIn(),
             dataCheckOut
@@ -323,16 +369,14 @@ public class LocacaoService {
         );
 
         // 6. Determine base value based on pricing modality
+        // IMPORTANTE: valorBase é sempre calculado a partir do preço do modelo (preço tabelado)
+        // Isso permite comparar com valorTotal para determinar se houve desconto
         BigDecimal valorBase;
         ModalidadePreco modalidade = locacao.getModalidadePreco() != null
             ? locacao.getModalidadePreco()
             : ModalidadePreco.PRECO_FECHADO;  // Default
 
-        if (locacao.getValorNegociado() != null) {
-            // Use negotiated price set at check-in
-            valorBase = locacao.getValorNegociado();
-            log.info("Using negotiated price for locacao {}: {}", locacaoId, valorBase);
-        } else if (modalidade == ModalidadePreco.PRECO_FECHADO && locacao.getDuracaoPrevista() != null) {
+        if (modalidade == ModalidadePreco.PRECO_FECHADO && locacao.getDuracaoPrevista() != null) {
             // PRECO_FECHADO: Calculate based on predicted duration, not actual time used
             // This ensures customer pays for reserved time regardless of early return
             int duracaoPrevistaMinutos = locacao.getDuracaoPrevista();
@@ -382,8 +426,18 @@ public class LocacaoService {
         log.info("Optional items cost calculated: locacao={}, count={}, total={}",
                  locacaoId, countItensOpcionais, valorItensOpcionais);
 
-        // 10. Calculate total value: base + fuel + optional items
-        BigDecimal valorTotal = valorBase.add(combustivelCusto).add(valorItensOpcionais);
+        // 10. Calculate total value: (negotiated OR base) + fuel + optional items
+        // Se há valor negociado, usa ele; senão usa valor base (preço tabelado)
+        BigDecimal valorParaCobranca = locacao.getValorNegociado() != null
+            ? locacao.getValorNegociado()
+            : valorBase;
+        BigDecimal valorTotal = valorParaCobranca.add(combustivelCusto).add(valorItensOpcionais);
+
+        if (locacao.getValorNegociado() != null) {
+            log.info("Using negotiated price for locacao {}: valorNegociado={}, valorBase={} (diferença={})",
+                     locacaoId, locacao.getValorNegociado(), valorBase,
+                     valorBase.subtract(locacao.getValorNegociado()));
+        }
 
         // Store policy ID for audit (will be null if INCLUSO mode, as no charge applied)
         Long fuelPolicyId = null;  // TODO: Return policy ID from calcularCustoCombustivel
@@ -439,6 +493,66 @@ public class LocacaoService {
             locacao.getDataCheckOut()
         ));
         log.debug("Published RentalCompletedEvent for locacao={}", locacaoId);
+
+        // 12.1 RN04: Calculate commission if a seller is associated
+        if (locacao.getVendedorId() != null) {
+            try {
+                commissionService.calcularComissao(
+                    tenantId,
+                    locacao.getId(),
+                    locacao.getVendedorId(),
+                    modelo.getId(),
+                    minutosFaturaveis,
+                    valorTotal,
+                    combustivelCusto,
+                    BigDecimal.ZERO,  // multas
+                    BigDecimal.ZERO,  // taxas
+                    null,  // codigoCampanha
+                    locacao.getValorBase()  // valorBase para determinar comissão diferenciada
+                );
+                log.info("Commission calculated for locacao={}, vendedor={}", locacaoId, locacao.getVendedorId());
+            } catch (Exception e) {
+                // Log error but don't fail checkout - commission can be calculated later
+                log.warn("Failed to calculate commission for locacao={}: {}", locacaoId, e.getMessage());
+            }
+
+            // 12.2 Auto-register seller attendance if not already registered for the day
+            try {
+                LocalDate dataVenda = dataCheckOut.toLocalDate();
+                boolean presencaExiste = presencaVendedorRepository.existsByVendedorIdAndDtReferencia(
+                    locacao.getVendedorId(), dataVenda
+                );
+
+                if (!presencaExiste) {
+                    Vendedor vendedor = vendedorRepository.findById(locacao.getVendedorId()).orElse(null);
+                    if (vendedor != null) {
+                        BigDecimal valorDiaria = vendedor.getDiariaBase() != null
+                            ? vendedor.getDiariaBase().multiply(BigDecimal.valueOf(TipoPresenca.INTEGRAL.getFator()))
+                            : BigDecimal.ZERO;
+
+                        PresencaVendedor presenca = PresencaVendedor.builder()
+                            .tenantId(tenantId)
+                            .vendedor(vendedor)
+                            .dtReferencia(dataVenda)
+                            .tipo(TipoPresenca.INTEGRAL)
+                            .valorDiaria(valorDiaria)
+                            .motivoAjuste("Presença registrada automaticamente por venda")
+                            .registradoPor(TenantContext.getUsuarioId())
+                            .build();
+
+                        presencaVendedorRepository.save(presenca);
+                        log.info("Auto-registered attendance for vendedor={} on date={}",
+                                 locacao.getVendedorId(), dataVenda);
+                    }
+                } else {
+                    log.debug("Attendance already exists for vendedor={} on date={}",
+                              locacao.getVendedorId(), dataVenda);
+                }
+            } catch (Exception e) {
+                // Log error but don't fail checkout - attendance can be registered manually
+                log.warn("Failed to auto-register attendance for locacao={}: {}", locacaoId, e.getMessage());
+            }
+        }
 
         // 13. Publish check-out event for audit logging
         UUID operadorId = TenantContext.getUsuarioId();
@@ -599,10 +713,275 @@ public class LocacaoService {
         locacao.setDataCheckIn(dataCheckIn);
         locacao = locacaoRepository.save(locacao);
 
-        log.info("Data de check-in atualizada: locacao={}, de {} para {}",
-                 locacaoId, oldDataCheckIn, dataCheckIn);
+        // 5. Publish audit event
+        UUID operadorId = TenantContext.getUsuarioId();
+        eventPublisher.publishEvent(DataCheckInAlteradaEvent.of(
+            tenantId, locacaoId, operadorId, oldDataCheckIn, dataCheckIn
+        ));
+
+        log.info("Data de check-in atualizada: locacao={}, de {} para {}, operador={}",
+                 locacaoId, oldDataCheckIn, dataCheckIn, operadorId);
 
         return locacao;
+    }
+
+    /**
+     * Edit a finalized rental (FINALIZADA status).
+     *
+     * <p>Business Rules:
+     * <ul>
+     *   <li>Locação must be in FINALIZADA status</li>
+     *   <li>FechamentoDiario for the rental's checkout date must NOT be bloqueado</li>
+     *   <li>Only GERENTE or ADMIN_TENANT can perform this action (checked via ABAC)</li>
+     *   <li>All changes are logged to audit trail</li>
+     * </ul>
+     *
+     * @param tenantId      Tenant ID
+     * @param locacaoId     Locacao ID
+     * @param request       Fields to update (only non-null fields are applied)
+     * @param recalcular    If true, recalculate derived values (minutosFaturaveis, valorBase, valorTotal)
+     *                      If false, use values provided in request as-is (manual override)
+     * @return Updated Locacao
+     * @throws NotFoundException if locacao not found
+     * @throws BusinessException if validation fails
+     *
+     * @since 0.11.0
+     */
+    @Transactional
+    public Locacao editLocacaoFinalizada(UUID tenantId, UUID locacaoId,
+                                          EditFinalizadaLocacaoRequest request,
+                                          boolean recalcular) {
+        log.info("Editing finalized locacao: tenant={}, locacao={}, recalcular={}",
+                 tenantId, locacaoId, recalcular);
+
+        // 1. Find and validate locacao
+        Locacao locacao = locacaoRepository.findByIdAndTenantId(locacaoId, tenantId)
+            .orElseThrow(() -> new NotFoundException("Locação não encontrada: " + locacaoId));
+
+        // 2. Validate status - must be FINALIZADA
+        if (!locacao.isFinalizada()) {
+            throw new BusinessException(
+                String.format("Apenas locações FINALIZADA podem ser editadas por este endpoint (status atual: %s)",
+                              locacao.getStatus())
+            );
+        }
+
+        // 3. Determine reference date for fechamento check
+        LocalDate dataReferencia = determineReferenceDate(locacao, request);
+
+        // 4. Check if FechamentoDiario for reference date is bloqueado
+        if (fechamentoDiarioRepository.existsBloqueadoParaData(tenantId, dataReferencia)) {
+            throw new BusinessException(
+                String.format("Não é possível editar locação: fechamento do dia %s está bloqueado",
+                              dataReferencia)
+            );
+        }
+
+        // 5. Capture previous state for audit and commission recalculation
+        Map<String, Object> dadosAnteriores = captureLocacaoState(locacao);
+        UUID vendedorIdAntigo = locacao.getVendedorId();
+
+        // 6. Apply updates
+        applyEdits(locacao, request);
+
+        // 7. Recalculate derived values if requested
+        if (recalcular) {
+            recalculateValues(locacao, request);
+        }
+
+        // 8. Save
+        locacao = locacaoRepository.save(locacao);
+
+        // 9. Capture new state for audit
+        Map<String, Object> dadosNovos = captureLocacaoState(locacao);
+
+        // 10. Publish audit event
+        UUID operadorId = TenantContext.getUsuarioId();
+        eventPublisher.publishEvent(LocacaoEditadaEvent.of(
+            tenantId, locacaoId, operadorId,
+            dadosAnteriores, dadosNovos,
+            request.getMotivoEdicao()
+        ));
+
+        // 11. Recalculate commission if vendedor or values changed
+        UUID vendedorIdNovo = locacao.getVendedorId();
+        boolean vendedorMudou = (vendedorIdAntigo == null && vendedorIdNovo != null) ||
+                                (vendedorIdAntigo != null && !vendedorIdAntigo.equals(vendedorIdNovo));
+        boolean valoresMudaram = request.getValorTotal() != null || request.getCombustivelCusto() != null;
+
+        if (vendedorMudou || (valoresMudaram && vendedorIdNovo != null)) {
+            try {
+                // Get modelo from jetski
+                Jetski jetski = jetskiService.findById(locacao.getJetskiId());
+                Modelo modelo = modeloService.findById(jetski.getModeloId());
+
+                commissionService.recalcularComissaoLocacao(
+                    tenantId,
+                    locacaoId,
+                    vendedorIdAntigo,
+                    vendedorIdNovo,
+                    modelo.getId(),
+                    locacao.getMinutosFaturaveis() != null ? locacao.getMinutosFaturaveis() : 0,
+                    locacao.getValorTotal(),
+                    locacao.getCombustivelCusto(),
+                    locacao.getValorBase()  // valorBase para determinar comissão diferenciada
+                );
+                log.info("Commission recalculated for edited locacao: {}", locacaoId);
+            } catch (Exception e) {
+                // Log error but don't fail the edit - commission can be fixed manually
+                log.warn("Failed to recalculate commission for locacao {}: {}", locacaoId, e.getMessage());
+            }
+        }
+
+        log.info("Finalized locacao edited successfully: locacao={}, operator={}, motivo={}",
+                 locacaoId, operadorId, request.getMotivoEdicao());
+
+        return locacao;
+    }
+
+    /**
+     * Determine the reference date for fechamento validation.
+     * Uses checkout date from request if provided, otherwise uses existing checkout date.
+     */
+    private LocalDate determineReferenceDate(Locacao locacao, EditFinalizadaLocacaoRequest request) {
+        if (request.getDataCheckOut() != null) {
+            return request.getDataCheckOut().toLocalDate();
+        }
+        return locacao.getDataCheckOut().toLocalDate();
+    }
+
+    /**
+     * Capture current locacao state for audit trail.
+     */
+    private Map<String, Object> captureLocacaoState(Locacao locacao) {
+        Map<String, Object> state = new HashMap<>();
+        state.put("dataCheckIn", locacao.getDataCheckIn());
+        state.put("dataCheckOut", locacao.getDataCheckOut());
+        state.put("horimetroInicio", locacao.getHorimetroInicio());
+        state.put("horimetroFim", locacao.getHorimetroFim());
+        state.put("minutosUsados", locacao.getMinutosUsados());
+        state.put("minutosFaturaveis", locacao.getMinutosFaturaveis());
+        state.put("valorBase", locacao.getValorBase());
+        state.put("valorNegociado", locacao.getValorNegociado());
+        state.put("valorTotal", locacao.getValorTotal());
+        state.put("combustivelCusto", locacao.getCombustivelCusto());
+        state.put("motivoDesconto", locacao.getMotivoDesconto());
+        state.put("observacoes", locacao.getObservacoes());
+        state.put("vendedorId", locacao.getVendedorId());
+        return state;
+    }
+
+    /**
+     * Apply edits from request to locacao entity.
+     * Only non-null values are applied.
+     */
+    private void applyEdits(Locacao locacao, EditFinalizadaLocacaoRequest request) {
+        if (request.getDataCheckIn() != null) {
+            locacao.setDataCheckIn(request.getDataCheckIn());
+        }
+        if (request.getDataCheckOut() != null) {
+            locacao.setDataCheckOut(request.getDataCheckOut());
+        }
+        if (request.getHorimetroInicio() != null) {
+            locacao.setHorimetroInicio(request.getHorimetroInicio());
+        }
+        if (request.getHorimetroFim() != null) {
+            locacao.setHorimetroFim(request.getHorimetroFim());
+        }
+        if (request.getMinutosUsados() != null) {
+            locacao.setMinutosUsados(request.getMinutosUsados());
+        }
+        if (request.getMinutosFaturaveis() != null) {
+            locacao.setMinutosFaturaveis(request.getMinutosFaturaveis());
+        }
+        if (request.getValorBase() != null) {
+            locacao.setValorBase(request.getValorBase());
+        }
+        if (request.getValorNegociado() != null) {
+            locacao.setValorNegociado(request.getValorNegociado());
+        }
+        if (request.getValorTotal() != null) {
+            locacao.setValorTotal(request.getValorTotal());
+        }
+        if (request.getCombustivelCusto() != null) {
+            locacao.setCombustivelCusto(request.getCombustivelCusto());
+        }
+        if (request.getMotivoDesconto() != null) {
+            locacao.setMotivoDesconto(request.getMotivoDesconto());
+        }
+        if (request.getVendedorId() != null) {
+            locacao.setVendedorId(request.getVendedorId());
+        }
+        if (request.getObservacoes() != null) {
+            // Append to existing observations with edit marker
+            String currentObs = locacao.getObservacoes();
+            String editNote = String.format("[EDIÇÃO] %s", request.getObservacoes());
+            locacao.setObservacoes(currentObs == null ? editNote : currentObs + "\n" + editNote);
+        }
+    }
+
+    /**
+     * Recalculate derived values based on updated base values.
+     * Only recalculates values that were NOT explicitly provided in the request.
+     *
+     * @param locacao The locacao entity with applied edits
+     * @param request The original request (used to check which values were explicitly provided)
+     */
+    private void recalculateValues(Locacao locacao, EditFinalizadaLocacaoRequest request) {
+        // Recalculate minutosUsados from check-in/check-out (only if NOT provided by user)
+        if (request.getMinutosUsados() == null &&
+            locacao.getDataCheckIn() != null && locacao.getDataCheckOut() != null) {
+            int minutosUsados = calculatorService.calculateUsedMinutes(
+                locacao.getDataCheckIn(),
+                locacao.getDataCheckOut()
+            );
+            locacao.setMinutosUsados(minutosUsados);
+        }
+
+        // Recalculate minutosFaturaveis with tolerance (only if NOT provided by user)
+        if (locacao.getMinutosUsados() != null && locacao.getJetskiId() != null) {
+            Jetski jetski = jetskiService.findById(locacao.getJetskiId());
+            Modelo modelo = modeloService.findById(jetski.getModeloId());
+            int toleranciaMinutos = modelo.getToleranciaMin() != null ? modelo.getToleranciaMin() : 0;
+
+            // Only recalculate minutosFaturaveis if NOT provided by user
+            if (request.getMinutosFaturaveis() == null) {
+                int minutosFaturaveis = calculatorService.calculateBillableMinutes(
+                    locacao.getMinutosUsados(),
+                    toleranciaMinutos
+                );
+                locacao.setMinutosFaturaveis(minutosFaturaveis);
+            }
+
+            // Recalculate valorBase (only if NOT provided by user AND no valorNegociado)
+            if (request.getValorBase() == null) {
+                if (locacao.getValorNegociado() == null) {
+                    BigDecimal valorBase = calculatorService.calculateBaseValue(
+                        locacao.getMinutosFaturaveis(),
+                        modelo.getPrecoBaseHora()
+                    );
+                    locacao.setValorBase(valorBase);
+                } else {
+                    locacao.setValorBase(locacao.getValorNegociado());
+                }
+            }
+            // If user provided valorBase, it's already set by applyEdits() - respect it!
+        }
+
+        // Recalculate valorTotal = valorBase + combustivelCusto + itensOpcionais (only if NOT provided by user)
+        if (request.getValorTotal() == null && locacao.getValorBase() != null) {
+            BigDecimal valorTotal = locacao.getValorBase();
+            if (locacao.getCombustivelCusto() != null) {
+                valorTotal = valorTotal.add(locacao.getCombustivelCusto());
+            }
+            BigDecimal valorItensOpcionais = locacaoItemOpcionalRepository
+                .sumValorCobradoByLocacaoId(locacao.getId());
+            if (valorItensOpcionais != null) {
+                valorTotal = valorTotal.add(valorItensOpcionais);
+            }
+            locacao.setValorTotal(valorTotal);
+        }
+        // If user provided valorTotal, it's already set by applyEdits() - respect it!
     }
 
     // ===================================================================
