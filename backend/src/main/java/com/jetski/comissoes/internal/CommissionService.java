@@ -1,7 +1,7 @@
 package com.jetski.comissoes.internal;
 
-import com.jetski.bonus.internal.BonusService;
 import com.jetski.comissoes.domain.*;
+import com.jetski.comissoes.event.ComissaoCalculadaEvent;
 import com.jetski.comissoes.internal.repository.ComissaoRepository;
 import com.jetski.comissoes.internal.repository.PoliticaComissaoRepository;
 import com.jetski.shared.exception.BusinessException;
@@ -11,7 +11,7 @@ import com.jetski.tenant.domain.Tenant;
 import com.jetski.tenant.internal.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +48,7 @@ public class CommissionService {
     private final ComissaoRepository comissaoRepository;
     private final PoliticaComissaoRepository politicaRepository;
     private final TenantRepository tenantRepository;
-    private final BonusService bonusService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Calcula comissão para uma locação
@@ -212,7 +212,7 @@ public class CommissionService {
         // Verificar e criar bonus se venda foi acima do preço base
         if (vendaAcimaPrecoBase && vendedorId != null) {
             try {
-                bonusService.verificarECriarBonus(tenantId, vendedorId);
+                eventPublisher.publishEvent(new ComissaoCalculadaEvent(tenantId, vendedorId));
             } catch (Exception e) {
                 // Log but don't fail the commission calculation
                 log.warn("Erro ao verificar bonus para vendedor {}: {}", vendedorId, e.getMessage());

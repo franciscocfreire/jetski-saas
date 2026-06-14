@@ -3,6 +3,7 @@ package com.jetski.bonus.internal;
 import com.jetski.bonus.domain.BonusVendedor;
 import com.jetski.bonus.domain.StatusBonus;
 import com.jetski.bonus.internal.repository.BonusVendedorRepository;
+import com.jetski.comissoes.event.ComissaoCalculadaEvent;
 import com.jetski.comissoes.internal.repository.ComissaoRepository;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
@@ -11,6 +12,7 @@ import com.jetski.tenant.domain.Tenant;
 import com.jetski.tenant.internal.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +47,15 @@ public class BonusService {
      * @param tenantId Tenant ID
      * @param vendedorId Seller ID
      */
+    /**
+     * Escuta a comissão calculada acima do preço base e cria bônus se elegível.
+     * Desacopla bonus de comissoes (evita ciclo): comissoes apenas publica o evento.
+     */
+    @EventListener
+    public void onComissaoCalculada(ComissaoCalculadaEvent event) {
+        verificarECriarBonus(event.tenantId(), event.vendedorId());
+    }
+
     @Transactional
     public void verificarECriarBonus(UUID tenantId, UUID vendedorId) {
         log.debug("Checking bonus eligibility for vendedor: {}", vendedorId);

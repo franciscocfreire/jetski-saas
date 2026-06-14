@@ -1,7 +1,7 @@
 package com.jetski.locacoes.internal;
 
 import com.jetski.combustivel.internal.LocacaoFuelData;
-import com.jetski.fechamento.internal.repository.FechamentoDiarioRepository;
+import com.jetski.locacoes.api.FechamentoLockChecker;
 import com.jetski.locacoes.api.dto.EditFinalizadaLocacaoRequest;
 import com.jetski.locacoes.domain.*;
 import com.jetski.locacoes.event.CheckInEvent;
@@ -10,7 +10,7 @@ import com.jetski.locacoes.event.DataCheckInAlteradaEvent;
 import com.jetski.locacoes.event.LocacaoEditadaEvent;
 import com.jetski.locacoes.event.RentalCompletedEvent;
 import com.jetski.shared.security.TenantContext;
-import com.jetski.shared.time.TenantTimeService;
+import com.jetski.tenant.TenantTimeService;
 import com.jetski.comissoes.internal.CommissionService;
 import com.jetski.locacoes.internal.repository.LocacaoItemOpcionalRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
@@ -60,7 +60,7 @@ public class LocacaoService {
     private final LocacaoRepository locacaoRepository;
     private final ReservaRepository reservaRepository;
     private final LocacaoItemOpcionalRepository locacaoItemOpcionalRepository;
-    private final FechamentoDiarioRepository fechamentoDiarioRepository;
+    private final FechamentoLockChecker fechamentoLockChecker;
     private final PresencaVendedorRepository presencaVendedorRepository;
     private final VendedorRepository vendedorRepository;
     private final JetskiService jetskiService;
@@ -770,7 +770,7 @@ public class LocacaoService {
         LocalDate dataReferencia = determineReferenceDate(locacao, request);
 
         // 4. Check if FechamentoDiario for reference date is bloqueado
-        if (fechamentoDiarioRepository.existsBloqueadoParaData(tenantId, dataReferencia)) {
+        if (fechamentoLockChecker.isDataBloqueada(tenantId, dataReferencia)) {
             throw new BusinessException(
                 String.format("Não é possível editar locação: fechamento do dia %s está bloqueado",
                               dataReferencia)

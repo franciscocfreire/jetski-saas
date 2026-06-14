@@ -14,7 +14,7 @@ import com.jetski.reservas.domain.event.ReservationConfirmedEvent;
 import com.jetski.reservas.domain.event.ReservationCreatedEvent;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.security.TenantContext;
-import com.jetski.shared.time.TenantTimeService;
+import com.jetski.tenant.TenantTimeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;

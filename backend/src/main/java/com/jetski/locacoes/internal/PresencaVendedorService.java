@@ -1,8 +1,8 @@
 package com.jetski.locacoes.internal;
 
-import com.jetski.fechamento.domain.FechamentoDiario;
-import com.jetski.fechamento.internal.repository.FechamentoDiarioRepository;
+import com.jetski.locacoes.api.FechamentoLockChecker;
 import com.jetski.locacoes.api.dto.*;
+import com.jetski.locacoes.event.DiariasVendedoresAtualizadasEvent;
 import com.jetski.locacoes.domain.PresencaVendedor;
 import com.jetski.locacoes.domain.TipoPresenca;
 import com.jetski.locacoes.domain.Vendedor;
@@ -13,6 +13,7 @@ import com.jetski.shared.security.TenantContext;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,7 +48,8 @@ public class PresencaVendedorService {
 
     private final PresencaVendedorRepository presencaRepository;
     private final VendedorRepository vendedorRepository;
-    private final FechamentoDiarioRepository fechamentoRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final FechamentoLockChecker fechamentoLockChecker;
     private final EntityManager entityManager;
 
     /**
@@ -259,28 +261,19 @@ public class PresencaVendedorService {
      * Validate that daily closing is open or doesn't exist yet.
      */
     private void validateFechamentoAberto(UUID tenantId, LocalDate dtReferencia) {
-        fechamentoRepository.findByTenantIdAndDtReferencia(tenantId, dtReferencia)
-                .ifPresent(fechamento -> {
-                    if (Boolean.TRUE.equals(fechamento.getBloqueado())) {
-                        throw new BusinessException("Fechamento bloqueado para edição: " + dtReferencia);
-                    }
-                    if ("FECHADO".equals(fechamento.getStatus())) {
-                        throw new BusinessException("Fechamento já está fechado: " + dtReferencia);
-                    }
-                });
+        if (fechamentoLockChecker.isFechamentoNaoEditavel(tenantId, dtReferencia)) {
+            throw new BusinessException("Fechamento bloqueado ou já fechado para edição: " + dtReferencia);
+        }
     }
 
     /**
      * Update daily closing total attendance value.
      */
     private void updateFechamentoDiario(UUID tenantId, LocalDate dtReferencia) {
-        fechamentoRepository.findByTenantIdAndDtReferencia(tenantId, dtReferencia)
-                .ifPresent(fechamento -> {
-                    BigDecimal totalDiarias = presencaRepository.sumTotalDiariasByDate(tenantId, dtReferencia);
-                    fechamento.setTotalDiariasVendedores(totalDiarias);
-                    fechamentoRepository.save(fechamento);
-                    log.debug("Updated fechamento total diarias: {}", totalDiarias);
-                });
+        // Calcula o total e notifica o módulo fechamento via evento (desacoplamento).
+        BigDecimal totalDiarias = presencaRepository.sumTotalDiariasByDate(tenantId, dtReferencia);
+        eventPublisher.publishEvent(
+                new DiariasVendedoresAtualizadasEvent(tenantId, dtReferencia, totalDiarias));
     }
 
     /**

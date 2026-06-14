@@ -1,7 +1,7 @@
 package com.jetski.comissoes.internal;
 
 import com.jetski.comissoes.domain.*;
-import com.jetski.bonus.internal.BonusService;
+import org.springframework.context.ApplicationEventPublisher;
 import com.jetski.comissoes.internal.repository.ComissaoRepository;
 import com.jetski.comissoes.internal.repository.PoliticaComissaoRepository;
 import com.jetski.shared.exception.BusinessException;
@@ -53,7 +53,7 @@ class CommissionServiceTest {
     private TenantRepository tenantRepository;
 
     @Mock
-    private BonusService bonusService;
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private CommissionService commissionService;

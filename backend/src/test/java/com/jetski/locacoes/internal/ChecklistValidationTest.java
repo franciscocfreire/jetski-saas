@@ -1,7 +1,7 @@
 package com.jetski.locacoes.internal;
 
 import com.jetski.comissoes.internal.CommissionService;
-import com.jetski.fechamento.internal.repository.FechamentoDiarioRepository;
+import com.jetski.locacoes.api.FechamentoLockChecker;
 import com.jetski.locacoes.domain.*;
 import com.jetski.locacoes.internal.repository.FotoRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
@@ -9,7 +9,7 @@ import com.jetski.locacoes.internal.repository.PresencaVendedorRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
 import com.jetski.locacoes.internal.repository.VendedorRepository;
 import com.jetski.shared.exception.BusinessException;
-import com.jetski.shared.time.TenantTimeService;
+import com.jetski.tenant.TenantTimeService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -75,7 +75,7 @@ class ChecklistValidationTest {
     private FotoRepository fotoRepository;
 
     @Mock
-    private FechamentoDiarioRepository fechamentoDiarioRepository;
+    private FechamentoLockChecker fechamentoLockChecker;
 
     @Mock
     private PresencaVendedorRepository presencaVendedorRepository;

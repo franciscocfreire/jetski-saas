@@ -1,7 +1,6 @@
-package com.jetski.shared.time;
+package com.jetski.tenant;
 
 import com.jetski.shared.security.TenantContext;
-import com.jetski.tenant.TenantQueryService;
 import com.jetski.tenant.domain.Tenant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
