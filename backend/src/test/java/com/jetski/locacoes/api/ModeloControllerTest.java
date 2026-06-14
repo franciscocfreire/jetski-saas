@@ -129,7 +129,7 @@ class ModeloControllerTest extends AbstractIntegrationTest {
         // When/Then: GET /v1/tenants/{tenantId}/modelos
         mockMvc.perform(get("/v1/tenants/{tenantId}/modelos", TENANT_ID)
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", hasSize(1)))
             .andExpect(jsonPath("$[0].id").value(testModelo.getId().toString()))
@@ -156,7 +156,7 @@ class ModeloControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/v1/tenants/{tenantId}/modelos", TENANT_ID)
                 .param("includeInactive", "true")
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", hasSize(2)));
     }
@@ -167,7 +167,7 @@ class ModeloControllerTest extends AbstractIntegrationTest {
         // When/Then: GET /v1/tenants/{tenantId}/modelos/{id}
         mockMvc.perform(get("/v1/tenants/{tenantId}/modelos/{id}", TENANT_ID, testModelo.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testModelo.getId().toString()))
             .andExpect(jsonPath("$.fabricante").value("Sea-Doo"))
@@ -189,7 +189,7 @@ class ModeloControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").exists())
             .andExpect(jsonPath("$.fabricante").value("Kawasaki"))
@@ -211,7 +211,7 @@ class ModeloControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testModelo.getId().toString()))
             .andExpect(jsonPath("$.precoBaseHora").value(220.00));
@@ -223,7 +223,7 @@ class ModeloControllerTest extends AbstractIntegrationTest {
         // When/Then: DELETE /v1/tenants/{tenantId}/modelos/{id}
         mockMvc.perform(delete("/v1/tenants/{tenantId}/modelos/{id}", TENANT_ID, testModelo.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testModelo.getId().toString()))
             .andExpect(jsonPath("$.ativo").value(false));
@@ -239,7 +239,7 @@ class ModeloControllerTest extends AbstractIntegrationTest {
         // When/Then: POST /v1/tenants/{tenantId}/modelos/{id}/reactivate
         mockMvc.perform(post("/v1/tenants/{tenantId}/modelos/{id}/reactivate", TENANT_ID, testModelo.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testModelo.getId().toString()))
             .andExpect(jsonPath("$.ativo").value(true));
@@ -257,7 +257,7 @@ class ModeloControllerTest extends AbstractIntegrationTest {
         // When/Then: GET /v1/tenants/{tenantId}/modelos/{id}
         mockMvc.perform(get("/v1/tenants/{tenantId}/modelos/{id}", TENANT_ID, nonExistentId)
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -283,7 +283,7 @@ class ModeloControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 }

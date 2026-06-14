@@ -145,7 +145,7 @@ class JetskiControllerTest extends AbstractIntegrationTest {
     void testListJetskis_ActiveOnly() throws Exception {
         mockMvc.perform(get("/v1/tenants/{tenantId}/jetskis", TENANT_ID)
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", hasSize(1)))
             .andExpect(jsonPath("$[0].id").value(testJetski.getId().toString()))
@@ -159,7 +159,7 @@ class JetskiControllerTest extends AbstractIntegrationTest {
     void testGetJetski_ById() throws Exception {
         mockMvc.perform(get("/v1/tenants/{tenantId}/jetskis/{id}", TENANT_ID, testJetski.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testJetski.getId().toString()))
             .andExpect(jsonPath("$.serie").value("SDI-GTI-2024-001"))
@@ -180,7 +180,7 @@ class JetskiControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").exists())
             .andExpect(jsonPath("$.serie").value("SDI-GTI-2024-002"))
@@ -199,7 +199,7 @@ class JetskiControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testJetski.getId().toString()))
             .andExpect(jsonPath("$.horimetroAtual").value(150));
@@ -211,7 +211,7 @@ class JetskiControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(patch("/v1/tenants/{tenantId}/jetskis/{id}/status", TENANT_ID, testJetski.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .param("status", "MANUTENCAO")
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testJetski.getId().toString()))
             .andExpect(jsonPath("$.status").value("MANUTENCAO"));
@@ -222,7 +222,7 @@ class JetskiControllerTest extends AbstractIntegrationTest {
     void testDeactivateJetski() throws Exception {
         mockMvc.perform(delete("/v1/tenants/{tenantId}/jetskis/{id}", TENANT_ID, testJetski.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testJetski.getId().toString()))
             .andExpect(jsonPath("$.ativo").value(false));
@@ -237,7 +237,7 @@ class JetskiControllerTest extends AbstractIntegrationTest {
 
         mockMvc.perform(post("/v1/tenants/{tenantId}/jetskis/{id}/reactivate", TENANT_ID, testJetski.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testJetski.getId().toString()))
             .andExpect(jsonPath("$.ativo").value(true));
@@ -254,7 +254,7 @@ class JetskiControllerTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/v1/tenants/{tenantId}/jetskis/{id}", TENANT_ID, nonExistentId)
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -277,7 +277,7 @@ class JetskiControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 }

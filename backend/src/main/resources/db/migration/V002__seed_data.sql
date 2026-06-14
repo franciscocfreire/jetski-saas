@@ -171,6 +171,11 @@ INSERT INTO global_role (name, description) VALUES
 INSERT INTO usuario (id, email, nome, ativo) VALUES
 ('11111111-1111-1111-1111-111111111111', 'test.user@acme.com', 'Test User', TRUE);
 
+-- Usuário admin de teste (autor de convites / ator de auditoria nos testes de
+-- UserInvitation e MemberManagement, que mockam validateAccess).
+INSERT INTO usuario (id, email, nome, ativo) VALUES
+('10000000-0000-0000-0000-000000000001', 'admin.test@acme.com', 'Admin Test User', TRUE);
+
 INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id, linked_at) VALUES
 ('11111111-1111-1111-1111-111111111111', 'keycloak', '11111111-1111-1111-1111-111111111111', NOW());
 
@@ -186,3 +191,12 @@ INSERT INTO tenant_access (usuario_id, tenant_id, roles, is_default) VALUES
 INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, status) VALUES
 ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', (SELECT id FROM plano WHERE nome = 'Pro'), 'mensal', '2025-01-01', 'ativa'),
 ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', (SELECT id FROM plano WHERE nome = 'Pro'), 'mensal', '2025-01-01', 'ativa');
+
+-- ============================================================================
+-- CONVITE pendente (fixture) — usado por UserInvitationIntegrationTest
+-- (shouldRejectDuplicatePendingInvitation espera um convite PENDING existente)
+-- ============================================================================
+INSERT INTO convite (tenant_id, email, nome, papeis, token, expires_at, status, created_by) VALUES
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'pending.user@example.com', 'Pending User',
+ ARRAY['OPERADOR'], 'seed-token-pending-fixture-001', NOW() + INTERVAL '7 days', 'PENDING',
+ '10000000-0000-0000-0000-000000000001');

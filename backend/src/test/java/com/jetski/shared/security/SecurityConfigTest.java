@@ -199,8 +199,12 @@ class SecurityConfigTest extends AbstractIntegrationTest {
             .containsExactlyInAnyOrder(
                 "http://localhost:3000",
                 "http://localhost:3001",
+                "http://localhost:3002",
+                "https://*.ngrok-free.app",
                 "https://*.jetski.app",
-                "https://*.jetski.com.br"
+                "https://*.jetski.com.br",
+                "https://pegaojet.com.br",
+                "https://*.pegaojet.com.br"
             );
     }
 

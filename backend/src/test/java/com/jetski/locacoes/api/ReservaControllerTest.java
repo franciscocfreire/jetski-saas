@@ -193,7 +193,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
     void testListReservas_ActiveOnly() throws Exception {
         mockMvc.perform(get("/v1/tenants/{tenantId}/reservas", TENANT_ID)
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", hasSize(1)))
             .andExpect(jsonPath("$[0].id").value(testReserva.getId().toString()))
@@ -222,7 +222,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/v1/tenants/{tenantId}/reservas?status=PENDENTE", TENANT_ID)
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", hasSize(1)))
             .andExpect(jsonPath("$[0].status").value("PENDENTE"));
@@ -233,7 +233,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
     void testGetReserva_ById() throws Exception {
         mockMvc.perform(get("/v1/tenants/{tenantId}/reservas/{id}", TENANT_ID, testReserva.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testReserva.getId().toString()))
             .andExpect(jsonPath("$.jetskiId").value(testJetski.getId().toString()))
@@ -260,7 +260,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").exists())
             .andExpect(jsonPath("$.jetskiId").value(testJetski.getId().toString()))
@@ -297,7 +297,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(pendingReserva.getId().toString()))
             .andExpect(jsonPath("$.observacoes").value("Atualizada - mais 1 hora"));
@@ -322,7 +322,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
 
         mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/confirmar", TENANT_ID, pendingReserva.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(pendingReserva.getId().toString()))
             .andExpect(jsonPath("$.status").value("CONFIRMADA"));
@@ -333,7 +333,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
     void testCancelReserva() throws Exception {
         mockMvc.perform(delete("/v1/tenants/{tenantId}/reservas/{id}", TENANT_ID, testReserva.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testReserva.getId().toString()))
             .andExpect(jsonPath("$.status").value("CANCELADA"));
@@ -361,7 +361,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -386,7 +386,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -407,7 +407,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -422,7 +422,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/v1/tenants/{tenantId}/reservas/{id}", TENANT_ID, nonExistentId)
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -446,7 +446,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -465,7 +465,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -478,7 +478,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody)
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.sinalPago").value(true))
             .andExpect(jsonPath("$.prioridade").value("ALTA"))
@@ -501,7 +501,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody)
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -519,7 +519,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody)
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.jetskiId").value(testJetski.getId().toString()));
     }
@@ -539,7 +539,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody)
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -554,7 +554,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .param("modeloId", testModelo.getId().toString())
                 .param("dataInicio", dataInicio.toString())
                 .param("dataFimPrevista", dataFim.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalJetskis").exists())
             .andExpect(jsonPath("$.aceitaComSinal").exists())
@@ -580,7 +580,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.modeloId").value(testModelo.getId().toString()))
             .andExpect(jsonPath("$.jetskiId").doesNotExist())
@@ -619,7 +619,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody)
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -636,7 +636,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody)
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -649,7 +649,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
 
         mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/confirmar", TENANT_ID, testReserva.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("CONFIRMADA"))
             .andExpect(jsonPath("$.jetskiId").doesNotExist());
@@ -672,7 +672,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody)
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -685,7 +685,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody)
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 }

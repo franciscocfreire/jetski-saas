@@ -205,7 +205,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When: Check-in from reservation
         mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/check-in/reserva", TENANT_ID)
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -255,7 +255,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When/Then: Check-in fails with 400 Bad Request
         mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/check-in/reserva", TENANT_ID)
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -289,7 +289,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When/Then: Check-in fails with 400 Bad Request
         mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/check-in/reserva", TENANT_ID)
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -320,7 +320,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When/Then: Check-in fails with 400 Bad Request
         mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/check-in/reserva", TENANT_ID)
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -348,7 +348,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When: Walk-in check-in
         mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/check-in/walk-in", TENANT_ID)
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -391,7 +391,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When/Then: Check-in fails with 400 Bad Request
         mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/check-in/walk-in", TENANT_ID)
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -434,7 +434,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When: Check-out
         mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/{id}/check-out", TENANT_ID, locacao.getId())
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -485,7 +485,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When: Check-out
         mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/{id}/check-out", TENANT_ID, locacao.getId())
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -526,7 +526,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When: Check-out
         mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/{id}/check-out", TENANT_ID, locacao.getId())
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -562,7 +562,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When/Then: Check-out fails
         mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/{id}/check-out", TENANT_ID, locacao.getId())
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -593,7 +593,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When/Then: Check-out fails
         mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/{id}/check-out", TENANT_ID, locacao.getId())
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -629,7 +629,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When/Then: Check-out fails with 400 due to missing photos
         mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/{id}/check-out", TENANT_ID, locacao.getId())
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
@@ -665,7 +665,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When: Get by ID
         mockMvc.perform(get("/v1/tenants/{tenantId}/locacoes/{id}", TENANT_ID, locacao.getId())
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
             // Then: Returns rental details
             .andExpect(status().isOk())
@@ -684,7 +684,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // When: List all
         mockMvc.perform(get("/v1/tenants/{tenantId}/locacoes", TENANT_ID)
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
             // Then: Returns all rentals
             .andExpect(status().isOk())
@@ -702,7 +702,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/v1/tenants/{tenantId}/locacoes", TENANT_ID)
                 .param("status", "EM_CURSO")
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
             // Then: Returns only EM_CURSO rentals
             .andExpect(status().isOk())
@@ -730,7 +730,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/v1/tenants/{tenantId}/locacoes", TENANT_ID)
                 .param("jetskiId", testJetski.getId().toString())
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
             // Then: Returns only rentals for that jetski
             .andExpect(status().isOk())
@@ -777,7 +777,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/v1/tenants/{tenantId}/locacoes", TENANT_ID)
                 .param("clienteId", testCliente.getId().toString())
                 .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
-                                         .claim("sub", USER_ID.toString())))
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
                 .header("X-Tenant-Id", TENANT_ID.toString()))
             // Then: Returns only rentals for that cliente
             .andExpect(status().isOk())

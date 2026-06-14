@@ -283,6 +283,11 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
                 .thenReturn(allowDecision);
 
+            // GERENTE-specific roles for this user (override default multi-role mock)
+            when(tenantAccessService.validateAccess(any(String.class), eq(GERENTE_UUID), any(UUID.class)))
+                .thenReturn(TenantAccessInfo.builder().hasAccess(true)
+                    .roles(java.util.List.of("GERENTE")).unrestricted(false).build());
+
             // When
             mockMvc.perform(get("/v1/auth-test/manager-only")
                     .with(jwtGerente())
@@ -608,6 +613,11 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
 
             when(opaAuthorizationService.authorize(any(OPAInput.class)))
                 .thenReturn(allowDecision);
+
+            // ADMIN_TENANT-specific role for this user (override default multi-role mock)
+            when(tenantAccessService.validateAccess(any(String.class), eq(ADMIN_TENANT_UUID), any(UUID.class)))
+                .thenReturn(TenantAccessInfo.builder().hasAccess(true)
+                    .roles(java.util.List.of("ADMIN_TENANT")).unrestricted(false).build());
 
             // When & Then - should allow any action
             mockMvc.perform(post("/v1/fechamentos/mensal").with(jwtAdminTenant())

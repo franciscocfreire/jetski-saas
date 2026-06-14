@@ -26,6 +26,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -159,7 +160,6 @@ class PhotoControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "test@example.com", roles = {"OPERADOR"})
     @DisplayName("Should generate presigned upload URL successfully")
     void testGenerateUploadUrl_Success() throws Exception {
         // Given
@@ -175,7 +175,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
 
         // When/Then
         mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
-                .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                .header("X-Tenant-Id", TEST_TENANT_ID.toString()).with(jwt().jwt(j -> j.subject("11111111-1111-1111-1111-111111111111").claim("tenant_id", TEST_TENANT_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"), new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
             .andExpect(status().isOk())
@@ -189,7 +189,6 @@ class PhotoControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "test@example.com", roles = {"OPERADOR"})
     @DisplayName("Should return 404 when locacao not found")
     void testGenerateUploadUrl_LocacaoNotFound() throws Exception {
         // Given
@@ -206,7 +205,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
 
         // When/Then
         mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
-                .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                .header("X-Tenant-Id", TEST_TENANT_ID.toString()).with(jwt().jwt(j -> j.subject("11111111-1111-1111-1111-111111111111").claim("tenant_id", TEST_TENANT_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"), new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
             .andExpect(status().isNotFound())
@@ -214,7 +213,6 @@ class PhotoControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "test@example.com", roles = {"OPERADOR"})
     @DisplayName("Should return 409 when photo of same type already exists")
     void testGenerateUploadUrl_DuplicatePhotoType() throws Exception {
         // Given - First upload AND confirm (uploadedAt != null)
@@ -233,7 +231,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
             """.formatted(testLocacaoId);
 
         mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
-                .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                .header("X-Tenant-Id", TEST_TENANT_ID.toString()).with(jwt().jwt(j -> j.subject("11111111-1111-1111-1111-111111111111").claim("tenant_id", TEST_TENANT_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"), new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
             .andExpect(status().isConflict())
@@ -241,7 +239,6 @@ class PhotoControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "test@example.com", roles = {"OPERADOR"})
     @DisplayName("Should return 400 when request is invalid")
     void testGenerateUploadUrl_InvalidRequest() throws Exception {
         // Given - Missing required fields
@@ -254,14 +251,13 @@ class PhotoControllerTest extends AbstractIntegrationTest {
 
         // When/Then
         mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
-                .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                .header("X-Tenant-Id", TEST_TENANT_ID.toString()).with(jwt().jwt(j -> j.subject("11111111-1111-1111-1111-111111111111").claim("tenant_id", TEST_TENANT_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"), new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
             .andExpect(status().isBadRequest());
     }
 
     @Test
-    @WithMockUser(username = "test@example.com", roles = {"OPERADOR"})
     @DisplayName("Should list photos by locacao")
     void testListFotosByLocacao_Success() throws Exception {
         // Given - Create 2 photos
@@ -270,7 +266,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
 
         // When/Then
         mockMvc.perform(get("/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}", TEST_TENANT_ID, testLocacaoId)
-                .header("X-Tenant-Id", TEST_TENANT_ID.toString()))
+                .header("X-Tenant-Id", TEST_TENANT_ID.toString()).with(jwt().jwt(j -> j.subject("11111111-1111-1111-1111-111111111111").claim("tenant_id", TEST_TENANT_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"), new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$", hasSize(2)))
@@ -279,19 +275,17 @@ class PhotoControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "test@example.com", roles = {"OPERADOR"})
     @DisplayName("Should return empty list when no photos exist")
     void testListFotosByLocacao_EmptyList() throws Exception {
         // When/Then
         mockMvc.perform(get("/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}", TEST_TENANT_ID, testLocacaoId)
-                .header("X-Tenant-Id", TEST_TENANT_ID.toString()))
+                .header("X-Tenant-Id", TEST_TENANT_ID.toString()).with(jwt().jwt(j -> j.subject("11111111-1111-1111-1111-111111111111").claim("tenant_id", TEST_TENANT_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"), new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$", hasSize(0)));
     }
 
     @Test
-    @WithMockUser(username = "test@example.com", roles = {"OPERADOR"})
     @DisplayName("Should get check-in photos status")
     void testGetCheckInPhotosStatus() throws Exception {
         // Given - Upload 2 out of 4 required photos
@@ -301,7 +295,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
         // When/Then
         mockMvc.perform(get("/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}/checkin-status",
                 TEST_TENANT_ID, testLocacaoId)
-                .header("X-Tenant-Id", TEST_TENANT_ID.toString()))
+                .header("X-Tenant-Id", TEST_TENANT_ID.toString()).with(jwt().jwt(j -> j.subject("11111111-1111-1111-1111-111111111111").claim("tenant_id", TEST_TENANT_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"), new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.uploadedCount").value(2))
             .andExpect(jsonPath("$.requiredCount").value(4))
@@ -311,7 +305,6 @@ class PhotoControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "test@example.com", roles = {"OPERADOR"})
     @DisplayName("Should return complete status when all check-in photos uploaded")
     void testGetCheckInPhotosStatus_Complete() throws Exception {
         // Given - Upload all 4 required photos
@@ -323,7 +316,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
         // When/Then
         mockMvc.perform(get("/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}/checkin-status",
                 TEST_TENANT_ID, testLocacaoId)
-                .header("X-Tenant-Id", TEST_TENANT_ID.toString()))
+                .header("X-Tenant-Id", TEST_TENANT_ID.toString()).with(jwt().jwt(j -> j.subject("11111111-1111-1111-1111-111111111111").claim("tenant_id", TEST_TENANT_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"), new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.uploadedCount").value(4))
             .andExpect(jsonPath("$.requiredCount").value(4))
@@ -333,7 +326,6 @@ class PhotoControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "test@example.com", roles = {"OPERADOR"})
     @DisplayName("Should get check-out photos status")
     void testGetCheckOutPhotosStatus() throws Exception {
         // Given - Upload 3 out of 4 required photos
@@ -344,7 +336,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
         // When/Then
         mockMvc.perform(get("/v1/tenants/{tenantId}/fotos/locacoes/{locacaoId}/checkout-status",
                 TEST_TENANT_ID, testLocacaoId)
-                .header("X-Tenant-Id", TEST_TENANT_ID.toString()))
+                .header("X-Tenant-Id", TEST_TENANT_ID.toString()).with(jwt().jwt(j -> j.subject("11111111-1111-1111-1111-111111111111").claim("tenant_id", TEST_TENANT_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"), new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.uploadedCount").value(3))
             .andExpect(jsonPath("$.requiredCount").value(4))
@@ -369,7 +361,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
 
         try {
             mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
-                    .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                    .header("X-Tenant-Id", TEST_TENANT_ID.toString()).with(jwt().jwt(j -> j.subject("11111111-1111-1111-1111-111111111111").claim("tenant_id", TEST_TENANT_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"), new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR")))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(requestBody))
                 .andExpect(status().isOk());
@@ -392,7 +384,7 @@ class PhotoControllerTest extends AbstractIntegrationTest {
         try {
             // Generate upload URL
             String response = mockMvc.perform(post("/v1/tenants/{tenantId}/fotos/upload", TEST_TENANT_ID)
-                    .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                    .header("X-Tenant-Id", TEST_TENANT_ID.toString()).with(jwt().jwt(j -> j.subject("11111111-1111-1111-1111-111111111111").claim("tenant_id", TEST_TENANT_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"), new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR")))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(requestBody))
                 .andExpect(status().isOk())

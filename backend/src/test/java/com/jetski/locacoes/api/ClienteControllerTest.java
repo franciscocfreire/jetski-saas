@@ -129,7 +129,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
     void testListClientes_ActiveOnly() throws Exception {
         mockMvc.perform(get("/v1/tenants/{tenantId}/clientes", TENANT_ID)
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", hasSize(1)))
             .andExpect(jsonPath("$[0].id").value(testCliente.getId().toString()))
@@ -144,7 +144,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
     void testGetCliente_ById() throws Exception {
         mockMvc.perform(get("/v1/tenants/{tenantId}/clientes/{id}", TENANT_ID, testCliente.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testCliente.getId().toString()))
             .andExpect(jsonPath("$.nome").value("Maria Santos"))
@@ -170,7 +170,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").exists())
             .andExpect(jsonPath("$.nome").value("João Silva"))
@@ -194,7 +194,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testCliente.getId().toString()))
             .andExpect(jsonPath("$.email").value("maria.santos.nova@email.com"))
@@ -206,7 +206,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
     void testAcceptTerms() throws Exception {
         mockMvc.perform(post("/v1/tenants/{tenantId}/clientes/{id}/accept-terms", TENANT_ID, testCliente.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testCliente.getId().toString()))
             .andExpect(jsonPath("$.termoAceite").value(true));
@@ -217,7 +217,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
     void testDeactivateCliente() throws Exception {
         mockMvc.perform(delete("/v1/tenants/{tenantId}/clientes/{id}", TENANT_ID, testCliente.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testCliente.getId().toString()))
             .andExpect(jsonPath("$.ativo").value(false));
@@ -232,7 +232,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
 
         mockMvc.perform(post("/v1/tenants/{tenantId}/clientes/{id}/reactivate", TENANT_ID, testCliente.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testCliente.getId().toString()))
             .andExpect(jsonPath("$.ativo").value(true));
@@ -249,7 +249,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/v1/tenants/{tenantId}/clientes/{id}", TENANT_ID, nonExistentId)
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -272,7 +272,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -285,7 +285,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
 
         mockMvc.perform(post("/v1/tenants/{tenantId}/clientes/{id}/accept-terms", TENANT_ID, testCliente.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.termoAceite").value(true));
     }

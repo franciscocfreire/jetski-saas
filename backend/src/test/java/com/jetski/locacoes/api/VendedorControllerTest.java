@@ -124,7 +124,7 @@ class VendedorControllerTest extends AbstractIntegrationTest {
     void testListVendedores_ActiveOnly() throws Exception {
         mockMvc.perform(get("/v1/tenants/{tenantId}/vendedores", TENANT_ID)
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", hasSize(1)))
             .andExpect(jsonPath("$[0].id").value(testVendedor.getId().toString()))
@@ -138,7 +138,7 @@ class VendedorControllerTest extends AbstractIntegrationTest {
     void testGetVendedor_ById() throws Exception {
         mockMvc.perform(get("/v1/tenants/{tenantId}/vendedores/{id}", TENANT_ID, testVendedor.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testVendedor.getId().toString()))
             .andExpect(jsonPath("$.nome").value("João Silva"))
@@ -159,7 +159,7 @@ class VendedorControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").exists())
             .andExpect(jsonPath("$.nome").value("Maria Santos"))
@@ -179,7 +179,7 @@ class VendedorControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testVendedor.getId().toString()))
             .andExpect(jsonPath("$.regraComissaoJson").exists());
@@ -190,7 +190,7 @@ class VendedorControllerTest extends AbstractIntegrationTest {
     void testDeactivateVendedor() throws Exception {
         mockMvc.perform(delete("/v1/tenants/{tenantId}/vendedores/{id}", TENANT_ID, testVendedor.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testVendedor.getId().toString()))
             .andExpect(jsonPath("$.ativo").value(false));
@@ -205,7 +205,7 @@ class VendedorControllerTest extends AbstractIntegrationTest {
 
         mockMvc.perform(post("/v1/tenants/{tenantId}/vendedores/{id}/reactivate", TENANT_ID, testVendedor.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(testVendedor.getId().toString()))
             .andExpect(jsonPath("$.ativo").value(true));
@@ -222,7 +222,7 @@ class VendedorControllerTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/v1/tenants/{tenantId}/vendedores/{id}", TENANT_ID, nonExistentId)
                 .header("X-Tenant-Id", TENANT_ID.toString())
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 
@@ -245,7 +245,7 @@ class VendedorControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request))
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString()))))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
             .andExpect(status().isBadRequest());
     }
 }
