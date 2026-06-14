@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jetski.bonus.domain.BonusVendedor;
-import com.jetski.bonus.internal.BonusService;
+import com.jetski.bonus.api.BonusService;
 import com.jetski.comissoes.domain.Comissao;
 import com.jetski.comissoes.api.CommissionService;
 import com.jetski.comissoes.api.dto.ComissaoResponse;

@@ -2,7 +2,7 @@ package com.jetski.pagamentos.internal;
 
 import com.jetski.bonus.domain.BonusVendedor;
 import com.jetski.bonus.domain.StatusBonus;
-import com.jetski.bonus.internal.repository.BonusVendedorRepository;
+import com.jetski.bonus.api.BonusService;
 import com.jetski.comissoes.domain.Comissao;
 import com.jetski.comissoes.domain.StatusComissao;
 import com.jetski.comissoes.api.ComissaoQueryService;
@@ -53,7 +53,7 @@ public class PagamentoVendedorService {
     private final VendedorRepository vendedorRepository;
     private final ComissaoQueryService comissaoQueryService;
     private final PresencaVendedorRepository presencaRepository;
-    private final BonusVendedorRepository bonusRepository;
+    private final BonusService bonusService;
 
     /**
      * List all sellers with pending payments.
@@ -127,7 +127,7 @@ public class PagamentoVendedorService {
                     .findByVendedorAndStatus(
                             tenantId, vendedorId, StatusComissao.APROVADA);
             diarias = presencaRepository.findNaoPagasByVendedor(tenantId, vendedorId);
-            bonus = bonusRepository.findAprovadosByVendedor(tenantId, vendedorId);
+            bonus = bonusService.findAprovadosByVendedor(tenantId, vendedorId);
         }
 
         // 3. Calculate totals
@@ -250,7 +250,7 @@ public class PagamentoVendedorService {
             b.setPagoEm(agora);
             b.setPagamentoId(pagamentoId);
             b.setReferenciaPagamento(request.getReferenciaPagamento());
-            bonusRepository.save(b);
+            bonusService.salvar(b);
         }
 
         log.info("Payment registered: id={}, vendor={}, type={}, total={}, comissoes={}, diarias={}, bonus={}",
@@ -282,7 +282,7 @@ public class PagamentoVendedorService {
 
     private List<BonusVendedor> getSelectedBonus(UUID tenantId, UUID vendedorId, List<UUID> ids) {
         if (ids == null || ids.isEmpty()) return List.of();
-        return bonusRepository.findAllById(ids).stream()
+        return bonusService.findByIds(ids).stream()
                 .filter(b -> b.getTenantId().equals(tenantId)
                           && b.getVendedorId().equals(vendedorId)
                           && b.getStatus() == StatusBonus.APROVADO)
@@ -375,11 +375,11 @@ public class PagamentoVendedorService {
                 .countDiariasNaoPagasByVendedor(tenantId, vendedor.getId());
 
         // Get approved bonuses
-        BigDecimal valorBonus = bonusRepository
+        BigDecimal valorBonus = bonusService
                 .sumBonusAprovadosByVendedor(tenantId, vendedor.getId());
         if (valorBonus == null) valorBonus = BigDecimal.ZERO;
 
-        int qtdBonus = bonusRepository
+        int qtdBonus = bonusService
                 .countBonusAprovadosByVendedor(tenantId, vendedor.getId());
 
         BigDecimal valorTotal = valorComissoes.add(valorDiarias).add(valorBonus);
@@ -440,7 +440,7 @@ public class PagamentoVendedorService {
                         .build()));
 
         // Add approved bonuses
-        bonusRepository.findAprovadosByVendedor(tenantId, vendedorId)
+        bonusService.findAprovadosByVendedor(tenantId, vendedorId)
                 .forEach(b -> itens.add(ItemPendente.builder()
                         .id(b.getId())
                         .tipo("BONUS")

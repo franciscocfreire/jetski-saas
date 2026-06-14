@@ -1,4 +1,4 @@
-package com.jetski.bonus.internal;
+package com.jetski.bonus.api;
 
 import com.jetski.bonus.domain.BonusVendedor;
 import com.jetski.bonus.domain.StatusBonus;
@@ -202,5 +202,35 @@ public class BonusService {
     @Transactional(readOnly = true)
     public List<BonusVendedor> listarAguardandoPagamento(UUID tenantId) {
         return bonusRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(tenantId, StatusBonus.APROVADO);
+    }
+
+    /** Bônus aprovados de um vendedor (usado pelo módulo pagamentos). */
+    @Transactional(readOnly = true)
+    public List<BonusVendedor> findAprovadosByVendedor(UUID tenantId, UUID vendedorId) {
+        return bonusRepository.findAprovadosByVendedor(tenantId, vendedorId);
+    }
+
+    /** Busca bônus por IDs (usado pelo módulo pagamentos). */
+    @Transactional(readOnly = true)
+    public List<BonusVendedor> findByIds(Iterable<UUID> ids) {
+        return bonusRepository.findAllById(ids);
+    }
+
+    /** Persiste um bônus (ex.: marcação de pagamento pelo módulo pagamentos). */
+    @Transactional
+    public BonusVendedor salvar(BonusVendedor bonus) {
+        return bonusRepository.save(bonus);
+    }
+
+    /** Soma dos bônus aprovados de um vendedor. */
+    @Transactional(readOnly = true)
+    public BigDecimal sumBonusAprovadosByVendedor(UUID tenantId, UUID vendedorId) {
+        return bonusRepository.sumBonusAprovadosByVendedor(tenantId, vendedorId);
+    }
+
+    /** Quantidade de bônus aprovados de um vendedor. */
+    @Transactional(readOnly = true)
+    public int countBonusAprovadosByVendedor(UUID tenantId, UUID vendedorId) {
+        return bonusRepository.countBonusAprovadosByVendedor(tenantId, vendedorId);
     }
 }
