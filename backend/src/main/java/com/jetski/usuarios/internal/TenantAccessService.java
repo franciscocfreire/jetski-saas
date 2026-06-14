@@ -1,5 +1,6 @@
 package com.jetski.usuarios.internal;
 
+import com.jetski.usuarios.api.IdentityProviderMappingService;
 import com.jetski.usuarios.domain.Membro;
 import com.jetski.usuarios.internal.UsuarioGlobalRoles;
 import com.jetski.usuarios.internal.repository.MembroRepository;

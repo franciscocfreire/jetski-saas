@@ -1,5 +1,6 @@
 package com.jetski.usuarios.internal;
 
+import com.jetski.usuarios.api.IdentityProviderMappingService;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.ConflictException;
 import com.jetski.shared.exception.GoneException;

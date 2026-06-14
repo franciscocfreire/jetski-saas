@@ -13,8 +13,6 @@ import com.jetski.manutencao.internal.DespesaManutencaoService;
 import com.jetski.manutencao.internal.OSManutencaoService;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.usuarios.api.UsuarioService;
-import com.jetski.usuarios.domain.Membro;
-import com.jetski.usuarios.internal.repository.MembroRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,7 +58,6 @@ public class DespesaManutencaoController {
     private final OSManutencaoService osManutencaoService;
     private final JetskiPublicService jetskiPublicService;
     private final UsuarioService usuarioService;
-    private final MembroRepository membroRepository;
 
     // ========== Gerar Despesas ==========
 
@@ -319,8 +316,6 @@ public class DespesaManutencaoController {
 
     private Integer obterMembroId(UUID tenantId, Authentication authentication) {
         UUID usuarioId = obterUsuarioId(authentication);
-        return membroRepository.findByTenantIdAndUsuarioId(tenantId, usuarioId)
-                .map(Membro::getId)
-                .orElse(null);
+        return usuarioService.findMembroId(tenantId, usuarioId).orElse(null);
     }
 }

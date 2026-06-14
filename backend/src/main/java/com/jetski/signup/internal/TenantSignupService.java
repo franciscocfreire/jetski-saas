@@ -18,8 +18,8 @@ import com.jetski.signup.internal.repository.TenantSignupRepository;
 import com.jetski.tenant.domain.Tenant;
 import com.jetski.tenant.domain.TenantStatus;
 import com.jetski.tenant.TenantProvisioningService;
-import com.jetski.usuarios.internal.IdentityProviderMappingService;
-import com.jetski.usuarios.internal.repository.UsuarioRepository;
+import com.jetski.usuarios.api.IdentityProviderMappingService;
+import com.jetski.usuarios.api.UsuarioService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -52,7 +52,7 @@ public class TenantSignupService {
 
     private final TenantProvisioningService tenantProvisioningService;
     private final TenantSignupRepository signupRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final UsuarioService usuarioService;
     private final UserProvisioningService userProvisioningService;
     private final IdentityProviderMappingService identityMappingService;
     private final EmailService emailService;
@@ -94,7 +94,7 @@ public class TenantSignupService {
         }
 
         // 2. Validate email doesn't exist
-        if (usuarioRepository.existsByEmail(request.adminEmail())) {
+        if (usuarioService.existsByEmail(request.adminEmail())) {
             throw new ConflictException(
                 "Este email já possui uma conta. Use o login para acessar ou crie a empresa pelo dashboard."
             );
@@ -200,7 +200,7 @@ public class TenantSignupService {
         }
 
         // 2. Verify user exists
-        if (!usuarioRepository.existsById(usuarioId)) {
+        if (!usuarioService.existsById(usuarioId)) {
             throw new NotFoundException("Usuário não encontrado");
         }
 

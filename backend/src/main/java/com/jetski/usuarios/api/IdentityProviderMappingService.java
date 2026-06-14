@@ -1,4 +1,4 @@
-package com.jetski.usuarios.internal;
+package com.jetski.usuarios.api;
 
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.shared.exception.ConflictException;

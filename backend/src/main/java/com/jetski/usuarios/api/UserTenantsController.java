@@ -5,7 +5,7 @@ import com.jetski.tenant.domain.Tenant;
 import com.jetski.usuarios.api.dto.TenantSummary;
 import com.jetski.usuarios.api.dto.UserTenantsResponse;
 import com.jetski.usuarios.domain.Membro;
-import com.jetski.usuarios.internal.IdentityProviderMappingService;
+import com.jetski.usuarios.api.IdentityProviderMappingService;
 import com.jetski.usuarios.internal.TenantAccessService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

@@ -6,7 +6,7 @@ import com.jetski.shared.authorization.dto.OPADecision;
 import com.jetski.shared.authorization.dto.OPAInput;
 import com.jetski.usuarios.api.dto.UserTenantsResponse;
 import com.jetski.usuarios.domain.Membro;
-import com.jetski.usuarios.internal.IdentityProviderMappingService;
+import com.jetski.usuarios.api.IdentityProviderMappingService;
 import com.jetski.usuarios.internal.TenantAccessService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

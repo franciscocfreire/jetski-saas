@@ -4,7 +4,7 @@ import com.jetski.integration.AbstractIntegrationTest;
 import com.jetski.shared.authorization.OPAAuthorizationService;
 import com.jetski.shared.authorization.dto.OPADecision;
 import com.jetski.shared.authorization.dto.OPAInput;
-import com.jetski.usuarios.internal.IdentityProviderMappingService;
+import com.jetski.usuarios.api.IdentityProviderMappingService;
 import com.jetski.usuarios.internal.TenantAccessService;
 import com.jetski.shared.security.TenantAccessInfo;
 import org.junit.jupiter.api.BeforeEach;

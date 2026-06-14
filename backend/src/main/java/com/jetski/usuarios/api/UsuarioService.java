@@ -2,7 +2,9 @@ package com.jetski.usuarios.api;
 
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.usuarios.domain.Usuario;
+import com.jetski.usuarios.internal.repository.MembroRepository;
 import com.jetski.usuarios.internal.repository.UsuarioRepository;
+import com.jetski.usuarios.domain.Membro;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,7 @@ import java.util.UUID;
 public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
+    private final MembroRepository membroRepository;
 
     /**
      * Find user by email
@@ -85,5 +88,25 @@ public class UsuarioService {
         usuarioRepository.findAllById(ids)
                 .forEach(u -> result.put(u.getId(), u.getNome()));
         return result;
+    }
+
+    /** @return true se já existe usuário com o e-mail informado. */
+    public boolean existsByEmail(String email) {
+        return usuarioRepository.existsByEmail(email);
+    }
+
+    /** @return true se existe usuário com o ID informado. */
+    public boolean existsById(UUID id) {
+        return usuarioRepository.existsById(id);
+    }
+
+    /**
+     * Resolve o ID do membro (relação usuário↔tenant) para um usuário em um tenant.
+     *
+     * @return Optional com o ID do membro, vazio se não houver associação
+     */
+    public Optional<Integer> findMembroId(UUID tenantId, UUID usuarioId) {
+        return membroRepository.findByTenantIdAndUsuarioId(tenantId, usuarioId)
+                .map(Membro::getId);
     }
 }
