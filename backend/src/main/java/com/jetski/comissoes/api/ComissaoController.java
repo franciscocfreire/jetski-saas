@@ -4,7 +4,7 @@ import com.jetski.comissoes.api.dto.AprovarComissaoRequest;
 import com.jetski.comissoes.api.dto.ComissaoResponse;
 import com.jetski.comissoes.api.dto.PagarComissaoRequest;
 import com.jetski.comissoes.domain.Comissao;
-import com.jetski.comissoes.internal.CommissionService;
+import com.jetski.comissoes.api.CommissionService;
 import com.jetski.shared.security.TenantContext;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

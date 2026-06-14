@@ -1,4 +1,4 @@
-package com.jetski.comissoes.internal;
+package com.jetski.comissoes.api;
 
 import com.jetski.comissoes.domain.*;
 import com.jetski.comissoes.event.ComissaoCalculadaEvent;

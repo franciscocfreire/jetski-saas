@@ -1,6 +1,6 @@
 package com.jetski.locacoes.internal;
 
-import com.jetski.comissoes.internal.repository.ComissaoRepository;
+import com.jetski.comissoes.api.ComissaoQueryService;
 import com.jetski.locacoes.api.dto.VendedorDetalheResponse;
 import com.jetski.locacoes.api.dto.VendedorResumoResponse;
 import com.jetski.locacoes.domain.Vendedor;
@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 public class VendedorService {
 
     private final VendedorRepository vendedorRepository;
-    private final ComissaoRepository comissaoRepository;
+    private final ComissaoQueryService comissaoQueryService;
     private final TenantQueryService tenantQueryService;
 
     /**
@@ -275,10 +275,10 @@ public class VendedorService {
      * Build resumo response with commission totals.
      */
     private VendedorResumoResponse buildResumoResponse(UUID tenantId, Vendedor vendedor) {
-        BigDecimal totalPendentes = comissaoRepository.sumComissoesPendentesByVendedor(tenantId, vendedor.getId());
-        BigDecimal totalAprovadas = comissaoRepository.sumComissoesAprovadasByVendedor(tenantId, vendedor.getId());
-        BigDecimal totalPagas = comissaoRepository.sumComissoesPagasAllTimeByVendedor(tenantId, vendedor.getId());
-        Long qtdLocacoes = comissaoRepository.countLocacoesByVendedor(tenantId, vendedor.getId());
+        BigDecimal totalPendentes = comissaoQueryService.sumComissoesPendentesByVendedor(tenantId, vendedor.getId());
+        BigDecimal totalAprovadas = comissaoQueryService.sumComissoesAprovadasByVendedor(tenantId, vendedor.getId());
+        BigDecimal totalPagas = comissaoQueryService.sumComissoesPagasAllTimeByVendedor(tenantId, vendedor.getId());
+        Long qtdLocacoes = comissaoQueryService.countLocacoesByVendedor(tenantId, vendedor.getId());
 
         return VendedorResumoResponse.builder()
                 .id(vendedor.getId())
@@ -298,11 +298,11 @@ public class VendedorService {
      * Build detalhe response with commission totals and bonus status.
      */
     private VendedorDetalheResponse buildDetalheResponse(UUID tenantId, Vendedor vendedor) {
-        BigDecimal totalPendentes = comissaoRepository.sumComissoesPendentesByVendedor(tenantId, vendedor.getId());
-        BigDecimal totalAprovadas = comissaoRepository.sumComissoesAprovadasByVendedor(tenantId, vendedor.getId());
-        BigDecimal totalPagas = comissaoRepository.sumComissoesPagasAllTimeByVendedor(tenantId, vendedor.getId());
-        Long qtdLocacoes = comissaoRepository.countLocacoesByVendedor(tenantId, vendedor.getId());
-        Long qtdAcimaPrecoBase = comissaoRepository.countVendasAcimaPrecoBaseByVendedor(tenantId, vendedor.getId());
+        BigDecimal totalPendentes = comissaoQueryService.sumComissoesPendentesByVendedor(tenantId, vendedor.getId());
+        BigDecimal totalAprovadas = comissaoQueryService.sumComissoesAprovadasByVendedor(tenantId, vendedor.getId());
+        BigDecimal totalPagas = comissaoQueryService.sumComissoesPagasAllTimeByVendedor(tenantId, vendedor.getId());
+        Long qtdLocacoes = comissaoQueryService.countLocacoesByVendedor(tenantId, vendedor.getId());
+        Long qtdAcimaPrecoBase = comissaoQueryService.countVendasAcimaPrecoBaseByVendedor(tenantId, vendedor.getId());
 
         // Calcular status do bonus
         VendedorDetalheResponse.BonusStatusResponse bonusStatus = calculateBonusStatus(tenantId, qtdAcimaPrecoBase);

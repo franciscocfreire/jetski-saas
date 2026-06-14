@@ -11,7 +11,7 @@ import com.jetski.locacoes.event.LocacaoEditadaEvent;
 import com.jetski.locacoes.event.RentalCompletedEvent;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.tenant.TenantTimeService;
-import com.jetski.comissoes.internal.CommissionService;
+import com.jetski.comissoes.api.CommissionService;
 import com.jetski.locacoes.internal.repository.LocacaoItemOpcionalRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
 import com.jetski.locacoes.internal.repository.PresencaVendedorRepository;

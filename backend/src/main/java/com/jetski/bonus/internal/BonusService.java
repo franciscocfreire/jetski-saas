@@ -4,7 +4,7 @@ import com.jetski.bonus.domain.BonusVendedor;
 import com.jetski.bonus.domain.StatusBonus;
 import com.jetski.bonus.internal.repository.BonusVendedorRepository;
 import com.jetski.comissoes.event.ComissaoCalculadaEvent;
-import com.jetski.comissoes.internal.repository.ComissaoRepository;
+import com.jetski.comissoes.api.ComissaoQueryService;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.tenant.TenantQueryService;
@@ -37,7 +37,7 @@ import java.util.UUID;
 public class BonusService {
 
     private final BonusVendedorRepository bonusRepository;
-    private final ComissaoRepository comissaoRepository;
+    private final ComissaoQueryService comissaoQueryService;
     private final TenantQueryService tenantQueryService;
 
     /**
@@ -78,7 +78,7 @@ public class BonusService {
         }
 
         // 2. Count total sales above base price (cumulative, never resets)
-        Long vendasAcimaBase = comissaoRepository.countVendasAcimaPrecoBaseByVendedor(tenantId, vendedorId);
+        Long vendasAcimaBase = comissaoQueryService.countVendasAcimaPrecoBaseByVendedor(tenantId, vendedorId);
         if (vendasAcimaBase == null || vendasAcimaBase == 0) {
             return;
         }

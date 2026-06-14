@@ -5,7 +5,7 @@ import com.jetski.bonus.domain.StatusBonus;
 import com.jetski.bonus.internal.repository.BonusVendedorRepository;
 import com.jetski.comissoes.domain.Comissao;
 import com.jetski.comissoes.domain.StatusComissao;
-import com.jetski.comissoes.internal.repository.ComissaoRepository;
+import com.jetski.comissoes.api.ComissaoQueryService;
 import com.jetski.locacoes.domain.PresencaVendedor;
 import com.jetski.locacoes.domain.Vendedor;
 import com.jetski.locacoes.internal.repository.PresencaVendedorRepository;
@@ -51,7 +51,7 @@ public class PagamentoVendedorService {
 
     private final PagamentoVendedorRepository pagamentoRepository;
     private final VendedorRepository vendedorRepository;
-    private final ComissaoRepository comissaoRepository;
+    private final ComissaoQueryService comissaoQueryService;
     private final PresencaVendedorRepository presencaRepository;
     private final BonusVendedorRepository bonusRepository;
 
@@ -123,8 +123,8 @@ public class PagamentoVendedorService {
             bonus = getSelectedBonus(tenantId, vendedorId, request.getBonusIds());
         } else {
             // Full payment - get all pending items
-            comissoes = comissaoRepository
-                    .findByTenantIdAndVendedorIdAndStatusOrderByCreatedAtDesc(
+            comissoes = comissaoQueryService
+                    .findByVendedorAndStatus(
                             tenantId, vendedorId, StatusComissao.APROVADA);
             diarias = presencaRepository.findNaoPagasByVendedor(tenantId, vendedorId);
             bonus = bonusRepository.findAprovadosByVendedor(tenantId, vendedorId);
@@ -232,7 +232,7 @@ public class PagamentoVendedorService {
             comissao.setPagoPor(pagoPor);
             comissao.setPagoEm(agora);
             comissao.setReferenciaPagamento(request.getReferenciaPagamento());
-            comissaoRepository.save(comissao);
+            comissaoQueryService.salvar(comissao);
         }
 
         // 8. Mark diárias as paid
@@ -264,7 +264,7 @@ public class PagamentoVendedorService {
 
     private List<Comissao> getSelectedComissoes(UUID tenantId, UUID vendedorId, List<UUID> ids) {
         if (ids == null || ids.isEmpty()) return List.of();
-        return comissaoRepository.findAllById(ids).stream()
+        return comissaoQueryService.findByIds(ids).stream()
                 .filter(c -> c.getTenantId().equals(tenantId)
                           && c.getVendedorId().equals(vendedorId)
                           && c.getStatus() == StatusComissao.APROVADA)
@@ -359,11 +359,11 @@ public class PagamentoVendedorService {
 
     private PendenciasPagamentoResponse buildPendenciasResponse(UUID tenantId, Vendedor vendedor) {
         // Get approved commissions
-        BigDecimal valorComissoes = comissaoRepository
+        BigDecimal valorComissoes = comissaoQueryService
                 .sumComissoesAprovadasByVendedor(tenantId, vendedor.getId());
         if (valorComissoes == null) valorComissoes = BigDecimal.ZERO;
 
-        int qtdComissoes = comissaoRepository
+        int qtdComissoes = comissaoQueryService
                 .countComissoesAprovadasByVendedor(tenantId, vendedor.getId());
 
         // Get unpaid diárias
@@ -419,7 +419,7 @@ public class PagamentoVendedorService {
         List<ItemPendente> itens = new ArrayList<>();
 
         // Add approved commissions
-        comissaoRepository.findByTenantIdAndVendedorIdAndStatusOrderByCreatedAtDesc(
+        comissaoQueryService.findByVendedorAndStatus(
                 tenantId, vendedorId, StatusComissao.APROVADA)
                 .forEach(c -> itens.add(ItemPendente.builder()
                         .id(c.getId())

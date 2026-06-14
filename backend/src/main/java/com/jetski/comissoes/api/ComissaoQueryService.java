@@ -90,4 +90,55 @@ public class ComissaoQueryService {
     public int countByStatus(UUID tenantId, StatusComissao status) {
         return comissaoRepository.findByTenantIdAndStatusOrderByDataLocacaoDesc(tenantId, status).size();
     }
+
+    /** Conta vendas acima do preço base de um vendedor (usado pelo módulo bonus). */
+    public Long countVendasAcimaPrecoBaseByVendedor(UUID tenantId, UUID vendedorId) {
+        return comissaoRepository.countVendasAcimaPrecoBaseByVendedor(tenantId, vendedorId);
+    }
+
+    /** Lista comissões de um vendedor por status (mais recentes primeiro). */
+    public List<Comissao> findByVendedorAndStatus(UUID tenantId, UUID vendedorId, StatusComissao status) {
+        return comissaoRepository.findByTenantIdAndVendedorIdAndStatusOrderByCreatedAtDesc(tenantId, vendedorId, status);
+    }
+
+    /** Lista todas as comissões de um vendedor (mais recentes primeiro). */
+    public List<Comissao> findByVendedor(UUID tenantId, UUID vendedorId) {
+        return comissaoRepository.findByTenantIdAndVendedorIdOrderByCreatedAtDesc(tenantId, vendedorId);
+    }
+
+    /** Busca comissões por IDs. */
+    public List<Comissao> findByIds(Iterable<UUID> ids) {
+        return comissaoRepository.findAllById(ids);
+    }
+
+    /** Persiste uma comissão (ex.: atualização de status de pagamento pelo módulo pagamentos). */
+    @Transactional
+    public Comissao salvar(Comissao comissao) {
+        return comissaoRepository.save(comissao);
+    }
+
+    /** Soma das comissões aprovadas (aguardando pagamento) de um vendedor. */
+    public BigDecimal sumComissoesAprovadasByVendedor(UUID tenantId, UUID vendedorId) {
+        return comissaoRepository.sumComissoesAprovadasByVendedor(tenantId, vendedorId);
+    }
+
+    /** Quantidade de comissões aprovadas de um vendedor. */
+    public int countComissoesAprovadasByVendedor(UUID tenantId, UUID vendedorId) {
+        return comissaoRepository.countComissoesAprovadasByVendedor(tenantId, vendedorId);
+    }
+
+    /** Soma das comissões pendentes de um vendedor. */
+    public BigDecimal sumComissoesPendentesByVendedor(UUID tenantId, UUID vendedorId) {
+        return comissaoRepository.sumComissoesPendentesByVendedor(tenantId, vendedorId);
+    }
+
+    /** Soma das comissões já pagas (histórico) de um vendedor. */
+    public BigDecimal sumComissoesPagasAllTimeByVendedor(UUID tenantId, UUID vendedorId) {
+        return comissaoRepository.sumComissoesPagasAllTimeByVendedor(tenantId, vendedorId);
+    }
+
+    /** Quantidade de locações com comissão de um vendedor. */
+    public Long countLocacoesByVendedor(UUID tenantId, UUID vendedorId) {
+        return comissaoRepository.countLocacoesByVendedor(tenantId, vendedorId);
+    }
 }

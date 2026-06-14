@@ -6,9 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jetski.bonus.domain.BonusVendedor;
 import com.jetski.bonus.internal.BonusService;
 import com.jetski.comissoes.domain.Comissao;
-import com.jetski.comissoes.internal.CommissionService;
+import com.jetski.comissoes.api.CommissionService;
 import com.jetski.comissoes.api.dto.ComissaoResponse;
-import com.jetski.comissoes.internal.repository.ComissaoRepository;
+import com.jetski.comissoes.api.ComissaoQueryService;
 import com.jetski.locacoes.api.dto.*;
 import com.jetski.locacoes.domain.Vendedor;
 import com.jetski.locacoes.internal.VendedorService;
@@ -50,7 +50,7 @@ public class VendedorController {
 
     private final VendedorService vendedorService;
     private final CommissionService commissionService;
-    private final ComissaoRepository comissaoRepository;
+    private final ComissaoQueryService comissaoQueryService;
     private final BonusService bonusService;
     private final ObjectMapper objectMapper;
 
@@ -442,11 +442,11 @@ public class VendedorController {
 
         List<Comissao> comissoes;
         if (status != null && !status.isBlank()) {
-            comissoes = comissaoRepository.findByTenantIdAndVendedorIdAndStatusOrderByCreatedAtDesc(
+            comissoes = comissaoQueryService.findByVendedorAndStatus(
                 tenantId, vendedorId, com.jetski.comissoes.domain.StatusComissao.valueOf(status)
             );
         } else {
-            comissoes = comissaoRepository.findByTenantIdAndVendedorIdOrderByCreatedAtDesc(tenantId, vendedorId);
+            comissoes = comissaoQueryService.findByVendedor(tenantId, vendedorId);
         }
 
         List<ComissaoResponse> response = comissoes.stream()

@@ -33,7 +33,6 @@
  * @since 0.7.0
  */
 @org.springframework.modulith.ApplicationModule(
-    displayName = "Commissions",
-    type = org.springframework.modulith.ApplicationModule.Type.OPEN
+    displayName = "Commissions"
 )
 package com.jetski.comissoes;
