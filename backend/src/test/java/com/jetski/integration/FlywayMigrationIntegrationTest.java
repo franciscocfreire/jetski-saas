@@ -61,7 +61,7 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                 "abastecimento",
                 "os_manutencao",
                 // Support tables
-                "commission_policy",
+                "politica_comissao",
                 "fuel_policy",
                 "fuel_price_day",
                 "fechamento_diario",
@@ -89,7 +89,7 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
 
         List<String> operationalTables = List.of(
                 "modelo", "jetski", "vendedor", "cliente", "reserva", "locacao",
-                "foto", "abastecimento", "os_manutencao", "commission_policy",
+                "foto", "abastecimento", "os_manutencao", "politica_comissao",
                 "fuel_policy", "fechamento_diario", "fechamento_mensal", "auditoria"
         );
 

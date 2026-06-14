@@ -108,7 +108,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         // Delete ALL jetskis that reference models from this tenant (handles cross-tenant FK issues)
         jdbcTemplate.execute("DELETE FROM jetski WHERE modelo_id IN (SELECT id FROM modelo WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')");
         jdbcTemplate.execute("DELETE FROM jetski WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
-        jdbcTemplate.execute("DELETE FROM commission_policy WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM politica_comissao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM politica_comissao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM fuel_policy WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM modelo WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
@@ -154,6 +154,7 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         testVendedor = Vendedor.builder()
             .tenantId(TENANT_ID)
             .nome("Maria Vendedora")
+            .tipo(VendedorTipo.INTERNO)
             .build();
         testVendedor = vendedorRepository.save(testVendedor);
 

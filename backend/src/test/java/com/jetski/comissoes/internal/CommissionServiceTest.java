@@ -1,9 +1,11 @@
 package com.jetski.comissoes.internal;
 
 import com.jetski.comissoes.domain.*;
+import com.jetski.bonus.internal.BonusService;
 import com.jetski.comissoes.internal.repository.ComissaoRepository;
 import com.jetski.comissoes.internal.repository.PoliticaComissaoRepository;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.tenant.internal.repository.TenantRepository;
 import com.jetski.shared.exception.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -46,6 +48,12 @@ class CommissionServiceTest {
 
     @Mock
     private PoliticaComissaoRepository politicaRepository;
+
+    @Mock
+    private TenantRepository tenantRepository;
+
+    @Mock
+    private BonusService bonusService;
 
     @InjectMocks
     private CommissionService commissionService;

@@ -116,8 +116,8 @@ class FuelPolicyControllerIntegrationTest extends AbstractIntegrationTest {
 
         // Jetski
         jdbcTemplate.update("""
-            INSERT INTO jetski (id, tenant_id, modelo_id, serie, placa, ano, horimetro_atual, status, ativo)
-            VALUES (?, ?, ?, 'JET-TEST-001', 'ABC-1234', 2023, 45.2, 'disponivel', TRUE)
+            INSERT INTO jetski (id, tenant_id, modelo_id, serie, ano, horimetro_atual, status, ativo)
+            VALUES (?, ?, ?, 'JET-TEST-001', 2023, 45.2, 'DISPONIVEL', TRUE)
             ON CONFLICT (id) DO NOTHING
             """, JETSKI_ID, TENANT_ID, MODELO_ID);
 

@@ -128,8 +128,8 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
 
         // Jetski
         jdbcTemplate.update("""
-            INSERT INTO jetski (id, tenant_id, modelo_id, serie, placa, ano, horimetro_atual, status, ativo)
-            VALUES (?, ?, ?, 'JET-COM-001', 'COM-1234', 2023, 45.2, 'disponivel', TRUE)
+            INSERT INTO jetski (id, tenant_id, modelo_id, serie, ano, horimetro_atual, status, ativo)
+            VALUES (?, ?, ?, 'JET-COM-001', 2023, 45.2, 'DISPONIVEL', TRUE)
             ON CONFLICT (id) DO NOTHING
             """, JETSKI_ID, TENANT_ID, MODELO_ID);
 
@@ -143,7 +143,7 @@ class ComissaoControllerIntegrationTest extends AbstractIntegrationTest {
         // Vendedor
         jdbcTemplate.update("""
             INSERT INTO vendedor (id, tenant_id, nome, tipo, ativo)
-            VALUES (?, ?, 'Vendedor Teste Comissão', 'interno', TRUE)
+            VALUES (?, ?, 'Vendedor Teste Comissão', 'INTERNO', TRUE)
             ON CONFLICT (id) DO NOTHING
             """, VENDEDOR_ID, TENANT_ID);
 

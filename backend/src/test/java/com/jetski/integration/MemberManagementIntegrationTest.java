@@ -176,7 +176,7 @@ class MemberManagementIntegrationTest extends AbstractIntegrationTest {
         String limitesJson = String.format("{\"usuarios_max\": %d}", userLimit);
 
         entityManager.createNativeQuery(
-            "INSERT INTO plano (id, nome, limites_json, preco_mensal) " +
+            "INSERT INTO plano (id, nome, limites, preco_mensal) " +
             "VALUES (?1, ?2, CAST(?3 AS jsonb), ?4)"
         )
         .setParameter(1, planId)

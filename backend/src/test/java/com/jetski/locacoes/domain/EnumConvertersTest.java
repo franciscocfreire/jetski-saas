@@ -87,13 +87,13 @@ class EnumConvertersTest {
     private final JetskiStatusConverter jetskiStatusConverter = new JetskiStatusConverter();
 
     @Test
-    @DisplayName("JetskiStatusConverter: convertToDatabaseColumn should return lowercase string")
+    @DisplayName("JetskiStatusConverter: convertToDatabaseColumn should return UPPERCASE string")
     void testJetskiStatusConverter_ToDatabase_Valid() {
         // When
         String result = jetskiStatusConverter.convertToDatabaseColumn(JetskiStatus.DISPONIVEL);
 
         // Then
-        assertThat(result).isEqualTo("disponivel");
+        assertThat(result).isEqualTo("DISPONIVEL");
     }
 
     @Test
@@ -211,13 +211,13 @@ class EnumConvertersTest {
     private final VendedorTipoConverter vendedorTipoConverter = new VendedorTipoConverter();
 
     @Test
-    @DisplayName("VendedorTipoConverter: convertToDatabaseColumn should return lowercase string")
+    @DisplayName("VendedorTipoConverter: convertToDatabaseColumn should return UPPERCASE string")
     void testVendedorTipoConverter_ToDatabase_Valid() {
         // When
         String result = vendedorTipoConverter.convertToDatabaseColumn(VendedorTipo.INTERNO);
 
         // Then
-        assertThat(result).isEqualTo("interno");
+        assertThat(result).isEqualTo("INTERNO");
     }
 
     @Test
@@ -288,7 +288,7 @@ class EnumConvertersTest {
     void testJetskiStatusConverter_AllEnumValues() {
         // Test all enum values
         assertThat(jetskiStatusConverter.convertToDatabaseColumn(JetskiStatus.MANUTENCAO))
-                .isEqualTo("manutencao");
+                .isEqualTo("MANUTENCAO");
 
         assertThat(jetskiStatusConverter.convertToEntityAttribute("disponivel"))
                 .isEqualTo(JetskiStatus.DISPONIVEL);
@@ -310,7 +310,7 @@ class EnumConvertersTest {
     void testVendedorTipoConverter_AllEnumValues() {
         // Test all enum values
         assertThat(vendedorTipoConverter.convertToDatabaseColumn(VendedorTipo.PARCEIRO))
-                .isEqualTo("parceiro");
+                .isEqualTo("PARCEIRO");
 
         assertThat(vendedorTipoConverter.convertToEntityAttribute("interno"))
                 .isEqualTo(VendedorTipo.INTERNO);

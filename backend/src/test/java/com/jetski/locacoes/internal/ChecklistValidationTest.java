@@ -1,10 +1,16 @@
 package com.jetski.locacoes.internal;
 
+import com.jetski.comissoes.internal.CommissionService;
+import com.jetski.fechamento.internal.repository.FechamentoDiarioRepository;
 import com.jetski.locacoes.domain.*;
 import com.jetski.locacoes.internal.repository.FotoRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
+import com.jetski.locacoes.internal.repository.PresencaVendedorRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
+import com.jetski.locacoes.internal.repository.VendedorRepository;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.time.TenantTimeService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,6 +74,24 @@ class ChecklistValidationTest {
     @Mock
     private FotoRepository fotoRepository;
 
+    @Mock
+    private FechamentoDiarioRepository fechamentoDiarioRepository;
+
+    @Mock
+    private PresencaVendedorRepository presencaVendedorRepository;
+
+    @Mock
+    private VendedorRepository vendedorRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private TenantTimeService tenantTimeService;
+
+    @Mock
+    private CommissionService commissionService;
+
     @InjectMocks
     private LocacaoService locacaoService;
 
@@ -118,6 +142,9 @@ class ChecklistValidationTest {
         // Mock optional items repository to return zero cost
         lenient().when(locacaoItemOpcionalRepository.sumValorCobradoByLocacaoId(any(UUID.class)))
             .thenReturn(BigDecimal.ZERO);
+
+        // Tenant time service: retorna horário fixo (lenient, nem todos os testes chegam ao now())
+        lenient().when(tenantTimeService.now()).thenReturn(LocalDateTime.now());
     }
 
     /**
