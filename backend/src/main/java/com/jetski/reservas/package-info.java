@@ -2,12 +2,9 @@
  * Módulo de Reservas (eventos de domínio).
  *
  * <p>Publica eventos de reserva (criada/confirmada/cancelada) consumidos pelo
- * módulo audit.
- *
- * <p>Marcado como OPEN: expõe os eventos de domínio para consumo cross-module.
+ * módulo audit via a named interface {@code events}.
  */
 @org.springframework.modulith.ApplicationModule(
-    displayName = "Reservations",
-    type = org.springframework.modulith.ApplicationModule.Type.OPEN
+    displayName = "Reservations"
 )
 package com.jetski.reservas;
