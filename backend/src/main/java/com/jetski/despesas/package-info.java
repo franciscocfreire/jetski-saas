@@ -8,7 +8,6 @@
  */
 @org.springframework.modulith.ApplicationModule(
     displayName = "Despesas Operacionais",
-    type = org.springframework.modulith.ApplicationModule.Type.OPEN,
     allowedDependencies = {
         "shared::security",
         "shared::exception",

@@ -2,7 +2,7 @@ package com.jetski.fechamento.internal;
 
 import com.jetski.comissoes.api.ComissaoQueryService;
 import com.jetski.comissoes.domain.Comissao;
-import com.jetski.despesas.internal.DespesaOperacionalService;
+import com.jetski.despesas.api.DespesaOperacionalService;
 import com.jetski.fechamento.domain.FechamentoDiario;
 import com.jetski.fechamento.domain.FechamentoMensal;
 import com.jetski.fechamento.internal.repository.FechamentoDiarioRepository;

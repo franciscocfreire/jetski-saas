@@ -7,7 +7,7 @@ import com.jetski.despesas.api.dto.RejeitarDespesaRequest;
 import com.jetski.despesas.domain.CategoriaDespesa;
 import com.jetski.despesas.domain.DespesaOperacional;
 import com.jetski.despesas.domain.StatusDespesa;
-import com.jetski.despesas.internal.DespesaOperacionalService;
+import com.jetski.despesas.api.DespesaOperacionalService;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.usuarios.api.UsuarioService;
 import jakarta.validation.Valid;

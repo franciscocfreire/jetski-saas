@@ -1,6 +1,6 @@
 package com.jetski.manutencao.api;
 
-import com.jetski.despesas.api.dto.RejeitarDespesaRequest;
+import com.jetski.manutencao.api.dto.RejeitarDespesaManutencaoRequest;
 import com.jetski.despesas.domain.StatusDespesa;
 import com.jetski.locacoes.api.JetskiPublicService;
 import com.jetski.locacoes.domain.Jetski;
@@ -200,7 +200,7 @@ public class DespesaManutencaoController {
     @PostMapping("/despesas-manutencao/{id}/rejeitar")
     public ResponseEntity<DespesaManutencaoResponse> rejeitar(
             @PathVariable UUID id,
-            @Valid @RequestBody RejeitarDespesaRequest request,
+            @Valid @RequestBody RejeitarDespesaManutencaoRequest request,
             Authentication authentication
     ) {
         UUID tenantId = TenantContext.getTenantId();
@@ -235,7 +235,7 @@ public class DespesaManutencaoController {
     @PostMapping("/despesas-manutencao/{id}/cancelar")
     public ResponseEntity<DespesaManutencaoResponse> cancelar(
             @PathVariable UUID id,
-            @Valid @RequestBody(required = false) RejeitarDespesaRequest request,
+            @Valid @RequestBody(required = false) RejeitarDespesaManutencaoRequest request,
             Authentication authentication
     ) {
         UUID tenantId = TenantContext.getTenantId();

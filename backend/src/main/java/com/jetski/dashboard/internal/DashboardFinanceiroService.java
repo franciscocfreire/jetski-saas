@@ -5,7 +5,7 @@ import com.jetski.comissoes.domain.Comissao;
 import com.jetski.dashboard.api.dto.*;
 import com.jetski.despesas.domain.CategoriaDespesa;
 import com.jetski.despesas.domain.DespesaOperacional;
-import com.jetski.despesas.internal.DespesaOperacionalService;
+import com.jetski.despesas.api.DespesaOperacionalService;
 import com.jetski.fechamento.domain.FechamentoDiario;
 import com.jetski.fechamento.domain.FechamentoMensal;
 import com.jetski.fechamento.internal.FechamentoService;

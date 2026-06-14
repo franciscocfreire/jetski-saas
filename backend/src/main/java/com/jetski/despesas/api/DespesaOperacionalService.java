@@ -1,4 +1,4 @@
-package com.jetski.despesas.internal;
+package com.jetski.despesas.api;
 
 import com.jetski.despesas.api.dto.DespesaOperacionalRequest;
 import com.jetski.despesas.domain.CategoriaDespesa;
