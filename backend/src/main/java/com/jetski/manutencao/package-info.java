@@ -38,12 +38,6 @@
  */
 @org.springframework.modulith.ApplicationModule(
     displayName = "Manutenção (Maintenance Orders)",
-    allowedDependencies = {
-        "shared::security",
-        "shared::exception",
-        "usuarios::api",
-        "locacoes::api",
-        "locacoes::domain"
-    }
+    type = org.springframework.modulith.ApplicationModule.Type.OPEN
 )
 package com.jetski.manutencao;

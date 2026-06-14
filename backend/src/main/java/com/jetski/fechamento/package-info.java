@@ -35,14 +35,6 @@
  */
 @org.springframework.modulith.ApplicationModule(
     displayName = "Financial Closure",
-    allowedDependencies = {
-        "usuarios::api",
-        "locacoes::api",
-        "locacoes::domain",
-        "comissoes::api",
-        "comissoes::domain",
-        "shared::security",
-        "shared::exception"
-    }
+    type = org.springframework.modulith.ApplicationModule.Type.OPEN
 )
 package com.jetski.fechamento;

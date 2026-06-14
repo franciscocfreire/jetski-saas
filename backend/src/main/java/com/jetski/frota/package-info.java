@@ -51,6 +51,7 @@
         "shared::security",
         "shared::exception",
         "locacoes::domain",
+        "locacoes::events",
         "manutencao::api",
         "manutencao::domain"
     }

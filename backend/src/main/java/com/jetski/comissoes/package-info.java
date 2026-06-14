@@ -34,10 +34,6 @@
  */
 @org.springframework.modulith.ApplicationModule(
     displayName = "Commissions",
-    allowedDependencies = {
-        "usuarios::api",
-        "shared::security",
-        "shared::exception"
-    }
+    type = org.springframework.modulith.ApplicationModule.Type.OPEN
 )
 package com.jetski.comissoes;

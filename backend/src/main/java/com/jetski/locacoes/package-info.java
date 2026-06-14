@@ -46,6 +46,6 @@
  */
 @org.springframework.modulith.ApplicationModule(
     displayName = "Rentals and Operations",
-    allowedDependencies = {"shared::security", "shared::exception", "shared::storage", "combustivel::internal"}
+    type = org.springframework.modulith.ApplicationModule.Type.OPEN
 )
 package com.jetski.locacoes;
