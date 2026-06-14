@@ -17,7 +17,7 @@ import com.jetski.signup.domain.TenantSignup;
 import com.jetski.signup.internal.repository.TenantSignupRepository;
 import com.jetski.tenant.domain.Tenant;
 import com.jetski.tenant.domain.TenantStatus;
-import com.jetski.tenant.internal.repository.TenantRepository;
+import com.jetski.tenant.TenantProvisioningService;
 import com.jetski.usuarios.internal.IdentityProviderMappingService;
 import com.jetski.usuarios.internal.repository.UsuarioRepository;
 import jakarta.persistence.EntityManager;
@@ -50,7 +50,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TenantSignupService {
 
-    private final TenantRepository tenantRepository;
+    private final TenantProvisioningService tenantProvisioningService;
     private final TenantSignupRepository signupRepository;
     private final UsuarioRepository usuarioRepository;
     private final UserProvisioningService userProvisioningService;
@@ -89,7 +89,7 @@ public class TenantSignupService {
         log.info("Processing tenant signup for: {} ({})", request.razaoSocial(), request.adminEmail());
 
         // 1. Validate slug is unique
-        if (tenantRepository.existsBySlug(request.slug())) {
+        if (tenantProvisioningService.existsBySlug(request.slug())) {
             throw new ConflictException("Este slug já está em uso. Escolha outro identificador.");
         }
 
@@ -116,7 +116,7 @@ public class TenantSignupService {
             .timezone("America/Sao_Paulo")
             .moeda("BRL")
             .build();
-        tenantRepository.save(tenant);
+        tenantProvisioningService.save(tenant);
         log.info("Tenant created: {} ({})", tenant.getId(), tenant.getSlug());
 
         // 5. Create Assinatura with Trial plan
@@ -195,7 +195,7 @@ public class TenantSignupService {
         log.info("Creating tenant for existing user: {} ({})", request.razaoSocial(), usuarioId);
 
         // 1. Validate slug is unique
-        if (tenantRepository.existsBySlug(request.slug())) {
+        if (tenantProvisioningService.existsBySlug(request.slug())) {
             throw new ConflictException("Este slug já está em uso. Escolha outro identificador.");
         }
 
@@ -213,7 +213,7 @@ public class TenantSignupService {
             .timezone("America/Sao_Paulo")
             .moeda("BRL")
             .build();
-        tenantRepository.save(tenant);
+        tenantProvisioningService.save(tenant);
         log.info("Tenant created for existing user: {} ({})", tenant.getId(), tenant.getSlug());
 
         // 4. Create Assinatura with Trial plan
@@ -379,7 +379,7 @@ public class TenantSignupService {
      * Check if a slug is available.
      */
     public boolean isSlugAvailable(String slug) {
-        return !tenantRepository.existsBySlug(slug);
+        return !tenantProvisioningService.existsBySlug(slug);
     }
 
     /**

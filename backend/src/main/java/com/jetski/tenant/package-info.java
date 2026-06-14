@@ -17,7 +17,6 @@
  * @since 0.1.0
  */
 @org.springframework.modulith.ApplicationModule(
-    displayName = "Tenant Management",
-    type = org.springframework.modulith.ApplicationModule.Type.OPEN
+    displayName = "Tenant Management"
 )
 package com.jetski.tenant;

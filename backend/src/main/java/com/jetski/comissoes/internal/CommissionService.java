@@ -6,9 +6,9 @@ import com.jetski.comissoes.internal.repository.ComissaoRepository;
 import com.jetski.comissoes.internal.repository.PoliticaComissaoRepository;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
+import com.jetski.tenant.TenantQueryService;
 import com.jetski.tenant.domain.ComissaoConfig;
 import com.jetski.tenant.domain.Tenant;
-import com.jetski.tenant.internal.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -47,7 +47,7 @@ public class CommissionService {
 
     private final ComissaoRepository comissaoRepository;
     private final PoliticaComissaoRepository politicaRepository;
-    private final TenantRepository tenantRepository;
+    private final TenantQueryService tenantQueryService;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -226,9 +226,8 @@ public class CommissionService {
      * Obtém a configuração de comissão do tenant
      */
     private ComissaoConfig getTenantComissaoConfig(UUID tenantId) {
-        return tenantRepository.findById(tenantId)
-                .map(Tenant::getComissaoConfig)
-                .orElse(null);
+        Tenant tenant = tenantQueryService.findById(tenantId);
+        return tenant != null ? tenant.getComissaoConfig() : null;
     }
 
     /**

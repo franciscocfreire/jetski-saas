@@ -7,9 +7,9 @@ import com.jetski.comissoes.event.ComissaoCalculadaEvent;
 import com.jetski.comissoes.internal.repository.ComissaoRepository;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
+import com.jetski.tenant.TenantQueryService;
 import com.jetski.tenant.domain.ComissaoConfig;
 import com.jetski.tenant.domain.Tenant;
-import com.jetski.tenant.internal.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -38,7 +38,7 @@ public class BonusService {
 
     private final BonusVendedorRepository bonusRepository;
     private final ComissaoRepository comissaoRepository;
-    private final TenantRepository tenantRepository;
+    private final TenantQueryService tenantQueryService;
 
     /**
      * Check and create bonuses when a seller reaches milestones.
@@ -61,9 +61,8 @@ public class BonusService {
         log.debug("Checking bonus eligibility for vendedor: {}", vendedorId);
 
         // 1. Get tenant config
-        ComissaoConfig config = tenantRepository.findById(tenantId)
-                .map(Tenant::getComissaoConfig)
-                .orElse(null);
+        Tenant tenant = tenantQueryService.findById(tenantId);
+        ComissaoConfig config = tenant != null ? tenant.getComissaoConfig() : null;
 
         if (config == null || !Boolean.TRUE.equals(config.bonusAtivo())) {
             log.debug("Bonus system not active for tenant: {}", tenantId);

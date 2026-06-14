@@ -7,9 +7,9 @@ import com.jetski.locacoes.domain.Vendedor;
 import com.jetski.locacoes.domain.VendedorTipo;
 import com.jetski.locacoes.internal.repository.VendedorRepository;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.tenant.TenantQueryService;
 import com.jetski.tenant.domain.ComissaoConfig;
 import com.jetski.tenant.domain.Tenant;
-import com.jetski.tenant.internal.repository.TenantRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -43,7 +43,7 @@ public class VendedorService {
 
     private final VendedorRepository vendedorRepository;
     private final ComissaoRepository comissaoRepository;
-    private final TenantRepository tenantRepository;
+    private final TenantQueryService tenantQueryService;
 
     /**
      * List all active sellers for current tenant.
@@ -332,9 +332,8 @@ public class VendedorService {
      */
     private VendedorDetalheResponse.BonusStatusResponse calculateBonusStatus(UUID tenantId, Long qtdAcimaPrecoBase) {
         // Buscar configuração do tenant
-        ComissaoConfig config = tenantRepository.findById(tenantId)
-                .map(Tenant::getComissaoConfig)
-                .orElse(null);
+        Tenant tenant = tenantQueryService.findById(tenantId);
+        ComissaoConfig config = tenant != null ? tenant.getComissaoConfig() : null;
 
         if (config == null || !Boolean.TRUE.equals(config.bonusAtivo())) {
             return VendedorDetalheResponse.BonusStatusResponse.builder()

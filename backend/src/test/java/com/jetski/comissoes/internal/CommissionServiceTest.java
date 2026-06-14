@@ -5,7 +5,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import com.jetski.comissoes.internal.repository.ComissaoRepository;
 import com.jetski.comissoes.internal.repository.PoliticaComissaoRepository;
 import com.jetski.shared.exception.BusinessException;
-import com.jetski.tenant.internal.repository.TenantRepository;
+import com.jetski.tenant.TenantQueryService;
 import com.jetski.shared.exception.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,7 +50,7 @@ class CommissionServiceTest {
     private PoliticaComissaoRepository politicaRepository;
 
     @Mock
-    private TenantRepository tenantRepository;
+    private TenantQueryService tenantQueryService;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
