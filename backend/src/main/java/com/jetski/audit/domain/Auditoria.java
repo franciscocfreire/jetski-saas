@@ -1,4 +1,4 @@
-package com.jetski.shared.audit.domain;
+package com.jetski.audit.domain;
 
 import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;

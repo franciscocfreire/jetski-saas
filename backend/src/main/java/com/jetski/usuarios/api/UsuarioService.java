@@ -8,6 +8,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -49,5 +53,37 @@ public class UsuarioService {
         String email = authentication.getName();
         Usuario usuario = findByEmail(email);
         return usuario.getId();
+    }
+
+    /**
+     * Resolve a user's display name by ID.
+     *
+     * <p>Exposed for consumer modules (e.g. audit) that need to show user names
+     * without depending on the internal Usuario repository or entity.</p>
+     *
+     * @param id User ID
+     * @return Optional with the user's name, empty if not found
+     */
+    public Optional<String> resolverNome(UUID id) {
+        if (id == null) {
+            return Optional.empty();
+        }
+        return usuarioRepository.findById(id).map(Usuario::getNome);
+    }
+
+    /**
+     * Resolve display names for a set of user IDs in a single query.
+     *
+     * @param ids User IDs
+     * @return Map of user ID to name (missing IDs are simply absent)
+     */
+    public Map<UUID, String> resolverNomes(Collection<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> result = new HashMap<>();
+        usuarioRepository.findAllById(ids)
+                .forEach(u -> result.put(u.getId(), u.getNome()));
+        return result;
     }
 }

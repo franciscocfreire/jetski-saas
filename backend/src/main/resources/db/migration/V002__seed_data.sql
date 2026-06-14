@@ -5,13 +5,17 @@
 -- IMPORTANT: This migration should NOT run in production
 -- ============================================================================
 
+-- Seed roda sem contexto de tenant; desabilita RLS nesta sessão para os INSERTs
+SET row_security = off;
+
 -- ============================================================================
 -- PLANOS (Subscription Plans)
 -- ============================================================================
 INSERT INTO plano (nome, limites, preco_mensal) VALUES
 ('Basic', '{"frota_max": 5, "usuarios_max": 3, "storage_gb": 5, "locacoes_mes": 100}'::jsonb, 99.00),
 ('Pro', '{"frota_max": 20, "usuarios_max": 10, "storage_gb": 50, "locacoes_mes": 500}'::jsonb, 299.00),
-('Enterprise', '{"frota_max": 100, "usuarios_max": 50, "storage_gb": 500, "locacoes_mes": -1}'::jsonb, 999.00);
+('Enterprise', '{"frota_max": 100, "usuarios_max": 50, "storage_gb": 500, "locacoes_mes": -1}'::jsonb, 999.00),
+('Trial', '{"frota_max": 3, "usuarios_max": 2, "storage_gb": 1, "locacoes_mes": 50, "trial_days": 14}'::jsonb, 0.00);
 
 -- ============================================================================
 -- TENANTS (Sample Companies)
@@ -23,6 +27,12 @@ INSERT INTO tenant (id, slug, razao_social, cnpj, timezone, moeda, status, brand
  'America/Sao_Paulo', 'BRL', 'ATIVO', '{"cor_primaria": "#003366"}'::jsonb),
 ('b0000000-0000-0000-0000-000000000002', 'copa-jets', 'Copacabana Jet Ski Rentals Ltda', '32.345.678/0001-92',
  'America/Sao_Paulo', 'BRL', 'ATIVO', '{"cor_primaria": "#FF6600"}'::jsonb);
+
+-- Tenants de fixture para testes de integração (MemberManagement/UserInvitation).
+-- Começam vazios (sem membros) para preservar asserções de contagem dos testes.
+INSERT INTO tenant (id, slug, razao_social, status) VALUES
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'test-fixture-a', 'Test Fixture A Ltda', 'ATIVO'),
+('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'test-fixture-b', 'Test Fixture B Ltda', 'ATIVO');
 
 -- ============================================================================
 -- ASSINATURAS (Subscriptions)
@@ -142,7 +152,7 @@ INSERT INTO fuel_policy (tenant_id, nome, tipo, aplicavel_a, referencia_id, prio
 -- ============================================================================
 -- FUEL PRICE DAY (Recent prices)
 -- ============================================================================
-INSERT INTO fuel_price_day (tenant_id, data, preco_litro) VALUES
+INSERT INTO fuel_price_day (tenant_id, data, preco_medio_litro) VALUES
 ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', CURRENT_DATE - INTERVAL '2 days', 6.93),
 ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', CURRENT_DATE - INTERVAL '1 day', 6.89),
 ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', CURRENT_DATE, 6.90);
@@ -153,3 +163,26 @@ INSERT INTO fuel_price_day (tenant_id, data, preco_litro) VALUES
 INSERT INTO global_role (name, description) VALUES
 ('PLATFORM_ADMIN', 'Full platform administrator'),
 ('SUPPORT', 'Customer support staff');
+
+-- ============================================================================
+-- TEST USER (fixture) — usado pelos testes de controller (subject JWT 1111...)
+-- ============================================================================
+-- Usuário de teste mapeado ao provider keycloak e com acesso ADMIN ao tenant ACME.
+INSERT INTO usuario (id, email, nome, ativo) VALUES
+('11111111-1111-1111-1111-111111111111', 'test.user@acme.com', 'Test User', TRUE);
+
+INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id, linked_at) VALUES
+('11111111-1111-1111-1111-111111111111', 'keycloak', '11111111-1111-1111-1111-111111111111', NOW());
+
+INSERT INTO membro (tenant_id, usuario_id, papeis) VALUES
+('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '11111111-1111-1111-1111-111111111111', ARRAY['ADMIN_TENANT']);
+
+INSERT INTO tenant_access (usuario_id, tenant_id, roles, is_default) VALUES
+('11111111-1111-1111-1111-111111111111', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', ARRAY['ADMIN_TENANT'], TRUE);
+
+-- ============================================================================
+-- ASSINATURAS dos tenants-fixture (para checagem de limite de usuários em convites)
+-- ============================================================================
+INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, status) VALUES
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', (SELECT id FROM plano WHERE nome = 'Pro'), 'mensal', '2025-01-01', 'ativa'),
+('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', (SELECT id FROM plano WHERE nome = 'Pro'), 'mensal', '2025-01-01', 'ativa');

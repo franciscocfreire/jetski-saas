@@ -1,11 +1,10 @@
-package com.jetski.shared.audit.internal;
+package com.jetski.audit.internal;
 
-import com.jetski.shared.audit.api.dto.AuditoriaDTO;
-import com.jetski.shared.audit.api.dto.AuditoriaFilters;
-import com.jetski.shared.audit.domain.Auditoria;
-import com.jetski.shared.audit.domain.AuditoriaRepository;
-import com.jetski.usuarios.domain.Usuario;
-import com.jetski.usuarios.internal.repository.UsuarioRepository;
+import com.jetski.audit.api.dto.AuditoriaDTO;
+import com.jetski.audit.api.dto.AuditoriaFilters;
+import com.jetski.audit.domain.Auditoria;
+import com.jetski.audit.domain.AuditoriaRepository;
+import com.jetski.usuarios.api.UsuarioService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +41,7 @@ import java.util.*;
 public class AuditoriaService {
 
     private final AuditoriaRepository auditoriaRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final UsuarioService usuarioService;
 
     private static final DateTimeFormatter CSV_DATE_FORMAT = DateTimeFormatter
             .ofPattern("dd/MM/yyyy HH:mm:ss")
@@ -87,8 +86,7 @@ public class AuditoriaService {
         return auditoriaRepository.findById(id)
                 .map(a -> {
                     String userName = a.getUsuarioId() != null
-                            ? usuarioRepository.findById(a.getUsuarioId())
-                                .map(Usuario::getNome)
+                            ? usuarioService.resolverNome(a.getUsuarioId())
                                 .orElse("Usuário removido")
                             : "Sistema";
                     return toDTO(a, userName);
@@ -193,11 +191,7 @@ public class AuditoriaService {
         if (userIds.isEmpty()) {
             return Map.of();
         }
-
-        List<Usuario> users = usuarioRepository.findAllById(userIds);
-        Map<UUID, String> result = new HashMap<>();
-        users.forEach(u -> result.put(u.getId(), u.getNome()));
-        return result;
+        return usuarioService.resolverNomes(userIds);
     }
 
     private AuditoriaDTO toDTO(Auditoria a, String usuarioNome) {

@@ -1,14 +1,14 @@
-package com.jetski.shared.audit.internal;
+package com.jetski.audit.internal;
 
-import com.jetski.locacoes.domain.event.CheckInEvent;
-import com.jetski.locacoes.domain.event.CheckOutEvent;
-import com.jetski.locacoes.domain.event.DataCheckInAlteradaEvent;
-import com.jetski.locacoes.domain.event.LocacaoEditadaEvent;
+import com.jetski.locacoes.event.CheckInEvent;
+import com.jetski.locacoes.event.CheckOutEvent;
+import com.jetski.locacoes.event.DataCheckInAlteradaEvent;
+import com.jetski.locacoes.event.LocacaoEditadaEvent;
 import com.jetski.reservas.domain.event.ReservationCancelledEvent;
 import com.jetski.reservas.domain.event.ReservationConfirmedEvent;
 import com.jetski.reservas.domain.event.ReservationCreatedEvent;
-import com.jetski.shared.audit.domain.Auditoria;
-import com.jetski.shared.audit.domain.AuditoriaRepository;
+import com.jetski.audit.domain.Auditoria;
+import com.jetski.audit.domain.AuditoriaRepository;
 import com.jetski.shared.observability.MDCKeys;
 import com.jetski.usuarios.domain.event.MemberActivatedEvent;
 import com.jetski.usuarios.domain.event.MemberDeactivatedEvent;

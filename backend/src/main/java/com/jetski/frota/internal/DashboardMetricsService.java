@@ -1,7 +1,7 @@
 package com.jetski.frota.internal;
 
 import com.jetski.frota.api.dto.DashboardMetrics;
-import com.jetski.locacoes.domain.event.RentalCompletedEvent;
+import com.jetski.locacoes.event.RentalCompletedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;

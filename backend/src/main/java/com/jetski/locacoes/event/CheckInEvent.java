@@ -1,4 +1,4 @@
-package com.jetski.locacoes.domain.event;
+package com.jetski.locacoes.event;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

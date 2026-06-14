@@ -3,8 +3,8 @@
  *
  * <p>This package contains:
  * <ul>
- *   <li>{@link com.jetski.shared.audit.domain.Auditoria} - The audit log entity</li>
- *   <li>{@link com.jetski.shared.audit.domain.AuditoriaRepository} - JPA repository for audit entries</li>
+ *   <li>{@link com.jetski.audit.domain.Auditoria} - The audit log entity</li>
+ *   <li>{@link com.jetski.audit.domain.AuditoriaRepository} - JPA repository for audit entries</li>
  * </ul>
  *
  * <p><strong>Design Decisions:</strong>
@@ -17,4 +17,4 @@
  * @author Jetski Team
  * @since 0.10.0
  */
-package com.jetski.shared.audit.domain;
+package com.jetski.audit.domain;

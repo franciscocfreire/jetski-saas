@@ -1,4 +1,4 @@
-package com.jetski.shared.audit.api.dto;
+package com.jetski.audit.api.dto;
 
 import java.time.LocalDate;
 import java.util.UUID;

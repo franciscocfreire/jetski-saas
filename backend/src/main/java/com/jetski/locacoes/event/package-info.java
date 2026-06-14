@@ -16,4 +16,4 @@
  * @since 0.9.0
  */
 @org.springframework.modulith.NamedInterface("events")
-package com.jetski.locacoes.domain.event;
+package com.jetski.locacoes.event;

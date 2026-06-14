@@ -1,8 +1,8 @@
-package com.jetski.shared.audit.api;
+package com.jetski.audit.api;
 
-import com.jetski.shared.audit.api.dto.AuditoriaDTO;
-import com.jetski.shared.audit.api.dto.AuditoriaFilters;
-import com.jetski.shared.audit.internal.AuditoriaService;
+import com.jetski.audit.api.dto.AuditoriaDTO;
+import com.jetski.audit.api.dto.AuditoriaFilters;
+import com.jetski.audit.internal.AuditoriaService;
 import com.jetski.shared.exception.NotFoundException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

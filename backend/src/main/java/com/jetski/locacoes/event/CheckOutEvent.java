@@ -1,4 +1,4 @@
-package com.jetski.locacoes.domain.event;
+package com.jetski.locacoes.event;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

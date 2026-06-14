@@ -3,7 +3,7 @@
  *
  * <p>This package contains:
  * <ul>
- *   <li>{@link com.jetski.shared.audit.internal.AuditEventListener} - Event listener for audit logging</li>
+ *   <li>{@link com.jetski.audit.internal.AuditEventListener} - Event listener for audit logging</li>
  * </ul>
  *
  * <p><strong>Note:</strong> Classes in this package are internal implementation details
@@ -12,4 +12,4 @@
  * @author Jetski Team
  * @since 0.10.0
  */
-package com.jetski.shared.audit.internal;
+package com.jetski.audit.internal;

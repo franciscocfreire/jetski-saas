@@ -9,8 +9,12 @@
  *   <li>Autorização via OPA (RBAC e Alçada)</li>
  *   <li>Tratamento global de exceções</li>
  *   <li>Configurações comuns (cache, web, etc.)</li>
- *   <li>Event listeners para eventos de domínio de outros módulos</li>
+ *   <li>Observabilidade (tracing, métricas, correlação MDC)</li>
  * </ul>
+ *
+ * <p>É a camada de <em>fundação</em>: todos os módulos dependem dela, e por isso ela
+ * não deve depender de nenhum módulo de feature (consumo de eventos de negócio vive
+ * no módulo {@code audit}, que é um observador top-level).
  *
  * <p><strong>API Pública:</strong>
  * <ul>
@@ -19,17 +23,13 @@
  *   <li>{@code exception} - Classes de exceção e tratamento global</li>
  *   <li>{@code config} - Configurações compartilhadas</li>
  *   <li>{@code storage} - Serviço de armazenamento de arquivos (S3/MinIO/Local)</li>
+ *   <li>{@code observability} - Chaves de correlação MDC, métricas e tracing</li>
  * </ul>
  *
  * <p><strong>Implementação Interna:</strong>
  * <ul>
  *   <li>{@code internal} - Filtros, conversores e infraestrutura (não deve ser acessado por outros módulos)</li>
- *   <li>{@code internal.listeners} - Event listeners para eventos de outros módulos (subscribed to usuarios::events)</li>
  * </ul>
- *
- * <p><strong>Event Subscriptions:</strong><br>
- * This module listens to domain events from other modules via Spring Modulith's ApplicationModuleListener,
- * including {@code UserAccountActivatedEvent} from usuarios::events.
  *
  * @since 0.1.0
  */

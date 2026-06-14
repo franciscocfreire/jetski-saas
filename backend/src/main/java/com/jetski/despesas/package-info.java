@@ -7,6 +7,11 @@
  * @since 0.9.0
  */
 @org.springframework.modulith.ApplicationModule(
-    displayName = "Despesas Operacionais"
+    displayName = "Despesas Operacionais",
+    allowedDependencies = {
+        "shared::security",
+        "shared::exception",
+        "usuarios::api"
+    }
 )
 package com.jetski.despesas;
