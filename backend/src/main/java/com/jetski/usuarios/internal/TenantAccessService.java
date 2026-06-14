@@ -6,6 +6,7 @@ import com.jetski.usuarios.internal.repository.MembroRepository;
 import com.jetski.usuarios.internal.repository.UsuarioGlobalRolesRepository;
 import com.jetski.shared.security.TenantAccessValidator;
 import com.jetski.shared.security.TenantAccessInfo;
+import com.jetski.shared.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
@@ -159,5 +160,25 @@ public class TenantAccessService implements TenantAccessValidator {
 
         // Count specific memberships
         return membroRepository.countActiveByUsuario(usuarioId);
+    }
+
+    /**
+     * Verifica se o usuário autenticado tem acesso ao tenant informado.
+     *
+     * <p>Usado em expressões {@code @PreAuthorize} (ex.: PhotoController). Neste ponto
+     * o {@code TenantFilter} já validou a associação usuário↔tenant e populou o
+     * {@link TenantContext}; este método apenas confirma que o tenant da requisição
+     * corresponde ao contexto validado e que o usuário possui papéis nele.
+     *
+     * @param tenantId Tenant alvo (vindo do path/`#tenantId`)
+     * @return true se o usuário tem acesso ao tenant
+     */
+    public boolean canAccessTenant(UUID tenantId) {
+        if (tenantId == null) {
+            return false;
+        }
+        UUID currentTenant = TenantContext.getTenantId();
+        List<String> roles = TenantContext.getUserRoles();
+        return tenantId.equals(currentTenant) && roles != null && !roles.isEmpty();
     }
 }

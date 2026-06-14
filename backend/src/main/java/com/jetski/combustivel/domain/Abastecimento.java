@@ -50,7 +50,7 @@ public class Abastecimento {
     private TipoAbastecimento tipo;
 
     @Column(name = "foto_id")
-    private Long fotoId;
+    private UUID fotoId;
 
     @Column(name = "observacoes", length = 500)
     private String observacoes;
