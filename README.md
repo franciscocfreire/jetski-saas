@@ -9,7 +9,8 @@ Sistema SaaS B2B multi-tenant para gestão completa de locações de jetski, inc
 - **Mobile:** Kotlin Multiplatform Mobile (KMM)
 - **Auth:** Keycloak 26 (OIDC + PKCE)
 - **Cache:** Redis 7
-- **Storage:** AWS S3 (ou compatível)
+- **Storage:** local (`LocalStorageController`); S3 planejado
+- **Modularidade:** Spring Modulith 1.2 (fronteiras de módulo verificadas em build)
 
 ## 🚀 Quick Start
 
@@ -27,11 +28,14 @@ Sistema SaaS B2B multi-tenant para gestão completa de locações de jetski, inc
 git clone <repo-url>
 cd jetski
 
-# Subir serviços (PostgreSQL + Redis + Keycloak)
+# Subir serviços (PostgreSQL + Redis + Keycloak + OPA + backend + frontend)
 make up
 
 # Ou sem Make:
-docker-compose up -d
+docker compose up -d
+
+# Reset completo do ambiente dev (recria DB + Keycloak + seed):
+./reset-ambiente-dev.sh
 ```
 
 Aguarde ~1-2 minutos para o Keycloak ficar pronto.
@@ -58,15 +62,20 @@ make test-keycloak  # Testa Keycloak
 
 - **Keycloak:** http://localhost:8080
   - Admin Console: http://localhost:8080/admin
-  - Credentials: `admin` / `admin`
+  - Credentials: `admin` / `Mazuca@123`
   - Realm: `jetski-saas`
 
-### 4. Usuários de teste
+- **OPA:** http://localhost:8181
 
-| Email | Senha | Roles | Tenant |
-|-------|-------|-------|--------|
-| admin@acme.com | admin123 | ADMIN_TENANT, GERENTE | acme |
-| operador@acme.com | operador123 | OPERADOR | acme |
+### 4. Usuários de teste (tenant `acme`)
+
+| Email | Senha | Role |
+|-------|-------|------|
+| admin@acme.com | admin123 | ADMIN_TENANT |
+| gerente@acme.com | gerente123 | GERENTE |
+| operador@acme.com | operador123 | OPERADOR |
+| vendedor@acme.com | vendedor123 | VENDEDOR |
+| mecanico@acme.com | mecanico123 | MECANICO |
 
 ## 📁 Estrutura do Projeto
 
@@ -77,17 +86,15 @@ jetski/
 │   ├── stories/         # User stories do backend
 │   └── pom.xml
 │
-├── frontend/            # Next.js backoffice
-│   ├── app/
-│   ├── components/
-│   ├── stories/        # User stories do frontend
-│   └── package.json
+├── frontend/            # Backoffice web
+│   ├── jetski-backoffice/  # App Next.js (app/, components/, e2e/...)
+│   └── stories/         # User stories do frontend
 │
-├── mobile/             # KMM app (Android/iOS)
-│   ├── shared/
-│   ├── androidApp/
-│   ├── iosApp/
-│   └── stories/       # User stories do mobile
+├── mobile/             # KMM app (Android/iOS) — apenas documentação
+│   ├── ARCHITECTURE.md
+│   ├── KMM-INTRO.md
+│   ├── SETUP-WINDOWS.md
+│   └── stories/        # User stories do mobile
 │
 ├── stories/            # Gestão de épicos e sprints
 │   ├── epics/         # 7 épicos principais
@@ -173,24 +180,29 @@ O sistema usa **isolamento lógico de dados** com:
 ## 🧪 Testes
 
 ```bash
-# Backend
+# Backend (749 testes; unit + integração com Testcontainers; requer Docker)
 cd backend
-mvn test                          # Testes unitários
-mvn verify                        # Testes de integração (Testcontainers)
-mvn test -Dtest=*TenantTest       # Rodar testes específicos
+mvn test                          # Suíte completa
+mvn test -Dtest=ModuleStructureTest   # Verifica fronteiras de módulos (Spring Modulith)
+mvn test -Dtest=LocacaoControllerTest # Rodar uma classe específica
 
-# Frontend
-cd frontend
-npm test                          # Jest + React Testing Library
-npm run test:e2e                  # Playwright (quando implementado)
+# Frontend (Playwright e2e)
+cd frontend/jetski-backoffice
+npx playwright test
+
+# API end-to-end (Newman/Postman)
+cd backend/postman
+newman run Jetski-Jornadas.postman_collection.json -e environments/Dev.postman_environment.json
 ```
 
-## 📊 Observabilidade (futuro)
+## 📊 Observabilidade
 
-- **Logs:** JSON estruturado com `tenant_id` e `traceId`
-- **Métricas:** Prometheus + Grafana
-- **Traces:** OpenTelemetry
-- **Health:** Spring Boot Actuator (`/actuator/health`)
+- **Logs:** JSON estruturado com `tenant_id` e `traceId` (MDC)
+- **Métricas:** Prometheus + Grafana (`infra/monitoring/`, `monitoring-stack.sh`)
+- **Health:** Spring Boot Actuator (`/api/actuator/health`)
+- **Auditoria:** trilha "quem/o quê/quando" via eventos (módulo `audit`)
+
+Pendente: traces (OpenTelemetry) e validação dos dashboards.
 
 ## 🤝 Contribuindo
 
@@ -211,9 +223,9 @@ npm run test:e2e                  # Playwright (quando implementado)
 ### Keycloak não sobe
 
 ```bash
-docker-compose logs keycloak
+docker compose logs keycloak
 # Verificar se PostgreSQL está rodando
-docker-compose ps postgres
+docker compose ps postgres
 ```
 
 ### PostgreSQL connection refused
@@ -222,8 +234,8 @@ docker-compose ps postgres
 # Verificar se porta 5432 está livre
 lsof -i :5432
 # Recriar container
-docker-compose down
-docker-compose up -d postgres
+docker compose down
+docker compose up -d postgres
 ```
 
 ### Realm não foi importado
