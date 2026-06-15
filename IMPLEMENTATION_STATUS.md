@@ -112,6 +112,10 @@ Estado: TanStack Query; tabelas: TanStack Table; gráficos: Recharts; testes e2e
 
 - **PostgreSQL 16** com RLS habilitado em todas as tabelas operacionais; `set_config('app.tenant_id', …)` por sessão.
 - **Keycloak 26** — realm único + claim `tenant_id`; setup automatizado (`setup-keycloak-local.sh`).
+  O `infra/keycloak-realm.json` é **self-contained**: traz os 5 usuários ACME com IDs
+  fixos que casam com o seed (`usuario_identity_provider`) e o client `jetski-test`
+  (público, *direct access grants*). Após `docker compose up` os usuários já logam e
+  resolvem o usuário interno, sem depender da sincronização de UUID do `reset-ambiente-dev.sh`.
 - **OPA** — políticas `.rego` montadas via volume.
 - Scripts de ambiente: `reset-ambiente-dev.sh` (toda alteração/inclusão de tabela deve entrar aqui), `rebuild.sh`, `rebuild-frontend.sh`.
 
@@ -141,6 +145,10 @@ As 36 migrations incrementais antigas (V001→V036) não rodavam limpas do zero 
 - Fechamento diário/mensal com **lock retroativo** e hash de valores.
 - Multi-tenancy por RLS + RBAC (Keycloak) + ABAC/alçadas (OPA).
 
+> Mapa **RN ↔ cenário BDD ↔ teste** (cobertura e lacunas) em [`docs/RN-COVERAGE.md`](docs/RN-COVERAGE.md).
+> Lacunas conhecidas: RN02 (cancelamento/no-show) não implementado, RN05 caução/danos
+> faltando, RN07 sem teste dedicado.
+
 ---
 
 ## 5.1 ARQUITETURA MODULAR (Spring Modulith)
@@ -168,7 +176,16 @@ As 36 migrations incrementais antigas (V001→V036) não rodavam limpas do zero 
 - LGPD (consentimento, retenção por tenant), AWS KMS (envelope encryption), rate-limit por tenant, DPA.
 
 ### CI/CD & deploy
-- Não há pipeline (GitHub Actions), build de imagem Docker, EKS/Helm/ArgoCD nem RDS configurados.
+- **CI implementado (GitHub Actions):**
+  - `.github/workflows/ci.yml` — `mvn clean test` (unit + integração Testcontainers +
+    `ModuleStructureTest`) em todo push/PR na main.
+  - `.github/workflows/e2e.yml` — sobe o stack via docker compose e roda a collection
+    Postman com **Newman** contra a API real (Keycloak real). Usa `infra/ci-bootstrap-db.sh`
+    (cria `jetski_app` + migrations Flyway + grants) e `docker-compose.ci.yml` (alinha o
+    issuer do JWT). Roda em push na main + `workflow_dispatch`; **ainda não em PR** até a
+    1ª execução verde no runner (validado localmente: 37 requests / 70 assertions / 0 falhas).
+- **Falta:** build/push de imagem Docker no pipeline, EKS/Helm/ArgoCD, RDS — nenhum dos
+  workflows faz **deploy** (apenas validação).
 
 ### Mobile (KMM)
 - Apenas documentação; código no working dir `/mnt/c/repos/jetski-mobile`.
