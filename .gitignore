@@ -28,6 +28,7 @@ Thumbs.db
 *.swp
 *.swo
 *~
+nohup.out
 
 # Environment specific
 *.local

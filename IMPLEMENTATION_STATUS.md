@@ -2,10 +2,10 @@
 
 **Date:** 2026-06-14
 **Project Version:** 0.8.0
-**Architecture:** Modular monolith (Spring Modulith) — Java 21 / Spring Boot 3.3+
+**Architecture:** Modular monolith (Spring Modulith 1.2.7) — Java 21 / Spring Boot 3.3
 
-> Nota: contagens de testes e cobertura abaixo precisam ser re-medidas com `mvn test`
-> (o `target/` estava limpo na geração deste relatório). Fato verificável: **51 classes de teste**.
+> **Estado da suíte:** `mvn test` = **749 testes, 0 falhas** (BUILD SUCCESS), incluindo o
+> `ModuleStructureTest` (sem ciclos e sem acesso a `internal` entre módulos).
 
 ---
 
@@ -18,7 +18,7 @@ ainda é só documentação.
 
 **Estado por camada:**
 
-- **Backend** — Funcional. 385+ classes Java, 51 classes de teste, 36 migrations Flyway (V001→V036).
+- **Backend** — Funcional. 385+ classes Java, **749 testes verdes**, **2 migrations Flyway** (baseline + seed, rodam limpas do zero). Spring Modulith com **todos os módulos `CLOSED`** (fronteiras enforçadas).
 - **Backoffice web** (`frontend/jetski-backoffice`) — Funcional. Next.js 15 + React 19 + shadcn/ui, NextAuth + OIDC, TanStack Query/Table, Recharts, Playwright e2e.
 - **Mobile** (KMM) — Apenas documentação (`mobile/*.md`); código em working dir separado (`/mnt/c/repos/jetski-mobile`).
 
@@ -117,12 +117,18 @@ Estado: TanStack Query; tabelas: TanStack Table; gráficos: Recharts; testes e2e
 
 ---
 
-## 4. BANCO DE DADOS — MIGRATIONS (36, V001→V036)
+## 4. BANCO DE DADOS — MIGRATIONS (consolidadas em 2)
 
-- **V001–V010** — schema base, seed, multi-tenant, signup, marketplace, modelo_midia, ajustes de RLS.
-- **V011–V020** — alinhamento de entidades (fechamento diário, comissão, foto, fechamento mensal), despesa operacional, hash de fechamento, e-mail/telefone de vendedor, política de comissão.
-- **V021–V033** — domínio de vendedores: config de comissão por tenant, bônus, diária base, presença, PIX, pagamento a vendedor, tipo de pagamento.
-- **V034–V036** — alinhamento de OS de manutenção (status check) e despesa de manutenção.
+As 36 migrations incrementais antigas (V001→V036) não rodavam limpas do zero (as
+`align_*_with_entity` assumiam um schema antigo) e foram **consolidadas**:
+
+- **`V001__schema.sql`** — baseline completo (36 tabelas, índices, constraints, RLS policies,
+  functions, triggers). Gerado a partir do schema real e alinhado às entidades JPA.
+- **`V002__seed_data.sql`** — seed de dev/test (planos, tenant ACME, usuários, modelos, jetskis,
+  fixtures de teste).
+
+> Toda alteração de tabela deve entrar no `reset-ambiente-dev.sh` e, daqui pra frente, como uma
+> nova migration `V003+` (não editar o baseline).
 
 ---
 
@@ -134,6 +140,22 @@ Estado: TanStack Query; tabelas: TanStack Table; gráficos: Recharts; testes e2e
 - **RN06** — Manutenção bloqueia jetski; libera ao concluir/cancelar todas as OS ativas.
 - Fechamento diário/mensal com **lock retroativo** e hash de valores.
 - Multi-tenancy por RLS + RBAC (Keycloak) + ABAC/alçadas (OPA).
+
+---
+
+## 5.1 ARQUITETURA MODULAR (Spring Modulith)
+
+`ModuleStructureTest` valida as fronteiras em todo build e está **verde**:
+
+- **Sem ciclos.** Os 3 ciclos que existiam foram quebrados:
+  - `shared ↔ tenant` → `TenantTimeService` movido para o módulo `tenant` (shared é fundação pura).
+  - `comissoes ↔ bonus` → evento `ComissaoCalculadaEvent` (comissoes publica, bonus escuta).
+  - `locacoes ↔ fechamento` → port `FechamentoLockChecker` (DI invertida) + eventos.
+- **Todos os módulos `CLOSED`.** Internals não são acessados entre módulos; a comunicação
+  cross-module passa por named interfaces (`api`, `domain`, `events`) e serviços públicos
+  (`*QueryService`, `*Service` em `api`).
+- Módulos consumidores que antes "furavam" fronteiras (`dashboard`, `pagamentos`, `signup`)
+  agora consomem apenas APIs públicas.
 
 ---
 
