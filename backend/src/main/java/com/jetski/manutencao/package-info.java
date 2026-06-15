@@ -37,7 +37,6 @@
  * @since Sprint 4
  */
 @org.springframework.modulith.ApplicationModule(
-    displayName = "Manutenção (Maintenance Orders)",
-    type = org.springframework.modulith.ApplicationModule.Type.OPEN
+    displayName = "Manutenção (Maintenance Orders)"
 )
 package com.jetski.manutencao;

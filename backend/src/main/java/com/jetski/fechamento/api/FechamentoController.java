@@ -3,7 +3,6 @@ package com.jetski.fechamento.api;
 import com.jetski.fechamento.api.dto.*;
 import com.jetski.fechamento.domain.FechamentoDiario;
 import com.jetski.fechamento.domain.FechamentoMensal;
-import com.jetski.fechamento.internal.FechamentoService;
 import com.jetski.fechamento.internal.report.FechamentoReportService;
 import com.jetski.shared.security.TenantContext;
 import jakarta.validation.Valid;

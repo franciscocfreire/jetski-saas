@@ -9,7 +9,6 @@ import com.jetski.manutencao.api.dto.GerarDespesaManutencaoRequest;
 import com.jetski.manutencao.api.dto.PagarDespesaManutencaoRequest;
 import com.jetski.manutencao.domain.DespesaManutencao;
 import com.jetski.manutencao.domain.OSManutencao;
-import com.jetski.manutencao.internal.DespesaManutencaoService;
 import com.jetski.manutencao.internal.OSManutencaoService;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.usuarios.api.UsuarioService;

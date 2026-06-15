@@ -1,4 +1,4 @@
-package com.jetski.fechamento.internal;
+package com.jetski.fechamento.api;
 
 import com.jetski.comissoes.api.ComissaoQueryService;
 import com.jetski.comissoes.domain.Comissao;

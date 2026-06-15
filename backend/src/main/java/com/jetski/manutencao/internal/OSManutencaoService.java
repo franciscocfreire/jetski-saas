@@ -1,5 +1,6 @@
 package com.jetski.manutencao.internal;
 
+import com.jetski.manutencao.api.DespesaManutencaoService;
 import com.jetski.locacoes.domain.Jetski;
 import com.jetski.locacoes.domain.JetskiStatus;
 import com.jetski.locacoes.api.JetskiPublicService;

@@ -34,7 +34,6 @@
  * @since 0.8.0
  */
 @org.springframework.modulith.ApplicationModule(
-    displayName = "Financial Closure",
-    type = org.springframework.modulith.ApplicationModule.Type.OPEN
+    displayName = "Financial Closure"
 )
 package com.jetski.fechamento;

@@ -1,4 +1,4 @@
-package com.jetski.manutencao.internal;
+package com.jetski.manutencao.api;
 
 import com.jetski.despesas.domain.StatusDespesa;
 import com.jetski.manutencao.domain.DespesaManutencao;
