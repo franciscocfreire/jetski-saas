@@ -139,8 +139,8 @@ make backend-run     # Rodar aplicação
 ## 📚 Documentação
 
 - **[CLAUDE.md](./CLAUDE.md)** - Guia completo para desenvolvimento
-- **[Project Board](./stories/project-board.md)** - Status do projeto
-- **[Sprint 01 Planning](./stories/sprints/sprint-01-planning.md)** - Planejamento do sprint atual
+- **[Implementation Status](./IMPLEMENTATION_STATUS.md)** - Status atual da implementação
+- **[Project Board](./stories/project-board.md)** - Quadro de épicos/stories
 - **[Épicos](./stories/epics/)** - 7 épicos principais
 - **[Especificação Completa](./inicial.md)** - Requisitos detalhados
 
@@ -148,15 +148,19 @@ make backend-run     # Rodar aplicação
 
 | ID | Épico | Status | Story Points |
 |----|-------|--------|-------------|
-| [EPIC-01](./stories/epics/epic-01-multi-tenant-foundation.md) | Multi-tenant Foundation | 🔄 IN PROGRESS | 26 pts |
-| [EPIC-02](./stories/epics/epic-02-cadastros-core.md) | Cadastros Core | 📋 TODO | 37 pts |
-| [EPIC-03](./stories/epics/epic-03-reservas-locacoes.md) | Reservas e Locações | 📋 TODO | 105 pts |
-| [EPIC-04](./stories/epics/epic-04-manutencao-fechamentos.md) | Manutenção e Fechamentos | 📋 TODO | 65 pts |
-| [EPIC-05](./stories/epics/epic-05-observabilidade-cicd.md) | Observabilidade e CI/CD | 📋 TODO | 47 pts |
-| [EPIC-06](./stories/epics/epic-06-backoffice-web.md) | Backoffice Web | 📋 TODO | 82 pts |
-| [EPIC-07](./stories/epics/epic-07-mobile-kmm-poc.md) | Mobile KMM POC | 📋 TODO | 47 pts |
+| [EPIC-01](./stories/epics/epic-01-multi-tenant-foundation.md) | Multi-tenant Foundation | ✅ CONCLUÍDO | 26 pts |
+| [EPIC-02](./stories/epics/epic-02-cadastros-core.md) | Cadastros Core | ✅ CONCLUÍDO | 37 pts |
+| [EPIC-03](./stories/epics/epic-03-reservas-locacoes.md) | Reservas e Locações | ✅ CONCLUÍDO¹ | 105 pts |
+| [EPIC-04](./stories/epics/epic-04-manutencao-fechamentos.md) | Manutenção e Fechamentos | ✅ CONCLUÍDO | 65 pts |
+| [EPIC-05](./stories/epics/epic-05-observabilidade-cicd.md) | Observabilidade e CI/CD | 🔄 PARCIAL² | 47 pts |
+| [EPIC-06](./stories/epics/epic-06-backoffice-web.md) | Backoffice Web | ✅ CONCLUÍDO | 82 pts |
+| [EPIC-07](./stories/epics/epic-07-mobile-kmm-poc.md) | Mobile KMM POC | 📋 TODO³ | 47 pts |
 
-**Total:** 409 story points (~20 sprints)
+¹ Núcleo completo (reservas, check-in/out, billing RN01). Pendente: armazenamento de fotos em S3 (hoje storage local).
+² Observabilidade implementada (Grafana/Loki/Prometheus, Actuator). Pendente: pipeline CI/CD e deploy.
+³ Apenas documentação (`mobile/*.md`); código no working dir separado.
+
+**Total:** 409 story points
 
 ## 🔐 Multi-tenancy
 
