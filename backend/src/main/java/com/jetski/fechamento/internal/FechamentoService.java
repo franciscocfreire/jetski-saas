@@ -11,7 +11,7 @@ import com.jetski.fechamento.internal.repository.FechamentoDiarioRepository;
 import com.jetski.fechamento.internal.repository.FechamentoMensalRepository;
 import com.jetski.locacoes.api.LocacaoQueryService;
 import com.jetski.locacoes.domain.Locacao;
-import com.jetski.locacoes.internal.repository.PresencaVendedorRepository;
+import com.jetski.locacoes.api.PresencaVendedorQueryService;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -57,7 +57,7 @@ public class FechamentoService {
     private final LocacaoQueryService locacaoQueryService;
     private final ComissaoQueryService comissaoQueryService;
     private final DespesaOperacionalService despesaOperacionalService;
-    private final PresencaVendedorRepository presencaVendedorRepository;
+    private final PresencaVendedorQueryService presencaVendedorQueryService;
 
     // ====================
     // Fechamento Diário
@@ -121,7 +121,7 @@ public class FechamentoService {
         BigDecimal totalDespesasOperacionais = despesaOperacionalService.somarDespesasDia(tenantId, data);
 
         // Buscar total de diárias de vendedores do dia
-        BigDecimal totalDiariasVendedores = presencaVendedorRepository.sumTotalDiariasByDate(tenantId, data);
+        BigDecimal totalDiariasVendedores = presencaVendedorQueryService.sumTotalDiariasByDate(tenantId, data);
 
         // Criar ou atualizar fechamento (idempotente)
         boolean isUpdate = fechamento != null;

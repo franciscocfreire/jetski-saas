@@ -8,8 +8,8 @@ import com.jetski.comissoes.domain.StatusComissao;
 import com.jetski.comissoes.api.ComissaoQueryService;
 import com.jetski.locacoes.domain.PresencaVendedor;
 import com.jetski.locacoes.domain.Vendedor;
-import com.jetski.locacoes.internal.repository.PresencaVendedorRepository;
-import com.jetski.locacoes.internal.repository.VendedorRepository;
+import com.jetski.locacoes.api.PresencaVendedorQueryService;
+import com.jetski.locacoes.api.VendedorService;
 import com.jetski.pagamentos.api.dto.DetalhesPendenciasResponse;
 import com.jetski.pagamentos.api.dto.ItemPendente;
 import com.jetski.pagamentos.api.dto.PagamentoVendedorResponse;
@@ -50,9 +50,9 @@ import java.util.stream.Collectors;
 public class PagamentoVendedorService {
 
     private final PagamentoVendedorRepository pagamentoRepository;
-    private final VendedorRepository vendedorRepository;
+    private final VendedorService vendedorService;
     private final ComissaoQueryService comissaoQueryService;
-    private final PresencaVendedorRepository presencaRepository;
+    private final PresencaVendedorQueryService presencaQueryService;
     private final BonusService bonusService;
 
     /**
@@ -65,7 +65,7 @@ public class PagamentoVendedorService {
     public List<PendenciasPagamentoResponse> listarPendencias(UUID tenantId) {
         log.debug("Listing pending payments for tenant: {}", tenantId);
 
-        List<Vendedor> vendedores = vendedorRepository.findAllActive();
+        List<Vendedor> vendedores = vendedorService.listActiveSellers();
 
         return vendedores.stream()
                 .map(v -> buildPendenciasResponse(tenantId, v))
@@ -85,8 +85,7 @@ public class PagamentoVendedorService {
     public PendenciasPagamentoResponse getPendenciasVendedor(UUID tenantId, UUID vendedorId) {
         log.debug("Getting pending payments for vendor: {}", vendedorId);
 
-        Vendedor vendedor = vendedorRepository.findById(vendedorId)
-                .orElseThrow(() -> new BusinessException("Vendedor não encontrado"));
+        Vendedor vendedor = vendedorService.findById(vendedorId);
 
         return buildPendenciasResponse(tenantId, vendedor);
     }
@@ -107,8 +106,7 @@ public class PagamentoVendedorService {
         log.info("Registering payment for vendor: {} by user: {}", vendedorId, pagoPor);
 
         // 1. Find vendor
-        Vendedor vendedor = vendedorRepository.findById(vendedorId)
-                .orElseThrow(() -> new BusinessException("Vendedor não encontrado"));
+        Vendedor vendedor = vendedorService.findById(vendedorId);
 
         // 2. Determine items to pay (full or partial)
         boolean pagamentoParcial = request.isPagamentoParcial();
@@ -126,7 +124,7 @@ public class PagamentoVendedorService {
             comissoes = comissaoQueryService
                     .findByVendedorAndStatus(
                             tenantId, vendedorId, StatusComissao.APROVADA);
-            diarias = presencaRepository.findNaoPagasByVendedor(tenantId, vendedorId);
+            diarias = presencaQueryService.findNaoPagasByVendedor(tenantId, vendedorId);
             bonus = bonusService.findAprovadosByVendedor(tenantId, vendedorId);
         }
 
@@ -240,7 +238,7 @@ public class PagamentoVendedorService {
             presenca.setPagamentoId(pagamentoId);
             presenca.setPagoEm(agora);
             presenca.setPagoPor(pagoPor);
-            presencaRepository.save(presenca);
+            presencaQueryService.salvar(presenca);
         }
 
         // 9. Mark bonuses as PAGO
@@ -273,7 +271,7 @@ public class PagamentoVendedorService {
 
     private List<PresencaVendedor> getSelectedDiarias(UUID tenantId, UUID vendedorId, List<UUID> ids) {
         if (ids == null || ids.isEmpty()) return List.of();
-        return presencaRepository.findAllById(ids).stream()
+        return presencaQueryService.findByIds(ids).stream()
                 .filter(p -> p.getTenantId().equals(tenantId)
                           && p.getVendedorId().equals(vendedorId)
                           && p.getPagoEm() == null)
@@ -367,11 +365,11 @@ public class PagamentoVendedorService {
                 .countComissoesAprovadasByVendedor(tenantId, vendedor.getId());
 
         // Get unpaid diárias
-        BigDecimal valorDiarias = presencaRepository
+        BigDecimal valorDiarias = presencaQueryService
                 .sumDiariasNaoPagasByVendedor(tenantId, vendedor.getId());
         if (valorDiarias == null) valorDiarias = BigDecimal.ZERO;
 
-        int qtdDiarias = presencaRepository
+        int qtdDiarias = presencaQueryService
                 .countDiariasNaoPagasByVendedor(tenantId, vendedor.getId());
 
         // Get approved bonuses
@@ -413,8 +411,7 @@ public class PagamentoVendedorService {
     public DetalhesPendenciasResponse getDetalhesPendencias(UUID tenantId, UUID vendedorId) {
         log.debug("Getting detailed pending items for vendor: {}", vendedorId);
 
-        Vendedor vendedor = vendedorRepository.findById(vendedorId)
-                .orElseThrow(() -> new BusinessException("Vendedor não encontrado"));
+        Vendedor vendedor = vendedorService.findById(vendedorId);
 
         List<ItemPendente> itens = new ArrayList<>();
 
@@ -430,7 +427,7 @@ public class PagamentoVendedorService {
                         .build()));
 
         // Add unpaid diárias
-        presencaRepository.findNaoPagasByVendedor(tenantId, vendedorId)
+        presencaQueryService.findNaoPagasByVendedor(tenantId, vendedorId)
                 .forEach(p -> itens.add(ItemPendente.builder()
                         .id(p.getId())
                         .tipo("DIARIA")

@@ -11,7 +11,6 @@ import com.jetski.comissoes.api.dto.ComissaoResponse;
 import com.jetski.comissoes.api.ComissaoQueryService;
 import com.jetski.locacoes.api.dto.*;
 import com.jetski.locacoes.domain.Vendedor;
-import com.jetski.locacoes.internal.VendedorService;
 import com.jetski.shared.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

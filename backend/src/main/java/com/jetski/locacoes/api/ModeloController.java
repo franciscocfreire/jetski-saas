@@ -7,7 +7,6 @@ import com.jetski.locacoes.api.dto.ModeloResponse;
 import com.jetski.locacoes.api.dto.ModeloUpdateRequest;
 import com.jetski.locacoes.domain.Modelo;
 import com.jetski.locacoes.internal.ModeloMidiaService;
-import com.jetski.locacoes.internal.ModeloService;
 import com.jetski.shared.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

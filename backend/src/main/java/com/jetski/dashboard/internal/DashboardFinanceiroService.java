@@ -9,7 +9,7 @@ import com.jetski.despesas.api.DespesaOperacionalService;
 import com.jetski.fechamento.domain.FechamentoDiario;
 import com.jetski.fechamento.domain.FechamentoMensal;
 import com.jetski.fechamento.internal.FechamentoService;
-import com.jetski.locacoes.internal.repository.PresencaVendedorRepository;
+import com.jetski.locacoes.api.PresencaVendedorQueryService;
 import com.jetski.manutencao.domain.DespesaManutencao;
 import com.jetski.manutencao.internal.DespesaManutencaoService;
 import lombok.RequiredArgsConstructor;
@@ -51,7 +51,7 @@ public class DashboardFinanceiroService {
     private final DespesaOperacionalService despesaOperacionalService;
     private final DespesaManutencaoService despesaManutencaoService;
     private final ComissaoQueryService comissaoQueryService;
-    private final PresencaVendedorRepository presencaVendedorRepository;
+    private final PresencaVendedorQueryService presencaVendedorQueryService;
 
     /**
      * Get monthly financial calendar data.
@@ -122,7 +122,7 @@ public class DashboardFinanceiroService {
                         .filter(v -> v != null)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
                 // Calculate diárias from presenca_vendedor
-                diariasVendedores = presencaVendedorRepository.sumTotalDiariasByDate(tenantId, data);
+                diariasVendedores = presencaVendedorQueryService.sumTotalDiariasByDate(tenantId, data);
                 if (diariasVendedores == null) {
                     diariasVendedores = BigDecimal.ZERO;
                 }
@@ -220,7 +220,7 @@ public class DashboardFinanceiroService {
                         f.getTotalDiariasVendedores() : BigDecimal.ZERO;
             } else {
                 // Calculate diárias from presenca_vendedor if no closure exists
-                diariasVendedores = presencaVendedorRepository.sumTotalDiariasByDate(tenantId, data);
+                diariasVendedores = presencaVendedorQueryService.sumTotalDiariasByDate(tenantId, data);
                 if (diariasVendedores == null) {
                     diariasVendedores = BigDecimal.ZERO;
                 }
@@ -302,7 +302,7 @@ public class DashboardFinanceiroService {
             }
 
             // Calculate diárias from presenca_vendedor for the period
-            diariasVendedores = presencaVendedorRepository.sumTotalDiariasByTenantAndPeriodo(
+            diariasVendedores = presencaVendedorQueryService.sumTotalDiariasByTenantAndPeriodo(
                     tenantId, dataInicio, dataFim);
             if (diariasVendedores == null) {
                 diariasVendedores = BigDecimal.ZERO;

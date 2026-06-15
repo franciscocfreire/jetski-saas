@@ -1,4 +1,4 @@
-package com.jetski.locacoes.internal;
+package com.jetski.locacoes.api;
 
 import com.jetski.comissoes.api.ComissaoQueryService;
 import com.jetski.locacoes.api.dto.VendedorDetalheResponse;

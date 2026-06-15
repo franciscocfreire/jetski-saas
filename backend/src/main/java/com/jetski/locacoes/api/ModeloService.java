@@ -1,4 +1,4 @@
-package com.jetski.locacoes.internal;
+package com.jetski.locacoes.api;
 
 import com.jetski.locacoes.domain.Modelo;
 import com.jetski.locacoes.internal.repository.ModeloRepository;

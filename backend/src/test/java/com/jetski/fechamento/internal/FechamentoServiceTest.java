@@ -8,7 +8,7 @@ import com.jetski.fechamento.domain.FechamentoMensal;
 import com.jetski.fechamento.internal.repository.FechamentoDiarioRepository;
 import com.jetski.fechamento.internal.repository.FechamentoMensalRepository;
 import com.jetski.locacoes.api.LocacaoQueryService;
-import com.jetski.locacoes.internal.repository.PresencaVendedorRepository;
+import com.jetski.locacoes.api.PresencaVendedorQueryService;
 import com.jetski.locacoes.domain.Locacao;
 import com.jetski.locacoes.domain.LocacaoStatus;
 import com.jetski.shared.exception.BusinessException;
@@ -65,7 +65,7 @@ class FechamentoServiceTest {
     private DespesaOperacionalService despesaOperacionalService;
 
     @Mock
-    private PresencaVendedorRepository presencaVendedorRepository;
+    private PresencaVendedorQueryService presencaVendedorQueryService;
 
     @InjectMocks
     private FechamentoService fechamentoService;

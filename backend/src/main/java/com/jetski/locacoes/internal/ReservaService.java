@@ -1,5 +1,6 @@
 package com.jetski.locacoes.internal;
 
+import com.jetski.locacoes.api.ModeloService;
 import com.jetski.locacoes.domain.Jetski;
 import com.jetski.locacoes.domain.JetskiStatus;
 import com.jetski.locacoes.domain.Modelo;

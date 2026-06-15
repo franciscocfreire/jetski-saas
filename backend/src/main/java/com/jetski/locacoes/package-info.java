@@ -45,7 +45,6 @@
  * @since 0.2.0
  */
 @org.springframework.modulith.ApplicationModule(
-    displayName = "Rentals and Operations",
-    type = org.springframework.modulith.ApplicationModule.Type.OPEN
+    displayName = "Rentals and Operations"
 )
 package com.jetski.locacoes;

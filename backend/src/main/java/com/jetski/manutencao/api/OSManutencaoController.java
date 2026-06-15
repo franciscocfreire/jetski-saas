@@ -2,7 +2,7 @@ package com.jetski.manutencao.api;
 
 import com.jetski.locacoes.api.JetskiPublicService;
 import com.jetski.locacoes.domain.Jetski;
-import com.jetski.locacoes.internal.ModeloService;
+import com.jetski.locacoes.api.ModeloService;
 import com.jetski.locacoes.domain.Modelo;
 import com.jetski.manutencao.api.dto.JetskiDisponibilidadeResponse;
 import com.jetski.manutencao.api.dto.OSManutencaoCreateRequest;

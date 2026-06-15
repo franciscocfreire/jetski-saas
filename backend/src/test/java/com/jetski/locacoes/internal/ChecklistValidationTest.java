@@ -1,5 +1,6 @@
 package com.jetski.locacoes.internal;
 
+import com.jetski.locacoes.api.ModeloService;
 import com.jetski.comissoes.api.CommissionService;
 import com.jetski.locacoes.api.FechamentoLockChecker;
 import com.jetski.locacoes.domain.*;
