@@ -1,0 +1,46 @@
+name: CI
+
+# Integração contínua: roda a suíte de testes a cada push/PR na main.
+# NÃO faz deploy — apenas valida que código, schema (Flyway) e fronteiras de
+# módulos (ModuleStructureTest) continuam consistentes. Roda nos runners da
+# GitHub (ubuntu-latest, com Docker p/ Testcontainers); não toca no ambiente local.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Cancela runs antigas do mesmo branch/PR quando há push novo.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — testes + fronteiras de módulos
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 21 (Temurin) + cache Maven
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Roda unit + integração (Testcontainers/PostgreSQL) + ModuleStructureTest.
+      # Docker já vem disponível no runner ubuntu-latest.
+      - name: mvn clean test
+        run: mvn -B clean test
+
+      - name: Publicar relatórios de teste (mesmo em falha)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: backend/target/surefire-reports/
+          retention-days: 7
