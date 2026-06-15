@@ -77,6 +77,8 @@ make test-keycloak  # Testa Keycloak
 | vendedor@acme.com | vendedor123 | VENDEDOR |
 | mecanico@acme.com | mecanico123 | MECANICO |
 
+> Os 5 usuários vêm do **import do realm** (`infra/keycloak-realm.json`) com IDs fixos que casam com o seed (`usuario_identity_provider`) — após `docker compose up` já logam e resolvem o usuário interno, sem depender da sincronização do `reset-ambiente-dev.sh`. O client `jetski-test` (público, *direct access grants*) também já vem no realm, para login via curl/Postman/Newman.
+
 ## 📁 Estrutura do Projeto
 
 ```
@@ -194,6 +196,11 @@ npx playwright test
 cd backend/postman
 newman run Jetski-Jornadas.postman_collection.json -e environments/Dev.postman_environment.json
 ```
+
+> **CI:** `.github/workflows/ci.yml` roda `mvn test` (unit + integração) em todo push/PR.
+> `.github/workflows/e2e.yml` sobe o stack via docker compose e roda o Newman (push na
+> main + sob demanda); usa `infra/ci-bootstrap-db.sh` (cria `jetski_app` + migrations) e
+> `docker-compose.ci.yml` (alinha o issuer do JWT). Nenhum dos dois faz deploy.
 
 ## 📊 Observabilidade
 

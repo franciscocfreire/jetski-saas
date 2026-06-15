@@ -1,0 +1,98 @@
+name: E2E (Newman/Postman)
+
+# Sobe o stack via docker compose (postgres + redis + keycloak + opa + backend) e
+# roda a collection Postman com Newman contra a API real (com Keycloak real).
+# Complementa o job `backend` (mvn test), pegando drift de config de Keycloak/HTTP
+# que os testes de integração não cobrem. NÃO faz deploy.
+#
+# Roda em push na main e sob demanda (workflow_dispatch). Ainda NÃO roda em PR:
+# é o job mais pesado/lento (build de imagem + subida do stack) e precisa de uma
+# primeira execução verde antes de virar gate de PR — quando estável, adicionar
+# `pull_request` ao `on:`.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: API end-to-end (Newman)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20 (Newman)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Infra primeiro (Keycloak importa o realm self-contained de infra/keycloak-realm.json).
+      - name: Subir infra (postgres, redis, keycloak, opa)
+        run: docker compose up -d postgres redis keycloak opa
+
+      - name: Aguardar PostgreSQL
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose exec -T postgres pg_isready -U jetski -d jetski_dev >/dev/null 2>&1; then
+              echo "postgres pronto"; exit 0
+            fi
+            sleep 2
+          done
+          echo "postgres não respondeu"; docker compose logs postgres; exit 1
+
+      # Cria jetski_app + roda migrations (superusuário) + re-grants. Espelha o dev.
+      - name: Bootstrap do banco
+        run: bash infra/ci-bootstrap-db.sh
+
+      - name: Subir backend (com override de issuer p/ CI)
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build backend
+
+      - name: Aguardar Keycloak (realm pronto)
+        run: |
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:8080/realms/jetski-saas/.well-known/openid-configuration >/dev/null 2>&1; then
+              echo "keycloak pronto"; exit 0
+            fi
+            sleep 3
+          done
+          echo "keycloak não respondeu"; docker compose logs keycloak; exit 1
+
+      - name: Aguardar backend (actuator health)
+        run: |
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:8090/api/actuator/health | grep -q '"status":"UP"'; then
+              echo "backend pronto"; exit 0
+            fi
+            sleep 3
+          done
+          echo "backend não respondeu"; docker compose logs backend; exit 1
+
+      - name: Rodar Newman (collection Jetski-Jornadas)
+        working-directory: backend/postman
+        run: |
+          npm ci
+          npx newman run Jetski-Jornadas.postman_collection.json \
+            -e environments/Dev.postman_environment.json \
+            --reporters cli,junit \
+            --reporter-junit-export ../../newman-junit.xml
+
+      - name: Publicar relatório Newman (mesmo em falha)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-junit
+          path: newman-junit.xml
+          retention-days: 7
+
+      - name: Logs do stack em caso de falha
+        if: failure()
+        run: docker compose logs --tail=200 backend keycloak
+
+      - name: Derrubar stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v

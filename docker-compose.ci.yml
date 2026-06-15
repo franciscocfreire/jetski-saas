@@ -1,0 +1,15 @@
+# Override de CI para o job e2e (Newman).
+#
+# Uso: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+#
+# Ajusta apenas a validação de issuer do backend: no CI o Newman obtém o token
+# em http://localhost:8080 (porta publicada), então o `iss` do token é localhost.
+# O backend, porém, roda em container e alcança o Keycloak por `keycloak:8080`.
+# Mantemos o jwk-set-uri em `keycloak:8080` (alcançável pelo container) e o
+# issuer-uri em `localhost:8080` (igual ao `iss` do token) — o Spring valida o
+# issuer pela string e busca as chaves pelo jwk-set-uri, sem fazer discovery.
+services:
+  backend:
+    environment:
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://localhost:8080/realms/jetski-saas
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/jetski-saas/protocol/openid-connect/certs

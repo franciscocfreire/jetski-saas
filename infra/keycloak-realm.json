@@ -123,6 +123,20 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "jetski-test",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "*"
+      ],
+      "webOrigins": [
+        "*"
+      ]
     }
   ],
   "roles": {
@@ -155,6 +169,7 @@
   },
   "users": [
     {
+      "id": "00000000-0000-0000-0000-000000000001",
       "username": "admin@acme.com",
       "email": "admin@acme.com",
       "firstName": "Admin",
@@ -168,12 +183,18 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["ADMIN_TENANT", "GERENTE"],
+      "realmRoles": [
+        "ADMIN_TENANT",
+        "GERENTE"
+      ],
       "attributes": {
-        "tenant_id": ["a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"]
+        "tenant_id": [
+          "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+        ]
       }
     },
     {
+      "id": "00000000-0000-0000-0000-000000000003",
       "username": "operador@acme.com",
       "email": "operador@acme.com",
       "firstName": "Operador",
@@ -187,15 +208,93 @@
           "temporary": false
         }
       ],
-      "realmRoles": ["OPERADOR"],
+      "realmRoles": [
+        "OPERADOR"
+      ],
       "attributes": {
-        "tenant_id": ["a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"]
+        "tenant_id": [
+          "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+        ]
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000002",
+      "username": "gerente@acme.com",
+      "email": "gerente@acme.com",
+      "firstName": "Gerente",
+      "lastName": "ACME",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "gerente123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "GERENTE"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+        ]
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000004",
+      "username": "vendedor@acme.com",
+      "email": "vendedor@acme.com",
+      "firstName": "Vendedor",
+      "lastName": "ACME",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "vendedor123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "VENDEDOR"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+        ]
+      }
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000005",
+      "username": "mecanico@acme.com",
+      "email": "mecanico@acme.com",
+      "firstName": "Mecanico",
+      "lastName": "ACME",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "mecanico123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "MECANICO"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+        ]
       }
     }
   ],
   "groups": [],
   "defaultRoles": [],
-  "requiredCredentials": ["password"],
+  "requiredCredentials": [
+    "password"
+  ],
   "otpPolicyType": "totp",
   "otpPolicyAlgorithm": "HmacSHA1",
   "otpPolicyInitialCounter": 0,
@@ -203,6 +302,9 @@
   "otpPolicyLookAheadWindow": 1,
   "otpPolicyPeriod": 30,
   "internationalizationEnabled": true,
-  "supportedLocales": ["pt-BR", "en"],
+  "supportedLocales": [
+    "pt-BR",
+    "en"
+  ],
   "defaultLocale": "pt-BR"
 }
