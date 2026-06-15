@@ -142,7 +142,11 @@
       "WebFetch(domain:www.yamahawaverunners.com)",
       "WebFetch(domain:www.kawasaki.com)",
       "Bash(then echo \"Backend pronto!\")",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(ls src/main/java/com/jetski/reservas/domain/event/)",
+      "Bash(ls src/main/java/com/jetski/reservas/domain/event/package-info.java)",
+      "Bash(/mnt/c/tools/apache-maven-3.8.5/bin/mvn test *)",
+      "Bash(/mnt/c/tools/apache-maven-3.8.5/bin/mvn clean *)"
     ],
     "deny": [],
     "ask": [],
