@@ -2,8 +2,14 @@ package com.jetski.audit.internal;
 
 import com.jetski.locacoes.event.CheckInEvent;
 import com.jetski.locacoes.event.CheckOutEvent;
+import com.jetski.locacoes.event.ClaimEnviadoEvent;
+import com.jetski.locacoes.event.ContaAtivadaEvent;
 import com.jetski.locacoes.event.DataCheckInAlteradaEvent;
 import com.jetski.locacoes.event.LocacaoEditadaEvent;
+import com.jetski.locacoes.event.PreContaCriadaEvent;
+import com.jetski.reservas.domain.event.DocumentosEmitidosEvent;
+import com.jetski.reservas.domain.event.PagamentoConfirmadoEvent;
+import com.jetski.reservas.domain.event.PagamentoRecusadoEvent;
 import com.jetski.reservas.domain.event.ReservationCancelledEvent;
 import com.jetski.reservas.domain.event.ReservationConfirmedEvent;
 import com.jetski.reservas.domain.event.ReservationCreatedEvent;
@@ -347,6 +353,164 @@ public class AuditEventListener {
         } catch (Exception e) {
             log.error("Failed to create audit entry for reservation confirmed: reservaId={}, error={}",
                     event.reservaId(), e.getMessage(), e);
+        }
+    }
+
+    // ===================== Balcão / Pagamento (Fase 1) =====================
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onPagamentoConfirmado(PagamentoConfirmadoEvent event) {
+        try {
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("tipo", event.tipo());
+            dadosNovos.put("valorPago", event.valorPago() != null ? event.valorPago().toString() : null);
+            dadosNovos.put("confirmadoPor", event.confirmadoPor() != null ? event.confirmadoPor().toString() : null);
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.confirmadoPor())
+                    .acao("PAGAMENTO_CONFIRMADO")
+                    .entidade("RESERVA")
+                    .entidadeId(event.reservaId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: PAGAMENTO_CONFIRMADO reservaId={}, auditId={}", event.reservaId(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit PAGAMENTO_CONFIRMADO: reservaId={}, error={}", event.reservaId(), e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onPagamentoRecusado(PagamentoRecusadoEvent event) {
+        try {
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("motivo", event.motivo());
+            dadosNovos.put("recusadoPor", event.recusadoPor() != null ? event.recusadoPor().toString() : null);
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.recusadoPor())
+                    .acao("PAGAMENTO_RECUSADO")
+                    .entidade("RESERVA")
+                    .entidadeId(event.reservaId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: PAGAMENTO_RECUSADO reservaId={}, auditId={}", event.reservaId(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit PAGAMENTO_RECUSADO: reservaId={}, error={}", event.reservaId(), e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onDocumentosEmitidos(DocumentosEmitidosEvent event) {
+        try {
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("documentoId", event.documentoId() != null ? event.documentoId().toString() : null);
+            dadosNovos.put("destinos", event.destinos());
+            dadosNovos.put("emitidoPor", event.emitidoPor() != null ? event.emitidoPor().toString() : null);
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.emitidoPor())
+                    .acao("DOCUMENTOS_EMITIDOS")
+                    .entidade("RESERVA")
+                    .entidadeId(event.reservaId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: DOCUMENTOS_EMITIDOS reservaId={}, auditId={}", event.reservaId(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit DOCUMENTOS_EMITIDOS: reservaId={}, error={}", event.reservaId(), e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onPreContaCriada(PreContaCriadaEvent event) {
+        try {
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("origem", event.origem());
+            dadosNovos.put("criadoPor", event.criadoPor() != null ? event.criadoPor().toString() : null);
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.criadoPor())
+                    .acao("PRE_CONTA_CRIADA")
+                    .entidade("CLIENTE")
+                    .entidadeId(event.clienteId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: PRE_CONTA_CRIADA clienteId={}, auditId={}", event.clienteId(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit PRE_CONTA_CRIADA: clienteId={}, error={}", event.clienteId(), e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onClaimEnviado(ClaimEnviadoEvent event) {
+        try {
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("canais", event.canais());
+            dadosNovos.put("enviadoPor", event.enviadoPor() != null ? event.enviadoPor().toString() : null);
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.enviadoPor())
+                    .acao("CLAIM_ENVIADO")
+                    .entidade("CLIENTE")
+                    .entidadeId(event.clienteId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: CLAIM_ENVIADO clienteId={}, auditId={}", event.clienteId(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit CLAIM_ENVIADO: clienteId={}, error={}", event.clienteId(), e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onContaAtivada(ContaAtivadaEvent event) {
+        try {
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("providerUserId", event.providerUserId());
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .acao("CONTA_ATIVADA")
+                    .entidade("CLIENTE")
+                    .entidadeId(event.clienteId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: CONTA_ATIVADA clienteId={}, auditId={}", event.clienteId(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit CONTA_ATIVADA: clienteId={}, error={}", event.clienteId(), e.getMessage(), e);
         }
     }
 
