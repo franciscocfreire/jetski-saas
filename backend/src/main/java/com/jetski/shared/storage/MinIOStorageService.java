@@ -46,6 +46,27 @@ public class MinIOStorageService implements StorageService {
     }
 
     @Override
+    public void putObject(String key, byte[] content, String contentType) {
+        log.info("Salvando objeto MinIO (putObject): bucket={}, key={}, size={} bytes", bucket, key, content.length);
+        try {
+            ensureBucketExists();
+            try (java.io.ByteArrayInputStream in = new java.io.ByteArrayInputStream(content)) {
+                minioClient.putObject(
+                    PutObjectArgs.builder()
+                        .bucket(bucket)
+                        .object(key)
+                        .stream(in, content.length, -1)
+                        .contentType(contentType)
+                        .build()
+                );
+            }
+        } catch (Exception e) {
+            log.error("Falha ao salvar objeto MinIO: {}", key, e);
+            throw new BusinessException("Erro ao salvar arquivo no MinIO: " + e.getMessage());
+        }
+    }
+
+    @Override
     public PresignedUrl generatePresignedUploadUrl(String key, String contentType, int expirationMinutes) {
         log.info("Generating MinIO presigned upload URL: bucket={}, key={}", bucket, key);
 

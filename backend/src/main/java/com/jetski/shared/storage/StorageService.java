@@ -53,4 +53,17 @@ public interface StorageService {
      * @return StorageMetadata contendo tamanho, hash, contentType, etc.
      */
     StorageMetadata getFileMetadata(String key);
+
+    /**
+     * Salva (upload server-side) um arquivo a partir de bytes em memória.
+     *
+     * <p>Diferente das presigned URLs (upload feito pelo cliente), este método é
+     * usado para artefatos gerados pelo próprio backend — ex.: o PDF consolidado
+     * de documentos (atendimento de balcão).
+     *
+     * @param key chave única do arquivo (ex: tenant_id/reserva_id/documento.pdf)
+     * @param content conteúdo do arquivo
+     * @param contentType tipo MIME (ex: application/pdf)
+     */
+    void putObject(String key, byte[] content, String contentType);
 }

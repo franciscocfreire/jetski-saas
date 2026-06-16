@@ -161,6 +161,19 @@ public class LocalFileStorageService implements StorageService {
         }
     }
 
+    @Override
+    public void putObject(String key, byte[] content, String contentType) {
+        log.info("Salvando objeto local (putObject): key={}, size={} bytes", key, content.length);
+        try {
+            Path filePath = Paths.get(basePath, key);
+            Files.createDirectories(filePath.getParent());
+            Files.write(filePath, content);
+        } catch (IOException e) {
+            log.error("Falha ao salvar objeto local: {}", key, e);
+            throw new BusinessException("Erro ao salvar arquivo: " + e.getMessage());
+        }
+    }
+
     /**
      * Salva arquivo local (usado internamente pelo endpoint de upload simulado).
      */
