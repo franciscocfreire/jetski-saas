@@ -317,7 +317,7 @@ public class ReservaController {
      * @return Updated reservation with ALTA priority
      */
     @PostMapping("/{id}/confirmar-sinal")
-    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
     @Operation(
         summary = "Confirmar pagamento de sinal",
         description = "Confirma o pagamento do sinal e atualiza a reserva para prioridade ALTA. " +

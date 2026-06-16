@@ -310,3 +310,42 @@ test_case_sensitive_action if {
         "action": "LOCACAO:LIST" # uppercase
     }
 }
+
+# ==================== Pagamento / Balcão (Fase 1) ====================
+
+test_financeiro_can_confirmar_sinal if {
+    allow_rbac with input as {"user": {"role": "FINANCEIRO"}, "action": "reserva:confirmar-sinal"}
+}
+
+test_financeiro_can_recusar_pagamento if {
+    allow_rbac with input as {"user": {"role": "FINANCEIRO"}, "action": "reserva:recusar-pagamento"}
+}
+
+test_financeiro_can_list_reservas if {
+    allow_rbac with input as {"user": {"role": "FINANCEIRO"}, "action": "reserva:list"}
+}
+
+test_operador_can_confirmar_sinal if {
+    allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "reserva:confirmar-sinal"}
+}
+
+test_operador_can_recusar_pagamento if {
+    allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "reserva:recusar-pagamento"}
+}
+
+test_operador_can_create_pre_conta if {
+    allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "cliente:create"}
+}
+
+test_operador_can_emitir_documentos if {
+    allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "reserva:emitir-documentos"}
+}
+
+# Negativos
+test_mecanico_cannot_confirmar_sinal if {
+    not allow_rbac with input as {"user": {"role": "MECANICO"}, "action": "reserva:confirmar-sinal"}
+}
+
+test_mecanico_cannot_emitir_documentos if {
+    not allow_rbac with input as {"user": {"role": "MECANICO"}, "action": "reserva:emitir-documentos"}
+}

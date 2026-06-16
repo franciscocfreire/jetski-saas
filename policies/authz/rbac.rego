@@ -44,6 +44,14 @@ role_permissions := {
         "reserva:view",
         "reserva:list",
         "reserva:alocar-jetski",
+        # Balcão (atendimento assistido) + validação de pagamento
+        "reserva:create",
+        "reserva:confirmar-sinal",
+        "reserva:recusar-pagamento",
+        "reserva:emitir-documentos",
+        "cliente:create",
+        "cliente:claim",
+        "cliente:reenviar",
         "item-opcional:list",
         "item-opcional:view"
     ],
@@ -109,7 +117,12 @@ role_permissions := {
         "vendedor:view",
         "vendedor:list",
         "cliente:view",
-        "cliente:list"
+        "cliente:list",
+        # Validação de pagamento (sinal/total) — fila do Financeiro
+        "reserva:view",
+        "reserva:list",
+        "reserva:confirmar-sinal",
+        "reserva:recusar-pagamento"
     ],
 
     "MECANICO": [

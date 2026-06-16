@@ -486,6 +486,33 @@ class ReservaControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Should allow FINANCEIRO to confirm deposit payment (F1.G)")
+    void testConfirmarSinal_AllowedForFinanceiro() throws Exception {
+        String requestBody = "{\"valorSinal\": 150.00}";
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/confirmar-sinal", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody)
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_FINANCEIRO"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.prioridade").value("ALTA"));
+    }
+
+    @Test
+    @DisplayName("Should reject confirmar-sinal for MECANICO (no permission)")
+    void testConfirmarSinal_ForbiddenForMecanico() throws Exception {
+        String requestBody = "{\"valorSinal\": 150.00}";
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/confirmar-sinal", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody)
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_MECANICO"))))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("Should reject confirmar-sinal when already paid")
     void testConfirmarSinal_AlreadyPaid() throws Exception {
         // Mark deposit as already paid (must also set ALTA priority and timestamp due to DB constraints)

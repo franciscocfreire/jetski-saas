@@ -211,7 +211,9 @@ public class ActionExtractor {
             "accept-terms", "confirmar-sinal", "confirmar", "alocar-jetski",
             "consolidar",  // Fechamento diário consolidação
             "reabrir",     // Reabrir fechamento
-            "editar-finalizada"  // Editar locação finalizada antes do fechamento
+            "editar-finalizada",  // Editar locação finalizada antes do fechamento
+            // Balcão / validação de pagamento (Fase 2)
+            "recusar-pagamento", "emitir-documentos", "claim", "reenviar"
         };
 
         for (String subAction : knownSubActions) {
