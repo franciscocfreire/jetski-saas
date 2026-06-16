@@ -120,6 +120,15 @@ public class DevEmailService implements EmailService {
         logAndSaveEmail(to, subject, body);
     }
 
+    @Override
+    public void sendEmailComAnexo(String to, String subject, String htmlBody,
+                                  String attachmentName, byte[] attachment, String attachmentContentType) {
+        int size = attachment == null ? 0 : attachment.length;
+        String body = String.format("%s%n%n[ANEXO] %s (%s, %d bytes)",
+            htmlBody, attachmentName, attachmentContentType, size);
+        logAndSaveEmail(to, subject, body);
+    }
+
     private void logAndSaveEmail(String to, String subject, String body) {
         // Log to console
         log.info("\n" +

@@ -56,6 +56,33 @@ public class SmtpEmailService implements EmailService {
         sendEmail(to, subject, body);
     }
 
+    @Override
+    public void sendEmailComAnexo(String to, String subject, String htmlBody,
+                                  String attachmentName, byte[] attachment, String attachmentContentType) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlBody, true);
+            helper.addAttachment(attachmentName,
+                new org.springframework.core.io.ByteArrayResource(attachment), attachmentContentType);
+
+            mailSender.send(message);
+            log.info("Email com anexo enviado: to={}, subject={}, anexo={} ({} bytes)",
+                to, subject, attachmentName, attachment == null ? 0 : attachment.length);
+
+        } catch (MessagingException e) {
+            log.error("Failed to send email with attachment: to={}, subject={}", to, subject, e);
+            throw new RuntimeException("Failed to send email with attachment", e);
+        } catch (Exception e) {
+            log.error("Unexpected error sending email with attachment: to={}, subject={}", to, subject, e);
+            throw new RuntimeException("Failed to send email with attachment", e);
+        }
+    }
+
     private void sendEmail(String to, String subject, String htmlBody) {
         try {
             MimeMessage message = mailSender.createMimeMessage();

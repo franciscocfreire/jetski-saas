@@ -37,4 +37,17 @@ public interface EmailService {
      * @param resetLink Link to reset password
      */
     void sendPasswordResetEmail(String to, String name, String resetLink);
+
+    /**
+     * Envia um e-mail HTML com um anexo (ex.: o PDF consolidado de documentos).
+     *
+     * @param to destinatário
+     * @param subject assunto
+     * @param htmlBody corpo HTML
+     * @param attachmentName nome do arquivo anexo (ex: documentos.pdf)
+     * @param attachment conteúdo do anexo
+     * @param attachmentContentType tipo MIME do anexo (ex: application/pdf)
+     */
+    void sendEmailComAnexo(String to, String subject, String htmlBody,
+                           String attachmentName, byte[] attachment, String attachmentContentType);
 }
