@@ -46,6 +46,11 @@ public class ReservaResponse {
     private Boolean sinalPago;
     private BigDecimal valorSinal;
     private Instant sinalPagoEm;
+    // Pagamento (sinal/total) — F2.1
+    private String pagamentoTipo;
+    private String pagamentoStatus;
+    private String pagamentoMotivoRecusa;
+    private BigDecimal valorTotal;
     private String observacoes;
     private Boolean ativo;
     private Instant createdAt;

@@ -5,11 +5,15 @@ import com.jetski.locacoes.domain.Jetski;
 import com.jetski.locacoes.domain.JetskiStatus;
 import com.jetski.locacoes.domain.Modelo;
 import com.jetski.locacoes.domain.Reserva;
+import com.jetski.locacoes.domain.Reserva.PagamentoStatus;
+import com.jetski.locacoes.domain.Reserva.PagamentoTipo;
 import com.jetski.locacoes.domain.Reserva.ReservaPrioridade;
 import com.jetski.locacoes.domain.Reserva.ReservaStatus;
 import com.jetski.locacoes.domain.ReservaConfig;
 import com.jetski.locacoes.internal.repository.JetskiRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
+import com.jetski.reservas.domain.event.PagamentoConfirmadoEvent;
+import com.jetski.reservas.domain.event.PagamentoRecusadoEvent;
 import com.jetski.reservas.domain.event.ReservationCancelledEvent;
 import com.jetski.reservas.domain.event.ReservationConfirmedEvent;
 import com.jetski.reservas.domain.event.ReservationCreatedEvent;
@@ -632,19 +636,36 @@ public class ReservaService {
      */
     @Transactional
     public Reserva confirmarSinal(UUID id, BigDecimal valorSinal) {
-        log.info("Confirming deposit for reservation: id={}, valor={}", id, valorSinal);
+        // Retrocompatibilidade: confirmar como SINAL.
+        return confirmarPagamento(id, PagamentoTipo.SINAL, valorSinal);
+    }
+
+    /**
+     * Confirma o pagamento de uma reserva (SINAL ou TOTAL).
+     *
+     * <p>Sobe a reserva para ALTA (garantida), grava o estado do pagamento,
+     * quem validou e quando, e publica {@link PagamentoConfirmadoEvent}.
+     *
+     * @param id        Reserva UUID
+     * @param tipo      SINAL (parcial) ou TOTAL (integral)
+     * @param valorPago valor confirmado pelo staff
+     */
+    @Transactional
+    public Reserva confirmarPagamento(UUID id, PagamentoTipo tipo, BigDecimal valorPago) {
+        PagamentoTipo tipoPagamento = (tipo != null) ? tipo : PagamentoTipo.SINAL;
+        log.info("Confirming payment for reservation: id={}, tipo={}, valor={}", id, tipoPagamento, valorPago);
 
         Reserva reserva = findById(id);
 
         if (!reserva.podeConfirmarSinal()) {
             throw new BusinessException(
-                String.format("Não é possível confirmar sinal (sinalPago=%s, status=%s, ativo=%s)",
+                String.format("Não é possível confirmar pagamento (sinalPago=%s, status=%s, ativo=%s)",
                               reserva.getSinalPago(), reserva.getStatus(), reserva.getAtivo())
             );
         }
 
-        if (valorSinal == null || valorSinal.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException("Valor do sinal deve ser maior que zero");
+        if (valorPago == null || valorPago.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Valor do pagamento deve ser maior que zero");
         }
 
         // Check physical capacity (guaranteed reservations cannot exceed jetski count)
@@ -668,15 +689,67 @@ public class ReservaService {
             );
         }
 
-        // Upgrade to ALTA priority
+        Instant agora = Instant.now();
+        UUID usuarioId = TenantContext.getUsuarioId();
+
+        // Upgrade to ALTA priority + estado de pagamento
         reserva.setSinalPago(true);
-        reserva.setValorSinal(valorSinal);
-        reserva.setSinalPagoEm(Instant.now());
+        reserva.setValorSinal(valorPago);
+        reserva.setSinalPagoEm(agora);
         reserva.setPrioridade(ReservaPrioridade.ALTA);
+        reserva.setPagamentoTipo(tipoPagamento);
+        reserva.setPagamentoStatus(PagamentoStatus.CONFIRMADO);
+        reserva.setPagamentoValidadoPor(usuarioId);
+        reserva.setPagamentoValidadoEm(agora);
+        if (tipoPagamento == PagamentoTipo.TOTAL) {
+            reserva.setValorTotal(valorPago);
+        }
 
         Reserva saved = reservaRepository.save(reserva);
-        log.info("Deposit confirmed successfully: id={}, prioridade={}, valor={}",
-                 saved.getId(), saved.getPrioridade(), saved.getValorSinal());
+        log.info("Payment confirmed successfully: id={}, tipo={}, prioridade={}, valor={}",
+                 saved.getId(), tipoPagamento, saved.getPrioridade(), saved.getValorSinal());
+
+        eventPublisher.publishEvent(PagamentoConfirmadoEvent.of(
+            saved.getTenantId(), saved.getId(), tipoPagamento.name(), valorPago, usuarioId));
+
+        return saved;
+    }
+
+    /**
+     * Recusa o pagamento de uma reserva (comprovante inválido).
+     *
+     * <p>Mantém a reserva não garantida (BAIXA/PENDENTE), grava o motivo e
+     * publica {@link PagamentoRecusadoEvent}. Cliente é notificado para reenviar.
+     */
+    @Transactional
+    public Reserva recusarPagamento(UUID id, String motivo) {
+        log.info("Rejecting payment for reservation: id={}", id);
+
+        if (motivo == null || motivo.isBlank()) {
+            throw new BusinessException("Motivo da recusa é obrigatório");
+        }
+
+        Reserva reserva = findById(id);
+
+        if (!reserva.podeRecusarPagamento()) {
+            throw new BusinessException(
+                String.format("Não é possível recusar pagamento (sinalPago=%s, ativo=%s)",
+                              reserva.getSinalPago(), reserva.getAtivo())
+            );
+        }
+
+        UUID usuarioId = TenantContext.getUsuarioId();
+        reserva.setPagamentoStatus(PagamentoStatus.RECUSADO);
+        reserva.setPagamentoMotivoRecusa(motivo);
+        reserva.setPagamentoValidadoPor(usuarioId);
+        reserva.setPagamentoValidadoEm(Instant.now());
+
+        Reserva saved = reservaRepository.save(reserva);
+        log.info("Payment rejected: id={}, motivo={}", saved.getId(), motivo);
+
+        eventPublisher.publishEvent(PagamentoRecusadoEvent.of(
+            saved.getTenantId(), saved.getId(), motivo, usuarioId));
+
         return saved;
     }
 

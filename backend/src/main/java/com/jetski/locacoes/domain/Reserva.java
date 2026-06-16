@@ -133,6 +133,38 @@ public class Reserva {
     @Column(name = "sinal_pago_em")
     private Instant sinalPagoEm;
 
+    // ---- Pagamento (sinal/total) — generalização do sinal (F2.1) ----
+
+    /** Tipo do pagamento: SINAL (parcial) ou TOTAL (integral). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pagamento_tipo", length = 10)
+    private PagamentoTipo pagamentoTipo;
+
+    /** Estado do pagamento (validação manual no v1). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pagamento_status", nullable = false, length = 20)
+    @Builder.Default
+    private PagamentoStatus pagamentoStatus = PagamentoStatus.AGUARDANDO;
+
+    /** Valor que o cliente declarou ter pago (comprovante remoto). */
+    @Column(name = "pagamento_valor_informado", precision = 10, scale = 2)
+    private BigDecimal pagamentoValorInformado;
+
+    /** Staff que confirmou/recusou o pagamento. */
+    @Column(name = "pagamento_validado_por")
+    private UUID pagamentoValidadoPor;
+
+    @Column(name = "pagamento_validado_em")
+    private Instant pagamentoValidadoEm;
+
+    /** Motivo da recusa (obrigatório ao recusar). */
+    @Column(name = "pagamento_motivo_recusa", columnDefinition = "TEXT")
+    private String pagamentoMotivoRecusa;
+
+    /** Valor total da reserva (base para saldo quando tipo=SINAL). */
+    @Column(name = "valor_total", precision = 10, scale = 2)
+    private BigDecimal valorTotal;
+
     /**
      * Expiration timestamp for no-show handling.
      * Calculated as: data_inicio + grace_period (from tenant config)
@@ -274,6 +306,14 @@ public class Reserva {
     }
 
     /**
+     * Check if a pending payment can be rejected.
+     * Only when not yet confirmed (sinal não pago) and the reservation is active.
+     */
+    public boolean podeRecusarPagamento() {
+        return !Boolean.TRUE.equals(sinalPago) && Boolean.TRUE.equals(ativo);
+    }
+
+    /**
      * Check if reservation should be auto-expired by job.
      * Criteria:
      * - Is expired (past grace period)
@@ -342,5 +382,24 @@ public class Reserva {
          * May not get jetski if all are taken by ALTA or earlier arrivals
          */
         BAIXA
+    }
+
+    /**
+     * Tipo de pagamento da reserva.
+     * SINAL existe só em reserva antecipada; balcão presencial é sempre TOTAL.
+     */
+    public enum PagamentoTipo {
+        SINAL,
+        TOTAL
+    }
+
+    /**
+     * Estado do pagamento (validação manual no v1).
+     */
+    public enum PagamentoStatus {
+        AGUARDANDO,
+        EM_ANALISE,
+        CONFIRMADO,
+        RECUSADO
     }
 }

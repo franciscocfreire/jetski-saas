@@ -3,6 +3,7 @@ package com.jetski.locacoes.api;
 import com.jetski.locacoes.api.dto.AlocarJetskiRequest;
 import com.jetski.locacoes.api.dto.ConfirmarSinalRequest;
 import com.jetski.locacoes.api.dto.DisponibilidadeResponse;
+import com.jetski.locacoes.api.dto.RecusarPagamentoRequest;
 import com.jetski.locacoes.api.dto.ReservaCreateRequest;
 import com.jetski.locacoes.api.dto.ReservaResponse;
 import com.jetski.locacoes.api.dto.ReservaUpdateRequest;
@@ -331,16 +332,55 @@ public class ReservaController {
         @PathVariable UUID id,
         @Valid @RequestBody ConfirmarSinalRequest request
     ) {
-        log.info("POST /v1/tenants/{}/reservas/{}/confirmar-sinal - valor: {}",
-                 tenantId, id, request.getValorSinal());
+        log.info("POST /v1/tenants/{}/reservas/{}/confirmar-sinal - tipo: {}, valor: {}",
+                 tenantId, id, request.getTipo(), request.getValorSinal());
 
         // Validate tenant context matches path parameter
         validateTenantContext(tenantId);
 
-        Reserva upgraded = reservaService.confirmarSinal(id, request.getValorSinal());
+        Reserva.PagamentoTipo tipo = parsePagamentoTipo(request.getTipo());
+        Reserva upgraded = reservaService.confirmarPagamento(id, tipo, request.getValorSinal());
         ReservaResponse response = toResponse(upgraded);
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Recusa o pagamento (comprovante inválido) de uma reserva.
+     * Mantém a reserva não garantida; o cliente é notificado para reenviar.
+     */
+    @PostMapping("/{id}/recusar-pagamento")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
+    @Operation(
+        summary = "Recusar pagamento",
+        description = "Recusa o pagamento de uma reserva (comprovante inválido), com motivo obrigatório."
+    )
+    public ResponseEntity<ReservaResponse> recusarPagamento(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID da reserva")
+        @PathVariable UUID id,
+        @Valid @RequestBody RecusarPagamentoRequest request
+    ) {
+        log.info("POST /v1/tenants/{}/reservas/{}/recusar-pagamento - motivo: {}",
+                 tenantId, id, request.getMotivo());
+
+        validateTenantContext(tenantId);
+
+        Reserva recusada = reservaService.recusarPagamento(id, request.getMotivo());
+        return ResponseEntity.ok(toResponse(recusada));
+    }
+
+    private Reserva.PagamentoTipo parsePagamentoTipo(String tipo) {
+        if (tipo == null || tipo.isBlank()) {
+            return Reserva.PagamentoTipo.SINAL;
+        }
+        try {
+            return Reserva.PagamentoTipo.valueOf(tipo.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new com.jetski.shared.exception.BusinessException(
+                "Tipo de pagamento inválido: " + tipo + " (use SINAL ou TOTAL)");
+        }
     }
 
     /**
@@ -482,6 +522,10 @@ public class ReservaController {
             .sinalPago(reserva.getSinalPago())
             .valorSinal(reserva.getValorSinal())
             .sinalPagoEm(reserva.getSinalPagoEm())
+            .pagamentoTipo(reserva.getPagamentoTipo() != null ? reserva.getPagamentoTipo().name() : null)
+            .pagamentoStatus(reserva.getPagamentoStatus() != null ? reserva.getPagamentoStatus().name() : null)
+            .pagamentoMotivoRecusa(reserva.getPagamentoMotivoRecusa())
+            .valorTotal(reserva.getValorTotal())
             .observacoes(reserva.getObservacoes())
             .ativo(reserva.getAtivo())
             .createdAt(reserva.getCreatedAt())

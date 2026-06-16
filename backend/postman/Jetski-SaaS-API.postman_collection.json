@@ -2842,6 +2842,130 @@
           "response": []
         },
         {
+          "name": "Confirmar Pagamento (Total)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('pagamentoTipo = TOTAL', () => pm.expect(r.pagamentoTipo).to.eql('TOTAL'));",
+                  "pm.test('prioridade ALTA', () => pm.expect(r.prioridade).to.eql('ALTA'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valorSinal\": 900.0,\n  \"tipo\": \"TOTAL\"\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/confirmar-sinal",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}",
+                "confirmar-sinal"
+              ]
+            },
+            "description": "Confirma o pagamento INTEGRAL (tipo=TOTAL). Mesmo endpoint do sinal (compat) com campo opcional `tipo` (SINAL|TOTAL). TOTAL grava valorTotal e sobe para ALTA.\n\n**Requer:** ADMIN_TENANT, GERENTE, OPERADOR ou FINANCEIRO."
+          },
+          "response": []
+        },
+        {
+          "name": "Recusar Pagamento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json();",
+                  "pm.test('pagamentoStatus = RECUSADO', () => pm.expect(r.pagamentoStatus).to.eql('RECUSADO'));",
+                  "pm.test('sinalPago false', () => pm.expect(r.sinalPago).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Comprovante ilegível\"\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/recusar-pagamento",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}",
+                "recusar-pagamento"
+              ]
+            },
+            "description": "Recusa o pagamento (comprovante inválido). Mantém a reserva não garantida (PENDENTE/BAIXA), grava o motivo e notifica o cliente para reenviar.\n\n**Requer:** ADMIN_TENANT, GERENTE, OPERADOR ou FINANCEIRO."
+          },
+          "response": []
+        },
+        {
           "name": "Alocar Jetski",
           "request": {
             "auth": {
@@ -3022,8 +3146,17 @@
             },
             "url": {
               "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/check-in/reserva",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "check-in", "reserva"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "locacoes",
+                "check-in",
+                "reserva"
+              ]
             },
             "description": "Realiza check-in de cliente com reserva confirmada.\n\n**Fluxo:**\n1. Valida que reserva existe e está CONFIRMADA\n2. Valida que jetski está alocado à reserva\n3. Valida que jetski está DISPONIVEL\n4. Cria locação com status EM_CURSO\n5. Altera jetski para status LOCADO\n6. Altera reserva para status FINALIZADA\n7. Registra horímetro inicial e timestamp de check-in\n\n**Campos obrigatórios:**\n- `reservaId`: UUID da reserva (CONFIRMADA)\n- `horimetroInicio`: Leitura do horímetro no início\n\n**Campos opcionais:**\n- `observacoes`: Notas sobre condições do check-in\n\n**Validações:**\n- Reserva deve estar CONFIRMADA\n- Reserva deve ter jetski alocado (jetskiId != null)\n- Jetski deve estar DISPONIVEL\n- Horímetro não pode ser negativo\n\n**Resposta (201 Created):**\n- Locação criada com:\n  - `status`: EM_CURSO\n  - `dataCheckIn`: timestamp atual\n  - `horimetroInicio`: valor informado\n  - `duracaoPrevista`: copiada da reserva\n  - Todos os dados da reserva (cliente, jetski, vendedor)\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
           },
@@ -3072,8 +3205,17 @@
             },
             "url": {
               "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/check-in/walk-in",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "check-in", "walk-in"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "locacoes",
+                "check-in",
+                "walk-in"
+              ]
             },
             "description": "Realiza check-in direto de cliente sem reserva prévia (walk-in).\n\n**Fluxo:**\n1. Valida que jetski existe e está DISPONIVEL\n2. Valida que cliente existe\n3. Cria locação diretamente (sem reserva) com status EM_CURSO\n4. Altera jetski para status LOCADO\n5. Registra horímetro inicial e duração prevista\n\n**Campos obrigatórios:**\n- `jetskiId`: UUID do jetski disponível\n- `clienteId`: UUID do cliente\n- `horimetroInicio`: Leitura inicial do horímetro\n- `duracaoPrevista`: Duração estimada em minutos\n\n**Campos opcionais:**\n- `vendedorId`: UUID do vendedor/parceiro\n- `observacoes`: Notas sobre o check-in\n\n**Validações:**\n- Jetski deve existir e estar DISPONIVEL\n- Cliente deve existir e ter aceito termos (termoAceite = true)\n- Duração prevista > 0\n- Horímetro não pode ser negativo\n\n**Resposta (201 Created):**\n- Locação criada com:\n  - `status`: EM_CURSO\n  - `reservaId`: null (walk-in)\n  - `dataCheckIn`: timestamp atual\n  - `horimetroInicio`: valor informado\n  - `duracaoPrevista`: valor informado\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
           },
@@ -3124,8 +3266,17 @@
             },
             "url": {
               "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/{{locacao_id}}/check-out",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "{{locacao_id}}", "check-out"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "locacoes",
+                "{{locacao_id}}",
+                "check-out"
+              ]
             },
             "description": "Finaliza locação com check-out e aplica RN01 (cálculo de cobrança).\n\n**Fluxo:**\n1. Valida que locação está EM_CURSO\n2. Valida horímetro final ≥ inicial\n3. Calcula tempo usado (dataCheckOut - dataCheckIn)\n4. **Aplica RN01:**\n   - Deduz tolerância (ex: 5 min)\n   - Arredonda para múltiplo de 15 min (ceil)\n   - Calcula minutos faturáveis\n5. Calcula valores:\n   - `valorBase` = (minutosFaturaveis / 60) × precoBaseHora\n   - `valorTotal` = valorBase (futuro: + extras - descontos)\n6. Altera status para FINALIZADA\n7. Altera jetski para status DISPONIVEL\n8. Atualiza horímetro do jetski\n\n**RN01 - Exemplos:**\n```\nTolerância: 5 min, Preço: R$ 150/hora\n\n1) Usado: 10 min\n   → (10 - 5) = 5 min → ceil(5/15) = 1 bloco = 15 min faturáveis\n   → Valor: (15/60) × 150 = R$ 37,50\n\n2) Usado: 70 min\n   → (70 - 5) = 65 min → ceil(65/15) = 5 blocos = 75 min faturáveis\n   → Valor: (75/60) × 150 = R$ 187,50\n\n3) Usado: 5 min (dentro da tolerância)\n   → (5 - 5) = 0 min → 0 blocos = 0 min faturáveis\n   → Valor: R$ 0,00\n```\n\n**Campos obrigatórios:**\n- `horimetroFim`: Leitura final do horímetro\n\n**Campos opcionais:**\n- `observacoes`: Notas sobre condições do retorno\n\n**Validações:**\n- Locação deve estar EM_CURSO\n- Horímetro final ≥ horímetro inicial\n\n**Resposta (200 OK):**\n- Locação atualizada com:\n  - `status`: FINALIZADA\n  - `dataCheckOut`: timestamp atual\n  - `horimetroFim`: valor informado\n  - `minutosUsados`: calculado\n  - `minutosFaturaveis`: após RN01\n  - `valorBase`: calculado\n  - `valorTotal`: calculado\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
           },
@@ -3169,8 +3320,15 @@
             ],
             "url": {
               "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes?status=EM_CURSO",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "locacoes"
+              ],
               "query": [
                 {
                   "key": "status",
@@ -3207,8 +3365,16 @@
             ],
             "url": {
               "raw": "{{base_url}}/v1/tenants/{{tenant_id}}/locacoes/{{locacao_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "tenants", "{{tenant_id}}", "locacoes", "{{locacao_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "locacoes",
+                "{{locacao_id}}"
+              ]
             },
             "description": "Obtém detalhes completos de uma locação específica.\n\n**Resposta (200 OK):**\n```json\n{\n  \"id\": \"uuid\",\n  \"tenantId\": \"uuid\",\n  \"reservaId\": \"uuid ou null\",\n  \"jetskiId\": \"uuid\",\n  \"clienteId\": \"uuid\",\n  \"vendedorId\": \"uuid ou null\",\n  \n  \"dataCheckIn\": \"2025-10-25T10:00:00Z\",\n  \"dataCheckOut\": \"2025-10-25T12:15:00Z\",\n  \n  \"horimetroInicio\": 100.5,\n  \"horimetroFim\": 102.75,\n  \n  \"duracaoPrevista\": 120,\n  \"minutosUsados\": 135,\n  \"minutosFaturaveis\": 135,\n  \n  \"valorBase\": 337.50,\n  \"valorTotal\": 337.50,\n  \n  \"status\": \"FINALIZADA\",\n  \"observacoes\": \"...\",\n  \n  \"createdAt\": \"2025-10-25T10:00:00Z\",\n  \"updatedAt\": \"2025-10-25T12:15:00Z\"\n}\n```\n\n**Use case:**\n- Consultar detalhes após check-out\n- Verificar cálculo RN01 aplicado\n- Auditoria de operações\n\n**Resposta (404 Not Found):** Locação não encontrada ou não pertence ao tenant\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
           },

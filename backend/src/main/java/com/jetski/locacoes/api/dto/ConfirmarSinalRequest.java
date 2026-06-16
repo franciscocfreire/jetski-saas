@@ -31,4 +31,10 @@ public class ConfirmarSinalRequest {
     @NotNull(message = "Valor do sinal é obrigatório")
     @DecimalMin(value = "0.01", message = "Valor do sinal deve ser maior que zero")
     private BigDecimal valorSinal;
+
+    /**
+     * Tipo do pagamento: "SINAL" (parcial) ou "TOTAL" (integral).
+     * Opcional — quando ausente, assume SINAL (retrocompatibilidade).
+     */
+    private String tipo;
 }
