@@ -186,6 +186,75 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO jetski_app;
 EOSQL
 echo -e "${GREEN}   OK - Permissoes atualizadas!${NC}"
 
+# 7.1b Fase 1 (balcão) - garantir schema/RLS (idempotente; canônico = Flyway V003-V005)
+echo -e "${YELLOW}7.1b Garantindo schema da Fase 1 (balcão)...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
+-- Colunas (idempotente). CHECK constraints vêm do Flyway V003-V005.
+ALTER TABLE public.reserva
+    ADD COLUMN IF NOT EXISTS pagamento_tipo            varchar(10),
+    ADD COLUMN IF NOT EXISTS pagamento_status          varchar(20) NOT NULL DEFAULT 'AGUARDANDO',
+    ADD COLUMN IF NOT EXISTS pagamento_valor_informado numeric(10,2),
+    ADD COLUMN IF NOT EXISTS pagamento_validado_por    uuid,
+    ADD COLUMN IF NOT EXISTS pagamento_validado_em     timestamptz,
+    ADD COLUMN IF NOT EXISTS pagamento_motivo_recusa   text,
+    ADD COLUMN IF NOT EXISTS valor_total               numeric(10,2),
+    ADD COLUMN IF NOT EXISTS documento_emitido_em      timestamptz;
+
+ALTER TABLE public.cliente
+    ADD COLUMN IF NOT EXISTS origem       varchar(20) NOT NULL DEFAULT 'PORTAL',
+    ADD COLUMN IF NOT EXISTS status_conta varchar(20) NOT NULL DEFAULT 'SEM_LOGIN';
+
+ALTER TABLE public.tenant
+    ADD COLUMN IF NOT EXISTS marinha_email varchar(255),
+    ADD COLUMN IF NOT EXISTS pix_chave     varchar(140);
+
+CREATE TABLE IF NOT EXISTS public.reserva_comprovante (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    reserva_id uuid NOT NULL REFERENCES public.reserva(id) ON DELETE CASCADE,
+    s3_key varchar(500) NOT NULL, url text, hash_sha256 varchar(64),
+    tipo varchar(20) DEFAULT 'PIX' NOT NULL,
+    enviado_em timestamptz DEFAULT now() NOT NULL, ativo boolean DEFAULT true NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL
+);
+CREATE TABLE IF NOT EXISTS public.documento_emitido (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    reserva_id uuid NOT NULL REFERENCES public.reserva(id) ON DELETE CASCADE,
+    s3_key varchar(500) NOT NULL, hash_sha256 varchar(64) NOT NULL, destinos jsonb,
+    emitido_em timestamptz DEFAULT now() NOT NULL, created_at timestamptz DEFAULT now() NOT NULL
+);
+CREATE TABLE IF NOT EXISTS public.cliente_identity_provider (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    cliente_id uuid NOT NULL REFERENCES public.cliente(id) ON DELETE CASCADE,
+    provider varchar(50) NOT NULL, provider_user_id varchar(255) NOT NULL,
+    linked_at timestamptz DEFAULT now() NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+-- RLS por tenant (idempotente)
+ALTER TABLE public.reserva_comprovante ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reserva_comprovante FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_reserva_comprovante ON public.reserva_comprovante;
+CREATE POLICY tenant_isolation_reserva_comprovante ON public.reserva_comprovante USING ((tenant_id = public.get_current_tenant_id()));
+
+ALTER TABLE public.documento_emitido ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.documento_emitido FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_documento_emitido ON public.documento_emitido;
+CREATE POLICY tenant_isolation_documento_emitido ON public.documento_emitido USING ((tenant_id = public.get_current_tenant_id()));
+
+ALTER TABLE public.cliente_identity_provider ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cliente_identity_provider FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_cliente_identity_provider ON public.cliente_identity_provider;
+CREATE POLICY tenant_isolation_cliente_identity_provider ON public.cliente_identity_provider USING ((tenant_id = public.get_current_tenant_id()));
+
+-- Re-grant (tabelas criadas aqui, se houver)
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO jetski_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO jetski_app;
+EOSQL
+echo -e "${GREEN}   OK - Schema da Fase 1 garantido!${NC}"
+
 # 7.2 Corrigir schema da tabela convite (alinhar com entidade JPA)
 echo -e "${YELLOW}7.2 Corrigindo schema da tabela convite...${NC}"
 docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
@@ -343,7 +412,9 @@ UPDATE tenant SET
     cidade = 'Florianópolis',
     uf = 'SC',
     exibir_no_marketplace = true,
-    prioridade_marketplace = 50
+    prioridade_marketplace = 50,
+    marinha_email = 'capitania.dev@example.com',
+    pix_chave = '65455888000100'
 WHERE slug = 'acme';
 
 -- Marcar modelos como visiveis no marketplace
