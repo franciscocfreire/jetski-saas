@@ -1,7 +1,9 @@
 package com.jetski.locacoes.domain;
 
+import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Type;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -36,6 +38,7 @@ public class DocumentoEmitido {
     private String hashSha256;
 
     /** Resumo dos destinos (JSON): ex. {"marinha":"x@y","cliente":"a@b"}. */
+    @Type(JsonBinaryType.class)
     @Column(columnDefinition = "jsonb")
     private String destinos;
 
