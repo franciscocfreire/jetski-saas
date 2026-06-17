@@ -99,6 +99,12 @@ export interface ClienteCreateRequest {
   email?: string
   telefone?: string
   cpf?: string
+  documento?: string
+  whatsapp?: string
+  dataNascimento?: string
+  genero?: string
+  enderecoJson?: string
+  termoAceite?: boolean
   observacoes?: string
 }
 

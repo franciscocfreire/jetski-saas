@@ -23,6 +23,7 @@ import {
   Settings,
   Wallet,
   Percent,
+  Store,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -62,6 +63,11 @@ const mainNavItems = [
     title: 'Locações',
     href: '/dashboard/locacoes',
     icon: Anchor,
+  },
+  {
+    title: 'Balcão',
+    href: '/dashboard/balcao',
+    icon: Store,
   },
 ]
 
