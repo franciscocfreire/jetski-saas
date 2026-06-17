@@ -249,6 +249,25 @@ ALTER TABLE public.cliente_identity_provider FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_cliente_identity_provider ON public.cliente_identity_provider;
 CREATE POLICY tenant_isolation_cliente_identity_provider ON public.cliente_identity_provider USING ((tenant_id = public.get_current_tenant_id()));
 
+-- F2.3: habilitação do condutor (CHA/EMA + GRU)
+CREATE TABLE IF NOT EXISTS public.reserva_habilitacao (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    reserva_id uuid NOT NULL REFERENCES public.reserva(id) ON DELETE CASCADE,
+    via varchar(10) NOT NULL,
+    cha_categoria varchar(40), cha_numero varchar(60), cha_validade date,
+    videoaula_em timestamptz,
+    anexo_saude boolean DEFAULT false NOT NULL, anexo_regras boolean DEFAULT false NOT NULL, anexo_residencia boolean DEFAULT false NOT NULL,
+    gru_numero varchar(60), gru_valor numeric(10,2), gru_pago boolean DEFAULT false NOT NULL, gru_pago_em timestamptz,
+    resolvida boolean DEFAULT false NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT reserva_habilitacao_reserva_uq UNIQUE (reserva_id)
+);
+ALTER TABLE public.reserva_habilitacao ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reserva_habilitacao FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_reserva_habilitacao ON public.reserva_habilitacao;
+CREATE POLICY tenant_isolation_reserva_habilitacao ON public.reserva_habilitacao USING ((tenant_id = public.get_current_tenant_id()));
+
 -- Re-grant (tabelas criadas aqui, se houver)
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO jetski_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO jetski_app;

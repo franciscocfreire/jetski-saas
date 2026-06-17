@@ -3215,6 +3215,131 @@
             "description": "Cancela uma reserva.\n\n**Soft delete:** Altera status para CANCELADA (não remove do banco)\n\n**Restrições:** Apenas reservas PENDENTE ou CONFIRMADA podem ser canceladas\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR role"
           },
           "response": []
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const x=pm.response.json();",
+                  "pm.test('via CHA', () => pm.expect(x.via).to.eql('CHA'));",
+                  "pm.test('resolvida', () => pm.expect(x.resolvida).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"via\": \"CHA\",\n  \"chaCategoria\": \"Arrais Amador\",\n  \"chaNumero\": \"1234567\"\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/habilitacao",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}",
+                "habilitacao"
+              ]
+            },
+            "description": "Registra habilitação via CHA existente (resolvida=true).\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR."
+          },
+          "response": [],
+          "name": "Registrar Habilitação (CHA)"
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const x=pm.response.json();",
+                  "pm.test('via EMA', () => pm.expect(x.via).to.eql('EMA'));",
+                  "pm.test('gruPago', () => pm.expect(x.gruPago).to.eql(true));",
+                  "pm.test('resolvida', () => pm.expect(x.resolvida).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"via\": \"EMA\",\n  \"videoaulaAssistida\": true,\n  \"anexoSaude\": true,\n  \"anexoRegras\": true,\n  \"anexoResidencia\": false,\n  \"gruNumero\": \"2026-000482-19\",\n  \"gruValor\": 23.13,\n  \"gruPago\": true\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/habilitacao",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}",
+                "habilitacao"
+              ]
+            },
+            "description": "Registra habilitação via EMA (CHA-MTA-E) com GRU manual paga (resolvida=true).\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR."
+          },
+          "response": [],
+          "name": "Registrar Habilitação (EMA + GRU)"
         }
       ]
     },

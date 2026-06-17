@@ -341,6 +341,14 @@ test_operador_can_emitir_documentos if {
     allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "reserva:emitir-documentos"}
 }
 
+test_operador_can_registrar_habilitacao if {
+    allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "reserva:habilitacao"}
+}
+
+test_gerente_can_registrar_habilitacao if {
+    allow_rbac with input as {"user": {"role": "GERENTE"}, "action": "reserva:habilitacao"}
+}
+
 # Negativos
 test_mecanico_cannot_confirmar_sinal if {
     not allow_rbac with input as {"user": {"role": "MECANICO"}, "action": "reserva:confirmar-sinal"}

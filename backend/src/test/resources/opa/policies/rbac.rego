@@ -45,6 +45,7 @@ role_permissions := {
         "reserva:confirmar-sinal",
         "reserva:recusar-pagamento",
         "reserva:emitir-documentos",
+        "reserva:habilitacao",
         "cliente:create",
         "cliente:claim",
         "cliente:reenviar",

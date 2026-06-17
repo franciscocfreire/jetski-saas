@@ -213,7 +213,7 @@ public class ActionExtractor {
             "reabrir",     // Reabrir fechamento
             "editar-finalizada",  // Editar locação finalizada antes do fechamento
             // Balcão / validação de pagamento (Fase 2)
-            "recusar-pagamento", "emitir-documentos", "claim", "reenviar"
+            "recusar-pagamento", "emitir-documentos", "claim", "reenviar", "habilitacao"
         };
 
         for (String subAction : knownSubActions) {

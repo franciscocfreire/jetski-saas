@@ -1,0 +1,100 @@
+package com.jetski.locacoes.domain;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.UUID;
+
+/**
+ * Entity: Habilitação do condutor de uma reserva (1:1 com reserva).
+ *
+ * <p>Duas vias:
+ * <ul>
+ *   <li><b>CHA</b>: cliente já habilitado (Arrais/Motonauta/CHA) — anexa o documento.</li>
+ *   <li><b>EMA</b>: emissão da CHA-MTA-E (videoaula + anexos 5-C/5-B/1-C + GRU).</li>
+ * </ul>
+ * GRU manual no v1. {@code resolvida} = CHA coletada OU GRU paga.
+ */
+@Entity
+@Table(name = "reserva_habilitacao")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ReservaHabilitacao {
+
+    @Id
+    @GeneratedValue(generator = "UUID")
+    private UUID id;
+
+    @Column(name = "tenant_id", nullable = false)
+    private UUID tenantId;
+
+    @Column(name = "reserva_id", nullable = false)
+    private UUID reservaId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private Via via;
+
+    // Via CHA
+    @Column(name = "cha_categoria")
+    private String chaCategoria;
+    @Column(name = "cha_numero")
+    private String chaNumero;
+    @Column(name = "cha_validade")
+    private LocalDate chaValidade;
+
+    // Via EMA
+    @Column(name = "videoaula_em")
+    private Instant videoaulaEm;
+    @Column(name = "anexo_saude", nullable = false)
+    @Builder.Default
+    private Boolean anexoSaude = false;
+    @Column(name = "anexo_regras", nullable = false)
+    @Builder.Default
+    private Boolean anexoRegras = false;
+    @Column(name = "anexo_residencia", nullable = false)
+    @Builder.Default
+    private Boolean anexoResidencia = false;
+
+    // GRU (taxa da Marinha) — manual no v1
+    @Column(name = "gru_numero")
+    private String gruNumero;
+    @Column(name = "gru_valor", precision = 10, scale = 2)
+    private BigDecimal gruValor;
+    @Column(name = "gru_pago", nullable = false)
+    @Builder.Default
+    private Boolean gruPago = false;
+    @Column(name = "gru_pago_em")
+    private Instant gruPagoEm;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean resolvida = false;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = Instant.now();
+        updatedAt = Instant.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = Instant.now();
+    }
+
+    public enum Via {
+        CHA,
+        EMA
+    }
+}
