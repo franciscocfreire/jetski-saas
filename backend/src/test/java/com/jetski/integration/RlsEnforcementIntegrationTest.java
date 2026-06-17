@@ -53,6 +53,7 @@ class RlsEnforcementIntegrationTest extends AbstractIntegrationTest {
             """);
         jdbc.execute("GRANT USAGE ON SCHEMA public TO rls_tester");
         jdbc.execute("GRANT SELECT, INSERT ON public.cliente TO rls_tester");
+        jdbc.execute("GRANT SELECT ON public.cliente_claim_token TO rls_tester");
 
         // Tenants (FK de cliente.tenant_id) — superuser, idempotente.
         seedTenant(TENANT_A, "rls-tenant-a");
@@ -62,6 +63,13 @@ class RlsEnforcementIntegrationTest extends AbstractIntegrationTest {
         seed("a1c10000-0000-0000-0000-000000000001", TENANT_A, "A-Um");
         seed("a1c10000-0000-0000-0000-000000000002", TENANT_A, "A-Dois");
         seed("b2c10000-0000-0000-0000-000000000001", TENANT_B, "B-Um");
+
+        // claim-token do tenant A (para o carve-out público do V009)
+        jdbc.update("""
+            INSERT INTO cliente_claim_token (tenant_id, cliente_id, token, temporary_password_hash, expira_em)
+            VALUES (?, ?::uuid, 'TOKEN-RLS-CARVEOUT', 'hash', now() + interval '7 days')
+            ON CONFLICT (token) DO NOTHING
+            """, TENANT_A, "a1c10000-0000-0000-0000-000000000001");
     }
 
     private void seedTenant(UUID id, String slug) {
@@ -152,6 +160,27 @@ class RlsEnforcementIntegrationTest extends AbstractIntegrationTest {
             }
             assertThat(n).isEqualTo(1);
             c.rollback();   // não polui outros testes
+        }
+    }
+
+    @Test
+    @DisplayName("Carve-out V009: token é legível sem tenant (público), mas cliente não")
+    void claimTokenCarveOutSemTenant() throws SQLException {
+        try (Connection c = openAsRole()) {
+            // sem app.tenant_id: o claim-token É visível (carve-out p/ validação pública)
+            try (Statement st = c.createStatement();
+                 ResultSet rs = st.executeQuery(
+                     "SELECT tenant_id FROM cliente_claim_token WHERE token = 'TOKEN-RLS-CARVEOUT'")) {
+                assertThat(rs.next()).as("token legível sem tenant").isTrue();
+                assertThat(rs.getString(1)).isEqualTo(TENANT_A.toString());
+            }
+            // ...mas o cliente (policy estrita) permanece invisível sem contexto
+            assertThat(nomesVisiveis(c)).isEmpty();
+
+            // com o tenant do token fixado, o cliente passa a ser visível
+            setTenant(c, TENANT_A.toString());
+            assertThat(nomesVisiveis(c)).contains("A-Um");
+            c.rollback();
         }
     }
 
