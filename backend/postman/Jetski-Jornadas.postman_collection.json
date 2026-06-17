@@ -1010,13 +1010,13 @@
 					}
 				},
 				{
-					"name": "2.3. 💼 Vendedor: Confirmar Sinal",
+					"name": "2.3. 👔 Gerente: Confirmar Sinal (da reserva do vendedor)",
 					"request": {
 						"method": "POST",
 						"header": [
 							{
 								"key": "Authorization",
-								"value": "Bearer {{vendedor_token}}"
+								"value": "Bearer {{gerente_token}}"
 							},
 							{
 								"key": "X-Tenant-Id",
@@ -1045,8 +1045,23 @@
 								"confirmar-sinal"
 							]
 						},
-						"description": "**Persona:** 💼 VENDEDOR\n\nVendedor confirma pagamento do sinal pelo cliente"
-					}
+						"description": "**Persona:** 👔 GERENTE\n\nSeparação de funções: o vendedor cria a reserva, mas a confirmação/validação do sinal é feita pelo staff (GERENTE/OPERADOR/FINANCEIRO), não pelo vendedor (que tem conflito de interesse pela comissão)."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200', () => pm.response.to.have.status(200));",
+									"const r=pm.response.json();",
+									"pm.test('sinal pago', () => pm.expect(r.sinalPago).to.be.true);",
+									"pm.test('prioridade ALTA', () => pm.expect(r.prioridade).to.eql('ALTA'));",
+									"pm.test('pagamento CONFIRMADO', () => pm.expect(r.pagamentoStatus).to.eql('CONFIRMADO'));"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "2.4. 👔 Gerente: Confirmar Reserva",
@@ -2277,6 +2292,57 @@
 						},
 						"description": "**Teste:** Check-in em reserva inexistente\n\n**Esperado:** 404 Not Found (recurso não existe)"
 					}
+				},
+				{
+					"name": "6.6. ❌ Vendedor tenta confirmar sinal (403)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 403 (separação de funções)', () => pm.response.to.have.status(403));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{vendedor_token}}"
+							},
+							{
+								"key": "X-Tenant-Id",
+								"value": "{{tenant_id}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"valorSinal\": 200.00\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/confirmar-sinal",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v1",
+								"tenants",
+								"{{tenant_id}}",
+								"reservas",
+								"{{reserva_id}}",
+								"confirmar-sinal"
+							]
+						},
+						"description": "**Persona:** 💼 VENDEDOR — DEVE FALHAR (403).\n\nVendedor não valida o próprio sinal (separação de funções). Autorização nega antes da lógica de negócio."
+					},
+					"response": []
 				}
 			]
 		},

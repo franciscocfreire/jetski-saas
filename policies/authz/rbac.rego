@@ -153,7 +153,9 @@ role_permissions := {
         "reserva:view",
         "reserva:list",
         "reserva:update",
-        "reserva:confirmar-sinal",
+        # NÃO confirma sinal: separação de funções — quem cria/recebe o
+        # pagamento (vendedor, com conflito de comissão) não valida o sinal.
+        # A validação é staff (OPERADOR/GERENTE/FINANCEIRO).
         "cliente:create",
         "cliente:view",
         "cliente:list",
