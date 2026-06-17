@@ -1,14 +1,18 @@
 package com.jetski.locacoes.internal;
 
 import com.jetski.locacoes.domain.Cliente;
+import com.jetski.locacoes.event.PreContaCriadaEvent;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -33,6 +37,7 @@ import java.util.UUID;
 public class ClienteService {
 
     private final ClienteRepository clienteRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * List all active customers for current tenant.
@@ -118,6 +123,65 @@ public class ClienteService {
 
         Cliente saved = clienteRepository.save(cliente);
         log.info("Customer created successfully: id={}, nome={}", saved.getId(), saved.getNome());
+        return saved;
+    }
+
+    /**
+     * Busca cliente por documento (CPF/CNPJ) no tenant atual (dedupe de balcão).
+     */
+    @Transactional(readOnly = true)
+    public Optional<Cliente> buscarPorDocumento(String documento) {
+        if (documento == null || documento.isBlank()) {
+            return Optional.empty();
+        }
+        return clienteRepository.findByDocumento(documento.trim());
+    }
+
+    /**
+     * Cria uma pré-conta de cliente no balcão (origem=BALCAO, status PRE_CONTA),
+     * com dedupe por CPF e proteção anti-takeover.
+     *
+     * <p>Regras:
+     * <ul>
+     *   <li>Se já existe cliente com o mesmo documento e conta ATIVA → bloqueia
+     *       (exige verificação/OTP — não implementado no v1).</li>
+     *   <li>Se existe mas não ativa → reaproveita o cliente existente (dedupe).</li>
+     *   <li>Caso contrário → cria a pré-conta e publica {@link PreContaCriadaEvent}.</li>
+     * </ul>
+     *
+     * @param dados Cliente preenchido (tenantId, nome, documento, contato…)
+     */
+    @Transactional
+    public Cliente criarPreConta(Cliente dados) {
+        if (dados.getNome() == null || dados.getNome().isBlank()) {
+            throw new BusinessException("Nome do cliente é obrigatório");
+        }
+
+        String documento = dados.getDocumento();
+        if (documento != null && !documento.isBlank()) {
+            Optional<Cliente> existente = clienteRepository.findByDocumento(documento.trim());
+            if (existente.isPresent()) {
+                Cliente c = existente.get();
+                if (c.getStatusConta() == Cliente.StatusConta.ATIVA) {
+                    throw new BusinessException(
+                        "Já existe um cliente com conta ativa para este CPF. " +
+                        "É necessária verificação (OTP) antes de vincular.");
+                }
+                log.info("Pré-conta: reutilizando cliente existente id={}, documento={}", c.getId(), documento);
+                return c;
+            }
+        }
+
+        dados.setOrigem(Cliente.Origem.BALCAO);
+        dados.setStatusConta(Cliente.StatusConta.PRE_CONTA);
+        dados.setAtivo(true);
+
+        Cliente saved = clienteRepository.save(dados);
+        log.info("Pré-conta criada: id={}, nome={}", saved.getId(), saved.getNome());
+
+        eventPublisher.publishEvent(PreContaCriadaEvent.of(
+            saved.getTenantId(), saved.getId(), Cliente.Origem.BALCAO.name(), TenantContext.getUsuarioId()));
+
         return saved;
     }
 

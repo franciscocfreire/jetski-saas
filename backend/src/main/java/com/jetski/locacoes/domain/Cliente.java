@@ -134,6 +134,22 @@ public class Cliente {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /**
+     * Origem do cadastro: PORTAL (self-service) ou BALCAO (atendimento assistido).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "origem", nullable = false, length = 20)
+    @Builder.Default
+    private Origem origem = Origem.PORTAL;
+
+    /**
+     * Estado da conta do cliente (ciclo da pré-conta → ativa).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status_conta", nullable = false, length = 20)
+    @Builder.Default
+    private StatusConta statusConta = StatusConta.SEM_LOGIN;
+
     @PrePersist
     protected void onCreate() {
         createdAt = Instant.now();
@@ -151,5 +167,25 @@ public class Cliente {
      */
     public boolean canRent() {
         return ativo && Boolean.TRUE.equals(termoAceite);
+    }
+
+    /** Origem do cadastro do cliente. */
+    public enum Origem {
+        PORTAL,
+        BALCAO
+    }
+
+    /**
+     * Estado da conta do cliente.
+     * PRE_CONTA: criado no balcão sem login.
+     * CONVIDADA: claim enviado.
+     * ATIVA: cliente ativou a conta (login Keycloak vinculado).
+     * SEM_LOGIN: cliente apenas como dado (sem intenção de login).
+     */
+    public enum StatusConta {
+        PRE_CONTA,
+        CONVIDADA,
+        ATIVA,
+        SEM_LOGIN
     }
 }

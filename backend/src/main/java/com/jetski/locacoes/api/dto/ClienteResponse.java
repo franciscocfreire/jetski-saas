@@ -34,6 +34,8 @@ public class ClienteResponse {
     private String whatsapp;
     private String enderecoJson;
     private Boolean termoAceite;
+    private String origem;
+    private String statusConta;
     private Boolean ativo;
     private Instant createdAt;
     private Instant updatedAt;

@@ -2547,6 +2547,126 @@
                 "description": "Reativa um cliente previamente desativado.\n\n**Requer:** ADMIN_TENANT role"
               },
               "response": []
+            },
+            {
+              "name": "Criar Pré-conta (Balcão)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                      "const r=pm.response.json();",
+                      "pm.test('origem BALCAO', () => pm.expect(r.origem).to.eql('BALCAO'));",
+                      "pm.test('statusConta PRE_CONTA', () => pm.expect(r.statusConta).to.eql('PRE_CONTA'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"Roberto Lima\",\n  \"documento\": \"321.654.987-00\",\n  \"email\": \"roberto.lima@email.com\",\n  \"telefone\": \"+5521988881234\"\n}"
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/pre-conta",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "pre-conta"
+                  ]
+                },
+                "description": "Cria pré-conta de cliente no balcão (origem=BALCAO, status PRE_CONTA). Dedupe por CPF; bloqueia se já houver conta ATIVA.\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR."
+              },
+              "response": []
+            },
+            {
+              "name": "Buscar Cliente por CPF (dedupe)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes?cpf=321.654.987-00",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes"
+                  ],
+                  "query": [
+                    {
+                      "key": "cpf",
+                      "value": "321.654.987-00"
+                    }
+                  ]
+                },
+                "description": "Busca cliente por CPF/documento (dedupe de balcão). Retorna o match (lista) ou vazio."
+              },
+              "response": []
             }
           ]
         }

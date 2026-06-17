@@ -63,12 +63,22 @@ public class ClienteController {
         @Parameter(description = "UUID do tenant")
         @PathVariable UUID tenantId,
         @Parameter(description = "Incluir clientes inativos")
-        @RequestParam(defaultValue = "false") boolean includeInactive
+        @RequestParam(defaultValue = "false") boolean includeInactive,
+        @Parameter(description = "Filtrar por CPF/documento (dedupe de balcão)")
+        @RequestParam(required = false) String cpf
     ) {
-        log.info("GET /v1/tenants/{}/clientes?includeInactive={}", tenantId, includeInactive);
+        log.info("GET /v1/tenants/{}/clientes?includeInactive={}&cpf={}", tenantId, includeInactive, cpf);
 
         // Validate tenant context matches path parameter
         validateTenantContext(tenantId);
+
+        // Busca por CPF (dedupe): retorna o match (ou vazio)
+        if (cpf != null && !cpf.isBlank()) {
+            List<ClienteResponse> match = clienteService.buscarPorDocumento(cpf).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+            return ResponseEntity.ok(match);
+        }
 
         List<Cliente> clientes = includeInactive
             ? clienteService.listAllCustomers()
@@ -152,6 +162,32 @@ public class ClienteController {
         ClienteResponse response = toResponse(created);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Cria uma pré-conta de cliente no balcão (atendimento assistido).
+     * Origem=BALCAO, status=PRE_CONTA, com dedupe por CPF e proteção anti-takeover.
+     */
+    @PostMapping("/pre-conta")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Criar pré-conta (balcão)",
+        description = "Registra um cliente sem login (origem=BALCAO, status PRE_CONTA). " +
+                      "Faz dedupe por CPF; bloqueia se já houver conta ATIVA (exige OTP)."
+    )
+    public ResponseEntity<ClienteResponse> criarPreConta(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Valid @RequestBody ClienteCreateRequest request
+    ) {
+        log.info("POST /v1/tenants/{}/clientes/pre-conta - nome: {}", tenantId, request.getNome());
+
+        validateTenantContext(tenantId);
+
+        Cliente cliente = toEntity(request, tenantId);
+        Cliente preConta = clienteService.criarPreConta(cliente);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(preConta));
     }
 
     /**
@@ -330,6 +366,8 @@ public class ClienteController {
             .whatsapp(cliente.getWhatsapp())
             .enderecoJson(cliente.getEnderecoJson())
             .termoAceite(cliente.getTermoAceite())
+            .origem(cliente.getOrigem() != null ? cliente.getOrigem().name() : null)
+            .statusConta(cliente.getStatusConta() != null ? cliente.getStatusConta().name() : null)
             .ativo(cliente.getAtivo())
             .createdAt(cliente.getCreatedAt())
             .updatedAt(cliente.getUpdatedAt())

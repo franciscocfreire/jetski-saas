@@ -182,6 +182,79 @@ class ClienteControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Should create pré-conta (BALCAO/PRE_CONTA) - F2.2")
+    void testCriarPreConta() throws Exception {
+        ClienteCreateRequest request = ClienteCreateRequest.builder()
+                .nome("Roberto Lima")
+                .documento("321.654.987-00")
+                .email("roberto.lima@email.com")
+                .telefone("+5521988881234")
+                .build();
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/clientes/pre-conta", TENANT_ID)
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.origem").value("BALCAO"))
+            .andExpect(jsonPath("$.statusConta").value("PRE_CONTA"))
+            .andExpect(jsonPath("$.nome").value("Roberto Lima"));
+    }
+
+    @Test
+    @DisplayName("Should find cliente by CPF (dedupe) - F2.2")
+    void testBuscarPorCpf() throws Exception {
+        mockMvc.perform(get("/v1/tenants/{tenantId}/clientes", TENANT_ID)
+                .param("cpf", "987.654.321-00")
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].documento").value("987.654.321-00"));
+    }
+
+    @Test
+    @DisplayName("Should dedupe pré-conta when CPF already exists (not active) - F2.2")
+    void testCriarPreConta_DedupeReusaExistente() throws Exception {
+        ClienteCreateRequest request = ClienteCreateRequest.builder()
+                .nome("Maria Santos (balcão)")
+                .documento("987.654.321-00") // mesmo do testCliente (SEM_LOGIN)
+                .build();
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/clientes/pre-conta", TENANT_ID)
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id").value(testCliente.getId().toString()));
+    }
+
+    @Test
+    @DisplayName("Should block pré-conta when CPF has ACTIVE account (anti-takeover) - F2.2")
+    void testCriarPreConta_AntiTakeover() throws Exception {
+        Cliente ativo = clienteRepository.save(Cliente.builder()
+                .tenantId(TENANT_ID)
+                .nome("Cliente Ativo")
+                .documento("555.444.333-22")
+                .statusConta(Cliente.StatusConta.ATIVA)
+                .ativo(true)
+                .build());
+
+        ClienteCreateRequest request = ClienteCreateRequest.builder()
+                .nome("Tentativa Balcão")
+                .documento("555.444.333-22")
+                .build();
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/clientes/pre-conta", TENANT_ID)
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("Should update existing cliente")
     void testUpdateCliente() throws Exception {
         ClienteUpdateRequest request = ClienteUpdateRequest.builder()
