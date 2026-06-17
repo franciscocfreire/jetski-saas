@@ -3403,6 +3403,59 @@
             "description": "Registra aceite/assinatura presencial (balcão) com evidências (operador, IP, user-agent, hash, origem=BALCAO). assinaturaBase64 = PNG (signature pad).\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR."
           },
           "response": []
+        },
+        {
+          "name": "Emitir Documentos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const x=pm.response.json();",
+                  "pm.test('downloadUrl presente', () => pm.expect(x.downloadUrl).to.be.a('string'));",
+                  "pm.test('hash presente', () => pm.expect(x.hashSha256).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{tenant_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/reservas/{{reserva_id}}/emitir-documentos",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "v1",
+                "tenants",
+                "{{tenant_id}}",
+                "reservas",
+                "{{reserva_id}}",
+                "emitir-documentos"
+              ]
+            },
+            "description": "Emite o PDF consolidado (anexos + termo), arquiva, registra, envia à Marinha (e-mail por tenant) e ao cliente, e devolve a URL de download + GRU.\n\nPré-requisitos: habilitação resolvida + termos assinados.\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR."
+          },
+          "response": []
         }
       ]
     },

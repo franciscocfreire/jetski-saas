@@ -174,6 +174,16 @@ public class LocalFileStorageService implements StorageService {
         }
     }
 
+    @Override
+    public byte[] getObject(String key) {
+        try {
+            return readFile(key);
+        } catch (IOException e) {
+            log.error("Falha ao ler objeto local: {}", key, e);
+            throw new BusinessException("Erro ao ler arquivo: " + e.getMessage());
+        }
+    }
+
     /**
      * Salva arquivo local (usado internamente pelo endpoint de upload simulado).
      */

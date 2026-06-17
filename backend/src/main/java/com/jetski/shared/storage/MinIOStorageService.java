@@ -67,6 +67,18 @@ public class MinIOStorageService implements StorageService {
     }
 
     @Override
+    public byte[] getObject(String key) {
+        log.info("Lendo objeto MinIO (getObject): bucket={}, key={}", bucket, key);
+        try (var is = minioClient.getObject(
+                GetObjectArgs.builder().bucket(bucket).object(key).build())) {
+            return is.readAllBytes();
+        } catch (Exception e) {
+            log.error("Falha ao ler objeto MinIO: {}", key, e);
+            throw new BusinessException("Erro ao ler arquivo no MinIO: " + e.getMessage());
+        }
+    }
+
+    @Override
     public PresignedUrl generatePresignedUploadUrl(String key, String contentType, int expirationMinutes) {
         log.info("Generating MinIO presigned upload URL: bucket={}, key={}", bucket, key);
 

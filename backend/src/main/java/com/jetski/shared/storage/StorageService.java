@@ -66,4 +66,14 @@ public interface StorageService {
      * @param contentType tipo MIME (ex: application/pdf)
      */
     void putObject(String key, byte[] content, String contentType);
+
+    /**
+     * Lê os bytes de um objeto armazenado (uso server-side).
+     *
+     * <p>Ex.: recuperar a imagem da assinatura para embutir no PDF consolidado.
+     *
+     * @param key chave única do arquivo
+     * @return conteúdo do arquivo
+     */
+    byte[] getObject(String key);
 }

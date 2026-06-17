@@ -165,6 +165,10 @@ public class Reserva {
     @Column(name = "valor_total", precision = 10, scale = 2)
     private BigDecimal valorTotal;
 
+    /** Quando os documentos consolidados foram emitidos (F2.6). */
+    @Column(name = "documento_emitido_em")
+    private Instant documentoEmitidoEm;
+
     /**
      * Expiration timestamp for no-show handling.
      * Calculated as: data_inicio + grace_period (from tenant config)

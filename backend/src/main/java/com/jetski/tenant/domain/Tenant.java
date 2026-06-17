@@ -116,6 +116,14 @@ public class Tenant {
     @Column(length = 2)
     private String uf;
 
+    /** E-mail de destino do PDF consolidado (Capitania/Marinha), por loja (F2.6). */
+    @Column(name = "marinha_email", length = 255)
+    private String marinhaEmail;
+
+    /** Chave PIX da loja (sinal/total manual + dados nos termos). */
+    @Column(name = "pix_chave", length = 140)
+    private String pixChave;
+
     // ========== CAMPOS DE MARKETPLACE ==========
 
     /**
