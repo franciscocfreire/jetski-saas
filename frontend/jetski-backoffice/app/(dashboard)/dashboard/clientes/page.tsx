@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, MoreHorizontal, Users, Edit, Phone, Mail } from 'lucide-react'
+import { Plus, Search, MoreHorizontal, Users, Edit, Phone, Mail, Send } from 'lucide-react'
+import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
-import { clientesService } from '@/lib/api/services'
-import type { Cliente, ClienteCreateRequest } from '@/lib/api/types'
+import { clientesService, claimService } from '@/lib/api/services'
+import type { Cliente, ClienteCreateRequest, ClienteStatusConta } from '@/lib/api/types'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -159,6 +161,13 @@ function ClienteFormDialog({
   )
 }
 
+const CONTA_BADGE: Record<ClienteStatusConta, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
+  ATIVA: { label: 'Ativa', variant: 'default' },
+  CONVIDADA: { label: 'Convidada', variant: 'secondary' },
+  PRE_CONTA: { label: 'Pré-conta', variant: 'outline' },
+  SEM_LOGIN: { label: 'Sem login', variant: 'outline' },
+}
+
 export default function ClientesPage() {
   const { currentTenant } = useTenantStore()
 
@@ -170,6 +179,15 @@ export default function ClientesPage() {
     queryKey: ['clientes', currentTenant?.id],
     queryFn: () => clientesService.list(),
     enabled: !!currentTenant,
+  })
+
+  const reenviarClaim = useMutation({
+    mutationFn: (clienteId: string) => claimService.reenviar(clienteId, 'email'),
+    onSuccess: () => toast.success('Link de ativação reenviado ao cliente.'),
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ?? 'Falha ao reenviar ativação.')
+    },
   })
 
   // Filter clients locally based on search
@@ -230,6 +248,7 @@ export default function ClientesPage() {
               <TableHead>Email</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead>CPF</TableHead>
+              <TableHead>Conta</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -241,12 +260,13 @@ export default function ClientesPage() {
                   <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-8 w-8" /></TableCell>
                 </TableRow>
               ))
             ) : filteredClientes?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <Users className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">Nenhum cliente encontrado</p>
@@ -277,7 +297,16 @@ export default function ClientesPage() {
                       '-'
                     )}
                   </TableCell>
-                  <TableCell>{cliente.cpf || '-'}</TableCell>
+                  <TableCell>{cliente.documento || cliente.cpf || '-'}</TableCell>
+                  <TableCell>
+                    {cliente.statusConta ? (
+                      <Badge variant={CONTA_BADGE[cliente.statusConta].variant}>
+                        {CONTA_BADGE[cliente.statusConta].label}
+                      </Badge>
+                    ) : (
+                      '-'
+                    )}
+                  </TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -290,6 +319,17 @@ export default function ClientesPage() {
                           <Edit className="mr-2 h-4 w-4" />
                           Editar
                         </DropdownMenuItem>
+                        {(cliente.statusConta === 'PRE_CONTA' ||
+                          cliente.statusConta === 'CONVIDADA') &&
+                          cliente.email && (
+                            <DropdownMenuItem
+                              onClick={() => reenviarClaim.mutate(cliente.id)}
+                              disabled={reenviarClaim.isPending}
+                            >
+                              <Send className="mr-2 h-4 w-4" />
+                              Reenviar ativação
+                            </DropdownMenuItem>
+                          )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
