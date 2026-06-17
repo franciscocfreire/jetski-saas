@@ -208,7 +208,8 @@ public class EmissaoService {
 
     private String corpoCliente(Cliente c) {
         return "<p>Olá " + safe(c.getNome()) + ",</p><p>Seguem em anexo seus documentos do passeio.</p>";
-        // F2.7: incluir o link de ativação da conta (claim) neste e-mail.
+        // O link de ativação da conta (claim, F2.7) é enviado separadamente,
+        // como passo próprio do balcão (POST /clientes/{id}/claim).
     }
 
     private String destinosJson(String marinha, String cliente) {

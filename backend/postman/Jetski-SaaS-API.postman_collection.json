@@ -2667,6 +2667,182 @@
                 "description": "Busca cliente por CPF/documento (dedupe de balcão). Retorna o match (lista) ou vazio."
               },
               "response": []
+            },
+            {
+              "name": "Gerar Claim (Ativação)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const r=pm.response.json();",
+                      "pm.test('token presente', () => pm.expect(r.token).to.be.a('string'));",
+                      "pm.collectionVariables.set('claim_token', r.token);",
+                      "pm.test('enviado', () => pm.expect(r.enviado).to.be.true);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}/claim?canais=email,whatsapp",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "{{cliente_id}}",
+                    "claim"
+                  ],
+                  "query": [
+                    {
+                      "key": "canais",
+                      "value": "email,whatsapp"
+                    }
+                  ]
+                },
+                "description": "Gera e envia o claim-token de ativação ao cliente (canais via query). Marca o cliente como CONVIDADA e envia link+senha por e-mail.\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR. Salva `claim_token` para o passo de validação pública."
+              },
+              "response": []
+            },
+            {
+              "name": "Reenviar Claim",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const r=pm.response.json();",
+                      "pm.collectionVariables.set('claim_token', r.token);",
+                      "pm.test('novo token', () => pm.expect(r.token).to.be.a('string'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Tenant-Id",
+                    "value": "{{tenant_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{api_url}}/v1/tenants/{{tenant_id}}/clientes/{{cliente_id}}/claim/reenviar?canais=email",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "tenants",
+                    "{{tenant_id}}",
+                    "clientes",
+                    "{{cliente_id}}",
+                    "claim",
+                    "reenviar"
+                  ],
+                  "query": [
+                    {
+                      "key": "canais",
+                      "value": "email"
+                    }
+                  ]
+                },
+                "description": "Reenvia o claim-token (desativa o anterior e emite outro).\n\n**Requer:** ADMIN_TENANT, GERENTE ou OPERADOR."
+              },
+              "response": []
+            },
+            {
+              "name": "Validar Claim (Ativar Conta) — Público",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                      "const r=pm.response.json();",
+                      "pm.test('ativada', () => pm.expect(r.ativada).to.be.true);",
+                      "pm.test('providerUserId presente', () => pm.expect(r.providerUserId).to.be.a('string'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"token\": \"{{claim_token}}\",\n  \"senhaTemporaria\": \"COLE_A_SENHA_DO_EMAIL\"\n}"
+                },
+                "url": {
+                  "raw": "{{api_url}}/v1/public/clientes/claim/validar",
+                  "host": [
+                    "{{api_url}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "public",
+                    "clientes",
+                    "claim",
+                    "validar"
+                  ]
+                },
+                "description": "Endpoint **público** (sem auth): o cliente valida token+senha temporária (recebidos por e-mail/SMS/WhatsApp). Provisiona o usuário no Keycloak (role CLIENTE, sem Membro) e vincula a identidade. A senha temporária deve ser colada do e-mail."
+              },
+              "response": []
             }
           ]
         }
@@ -4461,6 +4637,16 @@
       "value": "1.6.0",
       "type": "string",
       "description": "Sprint 2: Check-in/Check-out with RN01 billing calculation (2025-10-25)"
+    },
+    {
+      "key": "claim_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cliente_id",
+      "value": "",
+      "type": "string"
     }
   ]
 }

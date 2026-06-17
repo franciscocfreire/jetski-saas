@@ -186,7 +186,7 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO jetski_app;
 EOSQL
 echo -e "${GREEN}   OK - Permissoes atualizadas!${NC}"
 
-# 7.1b Fase 1 (balcão) - garantir schema/RLS (idempotente; canônico = Flyway V003-V005)
+# 7.1b Fase 1 (balcão) - garantir schema/RLS (idempotente; canônico = Flyway V003-V008)
 echo -e "${YELLOW}7.1b Garantindo schema da Fase 1 (balcão)...${NC}"
 docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
 -- Colunas (idempotente). CHECK constraints vêm do Flyway V003-V005.
@@ -285,6 +285,27 @@ ALTER TABLE public.reserva_aceite ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reserva_aceite FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_reserva_aceite ON public.reserva_aceite;
 CREATE POLICY tenant_isolation_reserva_aceite ON public.reserva_aceite USING ((tenant_id = public.get_current_tenant_id()));
+
+-- F2.7: claim-token de ativação de conta do cliente (balcão)
+CREATE TABLE IF NOT EXISTS public.cliente_claim_token (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    cliente_id uuid NOT NULL REFERENCES public.cliente(id) ON DELETE CASCADE,
+    token varchar(64) NOT NULL,
+    temporary_password_hash varchar(255) NOT NULL,
+    canais varchar(100),
+    expira_em timestamptz NOT NULL,
+    usado_em timestamptz,
+    ativo boolean DEFAULT true NOT NULL,
+    criado_por uuid,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT cliente_claim_token_token_uq UNIQUE (token)
+);
+CREATE INDEX IF NOT EXISTS idx_cliente_claim_token_cliente ON public.cliente_claim_token (cliente_id, ativo);
+ALTER TABLE public.cliente_claim_token ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cliente_claim_token FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_cliente_claim_token ON public.cliente_claim_token;
+CREATE POLICY tenant_isolation_cliente_claim_token ON public.cliente_claim_token USING ((tenant_id = public.get_current_tenant_id()));
 
 -- Re-grant (tabelas criadas aqui, se houver)
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO jetski_app;
