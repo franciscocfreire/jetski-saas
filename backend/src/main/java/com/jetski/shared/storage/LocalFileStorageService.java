@@ -84,9 +84,11 @@ public class LocalFileStorageService implements StorageService {
         // Gera token temporário (UUID)
         String token = UUID.randomUUID().toString();
 
-        // Simula presigned URL usando endpoint local
+        // Simula presigned URL usando endpoint local. Barras LITERAIS no path
+        // (a rota /download/** as captura); barras codificadas (%2F) são
+        // bloqueadas pelo Tomcat por padrão → 400.
         String url = String.format("http://localhost:%s/api/v1/storage/local/download/%s?token=%s",
-            serverPort, key.replace("/", "%2F"), token);
+            serverPort, key, token);
 
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(expirationMinutes);
 

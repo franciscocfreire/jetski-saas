@@ -44,7 +44,8 @@ export function StepAluguel({
 
   const criar = useMutation({
     mutationFn: async (): Promise<Reserva> => {
-      const inicio = new Date()
+      // Balcão "agora": pequeno buffer p/ satisfazer a validação @Future do backend.
+      const inicio = new Date(Date.now() + 2 * 60_000)
       const fim = new Date(inicio.getTime() + horas * 3600_000)
       const reserva = await reservasService.create({
         modeloId,

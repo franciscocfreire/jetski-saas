@@ -148,6 +148,9 @@ services:
       # OPA
       JETSKI_OPA_BASE_URL: http://opa:8181
 
+      # Storage: local (disco do container) — não há MinIO no compose do dev.
+      STORAGE_TYPE: local
+
       # Email (Gmail SMTP)
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
