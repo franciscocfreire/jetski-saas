@@ -164,6 +164,10 @@
       {
         "name": "FINANCEIRO",
         "description": "Finance"
+      },
+      {
+        "name": "CLIENTE",
+        "description": "Customer (rental client) — self-service, sem Membro"
       }
     ]
   },

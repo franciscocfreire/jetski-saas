@@ -11,6 +11,8 @@ import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.email.EmailService;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.security.UserProvisioningService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,9 +51,10 @@ class ClaimServiceTest {
     private final UserProvisioningService provisioning = mock(UserProvisioningService.class);
     private final EmailService email = mock(EmailService.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+    private final EntityManager em = mock(EntityManager.class);
 
     private final ClaimService service = new ClaimService(
-        clienteRepo, tokenRepo, identityRepo, provisioning, email, events);
+        clienteRepo, tokenRepo, identityRepo, provisioning, email, events, em);
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID clienteId = UUID.randomUUID();
@@ -65,6 +68,12 @@ class ClaimServiceTest {
         when(identityRepo.save(any(ClienteIdentityProvider.class))).thenAnswer(i -> i.getArgument(0));
         when(provisioning.provisionUserWithPassword(any(), anyString(), anyString(), any(), anyList(), anyString()))
             .thenReturn("kc-sub-123");
+
+        // fixarTenant(): set_config('app.tenant_id', ...) na conexão
+        Query q = mock(Query.class);
+        when(em.createNativeQuery(anyString())).thenReturn(q);
+        when(q.setParameter(anyString(), any())).thenReturn(q);
+        when(q.getSingleResult()).thenReturn(1);
     }
 
     private Cliente preConta() {

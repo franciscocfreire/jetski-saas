@@ -13,6 +13,7 @@ import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.shared.security.UserProvisioningService;
+import jakarta.persistence.EntityManager;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
@@ -55,6 +56,7 @@ public class ClaimService {
     private final UserProvisioningService userProvisioningService;
     private final EmailService emailService;
     private final ApplicationEventPublisher eventPublisher;
+    private final EntityManager entityManager;
 
     @org.springframework.beans.factory.annotation.Value("${jetski.frontend.url:http://localhost:3000}")
     private String frontendUrl;
@@ -155,6 +157,12 @@ public class ClaimService {
             throw new BusinessException("Senha temporária inválida");
         }
 
+        // O endpoint é público (sem tenant no contexto): o token foi lido via o
+        // carve-out de RLS (tenant nulo ⇒ permitido). A partir daqui fixamos o
+        // tenant DO TOKEN nesta conexão para que as escritas em cliente/identidade
+        // satisfaçam a RLS estrita (V009).
+        fixarTenant(claim.getTenantId());
+
         Cliente cliente = clienteRepository.findById(claim.getClienteId())
             .orElseThrow(() -> new NotFoundException("Cliente não encontrado: " + claim.getClienteId()));
 
@@ -194,6 +202,14 @@ public class ClaimService {
 
         log.info("Conta do cliente ativada: clienteId={}, providerUserId={}", cliente.getId(), providerUserId);
         return AtivacaoResult.builder().clienteId(cliente.getId()).providerUserId(providerUserId).build();
+    }
+
+    /** Fixa app.tenant_id (transação-local) na conexão atual para satisfazer a RLS estrita. */
+    private void fixarTenant(UUID tenantId) {
+        entityManager.createNativeQuery("SELECT set_config('app.tenant_id', :tid, true)")
+            .setParameter("tid", tenantId.toString())
+            .getSingleResult();
+        TenantContext.setTenantId(tenantId);
     }
 
     private static String randomToken() {

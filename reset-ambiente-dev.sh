@@ -305,7 +305,11 @@ CREATE INDEX IF NOT EXISTS idx_cliente_claim_token_cliente ON public.cliente_cla
 ALTER TABLE public.cliente_claim_token ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cliente_claim_token FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_cliente_claim_token ON public.cliente_claim_token;
-CREATE POLICY tenant_isolation_cliente_claim_token ON public.cliente_claim_token USING ((tenant_id = public.get_current_tenant_id()));
+-- Carve-out p/ validação pública por token (V009): sem tenant no contexto, permite
+-- (autorização = conhecimento do token); com contexto, isola por tenant.
+CREATE POLICY tenant_isolation_cliente_claim_token ON public.cliente_claim_token
+  USING (CASE WHEN public.get_current_tenant_id() IS NULL THEN true
+              ELSE (tenant_id = public.get_current_tenant_id()) END);
 
 -- Re-grant (tabelas criadas aqui, se houver)
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO jetski_app;
