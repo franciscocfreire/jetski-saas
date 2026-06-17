@@ -9,6 +9,9 @@ import { BALCAO_STEPS, type Atendimento } from './types'
 import { StepCliente } from './_steps/step-cliente'
 import { StepDocumentos } from './_steps/step-documentos'
 import { StepAluguel } from './_steps/step-aluguel'
+import { StepHabilitacao } from './_steps/step-habilitacao'
+import { StepTermos } from './_steps/step-termos'
+import { StepEmissao } from './_steps/step-emissao'
 
 const VAZIO: Atendimento = {
   temComprovanteResidencia: true,
@@ -90,20 +93,30 @@ export default function BalcaoPage() {
             />
           )}
 
-          {step >= 3 && (
-            <div className="space-y-4 py-8 text-center">
-              <p className="text-muted-foreground">
-                Passos <strong>Habilitação → Termos → Emissão</strong> chegam na próxima etapa (F3.5).
-              </p>
-              <div className="flex justify-center gap-2">
-                <Button type="button" variant="outline" onClick={() => setStep(2)}>
-                  Voltar
-                </Button>
-                <Button type="button" onClick={reset}>
-                  Concluir atendimento
-                </Button>
-              </div>
-            </div>
+          {step === 3 && (
+            <StepHabilitacao
+              atendimento={at}
+              onBack={() => setStep(2)}
+              onDone={(resolvida) => {
+                setAt((a) => ({ ...a, habilitacaoResolvida: resolvida }))
+                setStep(4)
+              }}
+            />
+          )}
+
+          {step === 4 && (
+            <StepTermos
+              atendimento={at}
+              onBack={() => setStep(3)}
+              onDone={() => {
+                setAt((a) => ({ ...a, aceiteFeito: true }))
+                setStep(5)
+              }}
+            />
+          )}
+
+          {step === 5 && (
+            <StepEmissao atendimento={at} onBack={() => setStep(4)} onReset={reset} />
           )}
         </CardContent>
       </Card>
