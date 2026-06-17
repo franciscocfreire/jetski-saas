@@ -1,5 +1,6 @@
 package com.jetski.locacoes.internal;
 
+import com.lowagie.text.pdf.PdfReader;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -64,6 +65,43 @@ class DocumentoPdfServiceTest {
 
         assertThat(new String(pdf.conteudo(), 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
         assertThat(pdf.sha256()).hasSize(64);
+    }
+
+    @Test
+    @DisplayName("Consolidado EMA (com residência) gera 5 páginas: 1-C, 5-C, 5-B-1, 5-B-2, Termo")
+    void consolidadoEma() throws Exception {
+        DocumentoPdfService.DocumentoPdf pdf =
+                service.gerarDocumentoConsolidado(dados("EMA", true), assinaturaMockPng("Roberto Lima"));
+
+        assertThat(new String(pdf.conteudo(), 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
+        assertThat(pdf.sha256()).matches("^[0-9a-f]{64}$");
+        assertThat(new PdfReader(pdf.conteudo()).getNumberOfPages()).isEqualTo(5);
+
+        Path out = Paths.get("target", "documento-ema.pdf");
+        Files.createDirectories(out.getParent());
+        Files.write(out, pdf.conteudo());
+    }
+
+    @Test
+    @DisplayName("Consolidado CHA gera 1 página (apenas o Termo)")
+    void consolidadoCha() throws Exception {
+        DocumentoPdfService.DocumentoPdf pdf =
+                service.gerarDocumentoConsolidado(dados("CHA", false), null);
+
+        assertThat(new String(pdf.conteudo(), 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
+        assertThat(new PdfReader(pdf.conteudo()).getNumberOfPages()).isEqualTo(1);
+    }
+
+    private static DocumentoPdfService.DadosDocumento dados(String via, boolean residencia) {
+        return new DocumentoPdfService.DadosDocumento(
+                "Roberto Lima", "987.654.321-00", "12.345.678-9", "DETRAN/RJ",
+                "brasileira", "Rio de Janeiro/RJ", "(21) 3030-1020", "(21) 98888-1234", "roberto@email.com",
+                "Av. Paulista, 1500, ap. 902 - Bela Vista", "São Paulo/SP", "01310-100",
+                "Jet Save Turismo Náutico LTDA", "65.455.888/0001-00",
+                "Angra dos Reis", "16 de junho de 2026", "16/06/2026",
+                via, residencia, false, false, true,
+                "Carlos Mendes", "98.765.432-1", "SSP/RJ", "111.222.333-44", "MTA-1234567",
+                "2026-000482-19", "23,13");
     }
 
     /** Gera um PNG simples simulando uma assinatura (headless-safe). */
