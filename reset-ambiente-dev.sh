@@ -268,6 +268,24 @@ ALTER TABLE public.reserva_habilitacao FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_reserva_habilitacao ON public.reserva_habilitacao;
 CREATE POLICY tenant_isolation_reserva_habilitacao ON public.reserva_habilitacao USING ((tenant_id = public.get_current_tenant_id()));
 
+-- F2.4: aceite/assinatura no balcão (evidências)
+CREATE TABLE IF NOT EXISTS public.reserva_aceite (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    reserva_id uuid NOT NULL REFERENCES public.reserva(id) ON DELETE CASCADE,
+    operador_id uuid,
+    metodo varchar(20) NOT NULL,
+    assinatura_s3_key varchar(500), hash_sha256 varchar(64),
+    ip varchar(64), user_agent text,
+    origem varchar(20) DEFAULT 'BALCAO' NOT NULL,
+    aceito_em timestamptz DEFAULT now() NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL
+);
+ALTER TABLE public.reserva_aceite ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reserva_aceite FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_reserva_aceite ON public.reserva_aceite;
+CREATE POLICY tenant_isolation_reserva_aceite ON public.reserva_aceite USING ((tenant_id = public.get_current_tenant_id()));
+
 -- Re-grant (tabelas criadas aqui, se houver)
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO jetski_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO jetski_app;

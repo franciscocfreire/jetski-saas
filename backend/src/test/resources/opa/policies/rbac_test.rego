@@ -349,6 +349,10 @@ test_gerente_can_registrar_habilitacao if {
     allow_rbac with input as {"user": {"role": "GERENTE"}, "action": "reserva:habilitacao"}
 }
 
+test_operador_can_registrar_aceite if {
+    allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "reserva:aceite"}
+}
+
 # Negativos
 test_mecanico_cannot_confirmar_sinal if {
     not allow_rbac with input as {"user": {"role": "MECANICO"}, "action": "reserva:confirmar-sinal"}

@@ -50,6 +50,7 @@ role_permissions := {
         "reserva:recusar-pagamento",
         "reserva:emitir-documentos",
         "reserva:habilitacao",
+        "reserva:aceite",
         "cliente:create",
         "cliente:claim",
         "cliente:reenviar",
