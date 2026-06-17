@@ -19,7 +19,8 @@ const statusConfig: Record<ReservaStatus, { label: string; color: string }> = {
   PENDENTE: { label: 'Pendente', color: 'bg-yellow-500' },
   CONFIRMADA: { label: 'Confirmada', color: 'bg-green-500' },
   CANCELADA: { label: 'Cancelada', color: 'bg-red-500' },
-  CONCLUIDA: { label: 'Concluída', color: 'bg-gray-500' },
+  FINALIZADA: { label: 'Finalizada', color: 'bg-gray-500' },
+  EXPIRADA: { label: 'Expirada', color: 'bg-orange-500' },
 }
 
 export default function AgendaPage() {

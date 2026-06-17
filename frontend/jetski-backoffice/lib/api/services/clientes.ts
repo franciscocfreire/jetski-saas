@@ -1,5 +1,5 @@
 import { apiClient, getTenantId } from '../client'
-import type { Cliente, ClienteCreateRequest } from '../types'
+import type { Cliente, ClienteCreateRequest, ClientePreContaRequest } from '../types'
 
 const getBasePath = () => `/v1/tenants/${getTenantId()}/clientes`
 
@@ -23,5 +23,17 @@ export const clientesService = {
   async update(id: string, request: Partial<ClienteCreateRequest>): Promise<Cliente> {
     const { data } = await apiClient.put<Cliente>(`${getBasePath()}/${id}`, request)
     return data
+  },
+
+  /** Cria (ou reutiliza) a pré-conta de balcão; dedupe por CPF no backend. */
+  async criarPreConta(request: ClientePreContaRequest): Promise<Cliente> {
+    const { data } = await apiClient.post<Cliente>(`${getBasePath()}/pre-conta`, request)
+    return data
+  },
+
+  /** Busca cliente por CPF (dedupe). Retorna o primeiro match ou null. */
+  async buscarPorCpf(cpf: string): Promise<Cliente | null> {
+    const { data } = await apiClient.get<Cliente[]>(getBasePath(), { params: { cpf } })
+    return data.length > 0 ? data[0] : null
   },
 }

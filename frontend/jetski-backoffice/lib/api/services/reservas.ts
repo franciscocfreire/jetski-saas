@@ -1,5 +1,11 @@
 import { apiClient, getTenantId } from '../client'
-import type { Reserva, ReservaCreateRequest, ReservaStatus } from '../types'
+import type {
+  Reserva,
+  ReservaCreateRequest,
+  ReservaStatus,
+  ConfirmarPagamentoRequest,
+  ResultadoEmissao,
+} from '../types'
 
 const getBasePath = () => `/v1/tenants/${getTenantId()}/reservas`
 
@@ -33,6 +39,34 @@ export const reservasService = {
     const { data } = await apiClient.post<Reserva>(`${getBasePath()}/${id}/alocar-jetski`, {
       jetskiId,
     })
+    return data
+  },
+
+  /**
+   * Confirma/valida o pagamento (sinal ou total). Backend espera `valorSinal`
+   * como valor pago (independe do tipo). Endpoint: POST /{id}/confirmar-sinal.
+   */
+  async confirmarPagamento(id: string, req: ConfirmarPagamentoRequest): Promise<Reserva> {
+    const { data } = await apiClient.post<Reserva>(`${getBasePath()}/${id}/confirmar-sinal`, {
+      tipo: req.tipo,
+      valorSinal: req.valorPago,
+    })
+    return data
+  },
+
+  /** Recusa o pagamento (comprovante inválido), com motivo obrigatório. */
+  async recusarPagamento(id: string, motivo: string): Promise<Reserva> {
+    const { data } = await apiClient.post<Reserva>(`${getBasePath()}/${id}/recusar-pagamento`, {
+      motivo,
+    })
+    return data
+  },
+
+  /** Emite os documentos consolidados (PDF + Marinha + cliente). */
+  async emitirDocumentos(id: string): Promise<ResultadoEmissao> {
+    const { data } = await apiClient.post<ResultadoEmissao>(
+      `${getBasePath()}/${id}/emitir-documentos`
+    )
     return data
   },
 }

@@ -72,11 +72,25 @@ export interface JetskiUpdateRequest extends Partial<JetskiCreateRequest> {
 }
 
 // Cliente Module
+export type ClienteOrigem = 'PORTAL' | 'BALCAO'
+export type ClienteStatusConta = 'PRE_CONTA' | 'CONVIDADA' | 'ATIVA' | 'SEM_LOGIN'
+
 export interface Cliente extends BaseEntity {
   nome: string
   email?: string
   telefone?: string
+  whatsapp?: string
+  /** Documento (CPF) — campo canônico do backend. */
+  documento?: string
+  /** @deprecated usar `documento` (mantido p/ compat. de telas antigas). */
   cpf?: string
+  dataNascimento?: string
+  genero?: string
+  enderecoJson?: string
+  termoAceite?: boolean
+  origem?: ClienteOrigem
+  statusConta?: ClienteStatusConta
+  ativo?: boolean
   observacoes?: string
 }
 
@@ -86,6 +100,15 @@ export interface ClienteCreateRequest {
   telefone?: string
   cpf?: string
   observacoes?: string
+}
+
+/** Pré-conta de balcão (atendimento assistido). */
+export interface ClientePreContaRequest {
+  nome: string
+  documento?: string
+  email?: string
+  telefone?: string
+  whatsapp?: string
 }
 
 // PIX Key Types
@@ -132,8 +155,10 @@ export interface VendedorUpdateRequest {
 }
 
 // Reserva Module
-export type ReservaStatus = 'PENDENTE' | 'CONFIRMADA' | 'CANCELADA' | 'CONCLUIDA'
-export type ReservaPrioridade = 'NORMAL' | 'ALTA' | 'URGENTE'
+export type ReservaStatus = 'PENDENTE' | 'CONFIRMADA' | 'CANCELADA' | 'FINALIZADA' | 'EXPIRADA'
+export type ReservaPrioridade = 'ALTA' | 'BAIXA'
+export type PagamentoTipo = 'SINAL' | 'TOTAL'
+export type PagamentoStatus = 'AGUARDANDO' | 'EM_ANALISE' | 'CONFIRMADO' | 'RECUSADO'
 
 export interface Reserva extends BaseEntity {
   modeloId: string
@@ -150,6 +175,13 @@ export interface Reserva extends BaseEntity {
   prioridade: ReservaPrioridade
   sinalPago: boolean
   valorSinal?: number
+  sinalPagoEm?: string
+  // Pagamento (balcão / validação)
+  pagamentoTipo?: PagamentoTipo
+  pagamentoStatus?: PagamentoStatus
+  pagamentoMotivoRecusa?: string
+  valorTotal?: number
+  documentoEmitidoEm?: string
   observacoes?: string
 }
 
@@ -161,6 +193,89 @@ export interface ReservaCreateRequest {
   dataFimPrevista: string
   prioridade?: ReservaPrioridade
   observacoes?: string
+}
+
+// Balcão — pagamento / habilitação / aceite / emissão / claim
+export interface ConfirmarPagamentoRequest {
+  tipo: PagamentoTipo
+  valorPago?: number
+}
+
+export interface RecusarPagamentoRequest {
+  motivo: string
+}
+
+export type HabilitacaoVia = 'CHA' | 'EMA'
+
+export interface HabilitacaoRequest {
+  via: HabilitacaoVia
+  // CHA
+  chaCategoria?: string
+  chaNumero?: string
+  chaValidade?: string
+  // EMA
+  videoaulaAssistida?: boolean
+  anexoSaude?: boolean
+  anexoRegras?: boolean
+  anexoResidencia?: boolean
+  // GRU (EMA)
+  gruNumero?: string
+  gruValor?: number
+  gruPago?: boolean
+}
+
+export interface Habilitacao {
+  reservaId: string
+  via: HabilitacaoVia
+  chaCategoria?: string
+  chaNumero?: string
+  chaValidade?: string
+  videoaulaEm?: string
+  anexoSaude: boolean
+  anexoRegras: boolean
+  anexoResidencia: boolean
+  gruNumero?: string
+  gruValor?: number
+  gruPago: boolean
+  gruPagoEm?: string
+  resolvida: boolean
+}
+
+export type AceiteMetodo = 'SIGNATURE_PAD' | 'PAPEL'
+
+export interface AceiteRequest {
+  metodo: AceiteMetodo
+  /** PNG em base64 (dataURL ou puro); obrigatório p/ SIGNATURE_PAD. */
+  assinaturaBase64?: string
+}
+
+export interface Aceite {
+  reservaId: string
+  metodo: AceiteMetodo
+  assinaturaS3Key?: string
+  hashSha256?: string
+  aceitoEm: string
+}
+
+/** Resultado de POST /reservas/{id}/emitir-documentos. */
+export interface ResultadoEmissao {
+  documentoId: string
+  s3Key: string
+  hashSha256: string
+  downloadUrl: string
+  gruNumero?: string
+  gruValor?: string
+  enviadoMarinha: boolean
+  enviadoCliente: boolean
+}
+
+export interface ClaimResult {
+  clienteId: string
+  token: string
+  link: string
+  expiraEm: string
+  canais: string
+  enviado: boolean
 }
 
 // Locacao Module
