@@ -133,6 +133,11 @@ public class DocumentoPdfService {
                 writeAnexo5B1(doc, f, d);
                 first = section(doc, first);
                 writeAnexo5B2(doc, f, d, assinaturaPng);
+                // Versões em inglês (5-B-3 e 5-B-4), conforme o oficial
+                first = section(doc, first);
+                writeAnexo5B1En(doc, f, d);
+                first = section(doc, first);
+                writeAnexo5B2En(doc, f, d, assinaturaPng);
             }
             first = section(doc, first);
             writeTermo(doc, f, d.razaoSocialLoja(), d.cnpjLoja(), d.nomeCliente(),
@@ -473,6 +478,122 @@ public class DocumentoPdfService {
         p.setAlignment(Element.ALIGN_JUSTIFIED);
         p.setSpacingAfter(3f);
         doc.add(p);
+    }
+
+    private static final String[] RULES_5B_EN = {
+            "I will operate the PWC only within the area limited to CHA-MTA-E renters;",
+            "I will operate the PWC only in the period between sunrise and sunset;",
+            "I will not use the PWC for purposes other than recreation or sports;",
+            "I will not transfer the PWC to third parties, under any pretext;",
+            "I will not transport passengers;",
+            "I will follow the instructions on safety procedures and basic guidelines provided by the EAMA "
+                + "through the video lesson produced by the Brazilian Navy and the demonstration for operating a rented PWC;",
+            "I will not exceed the speed of 37 km/h (20 nautical miles/h or 20 knots);",
+            "I will not refuel the PWC;",
+            "I will never operate the rented PWC after consuming alcoholic beverages, or any narcotic or toxic substances; and",
+            "I will use, obligatorily, visual correction lenses and/or hearing aids, in the case of physical restriction."
+    };
+
+    private static final String ART_299_EN =
+            "“Art. 299 - To omit, in a public or private document, a statement that should be included therein, or "
+            + "to insert or cause to be inserted therein a statement that is false or different from the one that should "
+            + "be written, in order to harm a right, create an obligation or alter the truth about the legally relevant "
+            + "fact.” “Penalty: imprisonment from 1 (one) to 5 (five) years and fine, if the document is public; and "
+            + "imprisonment from 1 (one) to 3 (three) years, if the document is private.”";
+
+    /** Anexo 5-B-3 — English version of the demonstration certificate (5-B-1). */
+    private void writeAnexo5B1En(Document doc, Fonts f, DadosDocumento d) throws DocumentException, IOException {
+        cabecalhoSans(doc, f, "ANNEX 5-B", "CERTIFICATE OF DEMONSTRATION FOR OPERATING A RENTED PERSONAL WATERCRAFT");
+        justifiedSans(doc, f, "The Certificate of Demonstration for Operating a Rented Personal Watercraft (PWC) is "
+                + "intended to certify that the renter was given the minimum necessary familiarization with this type of "
+                + "watercraft, allowing for the issuance of a temporary license (CHA-MTA-E), which will permit the PWC "
+                + "operation within a restricted area.");
+        Paragraph lbl = new Paragraph("To be completed by the rental company (EAMA):", f.sansBold);
+        lbl.setSpacingAfter(8f);
+        doc.add(lbl);
+        justifiedSans(doc, f, "I certify, for all intents and purposes, that Mr(s). " + b(d.nomeCliente())
+                + ", Passport/ID no " + b(d.cpfCliente()) + " attended the video lesson* and received the practical "
+                + "demonstration** for operating a rented PWC by " + b(d.razaoSocialLoja()) + " (name of the EAMA), "
+                + "having Mr.(s) " + b(d.instrutorNome()) + " as an instructor.");
+        Paragraph info = new Paragraph("(Instructor's information)", f.sansSmall);
+        info.setAlignment(Element.ALIGN_CENTER);
+        info.setSpacingAfter(4f);
+        doc.add(info);
+        campos(doc, f, new String[]{"ID no", "Issued by", "Date of issue"},
+                new String[]{nz(d.instrutorId()), nz(d.instrutorOrgao()), nz(d.instrutorDataEmissao())},
+                new float[]{1.2f, 1.1f, 1.2f});
+        campos(doc, f, new String[]{"CPF", "CHA no"},
+                new String[]{nz(d.instrutorCpf()), nz(d.instrutorCha())}, new float[]{1f, 1f});
+        space(doc, 6);
+        signatureLineRight(doc, f, d.instrutorAssinatura(), "Instructor's signature");
+        space(doc, 8);
+        notaSans(doc, f, "NOTE: The submission of untrue information may result in the cancellation of the EAMA, also "
+                + "subjecting the person responsible for the EAMA to administrative, civil, or criminal sanctions "
+                + "provided for by law.");
+        notaSans(doc, f, "* The video lesson produced by the Brazilian Navy addressed the most relevant issues contained "
+                + "in COLREG, LESTA, RLESTA, NORMAM, NPCP/NPCF, and rules for leaving/approaching beaches and shores, "
+                + "applied to PWC operation, taking into account the local area specifics.");
+        notaSans(doc, f, "** The practical demonstration covered the main features and peculiarities of the PWC, such as "
+                + "propulsion and steering control, and its operation itself. The demonstration highlighted safety "
+                + "procedures and basic guidelines, such as:");
+        notaSans(doc, f, "- area allowed for navigation (recognition of the limits of areas signaled by buoys);");
+        notaSans(doc, f, "- navigating with caution;");
+        notaSans(doc, f, "- precautions with bathers and other boats; and");
+        notaSans(doc, f, "- proper use of the life jacket and PWC ignition key safety mechanism.");
+        footerSans(doc, f, "- 5-B-3 -");
+    }
+
+    /** Anexo 5-B-4 — English version of the renter declaration (5-B-2). */
+    private void writeAnexo5B2En(Document doc, Fonts f, DadosDocumento d, byte[] sig) throws DocumentException, IOException {
+        cabecalhoSans(doc, f, "ANNEX 5-B", "RENTER'S DECLARATION");
+        Paragraph lbl = new Paragraph("To be completed by the renter to be qualified as MTA-E:", f.sansBold);
+        lbl.setSpacingAfter(8f);
+        doc.add(lbl);
+        justifiedSans(doc, f, "I declare, for all intents and purposes, that I have understood the main safety procedures "
+                + "and basic guidelines, provided by the rental company (EAMA), through the video lesson produced by the "
+                + "Brazilian Navy and the practical demonstration for operating a rented PWC. Furthermore, I am aware of "
+                + "the administrative and criminal charges resulting from accidents in which I am involved, should I be "
+                + "held liable.");
+        bodySans(doc, f, "I will comply with the rules listed below:");
+        com.lowagie.text.List rules = new com.lowagie.text.List(false, false);
+        rules.setListSymbol(new com.lowagie.text.Chunk("", f.sans));
+        char l = 'a';
+        for (String r : RULES_5B_EN) {
+            ListItem li = new ListItem(l + ") " + r, f.sans);
+            li.setSpacingAfter(2f);
+            rules.add(li);
+            l++;
+        }
+        rules.setIndentationLeft(16f);
+        doc.add(rules);
+        space(doc, 4);
+        bodySans(doc, f, "( " + mark(d.semExperiencia()) + " ) I declare that I have NO EXPERIENCE in operating a PWC or "
+                + "small boat. (It is mandatory that the Instructor demonstrates the operation of the PWC while in motion "
+                + "and the renter in the rear seat).");
+        bodySans(doc, f, "( " + mark(!d.semExperiencia()) + " ) I declare that I have EXPERIENCE in operating a PWC or "
+                + "small boat. (CHA ARA/MSA/CPA/MTA-E documentation is required).");
+        space(doc, 4);
+        bodySans(doc, f, "I am aware of:");
+        bodySans(doc, f, "a) the administrative and criminal charges resulting from accidents in which I am involved, "
+                + "should I be held liable; and");
+        bodySans(doc, f, "b) the sanctions provided for in LESTA and RLESTA, when the acts prohibited in these legal "
+                + "diplomas are committed.");
+        justifiedSans(doc, f, "Finally, I also declare that I am aware that the falsity of this declaration by the person "
+                + "responsible for the EAMA, by the Instructor, and by myself may incur in the criminal sanction provided "
+                + "for in art. 299 of the Penal Code, as transcribed below:");
+        Paragraph art = new Paragraph(ART_299_EN, f.sansItalic);
+        art.setAlignment(Element.ALIGN_JUSTIFIED);
+        art.setSpacingAfter(10f);
+        doc.add(art);
+        campos(doc, f, new String[]{"Renter's Name"}, new String[]{nz(d.nomeCliente())}, new float[]{1f});
+        campos(doc, f, new String[]{"Passport/ID number", "Country of issue", "Date of issue"},
+                new String[]{nz(d.identidade()), nz(d.nacionalidade()), ""}, new float[]{1.2f, 1.1f, 1.1f});
+        signatureSans(doc, f, sig, "Renter's signature");
+        space(doc, 6);
+        notaSans(doc, f, "Notes: 1) This certificate is not valid for the issuance of a new CHA-MTA-E; and 2) It is valid "
+                + "for 30 days from the date it was issued.");
+        notaSans(doc, f, "Date of Issue (to be completed by the EAMA): " + nz(d.dataCurta()) + ".");
+        footerSans(doc, f, "- 5-B-4 -");
     }
 
     private void writeAnexo5B2(Document doc, Fonts f, DadosDocumento d, byte[] sig) throws DocumentException, IOException {
