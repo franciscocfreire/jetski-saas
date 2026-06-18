@@ -6,6 +6,7 @@ import { FileDown, CheckCircle2, Anchor, Mail, Printer, AlertTriangle } from 'lu
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { reservasService } from '@/lib/api/services'
+import { EmbarqueSection } from './embarque'
 import type { Atendimento } from '../types'
 import type { ResultadoEmissao } from '@/lib/api/types'
 
@@ -68,11 +69,7 @@ export function StepEmissao({
           )}
         </div>
 
-        <div className="flex justify-end">
-          <Button type="button" onClick={onReset}>
-            Concluir atendimento
-          </Button>
-        </div>
+        <EmbarqueSection atendimento={atendimento} onReset={onReset} />
       </div>
     )
   }
