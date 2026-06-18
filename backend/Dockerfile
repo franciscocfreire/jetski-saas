@@ -23,6 +23,11 @@ COPY --from=build /app/target/*.jar app.jar
 # Create non-root user
 RUN addgroup -g 1001 -S appgroup && \
     adduser -u 1001 -S appuser -G appgroup
+
+# Storage local: diretório com dono appuser. Quando um volume nomeado é
+# montado vazio aqui, o Docker herda esta permissão (evita root-only no volume).
+RUN mkdir -p /tmp/jetski-photos && chown -R appuser:appgroup /tmp/jetski-photos
+
 USER appuser
 
 EXPOSE 8090
