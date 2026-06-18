@@ -131,16 +131,17 @@ public class DocumentoPdfService {
             if (ema) {
                 first = section(doc, first);
                 writeAnexo5C(doc, f, d, assinaturaPng);
-                first = section(doc, first);
-                writeAnexo5B1(doc, f, d);
-                first = section(doc, first);
-                writeAnexo5B2(doc, f, d, assinaturaPng);
-                // Versões em inglês (5-B-3 e 5-B-4) — apenas para locatário estrangeiro
+                // 5-B em inglês p/ estrangeiro (substitui o PT); senão, em português
                 if (d.incluirIngles()) {
                     first = section(doc, first);
                     writeAnexo5B1En(doc, f, d);
                     first = section(doc, first);
                     writeAnexo5B2En(doc, f, d, assinaturaPng);
+                } else {
+                    first = section(doc, first);
+                    writeAnexo5B1(doc, f, d);
+                    first = section(doc, first);
+                    writeAnexo5B2(doc, f, d, assinaturaPng);
                 }
             }
             first = section(doc, first);
