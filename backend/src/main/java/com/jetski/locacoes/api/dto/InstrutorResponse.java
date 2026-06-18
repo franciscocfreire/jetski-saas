@@ -16,6 +16,8 @@ public class InstrutorResponse {
     private String orgaoEmissor;
     private String cpf;
     private String cha;
+    private java.time.LocalDate dataEmissao;
+    private Boolean temAssinatura;
     private Boolean ativo;
     private Instant createdAt;
     private Instant updatedAt;

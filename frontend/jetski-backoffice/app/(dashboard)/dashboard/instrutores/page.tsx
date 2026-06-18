@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { SignaturePad } from '@/components/signature-pad'
 import {
   Table,
   TableBody,
@@ -34,7 +35,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-const VAZIO: InstrutorCreateRequest = { nome: '', rg: '', orgaoEmissor: '', cpf: '', cha: '' }
+const VAZIO: InstrutorCreateRequest = {
+  nome: '',
+  rg: '',
+  orgaoEmissor: '',
+  cpf: '',
+  cha: '',
+  dataEmissao: '',
+}
 
 export default function InstrutoresPage() {
   const { currentTenant } = useTenantStore()
@@ -77,7 +85,14 @@ export default function InstrutoresPage() {
 
   function editar(i: Instrutor) {
     setEditing(i)
-    setForm({ nome: i.nome, rg: i.rg ?? '', orgaoEmissor: i.orgaoEmissor ?? '', cpf: i.cpf ?? '', cha: i.cha ?? '' })
+    setForm({
+      nome: i.nome,
+      rg: i.rg ?? '',
+      orgaoEmissor: i.orgaoEmissor ?? '',
+      cpf: i.cpf ?? '',
+      cha: i.cha ?? '',
+      dataEmissao: i.dataEmissao ?? '',
+    })
     setOpen(true)
   }
 
@@ -187,7 +202,23 @@ export default function InstrutoresPage() {
               <Label className="text-xs">Nº da CHA</Label>
               <Input value={form.cha} onChange={(e) => setForm({ ...form, cha: e.target.value })} />
             </div>
+            <div>
+              <Label className="text-xs">Data de emissão (identidade)</Label>
+              <Input
+                type="date"
+                value={form.dataEmissao}
+                onChange={(e) => setForm({ ...form, dataEmissao: e.target.value })}
+              />
+            </div>
           </div>
+
+          <div>
+            <Label className="mb-1 block text-xs">
+              Assinatura do instrutor {editing?.temAssinatura && '(já cadastrada — assine para substituir)'}
+            </Label>
+            <SignaturePad onChange={(dataUrl) => setForm((s) => ({ ...s, assinaturaBase64: dataUrl ?? undefined }))} />
+          </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar

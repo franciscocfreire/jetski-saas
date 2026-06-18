@@ -101,6 +101,7 @@ class DocumentoPdfServiceTest {
                 "Angra dos Reis", "16 de junho de 2026", "16/06/2026",
                 via, residencia, false, false, true,
                 "Carlos Mendes", "98.765.432-1", "SSP/RJ", "111.222.333-44", "MTA-1234567",
+                "10/05/2020", null,
                 "2026-000482-19", "23,13");
     }
 

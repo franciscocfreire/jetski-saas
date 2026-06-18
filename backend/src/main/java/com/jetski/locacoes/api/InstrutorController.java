@@ -59,7 +59,7 @@ public class InstrutorController {
         @PathVariable UUID tenantId, @Valid @RequestBody InstrutorRequest request
     ) {
         validateTenant(tenantId);
-        Instrutor saved = service.criar(toEntity(request));
+        Instrutor saved = service.criar(toEntity(request), request.getAssinaturaBase64());
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(saved));
     }
 
@@ -70,7 +70,7 @@ public class InstrutorController {
         @PathVariable UUID tenantId, @PathVariable UUID id, @Valid @RequestBody InstrutorRequest request
     ) {
         validateTenant(tenantId);
-        return ResponseEntity.ok(toResponse(service.atualizar(id, toEntity(request))));
+        return ResponseEntity.ok(toResponse(service.atualizar(id, toEntity(request), request.getAssinaturaBase64())));
     }
 
     @DeleteMapping("/{id}")
@@ -98,13 +98,15 @@ public class InstrutorController {
     private Instrutor toEntity(InstrutorRequest r) {
         return Instrutor.builder()
             .nome(r.getNome()).rg(r.getRg()).orgaoEmissor(r.getOrgaoEmissor())
-            .cpf(r.getCpf()).cha(r.getCha()).build();
+            .cpf(r.getCpf()).cha(r.getCha()).dataEmissao(r.getDataEmissao()).build();
     }
 
     private InstrutorResponse toResponse(Instrutor i) {
         return InstrutorResponse.builder()
             .id(i.getId()).tenantId(i.getTenantId()).nome(i.getNome())
             .rg(i.getRg()).orgaoEmissor(i.getOrgaoEmissor()).cpf(i.getCpf()).cha(i.getCha())
+            .dataEmissao(i.getDataEmissao())
+            .temAssinatura(i.getAssinaturaS3Key() != null)
             .ativo(i.getAtivo()).createdAt(i.getCreatedAt()).updatedAt(i.getUpdatedAt())
             .build();
     }

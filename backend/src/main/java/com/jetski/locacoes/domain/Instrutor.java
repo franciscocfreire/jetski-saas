@@ -43,6 +43,14 @@ public class Instrutor {
     @Column(length = 60)
     private String cha;
 
+    /** Data de emissão da identidade (Anexo 5-B-1). */
+    @Column(name = "data_emissao")
+    private java.time.LocalDate dataEmissao;
+
+    /** Key da imagem da assinatura no storage (embutida no 5-B-1). */
+    @Column(name = "assinatura_s3_key", length = 500)
+    private String assinaturaS3Key;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean ativo = true;

@@ -286,6 +286,8 @@ CREATE TABLE IF NOT EXISTS public.instrutor (
     ativo boolean DEFAULT true NOT NULL,
     created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL
 );
+ALTER TABLE public.instrutor ADD COLUMN IF NOT EXISTS data_emissao date;
+ALTER TABLE public.instrutor ADD COLUMN IF NOT EXISTS assinatura_s3_key varchar(500);
 CREATE INDEX IF NOT EXISTS idx_instrutor_tenant ON public.instrutor (tenant_id, ativo);
 ALTER TABLE public.instrutor ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instrutor FORCE ROW LEVEL SECURITY;

@@ -67,6 +67,7 @@ public class DocumentoPdfService {
             // Instrutor (5-B-1)
             String instrutorNome, String instrutorId, String instrutorOrgao,
             String instrutorCpf, String instrutorCha,
+            String instrutorDataEmissao, byte[] instrutorAssinatura,
             // GRU
             String gruNumero, String gruValor
     ) {}
@@ -375,19 +376,58 @@ public class DocumentoPdfService {
 
     private void writeAnexo5B1(Document doc, Fonts f, DadosDocumento d) throws DocumentException, IOException {
         cabecalhoSans(doc, f, "ANEXO 5-B", "ATESTADO DE DEMONSTRAÇÃO PARA CONDUÇÃO DE MOTO AQUÁTICA ALUGADA");
+        justifiedSans(doc, f, "O Atestado de Demonstração para Condução de Moto Aquática Alugada visa a atestar "
+                + "que foi ministrada ao locatário uma familiarização mínima necessária a esse tipo de embarcação, "
+                + "possibilitando a emissão de uma habilitação temporária (CHA-MTA-E), a qual permitirá a sua "
+                + "condução dentro de uma área restrita.");
+
+        Paragraph campoLabel = new Paragraph("Campo de preenchimento do EAMA:", f.sansBold);
+        campoLabel.setSpacingBefore(4f);
+        campoLabel.setSpacingAfter(8f);
+        doc.add(campoLabel);
+
         justifiedSans(doc, f, "Atesto, para os devidos fins, que o(a) Sr.(a.) " + b(d.nomeCliente())
-                + ", CPF nº " + b(d.cpfCliente()) + " assistiu à videoaula e recebeu a demonstração prática para "
-                + "condução de moto aquática alugada junto ao " + b(d.razaoSocialLoja())
-                + " (nome do EAMA), tendo o(a) Sr.(a.) abaixo identificado(a) como instrutor(a):");
-        space(doc, 4);
-        campos(doc, f, new String[]{"Instrutor(a)", "Identidade nº", "Órgão emissor"},
-                new String[]{nz(d.instrutorNome()), nz(d.instrutorId()), nz(d.instrutorOrgao())},
-                new float[]{1.6f, 1.1f, 1.1f});
+                + ", CPF nº " + b(d.cpfCliente()) + " assistiu a videoaula* e recebeu a demonstração prática** "
+                + "para condução de moto aquática alugada junto ao " + b(d.razaoSocialLoja())
+                + " (nome do EAMA), tendo o(a) Sr.(a.) " + b(d.instrutorNome()) + " como instrutor(a).");
+
+        Paragraph dados = new Paragraph("(Dados do Instrutor)", f.sansSmall);
+        dados.setAlignment(Element.ALIGN_CENTER);
+        dados.setSpacingAfter(4f);
+        doc.add(dados);
+
+        campos(doc, f, new String[]{"Identidade nº", "Órgão emissor", "Data de emissão"},
+                new String[]{nz(d.instrutorId()), nz(d.instrutorOrgao()), nz(d.instrutorDataEmissao())},
+                new float[]{1.2f, 1.1f, 1.2f});
         campos(doc, f, new String[]{"CPF", "Nº da CHA"},
                 new String[]{nz(d.instrutorCpf()), nz(d.instrutorCha())}, new float[]{1f, 1f});
-        space(doc, 24);
-        signatureLineRight(doc, f, null, "Assinatura do Instrutor");
+
+        space(doc, 6);
+        signatureLineRight(doc, f, d.instrutorAssinatura(), "Assinatura do Instrutor");
+
+        space(doc, 8);
+        notaSans(doc, f, "OBS: A apresentação de informações inverídicas poderá acarretar no cancelamento do EAMA, "
+                + "sujeitando, ainda, o responsável do Estabelecimento de Aluguel de MA às sanções administrativas, "
+                + "cíveis ou penais previstas em Lei.");
+        notaSans(doc, f, "* A videoaula produzida pela Marinha do Brasil abordou os assuntos mais relevantes contidos "
+                + "no RIPEAM, LESTA, RLESTA, NORMAM, NPCP/NPCF e procedimentos para saída/aproximação de praias e "
+                + "margens, aplicados à condução da MA, levando em conta as especificidades locais da área.");
+        notaSans(doc, f, "** A demonstração prática abordou as principais características e peculiaridades da MA, como "
+                + "controle de propulsão e governo, a sua operação propriamente dita, bem como destacou os "
+                + "procedimentos de segurança e orientações básicas, como:");
+        notaSans(doc, f, "- área permitida à navegação (reconhecimento dos limites das áreas sinalizadas por boias);");
+        notaSans(doc, f, "- cuidados na navegação;");
+        notaSans(doc, f, "- precauções com banhistas e outras embarcações; e");
+        notaSans(doc, f, "- uso apropriado do colete salva-vidas e do mecanismo de segurança da chave de ignição da "
+                + "moto aquática.");
         footerSans(doc, f, "- 5-B-1 -");
+    }
+
+    private void notaSans(Document doc, Fonts f, String text) throws DocumentException {
+        Paragraph p = new Paragraph(text, f.sansSmall);
+        p.setAlignment(Element.ALIGN_JUSTIFIED);
+        p.setSpacingAfter(3f);
+        doc.add(p);
     }
 
     private void writeAnexo5B2(Document doc, Fonts f, DadosDocumento d, byte[] sig) throws DocumentException, IOException {

@@ -23,4 +23,10 @@ public class InstrutorRequest {
 
     @Size(max = 60)
     private String cha;
+
+    /** Data de emissão da identidade (Anexo 5-B-1). */
+    private java.time.LocalDate dataEmissao;
+
+    /** PNG da assinatura em base64 (dataURL ou puro); opcional na edição. */
+    private String assinaturaBase64;
 }

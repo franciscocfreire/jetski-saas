@@ -147,6 +147,13 @@ public class EmissaoService {
         com.jetski.locacoes.domain.Instrutor instrutor = (hab.getInstrutorId() != null)
             ? instrutorRepository.findById(hab.getInstrutorId()).orElse(null)
             : null;
+        byte[] instrutorAssinatura = (instrutor != null && instrutor.getAssinaturaS3Key() != null)
+            ? storageService.getObject(instrutor.getAssinaturaS3Key())
+            : null;
+        String instrutorDataEmissao = (instrutor != null && instrutor.getDataEmissao() != null)
+            ? String.format("%02d/%02d/%d", instrutor.getDataEmissao().getDayOfMonth(),
+                instrutor.getDataEmissao().getMonthValue(), instrutor.getDataEmissao().getYear())
+            : null;
         return new DocumentoPdfService.DadosDocumento(
             cliente.getNome(), cliente.getDocumento(), cliente.getRg(), cliente.getOrgaoEmissor(),
             cliente.getNacionalidade(), cliente.getNaturalidade(),
@@ -162,6 +169,7 @@ public class EmissaoService {
             instrutor != null ? instrutor.getOrgaoEmissor() : null,
             instrutor != null ? instrutor.getCpf() : null,
             instrutor != null ? instrutor.getCha() : null,
+            instrutorDataEmissao, instrutorAssinatura,
             hab.getGruNumero(), hab.getGruValor() != null ? hab.getGruValor().toPlainString() : null);
     }
 

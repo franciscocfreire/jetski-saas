@@ -250,6 +250,8 @@ export interface Instrutor extends BaseEntity {
   orgaoEmissor?: string
   cpf?: string
   cha?: string
+  dataEmissao?: string
+  temAssinatura?: boolean
   ativo: boolean
 }
 
@@ -259,6 +261,9 @@ export interface InstrutorCreateRequest {
   orgaoEmissor?: string
   cpf?: string
   cha?: string
+  dataEmissao?: string
+  /** PNG da assinatura em base64 (dataURL); embutida no 5-B-1. */
+  assinaturaBase64?: string
 }
 
 export interface Habilitacao {
