@@ -55,7 +55,9 @@ role_permissions := {
         "cliente:claim",
         "cliente:reenviar",
         "item-opcional:list",
-        "item-opcional:view"
+        "item-opcional:view",
+        "instrutor:list",
+        "instrutor:view"
     ],
 
     "GERENTE": [
@@ -67,6 +69,7 @@ role_permissions := {
         "modelo:*",
         "cliente:*",
         "reserva:*",
+        "instrutor:*",  # Cadastro de instrutores (EAMA) — Anexo 5-B-1
         "item-opcional:*",  # Itens opcionais (coletes, equipamentos, etc)
 
         # Permissões específicas de GERENTE

@@ -37,6 +37,9 @@ public class HabilitacaoRequest {
     private Boolean usaLentes;
     private Boolean usaAparelho;
 
+    // Instrutor (EAMA) do Atestado de Demonstração (Anexo 5-B-1)
+    private java.util.UUID instrutorId;
+
     // GRU (manual)
     private String gruNumero;
     private BigDecimal gruValor;

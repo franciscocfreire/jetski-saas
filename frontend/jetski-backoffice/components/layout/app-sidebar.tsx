@@ -24,6 +24,7 @@ import {
   Wallet,
   Percent,
   Store,
+  GraduationCap,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -91,6 +92,11 @@ const managementItems = [
     title: 'Vendedores',
     href: '/dashboard/vendedores',
     icon: UserCircle,
+  },
+  {
+    title: 'Instrutores',
+    href: '/dashboard/instrutores',
+    icon: GraduationCap,
   },
 ]
 

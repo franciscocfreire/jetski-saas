@@ -46,6 +46,8 @@ class EmissaoServiceTest {
 
     private final ReservaRepository reservaRepo = mock(ReservaRepository.class);
     private final ClienteRepository clienteRepo = mock(ClienteRepository.class);
+    private final com.jetski.locacoes.internal.repository.InstrutorRepository instrutorRepo =
+        mock(com.jetski.locacoes.internal.repository.InstrutorRepository.class);
     private final ReservaHabilitacaoRepository habRepo = mock(ReservaHabilitacaoRepository.class);
     private final ReservaAceiteRepository aceiteRepo = mock(ReservaAceiteRepository.class);
     private final DocumentoEmitidoRepository docRepo = mock(DocumentoEmitidoRepository.class);
@@ -56,7 +58,7 @@ class EmissaoServiceTest {
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
 
     private final EmissaoService service = new EmissaoService(
-        reservaRepo, clienteRepo, habRepo, aceiteRepo, docRepo, storage, email,
+        reservaRepo, clienteRepo, instrutorRepo, habRepo, aceiteRepo, docRepo, storage, email,
         tenantQuery, pdfService, events, new ObjectMapper());
 
     private final UUID tenant = UUID.randomUUID();

@@ -54,6 +54,7 @@ public class HabilitacaoService {
         h.setAnexoResidencia(Boolean.TRUE.equals(dados.getAnexoResidencia()));
         h.setUsaLentes(Boolean.TRUE.equals(dados.getUsaLentes()));
         h.setUsaAparelho(Boolean.TRUE.equals(dados.getUsaAparelho()));
+        h.setInstrutorId(dados.getInstrutorId());
         h.setGruNumero(dados.getGruNumero());
         h.setGruValor(dados.getGruValor());
 

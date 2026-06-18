@@ -82,6 +82,7 @@ public class HabilitacaoController {
             .anexoResidencia(r.getAnexoResidencia())
             .usaLentes(Boolean.TRUE.equals(r.getUsaLentes()))
             .usaAparelho(Boolean.TRUE.equals(r.getUsaAparelho()))
+            .instrutorId(r.getInstrutorId())
             .gruNumero(r.getGruNumero())
             .gruValor(r.getGruValor())
             .gruPago(r.getGruPago())

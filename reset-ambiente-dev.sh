@@ -275,6 +275,22 @@ ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS nacionalidade character vary
 ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS naturalidade character varying(120);
 ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS usa_lentes boolean DEFAULT false NOT NULL;
 ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS usa_aparelho boolean DEFAULT false NOT NULL;
+ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS instrutor_id uuid;
+
+-- F3 instrutores (V011): cadastro p/ o Atestado de Demonstração 5-B-1
+CREATE TABLE IF NOT EXISTS public.instrutor (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    nome varchar(200) NOT NULL,
+    rg varchar(30), orgao_emissor varchar(30), cpf varchar(20), cha varchar(60),
+    ativo boolean DEFAULT true NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_instrutor_tenant ON public.instrutor (tenant_id, ativo);
+ALTER TABLE public.instrutor ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.instrutor FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_instrutor ON public.instrutor;
+CREATE POLICY tenant_isolation_instrutor ON public.instrutor USING ((tenant_id = public.get_current_tenant_id()));
 
 -- F2.4: aceite/assinatura no balcão (evidências)
 CREATE TABLE IF NOT EXISTS public.reserva_aceite (

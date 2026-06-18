@@ -45,6 +45,7 @@ public class EmissaoService {
 
     private final ReservaRepository reservaRepository;
     private final ClienteRepository clienteRepository;
+    private final com.jetski.locacoes.internal.repository.InstrutorRepository instrutorRepository;
     private final ReservaHabilitacaoRepository habilitacaoRepository;
     private final ReservaAceiteRepository aceiteRepository;
     private final DocumentoEmitidoRepository documentoRepository;
@@ -143,6 +144,9 @@ public class EmissaoService {
     private DocumentoPdfService.DadosDocumento montarDados(Reserva reserva, Cliente cliente,
                                                           ReservaHabilitacao hab, Tenant tenant) {
         String[] end = parseEndereco(cliente.getEnderecoJson());
+        com.jetski.locacoes.domain.Instrutor instrutor = (hab.getInstrutorId() != null)
+            ? instrutorRepository.findById(hab.getInstrutorId()).orElse(null)
+            : null;
         return new DocumentoPdfService.DadosDocumento(
             cliente.getNome(), cliente.getDocumento(), cliente.getRg(), cliente.getOrgaoEmissor(),
             cliente.getNacionalidade(), cliente.getNaturalidade(),
@@ -153,7 +157,11 @@ public class EmissaoService {
             hab.getVia() != null ? hab.getVia().name() : "EMA",
             Boolean.TRUE.equals(hab.getAnexoResidencia()),
             Boolean.TRUE.equals(hab.getUsaLentes()), Boolean.TRUE.equals(hab.getUsaAparelho()), true,
-            null, null, null, null, null,
+            instrutor != null ? instrutor.getNome() : null,
+            instrutor != null ? instrutor.getRg() : null,
+            instrutor != null ? instrutor.getOrgaoEmissor() : null,
+            instrutor != null ? instrutor.getCpf() : null,
+            instrutor != null ? instrutor.getCha() : null,
             hab.getGruNumero(), hab.getGruValor() != null ? hab.getGruValor().toPlainString() : null);
     }
 

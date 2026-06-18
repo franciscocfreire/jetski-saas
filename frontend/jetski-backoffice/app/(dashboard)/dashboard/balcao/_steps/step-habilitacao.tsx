@@ -1,13 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { habilitacaoService } from '@/lib/api/services'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { habilitacaoService, instrutoresService } from '@/lib/api/services'
+import { useTenantStore } from '@/lib/store/tenant-store'
 import type { Atendimento } from '../types'
 import type { HabilitacaoRequest } from '@/lib/api/types'
 
@@ -36,6 +45,15 @@ export function StepHabilitacao({
   // Autodeclaração de saúde (5-C)
   const [usaLentes, setUsaLentes] = useState(false)
   const [usaAparelho, setUsaAparelho] = useState(false)
+  // Instrutor (5-B-1)
+  const [instrutorId, setInstrutorId] = useState('')
+
+  const { currentTenant } = useTenantStore()
+  const { data: instrutores } = useQuery({
+    queryKey: ['instrutores', currentTenant?.id],
+    queryFn: () => instrutoresService.list(),
+    enabled: !!currentTenant && via === 'EMA',
+  })
 
   const registrar = useMutation({
     mutationFn: () => {
@@ -50,6 +68,7 @@ export function StepHabilitacao({
               anexoResidencia,
               usaLentes,
               usaAparelho,
+              instrutorId: instrutorId || undefined,
               gruNumero: gruNumero || undefined,
               gruValor: gruValor ? Number(gruValor) : undefined,
               gruPago,
@@ -114,6 +133,31 @@ export function StepHabilitacao({
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={usaAparelho} onCheckedChange={(v) => setUsaAparelho(!!v)} /> Faço uso de aparelho de correção auditiva
             </label>
+          </div>
+          <div className="space-y-2 rounded-lg border p-4">
+            <Label className="text-sm font-medium">Instrutor (Atestado de Demonstração 5-B-1)</Label>
+            {(instrutores ?? []).length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Nenhum instrutor cadastrado.{' '}
+                <Link href="/dashboard/instrutores" className="text-primary underline" target="_blank">
+                  Cadastrar instrutor
+                </Link>
+              </p>
+            ) : (
+              <Select value={instrutorId} onValueChange={setInstrutorId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o instrutor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(instrutores ?? []).map((i) => (
+                    <SelectItem key={i.id} value={i.id}>
+                      {i.nome}
+                      {i.cha ? ` — CHA ${i.cha}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="space-y-3 rounded-lg border p-4">
             <Label className="text-sm font-medium">GRU (taxa CHA-MTA-E)</Label>

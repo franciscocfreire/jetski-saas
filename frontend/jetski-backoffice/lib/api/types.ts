@@ -235,10 +235,30 @@ export interface HabilitacaoRequest {
   // Autodeclaração de saúde (5-C)
   usaLentes?: boolean
   usaAparelho?: boolean
+  // Instrutor (EAMA) do Atestado de Demonstração (5-B-1)
+  instrutorId?: string
   // GRU (EMA)
   gruNumero?: string
   gruValor?: number
   gruPago?: boolean
+}
+
+// Instrutor (EAMA) — Anexo 5-B-1
+export interface Instrutor extends BaseEntity {
+  nome: string
+  rg?: string
+  orgaoEmissor?: string
+  cpf?: string
+  cha?: string
+  ativo: boolean
+}
+
+export interface InstrutorCreateRequest {
+  nome: string
+  rg?: string
+  orgaoEmissor?: string
+  cpf?: string
+  cha?: string
 }
 
 export interface Habilitacao {

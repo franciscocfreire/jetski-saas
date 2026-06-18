@@ -62,6 +62,10 @@ public class ReservaHabilitacao {
     @Builder.Default
     private Boolean anexoResidencia = false;
 
+    // Instrutor (EAMA) que assina o Atestado de Demonstração (Anexo 5-B-1)
+    @Column(name = "instrutor_id")
+    private UUID instrutorId;
+
     // Autodeclaração de saúde (Anexo 5-C)
     @Column(name = "usa_lentes", nullable = false)
     @Builder.Default
