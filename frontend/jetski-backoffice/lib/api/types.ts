@@ -82,6 +82,10 @@ export interface Cliente extends BaseEntity {
   whatsapp?: string
   /** Documento (CPF) — campo canônico do backend. */
   documento?: string
+  rg?: string
+  orgaoEmissor?: string
+  nacionalidade?: string
+  naturalidade?: string
   /** @deprecated usar `documento` (mantido p/ compat. de telas antigas). */
   cpf?: string
   dataNascimento?: string
@@ -100,6 +104,10 @@ export interface ClienteCreateRequest {
   telefone?: string
   cpf?: string
   documento?: string
+  rg?: string
+  orgaoEmissor?: string
+  nacionalidade?: string
+  naturalidade?: string
   whatsapp?: string
   dataNascimento?: string
   genero?: string
@@ -224,6 +232,9 @@ export interface HabilitacaoRequest {
   anexoSaude?: boolean
   anexoRegras?: boolean
   anexoResidencia?: boolean
+  // Autodeclaração de saúde (5-C)
+  usaLentes?: boolean
+  usaAparelho?: boolean
   // GRU (EMA)
   gruNumero?: string
   gruValor?: number

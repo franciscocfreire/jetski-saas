@@ -144,14 +144,15 @@ public class EmissaoService {
                                                           ReservaHabilitacao hab, Tenant tenant) {
         String[] end = parseEndereco(cliente.getEnderecoJson());
         return new DocumentoPdfService.DadosDocumento(
-            cliente.getNome(), cliente.getDocumento(), null, null,
-            null, null, cliente.getTelefone(), cliente.getWhatsapp(), cliente.getEmail(),
+            cliente.getNome(), cliente.getDocumento(), cliente.getRg(), cliente.getOrgaoEmissor(),
+            cliente.getNacionalidade(), cliente.getNaturalidade(),
+            cliente.getTelefone(), cliente.getWhatsapp(), cliente.getEmail(),
             end[0], end[1], end[2],
             tenant.getRazaoSocial(), tenant.getCnpj(),
             tenant.getCidade(), null, null,
             hab.getVia() != null ? hab.getVia().name() : "EMA",
             Boolean.TRUE.equals(hab.getAnexoResidencia()),
-            false, false, true,
+            Boolean.TRUE.equals(hab.getUsaLentes()), Boolean.TRUE.equals(hab.getUsaAparelho()), true,
             null, null, null, null, null,
             hab.getGruNumero(), hab.getGruValor() != null ? hab.getGruValor().toPlainString() : null);
     }

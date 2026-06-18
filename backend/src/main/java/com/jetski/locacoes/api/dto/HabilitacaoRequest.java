@@ -33,6 +33,10 @@ public class HabilitacaoRequest {
     private Boolean anexoRegras;
     private Boolean anexoResidencia;
 
+    // Autodeclaração de saúde (Anexo 5-C)
+    private Boolean usaLentes;
+    private Boolean usaAparelho;
+
     // GRU (manual)
     private String gruNumero;
     private BigDecimal gruValor;

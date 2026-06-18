@@ -52,6 +52,20 @@ public class Cliente {
     @Column
     private String documento;
 
+    /** Identidade (RG) e órgão emissor — usados nos anexos NORMAM-212. */
+    @Column(name = "rg")
+    private String rg;
+
+    @Column(name = "orgao_emissor")
+    private String orgaoEmissor;
+
+    /** Nacionalidade e naturalidade — Declaração de Residência (Anexo 1-C). */
+    @Column(name = "nacionalidade")
+    private String nacionalidade;
+
+    @Column(name = "naturalidade")
+    private String naturalidade;
+
     /**
      * Birth date (optional)
      * Useful for age validation (e.g., minimum age for rental) and demographics

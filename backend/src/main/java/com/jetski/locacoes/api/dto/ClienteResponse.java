@@ -27,6 +27,10 @@ public class ClienteResponse {
     private UUID tenantId;
     private String nome;
     private String documento;
+    private String rg;
+    private String orgaoEmissor;
+    private String nacionalidade;
+    private String naturalidade;
     private java.time.LocalDate dataNascimento;
     private String genero;
     private String email;

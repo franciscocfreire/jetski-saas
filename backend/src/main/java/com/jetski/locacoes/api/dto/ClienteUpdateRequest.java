@@ -30,6 +30,12 @@ public class ClienteUpdateRequest {
     @Size(max = 20, message = "Documento deve ter no máximo 20 caracteres")
     private String documento;
 
+    // Documentos NORMAM-212 (preenchimento manual)
+    private String rg;
+    private String orgaoEmissor;
+    private String nacionalidade;
+    private String naturalidade;
+
     private java.time.LocalDate dataNascimento;
 
     private String genero;

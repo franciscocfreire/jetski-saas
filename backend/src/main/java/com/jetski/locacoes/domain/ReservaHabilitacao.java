@@ -62,6 +62,14 @@ public class ReservaHabilitacao {
     @Builder.Default
     private Boolean anexoResidencia = false;
 
+    // Autodeclaração de saúde (Anexo 5-C)
+    @Column(name = "usa_lentes", nullable = false)
+    @Builder.Default
+    private Boolean usaLentes = false;
+    @Column(name = "usa_aparelho", nullable = false)
+    @Builder.Default
+    private Boolean usaAparelho = false;
+
     // GRU (taxa da Marinha) — manual no v1
     @Column(name = "gru_numero")
     private String gruNumero;

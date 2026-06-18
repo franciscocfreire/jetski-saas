@@ -268,6 +268,14 @@ ALTER TABLE public.reserva_habilitacao FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_reserva_habilitacao ON public.reserva_habilitacao;
 CREATE POLICY tenant_isolation_reserva_habilitacao ON public.reserva_habilitacao USING ((tenant_id = public.get_current_tenant_id()));
 
+-- F3 docs (V010): campos p/ os anexos NORMAM-212 (preenchimento manual, sem OCR)
+ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS rg character varying(30);
+ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS orgao_emissor character varying(30);
+ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS nacionalidade character varying(60);
+ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS naturalidade character varying(120);
+ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS usa_lentes boolean DEFAULT false NOT NULL;
+ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS usa_aparelho boolean DEFAULT false NOT NULL;
+
 -- F2.4: aceite/assinatura no balcão (evidências)
 CREATE TABLE IF NOT EXISTS public.reserva_aceite (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,

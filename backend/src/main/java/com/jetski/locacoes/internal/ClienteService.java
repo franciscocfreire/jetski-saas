@@ -214,6 +214,18 @@ public class ClienteService {
         if (updates.getDocumento() != null) {
             existing.setDocumento(updates.getDocumento());
         }
+        if (updates.getRg() != null) {
+            existing.setRg(updates.getRg());
+        }
+        if (updates.getOrgaoEmissor() != null) {
+            existing.setOrgaoEmissor(updates.getOrgaoEmissor());
+        }
+        if (updates.getNacionalidade() != null) {
+            existing.setNacionalidade(updates.getNacionalidade());
+        }
+        if (updates.getNaturalidade() != null) {
+            existing.setNaturalidade(updates.getNaturalidade());
+        }
 
         if (updates.getDataNascimento() != null) {
             existing.setDataNascimento(updates.getDataNascimento());

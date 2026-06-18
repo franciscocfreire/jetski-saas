@@ -33,6 +33,9 @@ export function StepHabilitacao({
   const [gruNumero, setGruNumero] = useState('')
   const [gruValor, setGruValor] = useState('')
   const [gruPago, setGruPago] = useState(false)
+  // Autodeclaração de saúde (5-C)
+  const [usaLentes, setUsaLentes] = useState(false)
+  const [usaAparelho, setUsaAparelho] = useState(false)
 
   const registrar = useMutation({
     mutationFn: () => {
@@ -45,6 +48,8 @@ export function StepHabilitacao({
               anexoSaude,
               anexoRegras,
               anexoResidencia,
+              usaLentes,
+              usaAparelho,
               gruNumero: gruNumero || undefined,
               gruValor: gruValor ? Number(gruValor) : undefined,
               gruPago,
@@ -99,6 +104,15 @@ export function StepHabilitacao({
             </label>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={anexoResidencia} onCheckedChange={(v) => setAnexoResidencia(!!v)} /> Comprovante/Declaração de residência
+            </label>
+          </div>
+          <div className="space-y-2 rounded-lg border p-4">
+            <Label className="text-sm font-medium">Autodeclaração de saúde (Anexo 5-C)</Label>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={usaLentes} onCheckedChange={(v) => setUsaLentes(!!v)} /> Faço uso de lentes de correção visual
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={usaAparelho} onCheckedChange={(v) => setUsaAparelho(!!v)} /> Faço uso de aparelho de correção auditiva
             </label>
           </div>
           <div className="space-y-3 rounded-lg border p-4">
