@@ -58,7 +58,9 @@ role_permissions := {
         "item-opcional:list",
         "item-opcional:view",
         "instrutor:list",
-        "instrutor:view"
+        "instrutor:view",
+        "documento:list",
+        "documento:view"
     ],
 
     "GERENTE": [
@@ -71,6 +73,7 @@ role_permissions := {
         "cliente:*",
         "reserva:*",
         "instrutor:*",  # Cadastro de instrutores (EAMA) — Anexo 5-B-1
+        "documento:*",  # Consulta de documentos emitidos
         "item-opcional:*",  # Itens opcionais (coletes, equipamentos, etc)
 
         # Permissões específicas de GERENTE
@@ -128,7 +131,9 @@ role_permissions := {
         "reserva:view",
         "reserva:list",
         "reserva:confirmar-sinal",
-        "reserva:recusar-pagamento"
+        "reserva:recusar-pagamento",
+        "documento:list",
+        "documento:view"
     ],
 
     "MECANICO": [

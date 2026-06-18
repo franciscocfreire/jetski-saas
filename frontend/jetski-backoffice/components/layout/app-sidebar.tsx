@@ -98,6 +98,11 @@ const managementItems = [
     href: '/dashboard/instrutores',
     icon: GraduationCap,
   },
+  {
+    title: 'Documentos',
+    href: '/dashboard/documentos',
+    icon: FileText,
+  },
 ]
 
 const operationsItems = [

@@ -313,6 +313,17 @@ export interface ResultadoEmissao {
   enviadoCliente: boolean
 }
 
+/** Documento emitido (consulta por cliente). */
+export interface DocumentoEmitido {
+  id: string
+  reservaId: string
+  clienteId?: string
+  clienteNome?: string
+  emitidoEm: string
+  hashSha256?: string
+  downloadUrl?: string
+}
+
 export interface ClaimResult {
   clienteId: string
   token: string

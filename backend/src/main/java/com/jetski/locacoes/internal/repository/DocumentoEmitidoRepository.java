@@ -11,4 +11,8 @@ import java.util.UUID;
 public interface DocumentoEmitidoRepository extends JpaRepository<DocumentoEmitido, UUID> {
 
     List<DocumentoEmitido> findByReservaIdOrderByEmitidoEmDesc(UUID reservaId);
+
+    List<DocumentoEmitido> findByReservaIdInOrderByEmitidoEmDesc(List<UUID> reservaIds);
+
+    List<DocumentoEmitido> findTop200ByOrderByEmitidoEmDesc();
 }
