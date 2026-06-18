@@ -69,7 +69,9 @@ public class DocumentoPdfService {
             String instrutorCpf, String instrutorCha,
             String instrutorDataEmissao, byte[] instrutorAssinatura,
             // GRU
-            String gruNumero, String gruValor
+            String gruNumero, String gruValor,
+            // Locatário estrangeiro → inclui as versões em inglês do 5-B
+            boolean incluirIngles
     ) {}
 
     /** Resultado: bytes do PDF + hash SHA-256 (hex). */
@@ -133,11 +135,13 @@ public class DocumentoPdfService {
                 writeAnexo5B1(doc, f, d);
                 first = section(doc, first);
                 writeAnexo5B2(doc, f, d, assinaturaPng);
-                // Versões em inglês (5-B-3 e 5-B-4), conforme o oficial
-                first = section(doc, first);
-                writeAnexo5B1En(doc, f, d);
-                first = section(doc, first);
-                writeAnexo5B2En(doc, f, d, assinaturaPng);
+                // Versões em inglês (5-B-3 e 5-B-4) — apenas para locatário estrangeiro
+                if (d.incluirIngles()) {
+                    first = section(doc, first);
+                    writeAnexo5B1En(doc, f, d);
+                    first = section(doc, first);
+                    writeAnexo5B2En(doc, f, d, assinaturaPng);
+                }
             }
             first = section(doc, first);
             writeTermo(doc, f, d.razaoSocialLoja(), d.cnpjLoja(), d.nomeCliente(),

@@ -273,6 +273,7 @@ ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS rg character varying(30);
 ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS orgao_emissor character varying(30);
 ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS nacionalidade character varying(60);
 ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS naturalidade character varying(120);
+ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS estrangeiro boolean DEFAULT false NOT NULL;
 ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS usa_lentes boolean DEFAULT false NOT NULL;
 ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS usa_aparelho boolean DEFAULT false NOT NULL;
 ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS instrutor_id uuid;

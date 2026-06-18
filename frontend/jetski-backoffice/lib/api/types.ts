@@ -88,6 +88,7 @@ export interface Cliente extends BaseEntity {
   naturalidade?: string
   /** @deprecated usar `documento` (mantido p/ compat. de telas antigas). */
   cpf?: string
+  estrangeiro?: boolean
   dataNascimento?: string
   genero?: string
   enderecoJson?: string
@@ -108,6 +109,7 @@ export interface ClienteCreateRequest {
   orgaoEmissor?: string
   nacionalidade?: string
   naturalidade?: string
+  estrangeiro?: boolean
   whatsapp?: string
   dataNascimento?: string
   genero?: string

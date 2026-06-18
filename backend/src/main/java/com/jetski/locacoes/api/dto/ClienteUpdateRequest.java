@@ -35,6 +35,7 @@ public class ClienteUpdateRequest {
     private String orgaoEmissor;
     private String nacionalidade;
     private String naturalidade;
+    private Boolean estrangeiro;
 
     private java.time.LocalDate dataNascimento;
 

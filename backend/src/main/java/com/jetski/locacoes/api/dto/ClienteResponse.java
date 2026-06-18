@@ -31,6 +31,7 @@ public class ClienteResponse {
     private String orgaoEmissor;
     private String nacionalidade;
     private String naturalidade;
+    private Boolean estrangeiro;
     private java.time.LocalDate dataNascimento;
     private String genero;
     private String email;

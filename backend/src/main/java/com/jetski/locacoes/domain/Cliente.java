@@ -66,6 +66,11 @@ public class Cliente {
     @Column(name = "naturalidade")
     private String naturalidade;
 
+    /** Locatário estrangeiro → emite também as versões em inglês do 5-B. */
+    @Column(name = "estrangeiro", nullable = false)
+    @Builder.Default
+    private Boolean estrangeiro = false;
+
     /**
      * Birth date (optional)
      * Useful for age validation (e.g., minimum age for rental) and demographics

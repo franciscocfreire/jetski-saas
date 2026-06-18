@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { FileUpload } from '@/components/file-upload'
 import { AddressForm, type Address } from '@/components/address-form'
 import { clientesService } from '@/lib/api/services'
@@ -34,6 +35,7 @@ export function StepDocumentos({
   const [orgaoEmissor, setOrgaoEmissor] = useState(c.orgaoEmissor ?? '')
   const [nacionalidade, setNacionalidade] = useState(c.nacionalidade ?? 'Brasileira')
   const [naturalidade, setNaturalidade] = useState(c.naturalidade ?? '')
+  const [estrangeiro, setEstrangeiro] = useState(c.estrangeiro ?? false)
 
   const salvarDados = useMutation({
     mutationFn: () =>
@@ -43,6 +45,7 @@ export function StepDocumentos({
         orgaoEmissor: orgaoEmissor || undefined,
         nacionalidade: nacionalidade || undefined,
         naturalidade: naturalidade || undefined,
+        estrangeiro,
         enderecoJson: endereco ? JSON.stringify(endereco) : undefined,
       }),
     onSuccess: () => onDone({ endereco, temComprovanteResidencia: temComprovante, temCha }),
@@ -90,11 +93,21 @@ export function StepDocumentos({
             <Input value={naturalidade} onChange={(e) => setNaturalidade(e.target.value)} placeholder="Cidade/UF" />
           </div>
         </div>
+        <label className="flex items-center gap-2 pt-1 text-sm">
+          <Checkbox checked={estrangeiro} onCheckedChange={(v) => setEstrangeiro(!!v)} />
+          Locatário estrangeiro (emite também os anexos 5-B em inglês)
+        </label>
       </div>
 
       <div className="space-y-3 rounded-lg border p-4">
-        <Label className="text-sm font-medium">Comprovante de residência</Label>
-        <div className="flex gap-2">
+        <Label className="text-sm font-medium">Endereço residencial</Label>
+        <p className="text-xs text-muted-foreground">
+          Usado na Declaração de Residência (Anexo 1-C). Preencha sempre.
+        </p>
+        <AddressForm value={endereco} onChange={setEndereco} />
+
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          <span className="text-xs text-muted-foreground">Comprovante:</span>
           <Button
             type="button"
             variant={temComprovante ? 'default' : 'outline'}
@@ -112,16 +125,7 @@ export function StepDocumentos({
             Não tem → Declaração 1-C
           </Button>
         </div>
-        {temComprovante ? (
-          <FileUpload label="Enviar comprovante de residência" />
-        ) : (
-          <div className="pt-2">
-            <p className="mb-2 text-xs text-muted-foreground">
-              Endereço declarado (Anexo 1-C / NORMAM-212):
-            </p>
-            <AddressForm value={endereco} onChange={setEndereco} />
-          </div>
-        )}
+        {temComprovante && <FileUpload label="Enviar comprovante de residência" />}
       </div>
 
       <div className="space-y-2 rounded-lg border p-4">

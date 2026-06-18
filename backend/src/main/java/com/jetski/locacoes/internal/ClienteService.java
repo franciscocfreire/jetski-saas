@@ -226,6 +226,9 @@ public class ClienteService {
         if (updates.getNaturalidade() != null) {
             existing.setNaturalidade(updates.getNaturalidade());
         }
+        if (updates.getEstrangeiro() != null) {
+            existing.setEstrangeiro(updates.getEstrangeiro());
+        }
 
         if (updates.getDataNascimento() != null) {
             existing.setDataNascimento(updates.getDataNascimento());

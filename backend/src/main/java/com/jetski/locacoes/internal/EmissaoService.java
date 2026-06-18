@@ -168,7 +168,8 @@ public class EmissaoService {
             instrutor != null ? instrutor.getCpf() : null,
             instrutor != null ? instrutor.getCha() : null,
             instrutorDataEmissao, instrutorAssinatura,
-            hab.getGruNumero(), hab.getGruValor() != null ? hab.getGruValor().toPlainString() : null);
+            hab.getGruNumero(), hab.getGruValor() != null ? hab.getGruValor().toPlainString() : null,
+            Boolean.TRUE.equals(cliente.getEstrangeiro()));
     }
 
     private static final String[] MESES = {"janeiro", "fevereiro", "março", "abril", "maio", "junho",
