@@ -229,7 +229,7 @@ public class DocumentoPdfService {
         data.setSpacingAfter(34f);
         doc.add(data);
 
-        signatureLineRight(doc, f, "Assinatura do Requerente");
+        signatureLineRight(doc, f, sig, "Assinatura do Requerente");
 
         Paragraph fp = new Paragraph("- 1-C-1 -", f.sansSmall);
         fp.setAlignment(Element.ALIGN_CENTER);
@@ -318,8 +318,12 @@ public class DocumentoPdfService {
         return sb.toString();
     }
 
-    /** Linha de assinatura alinhada à direita (como nos formulários oficiais). */
-    private void signatureLineRight(Document doc, Fonts f, String legenda) throws DocumentException {
+    /**
+     * Bloco de assinatura alinhado à direita (como nos formulários oficiais).
+     * Se {@code sig} for fornecido, embute a imagem da assinatura sobre a linha.
+     */
+    private void signatureLineRight(Document doc, Fonts f, byte[] sig, String legenda)
+            throws DocumentException, IOException {
         PdfPTable t = new PdfPTable(new float[]{1f, 1.3f});
         t.setWidthPercentage(100);
         PdfPCell vazio = new PdfPCell(new Phrase(" "));
@@ -327,6 +331,13 @@ public class DocumentoPdfService {
         t.addCell(vazio);
         PdfPCell c = new PdfPCell();
         c.setBorder(Rectangle.NO_BORDER);
+        c.setHorizontalAlignment(Element.ALIGN_CENTER);
+        if (sig != null && sig.length > 0) {
+            Image img = Image.getInstance(sig);
+            img.scaleToFit(170f, 56f);
+            img.setAlignment(Element.ALIGN_CENTER);
+            c.addElement(img);
+        }
         Paragraph line = new Paragraph("_______________________________", f.sans);
         line.setAlignment(Element.ALIGN_CENTER);
         Paragraph leg = new Paragraph(legenda, f.sansSmall);
@@ -358,7 +369,7 @@ public class DocumentoPdfService {
         data.setSpacingBefore(20f);
         data.setSpacingAfter(34f);
         doc.add(data);
-        signatureLineRight(doc, f, "Nome e assinatura do declarante");
+        signatureLineRight(doc, f, sig, "Nome e assinatura do declarante");
         footerSans(doc, f, "- 5-C-1 -");
     }
 
@@ -375,7 +386,7 @@ public class DocumentoPdfService {
         campos(doc, f, new String[]{"CPF", "Nº da CHA"},
                 new String[]{nz(d.instrutorCpf()), nz(d.instrutorCha())}, new float[]{1f, 1f});
         space(doc, 24);
-        signatureLineRight(doc, f, "Assinatura do Instrutor");
+        signatureLineRight(doc, f, null, "Assinatura do Instrutor");
         footerSans(doc, f, "- 5-B-1 -");
     }
 
