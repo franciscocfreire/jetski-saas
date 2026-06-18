@@ -223,12 +223,13 @@ public class DocumentoPdfService {
         art.setSpacingAfter(24f);
         doc.add(art);
 
-        // Data: (Cidade), dd/mm/aaaa
+        // Data: (Cidade), dd/mm/aaaa — alinhada à direita (como o oficial)
         Paragraph data = new Paragraph(nz(d.local()) + ", " + nz(d.dataCurta()), f.sans);
-        data.setSpacingAfter(28f);
+        data.setAlignment(Element.ALIGN_RIGHT);
+        data.setSpacingAfter(34f);
         doc.add(data);
 
-        signatureLineSans(doc, f, "Assinatura do Requerente");
+        signatureLineRight(doc, f, "Assinatura do Requerente");
 
         Paragraph fp = new Paragraph("- 1-C-1 -", f.sansSmall);
         fp.setAlignment(Element.ALIGN_CENTER);
@@ -265,13 +266,23 @@ public class DocumentoPdfService {
         return sb.toString();
     }
 
-    private void signatureLineSans(Document doc, Fonts f, String legenda) throws DocumentException {
-        Paragraph line = new Paragraph("_______________________________________", f.sans);
+    /** Linha de assinatura alinhada à direita (como nos formulários oficiais). */
+    private void signatureLineRight(Document doc, Fonts f, String legenda) throws DocumentException {
+        PdfPTable t = new PdfPTable(new float[]{1f, 1.3f});
+        t.setWidthPercentage(100);
+        PdfPCell vazio = new PdfPCell(new Phrase(" "));
+        vazio.setBorder(Rectangle.NO_BORDER);
+        t.addCell(vazio);
+        PdfPCell c = new PdfPCell();
+        c.setBorder(Rectangle.NO_BORDER);
+        Paragraph line = new Paragraph("_______________________________", f.sans);
         line.setAlignment(Element.ALIGN_CENTER);
-        doc.add(line);
         Paragraph leg = new Paragraph(legenda, f.sansSmall);
         leg.setAlignment(Element.ALIGN_CENTER);
-        doc.add(leg);
+        c.addElement(line);
+        c.addElement(leg);
+        t.addCell(c);
+        doc.add(t);
     }
 
     private void writeAnexo5C(Document doc, Fonts f, DadosDocumento d, byte[] sig) throws DocumentException, IOException {
