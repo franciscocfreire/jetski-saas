@@ -91,9 +91,7 @@ public class EmissaoService {
             throw new NotFoundException("Tenant não encontrado: " + reserva.getTenantId());
         }
 
-        byte[] assinatura = (aceite.getAssinaturaS3Key() != null)
-            ? storageService.getObject(aceite.getAssinaturaS3Key())
-            : null;
+        byte[] assinatura = lerAssinatura(aceite.getAssinaturaS3Key());
 
         DocumentoPdfService.DadosDocumento dados = montarDados(reserva, cliente, hab, tenant);
         DocumentoPdfService.DocumentoPdf pdf = documentoPdfService.gerarDocumentoConsolidado(dados, assinatura);
@@ -147,8 +145,8 @@ public class EmissaoService {
         com.jetski.locacoes.domain.Instrutor instrutor = (hab.getInstrutorId() != null)
             ? instrutorRepository.findById(hab.getInstrutorId()).orElse(null)
             : null;
-        byte[] instrutorAssinatura = (instrutor != null && instrutor.getAssinaturaS3Key() != null)
-            ? storageService.getObject(instrutor.getAssinaturaS3Key())
+        byte[] instrutorAssinatura = (instrutor != null)
+            ? lerAssinatura(instrutor.getAssinaturaS3Key())
             : null;
         String instrutorDataEmissao = (instrutor != null && instrutor.getDataEmissao() != null)
             ? String.format("%02d/%02d/%d", instrutor.getDataEmissao().getDayOfMonth(),
@@ -221,6 +219,23 @@ public class EmissaoService {
 
     private static String text(JsonNode n, String key) {
         return (n.hasNonNull(key) && !n.get(key).asText().isBlank()) ? n.get(key).asText() : null;
+    }
+
+    /**
+     * Carrega a imagem da assinatura; tolerante a arquivo ausente no storage
+     * (ex.: storage local efêmero apagado em recreate) — degrada para sem imagem
+     * em vez de derrubar a emissão.
+     */
+    private byte[] lerAssinatura(String key) {
+        if (key == null || key.isBlank()) {
+            return null;
+        }
+        try {
+            return storageService.getObject(key);
+        } catch (Exception e) {
+            log.warn("Assinatura ausente no storage (segue sem a imagem): key={}, erro={}", key, e.getMessage());
+            return null;
+        }
     }
 
     private boolean enviar(String to, String subject, String htmlBody, byte[] pdf) {

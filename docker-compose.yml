@@ -163,6 +163,9 @@ services:
 
       # Logging
       LOGGING_LEVEL_ROOT: INFO
+    volumes:
+      # Storage local persistente (assinaturas/PDFs) — sobrevive a recreate
+      - storage_data:/tmp/jetski-photos
     depends_on:
       - postgres
       - redis
@@ -209,6 +212,7 @@ services:
       - jetski-network
 
 volumes:
+  storage_data:
   postgres_data:
     driver: local
   redis_data:
