@@ -153,7 +153,7 @@ public class EmissaoService {
             cliente.getTelefone(), cliente.getWhatsapp(), cliente.getEmail(),
             end[0], end[1], end[2],
             tenant.getRazaoSocial(), tenant.getCnpj(),
-            tenant.getCidade(), null, null,
+            tenant.getCidade(), dataExtenso(), dataCurta(),
             hab.getVia() != null ? hab.getVia().name() : "EMA",
             Boolean.TRUE.equals(hab.getAnexoResidencia()),
             Boolean.TRUE.equals(hab.getUsaLentes()), Boolean.TRUE.equals(hab.getUsaAparelho()), true,
@@ -163,6 +163,19 @@ public class EmissaoService {
             instrutor != null ? instrutor.getCpf() : null,
             instrutor != null ? instrutor.getCha() : null,
             hab.getGruNumero(), hab.getGruValor() != null ? hab.getGruValor().toPlainString() : null);
+    }
+
+    private static final String[] MESES = {"janeiro", "fevereiro", "março", "abril", "maio", "junho",
+        "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"};
+
+    private String dataCurta() {
+        java.time.LocalDate hoje = java.time.LocalDate.now();
+        return String.format("%02d/%02d/%d", hoje.getDayOfMonth(), hoje.getMonthValue(), hoje.getYear());
+    }
+
+    private String dataExtenso() {
+        java.time.LocalDate hoje = java.time.LocalDate.now();
+        return String.format("%d de %s de %d", hoje.getDayOfMonth(), MESES[hoje.getMonthValue() - 1], hoje.getYear());
     }
 
     private String[] parseEndereco(String json) {

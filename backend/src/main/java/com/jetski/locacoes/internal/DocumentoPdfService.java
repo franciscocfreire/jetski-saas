@@ -1,5 +1,6 @@
 package com.jetski.locacoes.internal;
 
+import com.lowagie.text.Chunk;
 import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
 import com.lowagie.text.Element;
@@ -9,7 +10,11 @@ import com.lowagie.text.Image;
 import com.lowagie.text.ListItem;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
+import com.lowagie.text.Phrase;
+import com.lowagie.text.Rectangle;
 import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -162,23 +167,111 @@ public class DocumentoPdfService {
     // Seções
     // ------------------------------------------------------------------
 
+    /**
+     * Anexo 1-C — DECLARAÇÃO DE RESIDÊNCIA, em estilo formulário (campos
+     * rotulados com linha), aproximando o layout oficial NORMAM-212/DPC.
+     */
     private void writeAnexo1C(Document doc, Fonts f, DadosDocumento d, byte[] sig) throws DocumentException, IOException {
-        header(doc, f, "Anexo 1-C");
-        title(doc, f, "DECLARAÇÃO DE RESIDÊNCIA");
-        justified(doc, f, "Eu, " + b(d.nomeCliente()) + ", CPF " + b(d.cpfCliente())
-                + ", nacionalidade " + b(d.nacionalidade()) + ", naturalidade " + b(d.naturalidade())
-                + ", Telefone " + b(d.telefone()) + ", celular " + b(d.celular()) + ", e-mail " + b(d.email())
-                + ". Na falta de documentos para comprovação de residência, em conformidade com o disposto na "
-                + "Lei nº 7.115, de 29 de agosto de 1983, DECLARO para os devidos fins, sob as penas da Lei, ser "
-                + "residente e domiciliado no endereço " + b(d.endereco()) + ", " + b(d.cidadeUf())
-                + ", CEP " + b(d.cep()) + ".");
-        justified(doc, f, "Declaro ainda, estar ciente de que a falsidade da presente declaração pode implicar na "
-                + "sanção penal prevista no art. 299 do Código Penal, conforme transcrição abaixo:");
-        italic(doc, f, ART_299);
-        space(doc, 10);
-        body(doc, f, (nz(d.local())) + ", " + nz(d.data()) + ".");
-        signature(doc, f, sig, "Assinatura do Requerente", d.nomeCliente());
-        footer(doc, f, "- 1-C-1 -");
+        // Cabeçalho oficial
+        Paragraph norma = new Paragraph("NORMAM-212/DPC", f.sansHeader);
+        norma.setAlignment(Element.ALIGN_RIGHT);
+        doc.add(norma);
+        Paragraph anexo = new Paragraph("ANEXO 1-C", f.sansTitle);
+        anexo.setAlignment(Element.ALIGN_CENTER);
+        anexo.setSpacingBefore(8f);
+        doc.add(anexo);
+        Paragraph tit = new Paragraph("DECLARAÇÃO DE RESIDÊNCIA", f.sansTitle);
+        tit.setAlignment(Element.ALIGN_CENTER);
+        tit.setSpacingAfter(18f);
+        doc.add(tit);
+
+        // Destinatário
+        Paragraph dest = new Paragraph(
+                "Sr. Capitão dos Portos/Delegado/Agente .............................................", f.sans);
+        dest.setSpacingAfter(16f);
+        doc.add(dest);
+
+        // Campos (label + valor sobre linha)
+        campos(doc, f, new String[]{"Eu"}, new String[]{nz(d.nomeCliente())}, new float[]{1f});
+        campos(doc, f, new String[]{"CPF", "nacionalidade", "naturalidade"},
+                new String[]{nz(d.cpfCliente()), nz(d.nacionalidade()), nz(d.naturalidade())},
+                new float[]{1.1f, 1.2f, 1.4f});
+        campos(doc, f, new String[]{"Telefone (DDD e nº)", "celular"},
+                new String[]{nz(d.telefone()), nz(d.celular())}, new float[]{1.5f, 1f});
+        campos(doc, f, new String[]{"e-mail"}, new String[]{nz(d.email())}, new float[]{1f});
+
+        // Declaração
+        Paragraph decl = new Paragraph("Na falta de documentos para comprovação de residência, em conformidade "
+                + "com o disposto na Lei nº 7.115, de 29 de agosto de 1983, DECLARO para os devidos fins, sob as "
+                + "penas da Lei, ser residente e domiciliado no endereço", f.sans);
+        decl.setAlignment(Element.ALIGN_JUSTIFIED);
+        decl.setSpacingBefore(12f);
+        decl.setSpacingAfter(2f);
+        doc.add(decl);
+        campos(doc, f, new String[]{""}, new String[]{montaEndereco(d)}, new float[]{1f});
+
+        Paragraph decl2 = new Paragraph("Declaro ainda, estar ciente de que a falsidade da presente declaração "
+                + "pode implicar na sanção penal prevista no art. 299 do Código Penal, conforme transcrição abaixo:",
+                f.sans);
+        decl2.setAlignment(Element.ALIGN_JUSTIFIED);
+        decl2.setSpacingBefore(12f);
+        decl2.setSpacingAfter(10f);
+        doc.add(decl2);
+
+        Paragraph art = new Paragraph(ART_299, f.sansItalic);
+        art.setAlignment(Element.ALIGN_JUSTIFIED);
+        art.setSpacingAfter(24f);
+        doc.add(art);
+
+        // Data: (Cidade), dd/mm/aaaa
+        Paragraph data = new Paragraph(nz(d.local()) + ", " + nz(d.dataCurta()), f.sans);
+        data.setSpacingAfter(28f);
+        doc.add(data);
+
+        signatureLineSans(doc, f, "Assinatura do Requerente");
+
+        Paragraph fp = new Paragraph("- 1-C-1 -", f.sansSmall);
+        fp.setAlignment(Element.ALIGN_CENTER);
+        fp.setSpacingBefore(18f);
+        doc.add(fp);
+    }
+
+    /** Linha de campos rotulados, cada um sobre uma linha (borda inferior). */
+    private void campos(Document doc, Fonts f, String[] labels, String[] valores, float[] widths)
+            throws DocumentException {
+        PdfPTable t = new PdfPTable(widths);
+        t.setWidthPercentage(100);
+        t.setSpacingAfter(5f);
+        for (int i = 0; i < labels.length; i++) {
+            Phrase ph = new Phrase();
+            if (!labels[i].isEmpty()) {
+                ph.add(new Chunk(labels[i] + "  ", f.sans));
+            }
+            ph.add(new Chunk(nz(valores[i]), f.sansBold));
+            PdfPCell c = new PdfPCell(ph);
+            c.setBorder(Rectangle.BOTTOM);
+            c.setPaddingTop(8f);
+            c.setPaddingBottom(2f);
+            t.addCell(c);
+        }
+        doc.add(t);
+    }
+
+    private String montaEndereco(DadosDocumento d) {
+        StringBuilder sb = new StringBuilder();
+        if (d.endereco() != null) sb.append(d.endereco());
+        if (d.cidadeUf() != null) sb.append(sb.length() > 0 ? ", " : "").append(d.cidadeUf());
+        if (d.cep() != null) sb.append(sb.length() > 0 ? ", CEP " : "CEP ").append(d.cep());
+        return sb.toString();
+    }
+
+    private void signatureLineSans(Document doc, Fonts f, String legenda) throws DocumentException {
+        Paragraph line = new Paragraph("_______________________________________", f.sans);
+        line.setAlignment(Element.ALIGN_CENTER);
+        doc.add(line);
+        Paragraph leg = new Paragraph(legenda, f.sansSmall);
+        leg.setAlignment(Element.ALIGN_CENTER);
+        doc.add(leg);
     }
 
     private void writeAnexo5C(Document doc, Fonts f, DadosDocumento d, byte[] sig) throws DocumentException, IOException {
@@ -387,6 +480,13 @@ public class DocumentoPdfService {
         final Font body = font(FontFactory.TIMES_ROMAN, 11);
         final Font clause = font(FontFactory.TIMES_ROMAN, 10);
         final Font italic = FontFactory.getFont(FontFactory.TIMES_ITALIC, BaseFont.CP1252, false, 9);
+        // Sans-serif (Helvetica) — aproxima o visual dos formulários oficiais
+        final Font sansHeader = font(FontFactory.HELVETICA_BOLD, 10);
+        final Font sansTitle = font(FontFactory.HELVETICA_BOLD, 11);
+        final Font sans = font(FontFactory.HELVETICA, 10);
+        final Font sansBold = font(FontFactory.HELVETICA_BOLD, 10);
+        final Font sansItalic = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, BaseFont.CP1252, false, 9.5f);
+        final Font sansSmall = font(FontFactory.HELVETICA, 9);
     }
 
     private static Font font(String name, float size) {
