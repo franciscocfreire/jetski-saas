@@ -44,6 +44,7 @@ role_permissions := {
         "reserva:view",
         "reserva:list",
         "reserva:alocar-jetski",
+        "reserva:confirmar",
         # Balcão (atendimento assistido) + validação de pagamento
         "reserva:create",
         "reserva:confirmar-sinal",

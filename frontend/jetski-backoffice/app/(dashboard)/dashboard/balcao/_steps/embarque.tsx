@@ -48,8 +48,8 @@ export function EmbarqueSection({
   const checkIn = useMutation({
     mutationFn: async () => {
       const reservaId = atendimento.reserva!.id
-      await reservasService.alocarJetski(reservaId, jetskiId) // PENDENTE → aloca jetski
       await reservasService.confirmar(reservaId) // PENDENTE → CONFIRMADA
+      await reservasService.alocarJetski(reservaId, jetskiId) // exige CONFIRMADA + jetskiId null
       return locacoesService.checkInFromReserva({
         reservaId,
         horimetroInicio: Number(horimetro),
