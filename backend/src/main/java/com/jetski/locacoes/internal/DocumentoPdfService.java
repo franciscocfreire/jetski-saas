@@ -359,19 +359,64 @@ public class DocumentoPdfService {
                 + "física e mental, estando ciente de que eventual informação falsa poderá ensejar responsabilidade "
                 + "nas esferas civil, administrativa e criminal, inclusive a caracterização do crime de falsidade "
                 + "ideológica, nos termos do art. 299 do Decreto-Lei nº 2.848, de 7 de dezembro de 1940 (Código Penal).");
-        space(doc, 6);
-        bodySans(doc, f, "Faço uso de lentes de correção visual:  ( " + mark(d.usaLentes()) + " ) SIM   ( "
-                + mark(!d.usaLentes()) + " ) NÃO");
-        bodySans(doc, f, "Faço uso de aparelho de correção auditiva:  ( " + mark(d.usaAparelho()) + " ) SIM   ( "
-                + mark(!d.usaAparelho()) + " ) NÃO");
+        space(doc, 8);
+        // Tabela SIM / NÃO (formato oficial)
+        PdfPTable sn = new PdfPTable(new float[]{4.2f, 1f, 1f});
+        sn.setWidthPercentage(100);
+        sn.addCell(simNaoCelula(f, "", true));
+        sn.addCell(simNaoCelula(f, "SIM", true));
+        sn.addCell(simNaoCelula(f, "NÃO", true));
+        sn.addCell(simNaoCelula(f, "Faço uso de lentes de correção visual", false));
+        sn.addCell(simNaoCelula(f, mark(d.usaLentes()), false));
+        sn.addCell(simNaoCelula(f, mark(!d.usaLentes()), false));
+        sn.addCell(simNaoCelula(f, "Faço uso de aparelho de correção auditiva", false));
+        sn.addCell(simNaoCelula(f, mark(d.usaAparelho()), false));
+        sn.addCell(simNaoCelula(f, mark(!d.usaAparelho()), false));
+        sn.setSpacingAfter(26f);
+        doc.add(sn);
 
-        Paragraph data = new Paragraph("Local e Data: " + nz(d.local()) + ", " + nz(d.dataCurta()), f.sans);
-        data.setAlignment(Element.ALIGN_RIGHT);
-        data.setSpacingBefore(20f);
-        data.setSpacingAfter(34f);
-        doc.add(data);
-        signatureLineRight(doc, f, sig, "Nome e assinatura do declarante");
+        // Local e Data (esq.) + Nome e assinatura do declarante (dir.) lado a lado
+        PdfPTable rod = new PdfPTable(new float[]{1f, 1f});
+        rod.setWidthPercentage(100);
+        rod.addCell(blocoAssinatura(f, null, "Local e Data", nz(d.local()) + ", " + nz(d.dataCurta())));
+        rod.addCell(blocoAssinatura(f, sig, "Nome e assinatura do declarante", null));
+        doc.add(rod);
         footerSans(doc, f, "- 5-C-1 -");
+    }
+
+    private PdfPCell simNaoCelula(Fonts f, String texto, boolean header) {
+        PdfPCell c = new PdfPCell(new Phrase(texto, header ? f.sansBold : f.sans));
+        c.setPadding(4f);
+        if (!header && !texto.equals("X") && texto.isBlank()) c.setMinimumHeight(16f);
+        c.setHorizontalAlignment(header || texto.length() <= 1
+                ? Element.ALIGN_CENTER : Element.ALIGN_LEFT);
+        return c;
+    }
+
+    /** Bloco "valor / linha / legenda" (assinatura opcional como imagem). */
+    private PdfPCell blocoAssinatura(Fonts f, byte[] sig, String legenda, String valor) throws DocumentException, IOException {
+        PdfPCell c = new PdfPCell();
+        c.setBorder(Rectangle.NO_BORDER);
+        c.setHorizontalAlignment(Element.ALIGN_CENTER);
+        if (sig != null && sig.length > 0) {
+            Image img = Image.getInstance(sig);
+            img.scaleToFit(150f, 50f);
+            img.setAlignment(Element.ALIGN_CENTER);
+            c.addElement(img);
+        } else if (valor != null) {
+            Paragraph v = new Paragraph(valor, f.sans);
+            v.setAlignment(Element.ALIGN_CENTER);
+            c.addElement(v);
+        } else {
+            c.addElement(new Paragraph(" ", f.sans));
+        }
+        Paragraph line = new Paragraph("_____________________________", f.sans);
+        line.setAlignment(Element.ALIGN_CENTER);
+        Paragraph leg = new Paragraph(legenda, f.sansSmall);
+        leg.setAlignment(Element.ALIGN_CENTER);
+        c.addElement(line);
+        c.addElement(leg);
+        return c;
     }
 
     private void writeAnexo5B1(Document doc, Fonts f, DadosDocumento d) throws DocumentException, IOException {
@@ -432,13 +477,17 @@ public class DocumentoPdfService {
 
     private void writeAnexo5B2(Document doc, Fonts f, DadosDocumento d, byte[] sig) throws DocumentException, IOException {
         cabecalhoSans(doc, f, "ANEXO 5-B", "DECLARAÇÃO DO LOCATÁRIO");
+        Paragraph campo = new Paragraph("Campo de preenchimento do locatário a habilitar-se como MTA-E", f.sansBold);
+        campo.setSpacingAfter(8f);
+        doc.add(campo);
         justifiedSans(doc, f, "Declaro, para os devidos fins, que compreendi os principais procedimentos de segurança e "
                 + "orientações básicas, fornecidas pelo EAMA, por meio da videoaula produzida pela Marinha do Brasil "
-                + "e a demonstração prática para condução de moto aquática alugada. Irei cumprir as regras "
-                + "relacionadas abaixo:");
+                + "e a demonstração prática para condução de moto aquática alugada. Além disso, estou ciente das "
+                + "imputações administrativas e penais decorrentes de acidentes em que esteja envolvido, caso seja "
+                + "responsabilizado.");
+        bodySans(doc, f, "Irei cumprir as regras relacionadas abaixo:");
         com.lowagie.text.List regras = new com.lowagie.text.List(false, false);
         regras.setListSymbol(new com.lowagie.text.Chunk("", f.sans));
-        // letras a)..j)
         char letra = 'a';
         for (String r : REGRAS_5B) {
             ListItem li = new ListItem(letra + ") " + r, f.sans);
@@ -449,21 +498,35 @@ public class DocumentoPdfService {
         regras.setIndentationLeft(16f);
         doc.add(regras);
         space(doc, 4);
-        bodySans(doc, f, "( " + mark(d.semExperiencia()) + " ) Declaro que NÃO tenho experiência na condução de MA ou "
-                + "embarcação miúda (demonstração com o locatário na garupa do instrutor).");
-        bodySans(doc, f, "( " + mark(!d.semExperiencia()) + " ) Declaro que TENHO experiência (apresentação da CHA "
-                + "ARA/MSA/CPA/MTA-E).");
-        justifiedSans(doc, f, "Estou ciente das imputações administrativas e penais decorrentes de acidentes em que esteja "
-                + "envolvido e das sanções previstas na LESTA e RLESTA, bem como da sanção penal do art. 299 do "
-                + "Código Penal.");
-        space(doc, 6);
+        bodySans(doc, f, "( " + mark(d.semExperiencia()) + " ) Declaro que não tenho experiência na condução de MA ou "
+                + "embarcação miúda. (É mandatória a demonstração com a MA alugada em deslocamento com o locatário "
+                + "na garupa do Instrutor).");
+        bodySans(doc, f, "( " + mark(!d.semExperiencia()) + " ) Declaro que tenho experiência na condução de MA ou "
+                + "embarcação miúda. (É obrigatória a apresentação da CHA ARA/MSA/CPA/MTA-E).");
+        space(doc, 4);
+        bodySans(doc, f, "Estou ciente:");
+        bodySans(doc, f, "a) das imputações administrativas e penais decorrentes de acidentes em que esteja envolvido, "
+                + "caso seja responsabilizado; e");
+        bodySans(doc, f, "b) das sanções previstas na LESTA e RLESTA, quando da prática das condutas vedadas nesses "
+                + "diplomas legais.");
+        justifiedSans(doc, f, "Por fim, declaro também estar ciente de que a falsidade da presente declaração por parte "
+                + "do responsável pelo EAMA, pelo Instrutor e por mim pode implicar na sanção penal prevista no art. "
+                + "299 do Código Penal, conforme transcrição abaixo:");
+        Paragraph art = new Paragraph(ART_299, f.sansItalic);
+        art.setAlignment(Element.ALIGN_JUSTIFIED);
+        art.setSpacingAfter(10f);
+        doc.add(art);
+
         campos(doc, f, new String[]{"Nome (locatário)"}, new String[]{nz(d.nomeCliente())}, new float[]{1f});
-        campos(doc, f, new String[]{"Identidade nº", "Órgão Emissor", "CPF"},
-                new String[]{nz(d.identidade()), nz(d.orgaoEmissor()), nz(d.cpfCliente())},
-                new float[]{1.1f, 1.1f, 1.1f});
+        campos(doc, f, new String[]{"Identidade nº", "Órgão Emissor"},
+                new String[]{nz(d.identidade()), nz(d.orgaoEmissor())}, new float[]{1.2f, 1.2f});
+        campos(doc, f, new String[]{"Data de Emissão", "CPF"},
+                new String[]{"", nz(d.cpfCliente())}, new float[]{1.2f, 1.2f});
         signatureSans(doc, f, sig, "Assinatura do Locatário");
-        bodySans(doc, f, "Observações: 1) não é válido para emissão de nova CHA-MTA-E; 2) validade de 30 dias a partir de "
-                + nz(d.dataCurta()) + ".");
+        space(doc, 6);
+        notaSans(doc, f, "Observações: 1) O presente atestado não é válido para emissão de nova CHA-MTA-E; e "
+                + "2) Tem validade de 30 dias, a partir da data em que foi emitido.");
+        notaSans(doc, f, "Data de Emissão (a ser preenchida pelo EAMA): " + nz(d.dataCurta()) + ".");
         footerSans(doc, f, "- 5-B-2 -");
     }
 
@@ -496,10 +559,14 @@ public class DocumentoPdfService {
         }
         doc.add(clausulas);
 
-        Paragraph ld = new Paragraph("Local: " + nz(local) + "        Data: " + nz(data), f.sans);
-        ld.setSpacingBefore(6f);
-        doc.add(ld);
-        signatureSans(doc, f, sig, "Nome do Cliente: " + nz(nomeCliente) + "  ·  CPF: " + nz(cpf));
+        Paragraph lcl = new Paragraph("Local: " + nz(local), f.sans);
+        lcl.setSpacingBefore(8f);
+        doc.add(lcl);
+        bodySans(doc, f, "Data: " + nz(data));
+        space(doc, 4);
+        campos(doc, f, new String[]{"Nome do Cliente"}, new String[]{nz(nomeCliente)}, new float[]{1f});
+        campos(doc, f, new String[]{"CPF"}, new String[]{nz(cpf)}, new float[]{1f});
+        signatureSans(doc, f, sig, "Assinatura");
         Paragraph resp = new Paragraph("Responsável pela " + nz(razaoSocial)
                 + ": ______________________________", f.sansSmall);
         resp.setSpacingBefore(20f);

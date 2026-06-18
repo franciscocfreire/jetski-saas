@@ -68,14 +68,15 @@ class DocumentoPdfServiceTest {
     }
 
     @Test
-    @DisplayName("Consolidado EMA (com residência) gera 5 páginas: 1-C, 5-C, 5-B-1, 5-B-2, Termo")
+    @DisplayName("Consolidado EMA (com residência) gera os 5 anexos: 1-C, 5-C, 5-B-1, 5-B-2, Termo")
     void consolidadoEma() throws Exception {
         DocumentoPdfService.DocumentoPdf pdf =
                 service.gerarDocumentoConsolidado(dados("EMA", true), assinaturaMockPng("Roberto Lima"));
 
         assertThat(new String(pdf.conteudo(), 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
         assertThat(pdf.sha256()).matches("^[0-9a-f]{64}$");
-        assertThat(new PdfReader(pdf.conteudo()).getNumberOfPages()).isEqualTo(5);
+        // ≥5 (cada anexo numa seção; 5-B-2 com todo o conteúdo oficial pode transbordar p/ 2 págs)
+        assertThat(new PdfReader(pdf.conteudo()).getNumberOfPages()).isGreaterThanOrEqualTo(5);
 
         Path out = Paths.get("target", "documento-ema.pdf");
         Files.createDirectories(out.getParent());
