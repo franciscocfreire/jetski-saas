@@ -79,6 +79,11 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus
+  health:
+    # E-mail é opcional (credenciais podem estar vazias em dev/CI/e2e) — não deve
+    # derrubar o /actuator/health (senão o app fica DOWN/503 e o e2e nunca vê UP).
+    mail:
+      enabled: false
   endpoint:
     health:
       show-details: always
