@@ -105,7 +105,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // Keycloak OAuth2 parameters for PKCE
       authorization: {
         params: {
-          scope: "openid profile email offline_access", // Added offline_access for refresh tokens
+          // Sem offline_access: o refresh token padrão do authorization_code já
+          // basta para o NextAuth renovar. offline_access exige role/scope extra
+          // no Keycloak (quebra em prod com "Offline tokens not allowed").
+          scope: "openid profile email",
         },
       },
     }),
