@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -14,7 +15,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  *
  * Provides:
  * - PostgreSQL container for database tests (singleton across all tests)
- * - Spring Boot context with test profile
+ * - Redis container (cache + health) — sem ele, o caminho @Cacheable do
+ *   TenantFilter estoura e todo endpoint vira 500 no CI (que não tem Redis local)
+ * - Spring Boot context com profile test
  * - Common setup/teardown
  *
  * @author Jetski Team
@@ -26,6 +29,8 @@ public abstract class AbstractIntegrationTest {
 
     // Singleton PostgreSQL container shared across all integration tests
     protected static final PostgreSQLContainer<?> postgres;
+    // Singleton Redis container (cache do TenantFilter/identidade + RedisTemplate)
+    protected static final GenericContainer<?> redis;
 
     static {
         postgres = new PostgreSQLContainer<>("postgres:16-alpine")
@@ -33,6 +38,9 @@ public abstract class AbstractIntegrationTest {
                 .withUsername("test")
                 .withPassword("test");
         postgres.start();
+
+        redis = new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
+        redis.start();
     }
 
     @DynamicPropertySource
@@ -40,6 +48,10 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+
+        // Redis (Testcontainers) — provê cache e health p/ os testes de integração
+        registry.add("spring.data.redis.host", redis::getHost);
+        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
 
         // Disable Keycloak for integration tests
         registry.add("spring.security.oauth2.resourceserver.jwt.issuer-uri", () -> "http://localhost:9999");
