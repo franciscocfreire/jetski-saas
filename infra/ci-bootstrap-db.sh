@@ -16,8 +16,17 @@ set -euo pipefail
 PG_USER=jetski
 PG_PASSWORD=dev123
 PG_DB=jetski_dev
-NET="${COMPOSE_NETWORK:-jetski_jetski-network}"
+# Nome da rede do compose = <projeto>_jetski-network, e o projeto = nome do
+# diretório (local: jetski; CI checkout: jetski-saas). Em vez de hardcode,
+# descobre a rede real criada pelo compose (que contém "jetski-network").
+NET="${COMPOSE_NETWORK:-$(docker network ls --format '{{.Name}}' | grep -m1 'jetski-network')}"
 BACKEND_DIR="${BACKEND_DIR:-backend}"
+
+if [ -z "$NET" ]; then
+  echo "ERRO: rede do compose (jetski-network) não encontrada. Rode 'docker compose up -d postgres' antes." >&2
+  exit 1
+fi
+echo "==> usando rede docker: $NET"
 
 echo "==> [1/3] criando role jetski_app (RLS-safe)..."
 docker compose exec -T postgres psql -U "$PG_USER" -d "$PG_DB" <<'EOSQL'

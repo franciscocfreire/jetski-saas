@@ -204,7 +204,9 @@ class SecurityConfigTest extends AbstractIntegrationTest {
                 "https://*.jetski.app",
                 "https://*.jetski.com.br",
                 "https://pegaojet.com.br",
-                "https://*.pegaojet.com.br"
+                "https://*.pegaojet.com.br",
+                "https://jetsave.com.br",
+                "https://*.jetsave.com.br"
             );
     }
 

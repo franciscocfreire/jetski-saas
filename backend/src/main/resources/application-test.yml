@@ -2,6 +2,13 @@ spring:
   datasource:
     url: jdbc:tc:postgresql:16:///test
     driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+    hikari:
+      # Vários contextos Spring ficam cacheados na suíte completa; cada um abre
+      # um pool contra o MESMO Postgres (max_connections=100). Sem este cap, o
+      # default (10/contexto) esgota as conexões no CI → 500/503 em cascata.
+      maximum-pool-size: 3
+      minimum-idle: 0
+      idle-timeout: 10000
 
   jpa:
     show-sql: true
