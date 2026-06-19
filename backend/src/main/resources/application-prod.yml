@@ -93,6 +93,11 @@ management:
   endpoint:
     health:
       show-details: when_authorized
+  health:
+    # E-mail é opcional (credenciais podem estar vazias) — não deve derrubar
+    # o /actuator/health (senão o app fica 503 e o smoke/health falha).
+    mail:
+      enabled: false
   metrics:
     tags:
       application: ${spring.application.name}
