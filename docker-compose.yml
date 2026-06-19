@@ -116,6 +116,28 @@ services:
     networks:
       - jetski-network
 
+  # ============ OBJECT STORAGE (S3) ============
+  minio:
+    image: minio/minio:latest
+    container_name: jetski-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "0.0.0.0:9000:9000"   # API S3
+      - "0.0.0.0:9001:9001"   # Console
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jetski-network
+    restart: unless-stopped
+
   # ============ BACKEND ============
   backend:
     build:
@@ -148,8 +170,12 @@ services:
       # OPA
       JETSKI_OPA_BASE_URL: http://opa:8181
 
-      # Storage: local (disco do container) — não há MinIO no compose do dev.
-      STORAGE_TYPE: local
+      # Storage: MinIO (S3) — persistente, mesma stack
+      STORAGE_TYPE: minio
+      STORAGE_MINIO_ENDPOINT: http://minio:9000
+      STORAGE_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      STORAGE_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      STORAGE_MINIO_BUCKET: ${MINIO_BUCKET:-jetski-docs}
 
       # Email (Gmail SMTP)
       GMAIL_USER: ${GMAIL_USER:-}
@@ -171,6 +197,7 @@ services:
       - redis
       - keycloak
       - opa
+      - minio
     restart: unless-stopped
     networks:
       - jetski-network
@@ -213,6 +240,7 @@ services:
 
 volumes:
   storage_data:
+  minio_data:
   postgres_data:
     driver: local
   redis_data:
