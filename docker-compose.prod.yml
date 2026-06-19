@@ -51,6 +51,8 @@ services:
     mem_limit: 1200m
 
   opa:
+    # imagem multi-arch (arm64) — a :1.1.0 padrão é amd64-only
+    image: openpolicyagent/opa:1.1.0-static
     ports: !override
       - "127.0.0.1:8181:8181"
     mem_limit: 256m
@@ -136,7 +138,7 @@ services:
   # Aplica as migrations como superuser `jetski` (Flyway precisa de DDL).
   # Não sobe com `up` — é invocado pelo deploy.sh: docker compose run --rm flyway
   flyway:
-    image: flyway/flyway:10-alpine
+    image: flyway/flyway:10   # multi-arch (arm64); a variante -alpine é amd64-only
     profiles: ["tools"]
     command: >-
       -url=jdbc:postgresql://postgres:5432/jetski_prod
