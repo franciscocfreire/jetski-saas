@@ -12,12 +12,12 @@
 # =============================================================================
 services:
   nginx:
-    ports:
+    ports: !override
       - "127.0.0.1:8081:80"   # debug local; ingress público é via cloudflared
     restart: unless-stopped
 
   postgres:
-    ports:
+    ports: !override
       - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: jetski
@@ -26,7 +26,7 @@ services:
     mem_limit: 1g
 
   redis:
-    ports:
+    ports: !override
       - "127.0.0.1:6379:6379"
     mem_limit: 256m
 
@@ -46,17 +46,17 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
-    ports:
+    ports: !override
       - "127.0.0.1:8080:8080"
     mem_limit: 1200m
 
   opa:
-    ports:
+    ports: !override
       - "127.0.0.1:8181:8181"
     mem_limit: 256m
 
   minio:
-    ports:
+    ports: !override
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
     environment:
@@ -96,7 +96,7 @@ services:
       JETSKI_FRONTEND_URL: ${PUBLIC_URL}
       JETSKI_EXTERNAL_URL: ${PUBLIC_URL}
       JETSKI_ALLOWED_ORIGINS: ${PUBLIC_URL}
-    ports:
+    ports: !override
       - "127.0.0.1:8090:8090"
     mem_limit: 1500m
     restart: unless-stopped
@@ -111,7 +111,7 @@ services:
       KEYCLOAK_CLIENT_ID: jetski-backoffice
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_BACKOFFICE_SECRET:-backoffice-secret}
       KEYCLOAK_ISSUER: ${PUBLIC_URL}/realms/jetski-saas
-    ports:
+    ports: !override
       - "127.0.0.1:3001:3000"
     mem_limit: 700m
     restart: unless-stopped
