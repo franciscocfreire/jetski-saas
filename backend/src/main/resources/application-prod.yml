@@ -112,16 +112,16 @@ jetski:
     default-tenant-id: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
   security:
     # Origens permitidas em produção (domínio público via Cloudflare tunnel)
-    allowed-origins: ${JETSKI_ALLOWED_ORIGINS:https://pegaojet.com.br}
+    allowed-origins: ${JETSKI_ALLOWED_ORIGINS:https://jetsave.com.br}
     # URL externa pública (validação de issuer JWT por trás do tunnel)
     external-url: ${JETSKI_EXTERNAL_URL:}
   opa:
     base-url: ${JETSKI_OPA_BASE_URL:http://opa:8181}
   email:
-    from: ${GMAIL_USER:noreply@pegaojet.com.br}
+    from: ${GMAIL_USER:noreply@jetsave.com.br}
     from-name: Pega o Jet
   frontend:
-    url: ${JETSKI_FRONTEND_URL:https://pegaojet.com.br}
+    url: ${JETSKI_FRONTEND_URL:https://jetsave.com.br}
 
 # Keycloak Admin Client
 keycloak:

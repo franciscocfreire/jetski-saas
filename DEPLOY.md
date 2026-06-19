@@ -63,7 +63,7 @@ openssl rand -base64 24   # senhas de banco/MinIO
 1. Cloudflare Zero Trust → **Networks → Tunnels → Create a tunnel** (Cloudflared).
 2. Copie o **token** e cole em `CLOUDFLARE_TUNNEL_TOKEN` no `.env`.
 3. Em **Public Hostnames** do tunnel, adicione:
-   - Hostname: `pegaojet.com.br` (e/ou `www`) → Service: `http://nginx:80`
+   - Hostname: `jetsave.com.br` (e/ou `www`) → Service: `http://nginx:80`
 4. O DNS (CNAME) é criado automaticamente pelo Cloudflare.
 
 ## 4. Primeiro deploy
@@ -77,7 +77,7 @@ cd ~/jetski
 verifica RLS, builda backend/frontend (ARM nativo) e sobe nginx + cloudflared.
 Ao final faz smoke check em `http://127.0.0.1:8090/api/actuator/health`.
 
-Acesse: **https://pegaojet.com.br** — login com os usuários do realm (ex: `admin@acme.com`).
+Acesse: **https://jetsave.com.br** — login com os usuários do realm (ex: `admin@acme.com`).
 
 ## 5. CD (deploys seguintes)
 
