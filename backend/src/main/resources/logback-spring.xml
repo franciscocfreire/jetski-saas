@@ -137,9 +137,11 @@
 
     <!-- PROD PROFILE: JSON to both console and file for production -->
     <springProfile name="prod">
+        <!-- Container: loga só no stdout (Docker captura via `docker logs`).
+             Arquivo em container é efêmero/anti-padrão e quebrava o boot
+             (sem /app/logs gravável). Use um coletor de logs externo se precisar. -->
         <root level="INFO">
             <appender-ref ref="CONSOLE_JSON"/>
-            <appender-ref ref="FILE_JSON"/>
         </root>
 
         <!-- Info level for application code (no DEBUG in production) -->
