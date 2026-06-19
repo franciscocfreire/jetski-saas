@@ -53,6 +53,32 @@ function DocumentosConteudo() {
     enabled: !!currentTenant,
   })
 
+  const [baixandoId, setBaixandoId] = useState<string | null>(null)
+
+  async function baixar(id: string) {
+    try {
+      setBaixandoId(id)
+      const { blob, filename } = await documentosService.download(id)
+      const url = URL.createObjectURL(blob)
+      // abre em nova aba; o navegador renderiza o PDF inline (Content-Type)
+      const a = document.createElement('a')
+      a.href = url
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      // revoga depois de um tempo para a aba conseguir carregar
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e) {
+      console.error('[documentos] download falhou', e)
+      alert('Não foi possível baixar o documento.')
+    } finally {
+      setBaixandoId(null)
+    }
+  }
+
   const clientesFiltrados = (clientes ?? []).filter((c: Cliente) =>
     c.nome?.toLowerCase().includes(busca.toLowerCase())
   )
@@ -140,15 +166,20 @@ function DocumentosConteudo() {
                     {d.hashSha256 ? d.hashSha256.slice(0, 10) + '…' : '-'}
                   </TableCell>
                   <TableCell>
-                    {d.downloadUrl ? (
-                      <a href={d.downloadUrl} target="_blank" rel="noopener noreferrer">
-                        <Button type="button" variant="outline" size="sm">
-                          <FileDown size={14} className="mr-1" /> Abrir
-                        </Button>
-                      </a>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">indisponível</span>
-                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={baixandoId === d.id}
+                      onClick={() => baixar(d.id)}
+                    >
+                      {baixandoId === d.id ? (
+                        <Loader2 size={14} className="mr-1 animate-spin" />
+                      ) : (
+                        <FileDown size={14} className="mr-1" />
+                      )}
+                      Abrir
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

@@ -60,7 +60,8 @@ role_permissions := {
         "instrutor:list",
         "instrutor:view",
         "documento:list",
-        "documento:view"
+        "documento:view",
+        "documento:download"
     ],
 
     "GERENTE": [
@@ -133,7 +134,8 @@ role_permissions := {
         "reserva:confirmar-sinal",
         "reserva:recusar-pagamento",
         "documento:list",
-        "documento:view"
+        "documento:view",
+        "documento:download"
     ],
 
     "MECANICO": [

@@ -57,6 +57,7 @@ public class DocumentoConsultaService {
         Map<UUID, String> nomes = clienteRepository.findAllById(clienteIds).stream()
             .collect(Collectors.toMap(Cliente::getId, Cliente::getNome));
 
+        UUID tenant = docs.get(0).getTenantId();
         return docs.stream().map(d -> {
             Reserva r = reservas.get(d.getReservaId());
             UUID cid = r != null ? r.getClienteId() : null;
@@ -67,17 +68,21 @@ public class DocumentoConsultaService {
                 .clienteNome(cid != null ? nomes.get(cid) : null)
                 .emitidoEm(d.getEmitidoEm())
                 .hashSha256(d.getHashSha256())
-                .downloadUrl(downloadUrl(d.getS3Key()))
+                // caminho da API (download autenticado via streaming — vale local e MinIO)
+                .downloadUrl(String.format("/v1/tenants/%s/documentos/%s/download", tenant, d.getId()))
                 .build();
         }).collect(Collectors.toList());
     }
 
-    private String downloadUrl(String key) {
-        try {
-            return storageService.generatePresignedDownloadUrl(key, 15).getUrl();
-        } catch (Exception e) {
-            log.warn("Falha ao gerar URL de download: key={}, erro={}", key, e.getMessage());
-            return null;
-        }
+    /** Conteúdo do PDF + nome de arquivo, lido do storage para streaming. */
+    public record DocumentoArquivo(byte[] conteudo, String filename) {}
+
+    @Transactional(readOnly = true)
+    public DocumentoArquivo baixar(UUID id) {
+        DocumentoEmitido d = documentoRepository.findById(id)
+            .orElseThrow(() -> new com.jetski.shared.exception.NotFoundException("Documento não encontrado: " + id));
+        byte[] bytes = storageService.getObject(d.getS3Key());
+        String ref = d.getReservaId() != null ? d.getReservaId().toString().substring(0, 8) : "doc";
+        return new DocumentoArquivo(bytes, "documento-" + ref + ".pdf");
     }
 }

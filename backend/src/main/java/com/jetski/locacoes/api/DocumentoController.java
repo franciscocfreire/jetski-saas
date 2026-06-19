@@ -7,6 +7,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -39,5 +41,19 @@ public class DocumentoController {
             throw new IllegalArgumentException("Tenant ID mismatch");
         }
         return ResponseEntity.ok(service.listar(clienteId));
+    }
+
+    @GetMapping("/{id}/download")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
+    @Operation(summary = "Baixar o PDF do documento emitido (streaming)")
+    public ResponseEntity<byte[]> download(@PathVariable UUID tenantId, @PathVariable UUID id) {
+        if (!tenantId.equals(TenantContext.getTenantId())) {
+            throw new IllegalArgumentException("Tenant ID mismatch");
+        }
+        DocumentoConsultaService.DocumentoArquivo arq = service.baixar(id);
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_PDF)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + arq.filename() + "\"")
+            .body(arq.conteudo());
     }
 }

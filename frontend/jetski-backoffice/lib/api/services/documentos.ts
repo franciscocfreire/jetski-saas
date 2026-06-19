@@ -11,4 +11,18 @@ export const documentosService = {
     })
     return data
   },
+
+  /**
+   * Baixa o PDF do documento emitido (streaming autenticado via Bearer).
+   * Retorna o Blob + nome de arquivo extraído do Content-Disposition.
+   */
+  async download(id: string): Promise<{ blob: Blob; filename: string }> {
+    const res = await apiClient.get(`${getBasePath()}/${id}/download`, {
+      responseType: 'blob',
+    })
+    const disp = (res.headers['content-disposition'] as string | undefined) ?? ''
+    const match = /filename="?([^"]+)"?/.exec(disp)
+    const filename = match?.[1] ?? `documento-${id.slice(0, 8)}.pdf`
+    return { blob: res.data as Blob, filename }
+  },
 }
