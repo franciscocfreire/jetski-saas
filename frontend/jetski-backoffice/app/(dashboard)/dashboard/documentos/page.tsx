@@ -3,7 +3,8 @@
 import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { FileText, FileDown, Search, Loader2 } from 'lucide-react'
+import { FileText, FileDown, Search, Loader2, Mail } from 'lucide-react'
+import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { documentosService, clientesService } from '@/lib/api/services'
 import type { Cliente } from '@/lib/api/types'
@@ -79,6 +80,28 @@ function DocumentosConteudo() {
     }
   }
 
+  const [reenviandoId, setReenviandoId] = useState<string | null>(null)
+
+  async function reenviar(id: string) {
+    try {
+      setReenviandoId(id)
+      const r = await documentosService.reenviar(id)
+      if (r.enviadoMarinha || r.enviadoCliente) {
+        const destinos = [r.enviadoMarinha && 'Marinha', r.enviadoCliente && 'cliente']
+          .filter(Boolean)
+          .join(' e ')
+        toast.success(`E-mail enviado para ${destinos}.`)
+      } else {
+        toast.error('Nenhum e-mail enviado. Verifique as credenciais de SMTP/Gmail e os e-mails de destino.')
+      }
+    } catch (e) {
+      console.error('[documentos] reenviar falhou', e)
+      toast.error('Falha ao reenviar o documento.')
+    } finally {
+      setReenviandoId(null)
+    }
+  }
+
   const clientesFiltrados = (clientes ?? []).filter((c: Cliente) =>
     c.nome?.toLowerCase().includes(busca.toLowerCase())
   )
@@ -140,7 +163,7 @@ function DocumentosConteudo() {
               <TableHead>Emitido em</TableHead>
               <TableHead>Reserva</TableHead>
               <TableHead>Hash</TableHead>
-              <TableHead className="w-[120px]">Documento</TableHead>
+              <TableHead className="w-[220px]">Documento</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -166,20 +189,37 @@ function DocumentosConteudo() {
                     {d.hashSha256 ? d.hashSha256.slice(0, 10) + '…' : '-'}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={baixandoId === d.id}
-                      onClick={() => baixar(d.id)}
-                    >
-                      {baixandoId === d.id ? (
-                        <Loader2 size={14} className="mr-1 animate-spin" />
-                      ) : (
-                        <FileDown size={14} className="mr-1" />
-                      )}
-                      Abrir
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={baixandoId === d.id}
+                        onClick={() => baixar(d.id)}
+                      >
+                        {baixandoId === d.id ? (
+                          <Loader2 size={14} className="mr-1 animate-spin" />
+                        ) : (
+                          <FileDown size={14} className="mr-1" />
+                        )}
+                        Abrir
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        title="Reenviar por e-mail (Marinha + cliente)"
+                        disabled={reenviandoId === d.id}
+                        onClick={() => reenviar(d.id)}
+                      >
+                        {reenviandoId === d.id ? (
+                          <Loader2 size={14} className="mr-1 animate-spin" />
+                        ) : (
+                          <Mail size={14} className="mr-1" />
+                        )}
+                        Reenviar
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

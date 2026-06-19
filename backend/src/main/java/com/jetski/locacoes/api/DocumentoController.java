@@ -2,6 +2,7 @@ package com.jetski.locacoes.api;
 
 import com.jetski.locacoes.api.dto.DocumentoConsultaResponse;
 import com.jetski.locacoes.internal.DocumentoConsultaService;
+import com.jetski.locacoes.internal.EmissaoService;
 import com.jetski.shared.security.TenantContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class DocumentoController {
 
     private final DocumentoConsultaService service;
+    private final EmissaoService emissaoService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
@@ -55,5 +57,17 @@ public class DocumentoController {
             .contentType(MediaType.APPLICATION_PDF)
             .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + arq.filename() + "\"")
             .body(arq.conteudo());
+    }
+
+    @PostMapping("/{id}/reenviar")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
+    @Operation(summary = "Reenviar por e-mail um documento já emitido (Marinha + cliente)")
+    public ResponseEntity<EmissaoService.ResultadoReenvio> reenviar(
+        @PathVariable UUID tenantId, @PathVariable UUID id
+    ) {
+        if (!tenantId.equals(TenantContext.getTenantId())) {
+            throw new IllegalArgumentException("Tenant ID mismatch");
+        }
+        return ResponseEntity.ok(emissaoService.reenviarEmail(id));
     }
 }

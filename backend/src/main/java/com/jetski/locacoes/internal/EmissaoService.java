@@ -239,12 +239,57 @@ public class EmissaoService {
         }
     }
 
+    @Value
+    @Builder
+    public static class ResultadoReenvio {
+        boolean enviadoMarinha;
+        boolean enviadoCliente;
+    }
+
+    /**
+     * Reenvia por e-mail um documento JÁ emitido (não regenera o PDF — lê do
+     * storage). Útil quando o envio inicial falhou (ex.: SMTP não configurado).
+     */
+    @Transactional(readOnly = true)
+    public ResultadoReenvio reenviarEmail(UUID documentoId) {
+        DocumentoEmitido doc = documentoRepository.findById(documentoId)
+            .orElseThrow(() -> new NotFoundException("Documento não encontrado: " + documentoId));
+        Reserva reserva = reservaRepository.findById(doc.getReservaId())
+            .orElseThrow(() -> new NotFoundException("Reserva não encontrada: " + doc.getReservaId()));
+        Cliente cliente = clienteRepository.findById(reserva.getClienteId())
+            .orElseThrow(() -> new NotFoundException("Cliente não encontrado: " + reserva.getClienteId()));
+        Tenant tenant = tenantQueryService.findById(reserva.getTenantId());
+        if (tenant == null) {
+            throw new NotFoundException("Tenant não encontrado: " + reserva.getTenantId());
+        }
+
+        byte[] pdf = storageService.getObject(doc.getS3Key());
+        boolean enviadoMarinha = enviar(tenant.getMarinhaEmail(),
+            "Documentos NORMAM-212 — reserva " + reserva.getId(), corpoMarinha(cliente), pdf);
+        boolean enviadoCliente = enviar(cliente.getEmail(),
+            "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente), pdf);
+        log.info("Reenvio de documento: docId={}, marinha={}, cliente={}",
+            documentoId, enviadoMarinha, enviadoCliente);
+        return ResultadoReenvio.builder()
+            .enviadoMarinha(enviadoMarinha)
+            .enviadoCliente(enviadoCliente)
+            .build();
+    }
+
     private boolean enviar(String to, String subject, String htmlBody, byte[] pdf) {
         if (to == null || to.isBlank()) {
             return false;
         }
-        emailService.sendEmailComAnexo(to, subject, htmlBody, "documentos.pdf", pdf, "application/pdf");
-        return true;
+        // Best-effort: o documento já foi gerado e salvo no storage. Uma falha de
+        // SMTP (ex.: credenciais ausentes) NÃO deve derrubar a emissão — apenas
+        // registra que o e-mail não foi entregue (o PDF fica disponível p/ download).
+        try {
+            emailService.sendEmailComAnexo(to, subject, htmlBody, "documentos.pdf", pdf, "application/pdf");
+            return true;
+        } catch (Exception e) {
+            log.warn("Falha ao enviar e-mail (segue sem enviar): to={}, subject={}, erro={}", to, subject, e.getMessage());
+            return false;
+        }
     }
 
     private String corpoMarinha(Cliente c) {

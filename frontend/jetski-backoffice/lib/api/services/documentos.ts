@@ -25,4 +25,10 @@ export const documentosService = {
     const filename = match?.[1] ?? `documento-${id.slice(0, 8)}.pdf`
     return { blob: res.data as Blob, filename }
   },
+
+  /** Reenvia por e-mail um documento já emitido (Marinha + cliente). */
+  async reenviar(id: string): Promise<{ enviadoMarinha: boolean; enviadoCliente: boolean }> {
+    const { data } = await apiClient.post(`${getBasePath()}/${id}/reenviar`)
+    return data
+  },
 }

@@ -5,7 +5,7 @@ import { useMutation } from '@tanstack/react-query'
 import { FileDown, CheckCircle2, Anchor, Mail, Printer, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { reservasService } from '@/lib/api/services'
+import { reservasService, documentosService } from '@/lib/api/services'
 import { EmbarqueSection } from './embarque'
 import type { Atendimento } from '../types'
 import type { ResultadoEmissao } from '@/lib/api/types'
@@ -20,7 +20,30 @@ export function StepEmissao({
   onReset: () => void
 }) {
   const [resultado, setResultado] = useState<ResultadoEmissao | null>(null)
+  const [baixando, setBaixando] = useState(false)
   const bloqueado = !atendimento.habilitacaoResolvida || !atendimento.aceiteFeito
+
+  async function abrirPdf(documentoId: string) {
+    try {
+      setBaixando(true)
+      const { blob, filename } = await documentosService.download(documentoId)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e) {
+      console.error('[emissao] download falhou', e)
+      toast.error('Não foi possível abrir o PDF.')
+    } finally {
+      setBaixando(false)
+    }
+  }
 
   const emitir = useMutation({
     mutationFn: () => reservasService.emitirDocumentos(atendimento.reserva!.id),
@@ -43,11 +66,14 @@ export function StepEmissao({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <a href={resultado.downloadUrl} target="_blank" rel="noopener noreferrer">
-            <Button type="button" className="w-full">
-              <FileDown size={16} className="mr-2" /> Abrir / Baixar PDF
-            </Button>
-          </a>
+          <Button
+            type="button"
+            className="w-full"
+            disabled={baixando}
+            onClick={() => abrirPdf(resultado.documentoId)}
+          >
+            <FileDown size={16} className="mr-2" /> {baixando ? 'Abrindo…' : 'Abrir / Baixar PDF'}
+          </Button>
           {resultado.gruNumero && (
             <Button type="button" variant="outline" onClick={() => window.print()}>
               <Printer size={16} className="mr-2" /> Imprimir GRU {resultado.gruNumero}
