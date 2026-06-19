@@ -401,6 +401,19 @@
                     </excludes>
                 </configuration>
             </plugin>
+
+            <!-- Surefire: fixa o fuso da JVM de teste em America/Sao_Paulo (domínio Brasil).
+                 Sem isso, testes que comparam LocalDateTime.now() (fuso default da JVM) com o
+                 horário do tenant (America/Sao_Paulo via tenantTimeService) falham em runners
+                 UTC (CI): o check-out cai "antes" do check-in. @{argLine} preserva o agente do
+                 JaCoCo (que define a propriedade argLine no prepare-agent). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>@{argLine} -Duser.timezone=America/Sao_Paulo</argLine>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>
