@@ -98,8 +98,6 @@ services:
       JETSKI_FRONTEND_URL: ${PUBLIC_URL}
       JETSKI_EXTERNAL_URL: ${PUBLIC_URL}
       JETSKI_ALLOWED_ORIGINS: ${PUBLIC_URL}
-      # Diagnóstico temporário: expor componentes do /health
-      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
     ports: !override
       - "127.0.0.1:8090:8090"
     mem_limit: 1500m

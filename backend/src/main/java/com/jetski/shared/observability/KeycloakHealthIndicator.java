@@ -34,13 +34,29 @@ public class KeycloakHealthIndicator implements HealthIndicator {
     @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
     private String issuerUri;
 
+    // jwk-set-uri é SEMPRE interno (http://keycloak:8080/...); o issuer-uri pode
+    // ser a URL pública (ex: via Cloudflare tunnel) que o container não resolve.
+    // O health check usa o endpoint interno do realm derivado do jwk-set-uri.
+    @Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}")
+    private String jwkSetUri;
+
     private final RestTemplate restTemplate;
     private static final int TIMEOUT_MS = 3000;
 
     public KeycloakHealthIndicator() {
-        this.restTemplate = new RestTemplate();
-        // Set timeouts
-        this.restTemplate.getRequestFactory();
+        var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(TIMEOUT_MS);
+        factory.setReadTimeout(TIMEOUT_MS);
+        this.restTemplate = new RestTemplate(factory);
+    }
+
+    /** Endpoint interno do realm (sem /protocol/openid-connect/certs). */
+    private String internalRealmUrl() {
+        if (jwkSetUri == null) {
+            return issuerUri;
+        }
+        int idx = jwkSetUri.indexOf("/protocol/");
+        return idx > 0 ? jwkSetUri.substring(0, idx) : jwkSetUri;
     }
 
     @Override
@@ -51,8 +67,8 @@ public class KeycloakHealthIndicator implements HealthIndicator {
             // Extract realm name from issuer URI
             String realmName = extractRealmName(issuerUri);
 
-            // Call Keycloak realm endpoint (public endpoint, no auth needed)
-            String realmUrl = issuerUri; // The issuer URI itself is a public endpoint
+            // Chama o endpoint do realm INTERNO (acessível do container)
+            String realmUrl = internalRealmUrl();
 
             String response = restTemplate.getForObject(realmUrl, String.class);
 
