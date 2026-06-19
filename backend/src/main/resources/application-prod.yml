@@ -1,0 +1,151 @@
+spring:
+  application:
+    name: pegaojet-api
+
+  datasource:
+    # App roda como jetski_app (sem SUPERUSER/BYPASSRLS) — RLS ativo.
+    # Migrações são aplicadas separadamente (serviço one-shot flyway, superuser).
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/jetski_prod}
+    username: ${SPRING_DATASOURCE_USERNAME:jetski_app}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        default_schema: public
+        jdbc:
+          time_zone: America/Sao_Paulo
+
+  flyway:
+    enabled: false  # Migrações aplicadas pelo serviço one-shot `flyway` (superuser)
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:redis}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 2000ms
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI}
+          jwk-set-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI}
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000  # 1 hour
+
+  # Email SMTP Configuration (Gmail)
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${GMAIL_USER:}
+    password: ${GMAIL_APP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+server:
+  port: 8090
+  servlet:
+    context-path: /api
+  forward-headers-strategy: native
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+
+logging:
+  level:
+    root: INFO
+    com.jetski: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+
+# Custom application properties
+jetski:
+  tenant:
+    header-name: X-Tenant-Id
+    default-tenant-id: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
+  security:
+    # Origens permitidas em produção (domínio público via Cloudflare tunnel)
+    allowed-origins: ${JETSKI_ALLOWED_ORIGINS:https://pegaojet.com.br}
+    # URL externa pública (validação de issuer JWT por trás do tunnel)
+    external-url: ${JETSKI_EXTERNAL_URL:}
+  opa:
+    base-url: ${JETSKI_OPA_BASE_URL:http://opa:8181}
+  email:
+    from: ${GMAIL_USER:noreply@pegaojet.com.br}
+    from-name: Pega o Jet
+  frontend:
+    url: ${JETSKI_FRONTEND_URL:https://pegaojet.com.br}
+
+# Keycloak Admin Client
+keycloak:
+  admin:
+    server-url: ${KEYCLOAK_ADMIN_SERVER_URL:http://keycloak:8080}
+    realm: ${KEYCLOAK_ADMIN_REALM:master}
+    client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:admin-cli}
+    username: ${KEYCLOAK_ADMIN_USERNAME:admin}
+    password: ${KEYCLOAK_ADMIN_PASSWORD}
+    target-realm: ${KEYCLOAK_ADMIN_TARGET_REALM:jetski-saas}
+
+# Storage Configuration (MinIO S3-compatible)
+storage:
+  type: ${STORAGE_TYPE:minio}
+  presigned-url-expiration-minutes: 15
+  download-url-expiration-minutes: 60
+  minio:
+    endpoint: ${STORAGE_MINIO_ENDPOINT:http://minio:9000}
+    access-key: ${STORAGE_MINIO_ACCESS_KEY}
+    secret-key: ${STORAGE_MINIO_SECRET_KEY}
+    bucket: ${STORAGE_MINIO_BUCKET:jetski-docs}
+    max-file-size-mb: 15
+    allowed-content-types:
+      - image/jpeg
+      - image/png
+      - image/webp
+      - application/pdf

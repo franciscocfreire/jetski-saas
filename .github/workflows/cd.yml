@@ -1,0 +1,59 @@
+name: CD (deploy produção)
+
+# Deploy contínuo no servidor Oracle Cloud (ARM) via SSH.
+# Dispara automaticamente em push na main APÓS o CI passar, ou manualmente.
+# O build das imagens é feito NO servidor (ARM nativo) pelo deploy.sh — não há
+# registry/cross-compile. O job apenas conecta por SSH, faz git pull e roda o deploy.
+#
+# Segredos necessários (Settings → Secrets and variables → Actions):
+#   SSH_HOST        IP/host do servidor (ex: 64.181.176.180)
+#   SSH_USER        usuário SSH (ex: ubuntu)
+#   SSH_PRIVATE_KEY conteúdo da chave privada (a mesma usada localmente)
+#   DEPLOY_PATH     caminho do repo no servidor (ex: /home/ubuntu/jetski)
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_build:
+        description: "Pular rebuild de imagens (só migrations/restart)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: cd-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+    # Só roda se o CI passou (ou se acionado manualmente)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Configurar agente SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Adicionar host conhecido
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy (git pull + deploy.sh no servidor)
+        env:
+          SKIP: ${{ inputs.skip_build && '1' || '0' }}
+        run: |
+          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" bash -lc '
+            set -e
+            cd "${{ secrets.DEPLOY_PATH }}"
+            git fetch origin main
+            git reset --hard origin/main
+            NO_PULL=1 NO_BUILD='"$SKIP"' ./deploy.sh
+          '

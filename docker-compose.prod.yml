@@ -1,0 +1,154 @@
+# =============================================================================
+# Override de PRODUÇÃO — usar junto com o base:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Diferenças vs dev:
+# - Segredos vêm do .env (NUNCA commitar o .env real — só .env.prod.example)
+# - Portas expostas apenas em 127.0.0.1 (ingress público é via Cloudflare Tunnel)
+# - Banco jetski_prod; backend roda com profile `prod` (logs enxutos, sem show-sql)
+# - cloudflared publica o domínio → nginx (reaproveita o roteamento /api,/realms,/)
+# - flyway one-shot (profile `tools`) aplica migrações como superuser antes do backend
+# - Limites de memória adequados ao servidor (11 GB / 2 OCPU ARM)
+# =============================================================================
+services:
+  nginx:
+    ports:
+      - "127.0.0.1:8081:80"   # debug local; ingress público é via cloudflared
+    restart: unless-stopped
+
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: jetski
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: jetski_prod
+    mem_limit: 1g
+
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
+    mem_limit: 256m
+
+  keycloak:
+    # start-dev por trás do tunnel (proxy=edge via headers) — comprovado com ngrok.
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/jetski_prod
+      KC_DB_USERNAME: jetski
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_DB_SCHEMA: keycloak
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8080:8080"
+    mem_limit: 1200m
+
+  opa:
+    ports:
+      - "127.0.0.1:8181:8181"
+    mem_limit: 256m
+
+  minio:
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    mem_limit: 512m
+
+  backend:
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/jetski_prod
+      SPRING_DATASOURCE_USERNAME: jetski_app
+      SPRING_DATASOURCE_PASSWORD: ${JETSKI_APP_DB_PASSWORD}
+
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${PUBLIC_URL}/realms/jetski-saas
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/jetski-saas/protocol/openid-connect/certs
+
+      KEYCLOAK_ADMIN_SERVER_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+
+      JETSKI_OPA_BASE_URL: http://opa:8181
+
+      STORAGE_TYPE: minio
+      STORAGE_MINIO_ENDPOINT: http://minio:9000
+      STORAGE_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      STORAGE_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      STORAGE_MINIO_BUCKET: ${MINIO_BUCKET:-jetski-docs}
+
+      GMAIL_USER: ${GMAIL_USER:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+
+      JETSKI_FRONTEND_URL: ${PUBLIC_URL}
+      JETSKI_EXTERNAL_URL: ${PUBLIC_URL}
+      JETSKI_ALLOWED_ORIGINS: ${PUBLIC_URL}
+    ports:
+      - "127.0.0.1:8090:8090"
+    mem_limit: 1500m
+    restart: unless-stopped
+
+  frontend:
+    environment:
+      NEXT_PUBLIC_API_URL: /api
+      NEXT_PUBLIC_KEYCLOAK_URL: /realms/jetski-saas
+      NEXTAUTH_URL: ${PUBLIC_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      AUTH_TRUST_HOST: "true"
+      KEYCLOAK_CLIENT_ID: jetski-backoffice
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_BACKOFFICE_SECRET:-backoffice-secret}
+      KEYCLOAK_ISSUER: ${PUBLIC_URL}/realms/jetski-saas
+    ports:
+      - "127.0.0.1:3001:3000"
+    mem_limit: 700m
+    restart: unless-stopped
+
+  # ============ INGRESS (Cloudflare Tunnel) ============
+  # Conecta de saída ao Cloudflare; o roteamento público (hostname → http://nginx:80)
+  # é configurado no painel Zero Trust do tunnel nomeado.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: jetski-cloudflared
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - nginx
+    restart: unless-stopped
+    networks:
+      - jetski-network
+    mem_limit: 128m
+
+  # ============ MIGRAÇÕES (one-shot) ============
+  # Aplica as migrations como superuser `jetski` (Flyway precisa de DDL).
+  # Não sobe com `up` — é invocado pelo deploy.sh: docker compose run --rm flyway
+  flyway:
+    image: flyway/flyway:10-alpine
+    profiles: ["tools"]
+    command: >-
+      -url=jdbc:postgresql://postgres:5432/jetski_prod
+      -user=jetski
+      -password=${POSTGRES_PASSWORD}
+      -connectRetries=30
+      -baselineOnMigrate=true
+      -outOfOrder=true
+      migrate
+    volumes:
+      - ./backend/src/main/resources/db/migration:/flyway/sql:ro
+    depends_on:
+      - postgres
+    networks:
+      - jetski-network
