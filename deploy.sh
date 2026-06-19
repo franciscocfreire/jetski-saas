@@ -73,9 +73,9 @@ $PSQL -f /dev/stdin < infra/prod/02-verify-rls.sql || die "verificação de RLS 
 
 # 6. Build + recreate das apps
 if [ "${NO_BUILD:-0}" != "1" ]; then
-  log "build backend (--no-cache) e frontend..."
+  log "build backend + frontend (--no-cache p/ evitar reaproveitar imagem velha)..."
   $COMPOSE build --no-cache backend
-  $COMPOSE build frontend
+  $COMPOSE build --no-cache frontend
 fi
 log "recriando backend e frontend..."
 $COMPOSE up -d --force-recreate --no-deps backend frontend
