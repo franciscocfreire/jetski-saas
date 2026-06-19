@@ -85,11 +85,15 @@ log "recarregando OPA e subindo nginx/cloudflared..."
 $COMPOSE restart opa
 $COMPOSE up -d nginx cloudflared
 
-# 8. Smoke
-log "smoke check..."
-sleep 5
-code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8090/api/actuator/health || echo 000)
-[ "$code" = "200" ] && log "backend healthy (200)" || warn "backend health=$code (verifique: $COMPOSE logs backend)"
+# 8. Smoke (aguarda o boot do Spring — pode levar ~30-60s)
+log "smoke check (aguardando backend subir)..."
+code=000
+for i in $(seq 1 30); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8090/api/actuator/health || echo 000)
+  [ "$code" = "200" ] && break
+  sleep 3
+done
+[ "$code" = "200" ] && log "backend healthy (200)" || warn "backend health=$code após ~90s (verifique: $COMPOSE logs backend)"
 
 log "deploy concluído. Público: ${PUBLIC_URL}"
 $COMPOSE ps
