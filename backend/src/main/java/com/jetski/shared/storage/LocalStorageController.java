@@ -97,11 +97,24 @@ public class LocalStorageController {
                 contentType = MediaType.IMAGE_PNG;
             } else if (key.endsWith(".webp")) {
                 contentType = MediaType.parseMediaType("image/webp");
+            } else if (key.endsWith(".pdf")) {
+                contentType = MediaType.APPLICATION_PDF;
             }
+
+            // Nome de arquivo amigável (ex.: documento-<reserva>.pdf) p/ o download
+            String[] parts = key.split("/");
+            String filename = parts[parts.length - 1];
+            if (parts.length >= 2 && filename.equals("documento.pdf")) {
+                String ref = parts[parts.length - 2];
+                filename = "documento-" + ref.substring(0, Math.min(8, ref.length())) + ".pdf";
+            }
+            String disposition = (contentType == MediaType.APPLICATION_PDF ? "inline" : "attachment")
+                    + "; filename=\"" + filename + "\"";
 
             log.info("File downloaded successfully: key={}, size={} bytes", key, data.length);
             return ResponseEntity.ok()
                     .contentType(contentType)
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, disposition)
                     .body(data);
 
         } catch (IOException e) {

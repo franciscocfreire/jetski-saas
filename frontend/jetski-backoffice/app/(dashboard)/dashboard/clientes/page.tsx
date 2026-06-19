@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, MoreHorizontal, Users, Edit, Phone, Mail, Send } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Search, MoreHorizontal, Users, Edit, Phone, Mail, Send, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { clientesService, claimService } from '@/lib/api/services'
@@ -318,6 +319,12 @@ export default function ClientesPage() {
                         <DropdownMenuItem onClick={() => handleEdit(cliente)}>
                           <Edit className="mr-2 h-4 w-4" />
                           Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/dashboard/documentos?clienteId=${cliente.id}`}>
+                            <FileText className="mr-2 h-4 w-4" />
+                            Ver documentos
+                          </Link>
                         </DropdownMenuItem>
                         {(cliente.statusConta === 'PRE_CONTA' ||
                           cliente.statusConta === 'CONVIDADA') &&

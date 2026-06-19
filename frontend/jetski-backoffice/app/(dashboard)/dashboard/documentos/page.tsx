@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { FileText, FileDown, Search, Loader2 } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
@@ -27,8 +28,17 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 
 export default function DocumentosPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Carregando…</div>}>
+      <DocumentosConteudo />
+    </Suspense>
+  )
+}
+
+function DocumentosConteudo() {
   const { currentTenant } = useTenantStore()
-  const [clienteId, setClienteId] = useState<string>('')
+  const searchParams = useSearchParams()
+  const [clienteId, setClienteId] = useState<string>(searchParams.get('clienteId') ?? '')
   const [busca, setBusca] = useState('')
 
   const { data: clientes } = useQuery({
