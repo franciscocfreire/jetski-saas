@@ -1,0 +1,36 @@
+{
+  "name": "jetski-postman-tests",
+  "version": "2.3.0",
+  "description": "Automated API testing for Jetski SaaS using Postman Collections + Newman CLI",
+  "scripts": {
+    "test": "newman run Jetski-Jornadas.postman_collection.json -e environments/Local.postman_environment.json --reporters cli,json --reporter-json-export results/test-results.json",
+    "test:local": "newman run Jetski-Jornadas.postman_collection.json -e environments/Local.postman_environment.json --reporters cli,htmlextra --reporter-htmlextra-export results/report-local.html",
+    "test:dev": "newman run Jetski-Jornadas.postman_collection.json -e environments/Dev.postman_environment.json --reporters cli,htmlextra --reporter-htmlextra-export results/report-dev.html",
+    "test:staging": "newman run Jetski-Jornadas.postman_collection.json -e environments/Staging.postman_environment.json --reporters cli,htmlextra --reporter-htmlextra-export results/report-staging.html",
+    "test:rn01": "newman run Jetski-Jornadas.postman_collection.json -e environments/Local.postman_environment.json -d data/rn01-tolerance-rounding-tests.csv --folder '3. Cliente Walk-in (Operador)' --reporters cli,htmlextra --reporter-htmlextra-export results/rn01-report.html",
+    "test:negative": "newman run Jetski-Jornadas.postman_collection.json -e environments/Local.postman_environment.json --folder '6. Jornadas Negativas - Testes RBAC' --reporters cli",
+    "test:ci": "newman run Jetski-Jornadas.postman_collection.json -e environments/Local.postman_environment.json --reporters cli,junit --reporter-junit-export results/junit-report.xml --bail",
+    "test:watch": "nodemon --watch Jetski-Jornadas.postman_collection.json --exec 'npm run test:local'",
+    "report:open": "open results/report-local.html || xdg-open results/report-local.html",
+    "clean": "rm -rf results/*.html results/*.json results/*.xml"
+  },
+  "keywords": [
+    "postman",
+    "newman",
+    "api-testing",
+    "e2e",
+    "jetski",
+    "multi-tenant"
+  ],
+  "author": "Jetski Team",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "newman": "^6.1.1",
+    "newman-reporter-htmlextra": "^1.23.1",
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

@@ -2,6 +2,9 @@
 results/
 *.html
 *.json
+# ...mas o package.json precisa estar no repo (o CI/E2E faz `npm install` aqui;
+# sem ele dá ENOENT). As collections .json também são versionadas via git add -f.
+!package.json
 *.xml
 
 # Node modules
