@@ -85,6 +85,23 @@ log "recarregando OPA e subindo nginx/cloudflared..."
 $COMPOSE restart opa
 $COMPOSE up -d nginx cloudflared
 
+# 7.5 Keycloak: garantir o client jetski-backoffice confidencial + redirects de
+# produção (idempotente). Sem isso, um deploy do zero deixa o client público e o
+# login quebra. Não-fatal: a config persiste no banco do Keycloak após a 1ª vez.
+log "aguardando realm Keycloak e configurando client jetski-backoffice..."
+kc_ready=0
+for i in $(seq 1 40); do
+  if curl -sf http://127.0.0.1:8080/realms/jetski-saas/.well-known/openid-configuration >/dev/null 2>&1; then
+    kc_ready=1; break
+  fi
+  sleep 3
+done
+if [ "$kc_ready" = "1" ]; then
+  bash infra/prod/configure-keycloak-client.sh || warn "config do client Keycloak falhou (verifique manualmente)"
+else
+  warn "Keycloak realm não respondeu — pulei a config do client (rode infra/prod/configure-keycloak-client.sh depois)"
+fi
+
 # 8. Smoke (aguarda o boot do Spring — pode levar ~30-60s)
 log "smoke check (aguardando backend subir)..."
 code=000

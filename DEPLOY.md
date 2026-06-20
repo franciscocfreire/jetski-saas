@@ -74,8 +74,10 @@ cd ~/jetski
 ```
 
 `deploy.sh` sobe a infra, cria o role, aplica migrations (V001–V013, inclui seed do tenant ACME),
-verifica RLS, builda backend/frontend (ARM nativo) e sobe nginx + cloudflared.
-Ao final faz smoke check em `http://127.0.0.1:8090/api/actuator/health`.
+verifica RLS, builda backend/frontend (ARM nativo), sobe nginx + cloudflared, e **configura o
+client Keycloak** `jetski-backoffice` (confidencial + secret + PKCE + redirects do `PUBLIC_URL`,
+via `infra/prod/configure-keycloak-client.sh`, idempotente). Ao final faz smoke check em
+`http://127.0.0.1:8090/api/actuator/health`.
 
 Acesse: **https://jetsave.com.br** — login com os usuários do realm (ex: `admin@acme.com`).
 
