@@ -75,7 +75,9 @@ jobs:
       - name: Rodar Newman (collection Jetski-Jornadas)
         working-directory: backend/postman
         run: |
-          npm ci
+          # npm install (não `npm ci`): package-lock.json é gitignored neste módulo,
+          # e `npm ci` exige o lockfile. install resolve newman + reporters na hora.
+          npm install --no-audit --no-fund
           npx newman run Jetski-Jornadas.postman_collection.json \
             -e environments/Dev.postman_environment.json \
             --reporters cli,junit \
