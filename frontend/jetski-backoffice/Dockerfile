@@ -33,6 +33,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
+# Next.js standalone grava cache de runtime (ISR / otimização de imagem) em
+# .next/cache. Os COPY acima rodam como root, então criamos o dir e damos posse
+# ao usuário nextjs — sem isso, o runtime loga EACCES ao tentar escrever o cache.
+RUN mkdir -p /app/.next/cache && chown -R nextjs:nodejs /app/.next
+
 USER nextjs
 
 EXPOSE 3000

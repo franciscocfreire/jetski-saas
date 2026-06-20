@@ -36,24 +36,27 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
     steps:
-      - name: Configurar agente SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Adicionar host conhecido
+      # Setup manual da chave (sem webfactory/ssh-agent: evita o ruído de cleanup
+      # "Error stopping the SSH agent" e o aviso de Node 20 no runner).
+      - name: Configurar SSH (chave + known_hosts)
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy (git pull + deploy.sh no servidor)
+      # Comando remoto numa única string (sem `bash -lc` aninhado, que fazia o ssh
+      # reconcatenar e o shell remoto perder o argumento do -c → "bash: -c: option
+      # requires an argument"). $DEPLOY_PATH/$SKIP expandem aqui antes de enviar.
+      - name: Deploy (git reset + deploy.sh no servidor)
         env:
           SKIP: ${{ inputs.skip_build && '1' || '0' }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          ssh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" bash -lc '
-            set -e
-            cd "${{ secrets.DEPLOY_PATH }}"
-            git fetch origin main
-            git reset --hard origin/main
-            NO_PULL=1 NO_BUILD='"$SKIP"' ./deploy.sh
-          '
+          ssh -i ~/.ssh/id_deploy "$SSH_USER@$SSH_HOST" \
+            "set -e; cd '$DEPLOY_PATH'; git fetch origin main; git reset --hard origin/main; NO_PULL=1 NO_BUILD=$SKIP ./deploy.sh"

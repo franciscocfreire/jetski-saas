@@ -10,7 +10,10 @@ services:
     depends_on:
       - keycloak
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/health"]
+      # 127.0.0.1 (não "localhost"): /etc/hosts resolve localhost p/ ::1 também e o
+      # busybox wget tenta IPv6 primeiro, mas o nginx só faz `listen 80` (IPv4) →
+      # "Connection refused" e container (unhealthy), apesar do tráfego real (IPv4) ok.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/health"]
       interval: 10s
       timeout: 3s
       retries: 5
