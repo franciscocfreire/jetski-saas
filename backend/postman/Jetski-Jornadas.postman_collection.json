@@ -1954,17 +1954,20 @@
 					}
 				},
 				{
-					"name": "6.3. ❌ Operador tenta confirmar reserva (403)",
+					"name": "6.3. ✅ Operador autorizado a confirmar (reserva já confirmada em 2.4 → 400, não 403)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test('Status code é 403 Forbidden', function () {",
-									"    pm.response.to.have.status(403);",
+									"// OPERADOR tem reserva:confirmar (fluxo de balcão), então NÃO leva 403.",
+									"// A reserva já foi confirmada pelo Gerente em 2.4; logo canConfirm=false e a",
+									"// regra de negócio responde 400 Bad Request — o código correto aqui (não 403).",
+									"pm.test('Operador passa na autz e recebe 400 de negócio (não 403)', function () {",
+									"    pm.expect(pm.response.code).to.eql(400);",
 									"});",
 									"",
-									"console.log('✅ RBAC correto: Operador NÃO pode confirmar reserva (apenas Gerente)');"
+									"console.log('✅ RBAC: OPERADOR autorizado (balcão); reserva já confirmada → status=' + pm.response.code);"
 								]
 							}
 						}
@@ -1995,7 +1998,7 @@
 								"confirmar"
 							]
 						},
-						"description": "**Teste:** Operador NÃO pode confirmar reserva (precisa autorização de Gerente)\n\n**Esperado:** 403 Forbidden"
+						"description": "**Teste:** OPERADOR é autorizado a confirmar reserva (balcão; o RBAC concede `reserva:confirmar`). Como a reserva já foi confirmada em **2.4**, a regra de negócio responde **400** (não é possível confirmar) — provando que a autz passou (não 403). O caminho feliz (200) é coberto em 2.4; VENDEDOR é barrado em 6.6.\n\n**Esperado:** 400 Bad Request (de negócio, não 403 de autorização)."
 					}
 				},
 				{
