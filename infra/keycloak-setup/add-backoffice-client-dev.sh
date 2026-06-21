@@ -19,7 +19,7 @@ if [ -z "$ADMIN_TOKEN" ]; then
     exit 1
 fi
 
-# Criar client backoffice (confidential com secret para NextAuth)
+# Criar client backoffice (público + PKCE — NextAuth não usa secret)
 curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/clients" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" \
   -H "Content-Type: application/json" \
@@ -27,9 +27,7 @@ curl -s -o /dev/null -X POST "${KEYCLOAK_URL}/admin/realms/${REALM}/clients" \
     "clientId": "jetski-backoffice",
     "name": "Jetski Backoffice",
     "enabled": true,
-    "publicClient": false,
-    "clientAuthenticatorType": "client-secret",
-    "secret": "backoffice-secret",
+    "publicClient": true,
     "protocol": "openid-connect",
     "standardFlowEnabled": true,
     "directAccessGrantsEnabled": true,

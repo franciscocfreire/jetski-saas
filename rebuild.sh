@@ -11,7 +11,7 @@
 #   ./rebuild.sh --local      # Usa localhost em vez de ngrok
 #   ./rebuild.sh --migrate    # Executa migrations pendentes do Flyway
 #   ./rebuild.sh --clear-cache # Limpa cache Redis
-#   NGROK_URL=https://xxx.ngrok-free.app ./rebuild.sh  # Com ngrok customizado
+#   PUBLIC_URL=https://xxx.ngrok-free.app ./rebuild.sh  # Com ngrok customizado
 #
 # Exemplos:
 #   ./rebuild.sh                           # Rebuild tudo com ngrok padrao
@@ -44,7 +44,7 @@ RUN_MIGRATE=false
 CLEAR_CACHE=false
 
 # URL do ngrok padrao
-DEFAULT_NGROK_URL="https://pegaojet.com.br"
+DEFAULT_PUBLIC_URL="https://www.pegaojet.com.br"
 
 # Configuracoes do ambiente DEV (Docker)
 PG_USER="jetski"
@@ -83,7 +83,7 @@ for arg in "$@"; do
             echo "  --clear-cache Limpa cache Redis (recomendado após mudanças no backend)"
             echo ""
             echo "Variáveis de ambiente:"
-            echo "  NGROK_URL     URL do ngrok (default: $DEFAULT_NGROK_URL)"
+            echo "  PUBLIC_URL    URL pública do túnel (default: $DEFAULT_PUBLIC_URL)"
             echo ""
             echo "Exemplos:"
             echo "  $0                              # Rebuild tudo com ngrok padrao"
@@ -93,7 +93,7 @@ for arg in "$@"; do
             echo "  $0 --local                      # Rebuild para localhost"
             echo "  $0 backend --migrate            # Rebuild backend com migrations"
             echo "  $0 --clear-cache                # Rebuild tudo e limpa cache"
-            echo "  NGROK_URL=https://pegaojet.com.br $0  # Com ngrok customizado"
+            echo "  PUBLIC_URL=https://pegaojet.com.br $0  # Com ngrok customizado"
             exit 0
             ;;
     esac
@@ -104,7 +104,7 @@ if [ "$USE_LOCAL" = true ]; then
     BASE_URL="http://localhost:3001"
     KEYCLOAK_ISSUER="http://localhost:8080/realms/jetski-saas"
 else
-    BASE_URL="${NGROK_URL:-$DEFAULT_NGROK_URL}"
+    BASE_URL="${PUBLIC_URL:-$DEFAULT_PUBLIC_URL}"
     KEYCLOAK_ISSUER="${BASE_URL}/realms/jetski-saas"
     JETSKI_FRONTEND_URL="${BASE_URL}"
     JETSKI_EXTERNAL_URL="${BASE_URL}"

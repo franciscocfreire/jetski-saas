@@ -46,6 +46,10 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
+      # Substituição no import do realm (jetski-backoffice) com a URL pública de prod
+      # Nomes sem prefixo KC_ (reservado p/ opções de config do Keycloak).
+      BACKOFFICE_URL: ${PUBLIC_URL}
+      BACKOFFICE_REDIRECT: ${PUBLIC_URL}/*
     ports: !override
       - "127.0.0.1:8080:8080"
     mem_limit: 1200m
@@ -111,7 +115,8 @@ services:
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       AUTH_TRUST_HOST: "true"
       KEYCLOAK_CLIENT_ID: jetski-backoffice
-      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_BACKOFFICE_SECRET:-backoffice-secret}
+      # client público + PKCE (NextAuth não usa secret)
+      KEYCLOAK_CLIENT_SECRET: ""
       KEYCLOAK_ISSUER: ${PUBLIC_URL}/realms/jetski-saas
     ports: !override
       - "127.0.0.1:3001:3000"

@@ -7,7 +7,7 @@
 # Uso:
 #   ./reset-ambiente-dev.sh                    # Usa ngrok padrao
 #   ./reset-ambiente-dev.sh https://xxx.ngrok-free.app  # Com ngrok customizado
-#   NGROK_URL=https://xxx.ngrok-free.app ./reset-ambiente-dev.sh
+#   PUBLIC_URL=https://xxx.ngrok-free.app ./reset-ambiente-dev.sh
 ###############################################################################
 
 set -e  # Exit on error
@@ -38,9 +38,12 @@ KC_REALM="jetski-saas"
 # Tenant ACME (padrao)
 TENANT_ID="a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
 
-# URL do ngrok (argumento ou variavel de ambiente ou padrao)
-DEFAULT_NGROK_URL="https://pegaojet.com.br"
-NGROK_URL="${1:-${NGROK_URL:-$DEFAULT_NGROK_URL}}"
+# URL publica do tunel (argumento, variavel de ambiente ou padrao)
+DEFAULT_PUBLIC_URL="https://www.pegaojet.com.br"
+PUBLIC_URL="${1:-${PUBLIC_URL:-$DEFAULT_PUBLIC_URL}}"
+# Exportado para o `docker compose` substituir KC_BACKOFFICE_URL/REDIRECT no
+# import do realm (jetski-backoffice público + redirects do túnel).
+export PUBLIC_URL
 
 echo -e "${BLUE}========================================"
 echo "  RESET AMBIENTE DEV (Docker) - Pega o Jet"
@@ -50,8 +53,8 @@ echo "Configuracoes:"
 echo "   PostgreSQL: ${PG_HOST}:${PG_PORT}"
 echo "   Keycloak:   ${KC_HOST}:${KC_PORT}"
 echo "   Database:   ${PG_DB}"
-if [ -n "$NGROK_URL" ]; then
-    echo -e "   ${GREEN}Ngrok:      ${NGROK_URL}${NC}"
+if [ -n "$PUBLIC_URL" ]; then
+    echo -e "   ${GREEN}Tunel:      ${PUBLIC_URL}${NC}"
 fi
 echo ""
 
@@ -78,12 +81,12 @@ echo -e "${GREEN}   OK - Volumes removidos!${NC}"
 
 # 3. Rebuild e iniciar containers
 echo -e "${YELLOW}3. Iniciando containers (com rebuild)...${NC}"
-if [ -n "$NGROK_URL" ]; then
+if [ -n "$PUBLIC_URL" ]; then
     # Iniciar com variaveis do ngrok
-    NEXTAUTH_URL="$NGROK_URL" \
-    KEYCLOAK_ISSUER="$NGROK_URL/realms/jetski-saas" \
-    JETSKI_FRONTEND_URL="$NGROK_URL" \
-    JETSKI_EXTERNAL_URL="$NGROK_URL" \
+    NEXTAUTH_URL="$PUBLIC_URL" \
+    KEYCLOAK_ISSUER="$PUBLIC_URL/realms/jetski-saas" \
+    JETSKI_FRONTEND_URL="$PUBLIC_URL" \
+    JETSKI_EXTERNAL_URL="$PUBLIC_URL" \
     docker compose up -d --build
 else
     docker compose up -d --build
@@ -961,9 +964,9 @@ echo -e "${YELLOW}11. Configurando client backoffice...${NC}"
 KEYCLOAK_URL="http://${KC_HOST}:${KC_PORT}" bash "$SCRIPT_DIR/infra/keycloak-setup/add-backoffice-client-dev.sh" 2>/dev/null || true
 echo -e "${GREEN}   OK - Client backoffice configurado!${NC}"
 
-# 11.1 Configurar ngrok no client backoffice (se fornecido)
-if [ -n "$NGROK_URL" ]; then
-    echo -e "${YELLOW}11.1 Configurando ngrok no Keycloak...${NC}"
+# 11.1 Configurar URLs do túnel no client backoffice (se fornecido)
+if [ -n "$PUBLIC_URL" ]; then
+    echo -e "${YELLOW}11.1 Configurando URLs do túnel no Keycloak...${NC}"
 
     # Aguardar um pouco para garantir que o client foi criado
     sleep 3
@@ -986,14 +989,12 @@ if [ -n "$NGROK_URL" ]; then
             CURRENT_CLIENT=$(curl -s "http://${KC_HOST}:${KC_PORT}/admin/realms/${KC_REALM}/clients/$CLIENT_UUID" \
               -H "Authorization: Bearer $KC_TOKEN")
 
-            # Adicionar URLs do ngrok, garantir cliente confidencial, e configurar PKCE
+            # Adicionar URLs do túnel, manter client público e configurar PKCE
             UPDATED_CLIENT=$(echo "$CURRENT_CLIENT" | \
-              jq --arg ngrok "$NGROK_URL" \
+              jq --arg ngrok "$PUBLIC_URL" \
               '.redirectUris += [$ngrok + "/*", $ngrok + "/api/auth/callback/keycloak"] | .redirectUris |= unique |
                .webOrigins += [$ngrok] | .webOrigins |= unique |
-               .publicClient = false |
-               .clientAuthenticatorType = "client-secret" |
-               .secret = "backoffice-secret" |
+               .publicClient = true |
                .attributes["pkce.code.challenge.method"] = "S256"')
 
             # Atualizar client
@@ -1003,9 +1004,9 @@ if [ -n "$NGROK_URL" ]; then
               -d "$UPDATED_CLIENT")
 
             if [ "$HTTP_CODE" = "204" ]; then
-                echo -e "${GREEN}   OK - Ngrok configurado no backoffice: $NGROK_URL${NC}"
+                echo -e "${GREEN}   OK - Túnel configurado no backoffice: $PUBLIC_URL${NC}"
             else
-                echo -e "${YELLOW}   AVISO - Falha ao configurar ngrok (HTTP $HTTP_CODE)${NC}"
+                echo -e "${YELLOW}   AVISO - Falha ao configurar túnel (HTTP $HTTP_CODE)${NC}"
             fi
         else
             echo -e "${YELLOW}   AVISO - Client jetski-backoffice nao encontrado${NC}"
@@ -1153,11 +1154,11 @@ echo "   2. Limpar todos os cookies do site (ou fazer logout)"
 echo "   3. Limpar sessionStorage (DevTools → Application → Session Storage)"
 echo "   4. Fazer login novamente"
 echo ""
-if [ -n "$NGROK_URL" ]; then
-    echo -e "${GREEN}URLs do ambiente DEV (Ngrok):${NC}"
-    echo "   - Frontend:   $NGROK_URL"
-    echo "   - Backend:    $NGROK_URL/api"
-    echo "   - Keycloak:   $NGROK_URL/realms/jetski-saas"
+if [ -n "$PUBLIC_URL" ]; then
+    echo -e "${GREEN}URLs do ambiente DEV (Túnel):${NC}"
+    echo "   - Frontend:   $PUBLIC_URL"
+    echo "   - Backend:    $PUBLIC_URL/api"
+    echo "   - Keycloak:   $PUBLIC_URL/realms/jetski-saas"
     echo ""
 fi
 echo "URLs do ambiente DEV (Local):"
@@ -1178,7 +1179,7 @@ echo "   - operador@acme.com (senha: operador123) - OPERADOR"
 echo "   - vendedor@acme.com (senha: vendedor123) - VENDEDOR"
 echo "   - mecanico@acme.com (senha: mecanico123) - MECANICO"
 echo ""
-if [ -z "$NGROK_URL" ]; then
+if [ -z "$PUBLIC_URL" ]; then
     echo "Para expor na internet (ngrok):"
     echo "   ngrok http 80"
     echo "   # Depois execute: ./reset-ambiente-dev.sh https://xxx.ngrok-free.app"

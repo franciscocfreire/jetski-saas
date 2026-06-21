@@ -80,11 +80,17 @@ services:
       KC_DB_PASSWORD: dev123
       KC_DB_SCHEMA: keycloak
 
-      # Hostname config - importante para funcionar atrás do ngrok
+      # Hostname config - importante para funcionar atrás do túnel (Cloudflare)
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
+
+      # Substituição no import do realm (jetski-backoffice): resolve a URL pública
+      # do túnel. Sem túnel, usa localhost. Mesmo mecanismo no prod (PUBLIC_URL=jetsave).
+      # Nomes sem prefixo KC_ (reservado p/ opções de config do Keycloak).
+      BACKOFFICE_URL: ${PUBLIC_URL:-http://localhost:3002}
+      BACKOFFICE_REDIRECT: ${PUBLIC_URL:-http://localhost:3002}/*
 
       # Logging
       KC_LOG_LEVEL: INFO
@@ -227,12 +233,12 @@ services:
       # This disables __Secure- cookie prefix which Playwright can't handle
       NEXTAUTH_E2E_TESTING: "true"
 
-      # Keycloak OAuth
+      # Keycloak OAuth — client público + PKCE (NextAuth não usa secret)
       KEYCLOAK_CLIENT_ID: jetski-backoffice
-      KEYCLOAK_CLIENT_SECRET: backoffice-secret
-      # For server-side calls - default to nginx for local, override for ngrok
+      KEYCLOAK_CLIENT_SECRET: ""
+      # For server-side calls - default to nginx for local, override for túnel
       # Local: http://nginx/realms/jetski-saas
-      # Ngrok: https://539d02e90662.ngrok-free.app/realms/jetski-saas
+      # Túnel: https://www.pegaojet.com.br/realms/jetski-saas
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://nginx/realms/jetski-saas}
     depends_on:
       - backend

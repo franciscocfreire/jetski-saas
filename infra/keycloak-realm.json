@@ -47,17 +47,20 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "authorizationServicesEnabled": false,
-      "rootUrl": "http://localhost:3002",
+      "rootUrl": "${BACKOFFICE_URL:http://localhost:3002}",
       "baseUrl": "/",
       "redirectUris": [
-        "http://localhost:3002/api/auth/callback/keycloak",
-        "http://localhost:3002/*"
+        "http://localhost:3001/*",
+        "http://localhost:3002/*",
+        "${BACKOFFICE_REDIRECT:http://localhost:3002/*}"
       ],
       "webOrigins": [
-        "http://localhost:3002"
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "${BACKOFFICE_URL:http://localhost:3002}"
       ],
       "attributes": {
-        "pkce.code.challenge.method": "false"
+        "pkce.code.challenge.method": "S256"
       },
       "protocolMappers": [
         {
