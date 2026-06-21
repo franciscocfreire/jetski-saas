@@ -9,8 +9,11 @@ import { Header } from '@/components/layout/header'
 import { RentalNotificationProvider } from '@/components/providers/rental-notification-provider'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { setAuthToken, setTenantId } from '@/lib/api/client'
-import { userTenantsService } from '@/lib/api/services'
+import { userTenantsService, platformService } from '@/lib/api/services'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TenantStatusGate } from '@/components/tenant-status-gate'
+
+const OPERATIONAL_STATUSES = ['ATIVO', 'TRIAL']
 
 export default function DashboardLayout({
   children,
@@ -19,7 +22,7 @@ export default function DashboardLayout({
 }) {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const { currentTenant, setTenants, setCurrentTenant, clearTenant, _hasHydrated } = useTenantStore()
+  const { currentTenant, accessType, setTenants, setCurrentTenant, setAccessType, clearTenant, _hasHydrated } = useTenantStore()
   const [tenantsLoaded, setTenantsLoaded] = useState(false)
   const lastTokenRef = useRef<string | null>(null)
 
@@ -53,15 +56,31 @@ export default function DashboardLayout({
       // Load user tenants
       console.log('📡 Fetching user tenants...')
       userTenantsService.getMyTenants()
-        .then((response) => {
+        .then(async (response) => {
           console.log('✅ Tenants response:', response)
-          setTenants(response.tenants || [])
+          const memberships = response.tenants || []
+          setTenants(memberships)
+          setAccessType(response.accessType ?? null)
+
+          // Garante um tenant atual (e X-Tenant-Id) antes de chamadas tenant-scoped
+          let current = currentTenant
+          if (!current && memberships.length > 0) {
+            current = memberships[0]
+            console.log('🏢 Auto-selecting first tenant:', current)
+            setCurrentTenant(current)
+          }
           setTenantsLoaded(true)
 
-          // Auto-select first tenant if none selected
-          if (!currentTenant && response.tenants && response.tenants.length > 0) {
-            console.log('🏢 Auto-selecting first tenant:', response.tenants[0])
-            setCurrentTenant(response.tenants[0])
+          // Super admin: carrega TODAS as empresas no switcher (acesso total à plataforma)
+          if (response.accessType === 'UNRESTRICTED' && current) {
+            try {
+              const all = await platformService.listAllTenants()
+              if (all && all.length > 0) {
+                setTenants(all)
+              }
+            } catch (e) {
+              console.error('⚠️ Falha ao carregar todas as empresas (platform):', e)
+            }
           }
         })
         .catch((error) => {
@@ -70,7 +89,7 @@ export default function DashboardLayout({
           setTenantsLoaded(true) // Mark as loaded even on error to avoid infinite retries
         })
     }
-  }, [session?.accessToken, tenantsLoaded, currentTenant, setTenants, setCurrentTenant, _hasHydrated])
+  }, [session?.accessToken, tenantsLoaded, currentTenant, setTenants, setCurrentTenant, setAccessType, _hasHydrated])
 
   useEffect(() => {
     if (currentTenant) {
@@ -94,13 +113,23 @@ export default function DashboardLayout({
     return null
   }
 
+  // Gate de status: empresa selecionada não operacional (pendente/suspensa/etc.)
+  // mostra a tela de status no lugar do conteúdo, mantendo sidebar (switcher) e header.
+  // Super admin (UNRESTRICTED) é isento do gate — pode inspecionar qualquer empresa.
+  const tenantBlocked =
+    accessType !== 'UNRESTRICTED' &&
+    currentTenant != null &&
+    !OPERATIONAL_STATUSES.includes(currentTenant.status)
+
   return (
     <SidebarProvider>
       <RentalNotificationProvider>
         <AppSidebar />
         <SidebarInset>
           <Header />
-          <main className="flex-1 overflow-auto p-6">{children}</main>
+          <main className="flex flex-1 flex-col overflow-auto p-6">
+            {tenantBlocked ? <TenantStatusGate tenant={currentTenant!} /> : children}
+          </main>
         </SidebarInset>
       </RentalNotificationProvider>
     </SidebarProvider>

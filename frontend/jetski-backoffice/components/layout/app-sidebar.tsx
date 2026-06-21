@@ -25,6 +25,7 @@ import {
   Percent,
   Store,
   GraduationCap,
+  ShieldCheck,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -159,9 +160,17 @@ const sistemaItems = [
   },
 ]
 
+const platformItems = [
+  {
+    title: 'Empresas',
+    href: '/dashboard/plataforma',
+    icon: ShieldCheck,
+  },
+]
+
 export function AppSidebar() {
   const pathname = usePathname()
-  const { currentTenant, tenants, setCurrentTenant } = useTenantStore()
+  const { currentTenant, tenants, setCurrentTenant, accessType } = useTenantStore()
 
   const handleSignOut = () => {
     // Navegar para a página de logout que:
@@ -331,6 +340,26 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {accessType === 'UNRESTRICTED' && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Plataforma</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {platformItems.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)}>
+                      <Link href={item.href}>
+                        <item.icon className="size-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter>

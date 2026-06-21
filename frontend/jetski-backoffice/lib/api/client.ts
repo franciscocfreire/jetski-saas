@@ -81,12 +81,14 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
 
-    // Tenant ID will be set by the provider/hook
+    // Tenant ID will be set by the provider/hook.
+    // Não sobrescreve um X-Tenant-Id explícito da requisição (ações de plataforma
+    // do super admin operam no tenant alvo, não no tenant atual da sessão).
     const tenantId = typeof window !== 'undefined'
       ? sessionStorage.getItem('tenantId')
       : null
 
-    if (tenantId) {
+    if (tenantId && !config.headers['X-Tenant-Id']) {
       config.headers['X-Tenant-Id'] = tenantId
     }
 
