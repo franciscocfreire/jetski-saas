@@ -85,9 +85,11 @@ log "recarregando OPA e subindo nginx/cloudflared..."
 $COMPOSE restart opa
 $COMPOSE up -d nginx cloudflared
 
-# 7.5 Keycloak: garantir o client jetski-backoffice confidencial + redirects de
-# produção (idempotente). Sem isso, um deploy do zero deixa o client público e o
-# login quebra. Não-fatal: a config persiste no banco do Keycloak após a 1ª vez.
+# 7.5 Keycloak: converge o client jetski-backoffice (público + PKCE S256) +
+# redirects de produção, idempotente. Num realm NOVO o realm.json já nasce certo
+# (substituição de env var no import); este passo é a única forma de ajustar o
+# client num realm EXISTENTE sem zerar o realm (--import-realm não re-importa).
+# Não-fatal: a config persiste no banco do Keycloak.
 log "aguardando realm Keycloak e configurando client jetski-backoffice..."
 kc_ready=0
 for i in $(seq 1 40); do
