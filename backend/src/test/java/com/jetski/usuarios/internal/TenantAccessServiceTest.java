@@ -1,5 +1,8 @@
 package com.jetski.usuarios.internal;
 
+import com.jetski.tenant.TenantQueryService;
+import com.jetski.tenant.domain.Tenant;
+import com.jetski.tenant.domain.TenantStatus;
 import com.jetski.usuarios.domain.Membro;
 import com.jetski.usuarios.internal.UsuarioGlobalRoles;
 import com.jetski.usuarios.internal.repository.MembroRepository;
@@ -45,6 +48,9 @@ class TenantAccessServiceTest {
 
     @Mock
     private UsuarioGlobalRolesRepository globalRolesRepository;
+
+    @Mock
+    private TenantQueryService tenantQueryService;
 
     @InjectMocks
     private TenantAccessService tenantAccessService;
@@ -123,6 +129,8 @@ class TenantAccessServiceTest {
         Membro membro = createMembro(tenantId, usuarioId, "GERENTE", "FINANCEIRO");
         when(membroRepository.findActiveByUsuarioAndTenant(usuarioId, tenantId))
             .thenReturn(Optional.of(membro));
+        when(tenantQueryService.findById(tenantId))
+            .thenReturn(Tenant.builder().id(tenantId).status(TenantStatus.ATIVO).build());
 
         // When: Validating access
         TenantAccessInfo result = tenantAccessService.validateAccess(usuarioId, tenantId);
@@ -132,6 +140,7 @@ class TenantAccessServiceTest {
         assertThat(result.isUnrestricted()).isFalse();
         assertThat(result.getRoles()).containsExactlyInAnyOrder("GERENTE", "FINANCEIRO");
         assertThat(result.getReason()).isEqualTo("Access granted via membro table");
+        assertThat(result.getTenantStatus()).isEqualTo("ATIVO");
     }
 
     @Test
@@ -204,6 +213,8 @@ class TenantAccessServiceTest {
         Membro membro = createMembro(tenantId, usuarioId, "OPERADOR");
         when(membroRepository.findActiveByUsuarioAndTenant(usuarioId, tenantId))
             .thenReturn(Optional.of(membro));
+        when(tenantQueryService.findById(tenantId))
+            .thenReturn(Tenant.builder().id(tenantId).status(TenantStatus.ATIVO).build());
 
         // When: Validating access
         TenantAccessInfo result = tenantAccessService.validateAccess(usuarioId, tenantId);

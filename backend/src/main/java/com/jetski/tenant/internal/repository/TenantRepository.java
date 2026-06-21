@@ -5,6 +5,7 @@ import com.jetski.tenant.domain.TenantStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,4 +53,12 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
      * @return true if tenant exists with given status
      */
     boolean existsByIdAndStatus(UUID id, TenantStatus status);
+
+    /**
+     * Lista tenants por status (ex.: PENDENTE_APROVACAO para a fila de aprovação).
+     *
+     * @param status status do tenant
+     * @return tenants com o status informado, ordenados por criação
+     */
+    List<Tenant> findByStatusOrderByCreatedAtAsc(TenantStatus status);
 }

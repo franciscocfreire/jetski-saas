@@ -20,6 +20,7 @@ import com.jetski.usuarios.domain.event.MemberActivatedEvent;
 import com.jetski.usuarios.domain.event.MemberDeactivatedEvent;
 import com.jetski.usuarios.domain.event.MemberInvitedEvent;
 import com.jetski.usuarios.domain.event.MemberRolesChangedEvent;
+import com.jetski.tenant.domain.event.TenantStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -722,6 +723,51 @@ public class AuditEventListener {
         } catch (Exception e) {
             log.error("Failed to create audit entry for member deactivated: usuarioId={}, error={}",
                     event.usuarioId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Handles tenant status changes by the platform super admin (approve/suspend/reactivate).
+     *
+     * @param event the tenant status changed domain event
+     */
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onTenantStatusChanged(TenantStatusChangedEvent event) {
+        try {
+            log.debug("Processing audit for tenant status change: tenant={}, acao={}",
+                    event.tenantId(), event.acao());
+
+            Map<String, Object> dadosAnteriores = new HashMap<>();
+            dadosAnteriores.put("status", event.fromStatus());
+
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("status", event.toStatus());
+            dadosNovos.put("actor", event.actor() != null ? event.actor().toString() : null);
+            if (event.motivo() != null) {
+                dadosNovos.put("motivo", event.motivo());
+            }
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.actor())
+                    .acao(event.acao())
+                    .entidade("TENANT")
+                    .entidadeId(event.tenantId())
+                    .dadosAnteriores(dadosAnteriores)
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+
+            auditoriaRepository.save(auditoria);
+            log.info("Audit entry created for tenant status change: tenant={}, acao={}, auditId={}",
+                    event.tenantId(), event.acao(), auditoria.getId());
+
+        } catch (Exception e) {
+            log.error("Failed to create audit entry for tenant status change: tenant={}, error={}",
+                    event.tenantId(), e.getMessage(), e);
         }
     }
 

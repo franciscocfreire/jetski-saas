@@ -30,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.UUID;
@@ -64,8 +63,11 @@ public class TenantSignupService {
     @Value("${jetski.frontend.url:http://localhost:3000}")
     private String frontendUrl;
 
+    /** Super admins de plataforma notificados quando uma nova empresa se cadastra. */
+    @Value("${platform.admin-emails:}")
+    private String platformAdminEmails;
+
     private static final int TOKEN_VALIDITY_HOURS = 48;
-    private static final int TRIAL_DAYS = 14;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final String TOKEN_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     private static final int TEMP_PASSWORD_LENGTH = 12;
@@ -107,33 +109,20 @@ public class TenantSignupService {
             );
         }
 
-        // 4. Create Tenant
+        // 4. Create Tenant (PENDENTE_APROVACAO — aguarda liberação de um super admin)
         Tenant tenant = Tenant.builder()
             .slug(request.slug())
             .razaoSocial(request.razaoSocial())
             .cnpj(request.cnpj())
-            .status(TenantStatus.ATIVO)
+            .status(TenantStatus.PENDENTE_APROVACAO)
             .timezone("America/Sao_Paulo")
             .moeda("BRL")
             .build();
         tenantProvisioningService.save(tenant);
-        log.info("Tenant created: {} ({})", tenant.getId(), tenant.getSlug());
+        log.info("Tenant created (pendente aprovação): {} ({})", tenant.getId(), tenant.getSlug());
 
-        // 5. Create Assinatura with Trial plan
-        Instant trialExpiresAt = Instant.now().plus(TRIAL_DAYS, ChronoUnit.DAYS);
-        LocalDate trialEndDate = LocalDate.now().plusDays(TRIAL_DAYS);
-
-        entityManager.createNativeQuery(
-            """
-            INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, dt_fim, status)
-            SELECT ?1, p.id, 'mensal', CURRENT_DATE, ?2, 'ativa'
-            FROM plano p WHERE p.nome = 'Trial'
-            """
-        )
-        .setParameter(1, tenant.getId())
-        .setParameter(2, trialEndDate)
-        .executeUpdate();
-        log.info("Trial subscription created for tenant: {}", tenant.getId());
+        // 5. Assinatura Trial NÃO é criada aqui — só na aprovação (evita consumir o
+        //    período de trial durante a análise). Ver PlatformTenantService.approve.
 
         // 5.1. Create default fuel policy (INCLUSO - combustível incluído no preço)
         createDefaultFuelPolicy(tenant.getId());
@@ -169,12 +158,15 @@ public class TenantSignupService {
         );
         log.info("Activation email sent to: {}", request.adminEmail());
 
+        // Notifica super admins sobre a nova empresa aguardando aprovação (best-effort)
+        notifyPlatformAdmins(tenant);
+
         return TenantSignupResponse.forNewUser(
             tenant.getId(),
             tenant.getSlug(),
             tenant.getRazaoSocial(),
             request.adminEmail(),
-            trialExpiresAt
+            null  // trial só inicia na aprovação
         );
     }
 
@@ -204,33 +196,19 @@ public class TenantSignupService {
             throw new NotFoundException("Usuário não encontrado");
         }
 
-        // 3. Create Tenant
+        // 3. Create Tenant (PENDENTE_APROVACAO — aguarda liberação de um super admin)
         Tenant tenant = Tenant.builder()
             .slug(request.slug())
             .razaoSocial(request.razaoSocial())
             .cnpj(request.cnpj())
-            .status(TenantStatus.ATIVO)
+            .status(TenantStatus.PENDENTE_APROVACAO)
             .timezone("America/Sao_Paulo")
             .moeda("BRL")
             .build();
         tenantProvisioningService.save(tenant);
-        log.info("Tenant created for existing user: {} ({})", tenant.getId(), tenant.getSlug());
+        log.info("Tenant created for existing user (pendente aprovação): {} ({})", tenant.getId(), tenant.getSlug());
 
-        // 4. Create Assinatura with Trial plan
-        Instant trialExpiresAt = Instant.now().plus(TRIAL_DAYS, ChronoUnit.DAYS);
-        LocalDate trialEndDate = LocalDate.now().plusDays(TRIAL_DAYS);
-
-        entityManager.createNativeQuery(
-            """
-            INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, dt_fim, status)
-            SELECT ?1, p.id, 'mensal', CURRENT_DATE, ?2, 'ativa'
-            FROM plano p WHERE p.nome = 'Trial'
-            """
-        )
-        .setParameter(1, tenant.getId())
-        .setParameter(2, trialEndDate)
-        .executeUpdate();
-        log.info("Trial subscription created for tenant: {}", tenant.getId());
+        // 4. Assinatura Trial NÃO é criada aqui — só na aprovação (ver PlatformTenantService.approve).
 
         // 4.1. Create default fuel policy (INCLUSO - combustível incluído no preço)
         createDefaultFuelPolicy(tenant.getId());
@@ -262,11 +240,14 @@ public class TenantSignupService {
         .executeUpdate();
         log.info("TenantAccess created for user {} in tenant {}", usuarioId, tenant.getId());
 
+        // Notifica super admins sobre a nova empresa aguardando aprovação (best-effort)
+        notifyPlatformAdmins(tenant);
+
         return TenantSignupResponse.forExistingUser(
             tenant.getId(),
             tenant.getSlug(),
             tenant.getRazaoSocial(),
-            trialExpiresAt
+            null  // trial só inicia na aprovação
         );
     }
 
@@ -402,6 +383,29 @@ public class TenantSignupService {
             password.append(TEMP_PASSWORD_CHARS.charAt(SECURE_RANDOM.nextInt(TEMP_PASSWORD_CHARS.length())));
         }
         return password.toString();
+    }
+
+    /**
+     * Notifica (best-effort) os super admins de plataforma sobre uma nova empresa pendente.
+     * Lê os emails de {@code platform.admin-emails}; falha de envio não interrompe o signup.
+     */
+    private void notifyPlatformAdmins(Tenant tenant) {
+        if (platformAdminEmails == null || platformAdminEmails.isBlank()) {
+            return;
+        }
+        for (String raw : platformAdminEmails.split(",")) {
+            String to = raw.trim();
+            if (to.isEmpty()) {
+                continue;
+            }
+            try {
+                emailService.sendNewTenantNotification(to, tenant.getRazaoSocial(), tenant.getSlug());
+            } catch (Exception e) {
+                log.warn("Falha (ignorada) ao notificar super admin {} sobre nova empresa {}: {}",
+                    to, tenant.getSlug(), e.getMessage());
+            }
+        }
+        log.info("Super admins notificados sobre nova empresa pendente: {}", tenant.getSlug());
     }
 
     /**

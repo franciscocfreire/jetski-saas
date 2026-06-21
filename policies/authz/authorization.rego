@@ -38,6 +38,7 @@ import data.jetski.context
 # 1. Multi-Tenant Validation (Obrigatório)
 # =============================================================================
 
+default tenant_is_valid := false
 tenant_is_valid := multi_tenant.multi_tenant_valid
 
 # Se tenant inválido, nega imediatamente
@@ -55,18 +56,21 @@ is_platform_admin if {
     input.user.unrestricted_access == true
 }
 
+default platform_allow := false
 platform_allow := rbac.platform_allow
 
 # =============================================================================
 # 3. RBAC Validation
 # =============================================================================
 
+default rbac_allow := false
 rbac_allow := rbac.rbac_allow
 
 # =============================================================================
 # 4. Alçada Validation
 # =============================================================================
 
+default alcada_allow := false
 alcada_allow := alcada.alcada_allow
 
 alcada_requer_aprovacao := alcada.alcada_requer_aprovacao
@@ -77,6 +81,7 @@ alcada_aprovador_requerido := alcada.alcada_aprovador_requerido
 # 5. Business Rules Validation
 # =============================================================================
 
+default business_allow := false
 business_allow := business.business_allow
 
 # Coleta deny reasons de business rules
@@ -88,6 +93,7 @@ deny contains msg if {
 # 6. Context Validation
 # =============================================================================
 
+default context_allow := false
 context_allow := context.context_allow
 
 # Coleta deny reasons de context
@@ -107,10 +113,11 @@ warnings contains msg if {
 # Decisão final: permite se passou em todas as validações
 default allow := false
 
-# Platform admin sempre permite (para ações de plataforma)
+# Platform admin (super admin / unrestricted_access) tem acesso TOTAL: pode executar
+# qualquer ação em qualquer tenant que tenha selecionado (X-Tenant-Id). O isolamento
+# continua garantido pelo RLS (escopado ao tenant da sessão) — sem bypass cross-tenant.
 allow if {
     is_platform_admin
-    platform_allow
 }
 
 # Autorização normal: RBAC + Alçada + Business + Context + Tenant

@@ -185,9 +185,23 @@ public class TenantFilter extends OncePerRequestFilter {
         // Store roles and usuarioId in context for @PreAuthorize and controllers
         TenantContext.setUserRoles(accessInfo.getRoles());
 
+        // Store unrestricted flag (super admin) for ABAC → OPA propagation
+        TenantContext.setUnrestricted(accessInfo.isUnrestricted());
+
         // Store resolved PostgreSQL usuario.id (NOT Keycloak UUID!)
         if (accessInfo.getUsuarioId() != null) {
             TenantContext.setUsuarioId(accessInfo.getUsuarioId());
+        }
+
+        // Gate de status: tenants não-operacionais (PENDENTE_APROVACAO/SUSPENSO/INATIVO/
+        // CANCELADO) bloqueiam operações de usuários normais. Super admin (irrestrito) é isento.
+        if (!accessInfo.isUnrestricted()) {
+            String status = accessInfo.getTenantStatus();
+            if (status != null && !"ATIVO".equals(status) && !"TRIAL".equals(status)) {
+                log.warn("Tenant não-operacional: tenant={}, status={}, usuario={}",
+                    tenantId, status, accessInfo.getUsuarioId());
+                throw new AccessDeniedException("TENANT_" + status);
+            }
         }
 
         log.debug("Access validated: provider={}, providerUserId={}, tenant={}, roles={}, unrestricted={}, usuarioId={}",

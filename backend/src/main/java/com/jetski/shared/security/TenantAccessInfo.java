@@ -56,6 +56,14 @@ public class TenantAccessInfo {
     private UUID usuarioId;
 
     /**
+     * Status do tenant (nome do enum TenantStatus) no momento da validação.
+     * Usado pelo gate de acesso (TenantFilter) para bloquear tenants não-operacionais
+     * (ex.: PENDENTE_APROVACAO, SUSPENSO). Null para acesso irrestrito (super admin,
+     * que é isento do gate) ou acesso negado.
+     */
+    private String tenantStatus;
+
+    /**
      * Factory method: Access denied
      */
     public static TenantAccessInfo denied(String reason) {

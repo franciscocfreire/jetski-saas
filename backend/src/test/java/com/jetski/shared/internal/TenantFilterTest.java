@@ -269,6 +269,73 @@ class TenantFilterTest {
     }
 
     @Test
+    void shouldDenyWhenTenantNotOperationalForNormalUser() {
+        // Given - usuário é membro, mas o tenant está PENDENTE_APROVACAO
+        UUID tenantId = UUID.randomUUID();
+        String providerUserId = UUID.randomUUID().toString();
+        String provider = "keycloak";
+        request.addHeader("X-Tenant-Id", tenantId.toString());
+        request.setRequestURI("/api/v1/modelos");
+
+        Jwt jwt = mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn(providerUserId);
+        when(jwt.getClaimAsString("provider")).thenReturn(provider);
+        Authentication auth = mock(Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        when(auth.getPrincipal()).thenReturn(jwt);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(auth);
+        SecurityContextHolder.setContext(securityContext);
+
+        TenantAccessInfo accessInfo = TenantAccessInfo.builder()
+                .hasAccess(true)
+                .roles(List.of("ADMIN_TENANT"))
+                .unrestricted(false)
+                .tenantStatus("PENDENTE_APROVACAO")
+                .build();
+        when(tenantAccessService.validateAccess(provider, providerUserId, tenantId)).thenReturn(accessInfo);
+
+        // When / Then - gate bloqueia com código TENANT_<STATUS>
+        assertThatThrownBy(() ->
+                tenantFilter.doFilterInternal(request, response, filterChain))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("TENANT_PENDENTE_APROVACAO");
+        verifyNoInteractions(filterChain);
+    }
+
+    @Test
+    void shouldBypassStatusGateForUnrestrictedSuperAdmin() throws ServletException, IOException {
+        // Given - super admin (irrestrito) entra em tenant PENDENTE: gate é isento
+        UUID tenantId = UUID.randomUUID();
+        String providerUserId = UUID.randomUUID().toString();
+        String provider = "keycloak";
+        request.addHeader("X-Tenant-Id", tenantId.toString());
+        request.setRequestURI("/api/v1/modelos");
+
+        Jwt jwt = mock(Jwt.class);
+        when(jwt.getSubject()).thenReturn(providerUserId);
+        when(jwt.getClaimAsString("provider")).thenReturn(provider);
+        Authentication auth = mock(Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        when(auth.getPrincipal()).thenReturn(jwt);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(auth);
+        SecurityContextHolder.setContext(securityContext);
+
+        TenantAccessInfo accessInfo = TenantAccessInfo.builder()
+                .hasAccess(true)
+                .roles(List.of("PLATFORM_ADMIN"))
+                .unrestricted(true)
+                .tenantStatus("PENDENTE_APROVACAO")
+                .build();
+        when(tenantAccessService.validateAccess(provider, providerUserId, tenantId)).thenReturn(accessInfo);
+
+        // When / Then - prossegue normalmente (sem gate)
+        tenantFilter.doFilterInternal(request, response, filterChain);
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
     void shouldAllowRequestWhenUserHasUnrestrictedAccess() throws ServletException, IOException {
         // Given
         UUID tenantId = UUID.randomUUID();

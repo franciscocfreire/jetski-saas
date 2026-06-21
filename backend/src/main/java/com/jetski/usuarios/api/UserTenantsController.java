@@ -99,25 +99,19 @@ public class UserTenantsController {
                 // Count total tenants
                 long count = tenantAccessService.countUserTenants(usuarioId);
 
-                if (count == -1) {
-                    // Super admin with unrestricted access
-                    return ResponseEntity.ok(
-                        UserTenantsResponse.unrestricted()
-                    );
-                }
-
-                // Normal user - list specific tenants
+                // Build tenant summaries from the user's own memberships (também p/ super admin)
                 List<Membro> membros = tenantAccessService.listUserTenants(usuarioId);
-
-                // Fetch tenant details
                 List<UUID> tenantIds = membros.stream()
                     .map(Membro::getTenantId)
                     .collect(Collectors.toList());
-
                 Map<UUID, Tenant> tenantsMap = tenantQueryService.findTenantsById(tenantIds);
-
-                // Build TenantSummary list
                 List<TenantSummary> tenantSummaries = buildTenantSummaries(membros, tenantsMap);
+
+                if (count == -1) {
+                    return ResponseEntity.ok(
+                        UserTenantsResponse.unrestricted(tenantSummaries)
+                    );
+                }
 
                 return ResponseEntity.ok(
                     UserTenantsResponse.limited(tenantSummaries, count)
@@ -133,25 +127,21 @@ public class UserTenantsController {
         // Count total tenants
         long count = tenantAccessService.countUserTenants(usuarioId);
 
-        if (count == -1) {
-            // Super admin with unrestricted access
-            return ResponseEntity.ok(
-                UserTenantsResponse.unrestricted()
-            );
-        }
-
-        // Normal user - list specific tenants
+        // Build tenant summaries from the user's own memberships (também p/ super admin,
+        // para que ele tenha contexto de tenant ao operar o painel de plataforma)
         List<Membro> membros = tenantAccessService.listUserTenants(usuarioId);
-
-        // Fetch tenant details
         List<UUID> tenantIds = membros.stream()
             .map(Membro::getTenantId)
             .collect(Collectors.toList());
-
         Map<UUID, Tenant> tenantsMap = tenantQueryService.findTenantsById(tenantIds);
-
-        // Build TenantSummary list
         List<TenantSummary> tenantSummaries = buildTenantSummaries(membros, tenantsMap);
+
+        if (count == -1) {
+            // Super admin with unrestricted access (inclui suas próprias associações)
+            return ResponseEntity.ok(
+                UserTenantsResponse.unrestricted(tenantSummaries)
+            );
+        }
 
         return ResponseEntity.ok(
             UserTenantsResponse.limited(tenantSummaries, count)

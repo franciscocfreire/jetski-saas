@@ -60,6 +60,15 @@ public class ActionExtractor {
 
         log.debug("Extracting action from: {} {}", method, uri);
 
+        // Ações de plataforma (super admin): /v1/platform/... → "platform:<último-segmento>".
+        // Garante prefixo "platform:" para casar com as políticas OPA (allow_platform),
+        // ex.: POST /v1/platform/tenants/{id}/approve → "platform:approve".
+        if (uri.startsWith("/v1/platform")) {
+            Matcher last = SUB_ACTION_PATTERN.matcher(uri);
+            String sub = last.find() ? last.group(1) : method.toLowerCase();
+            return "platform:" + sub;
+        }
+
         // Tenta extrair resource (primeiro segmento após /v1/)
         String resource = extractResource(uri);
         if (resource == null) {

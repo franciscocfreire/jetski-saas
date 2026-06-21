@@ -49,11 +49,19 @@ public class UserTenantsResponse {
      * Factory method: Unrestricted access
      */
     public static UserTenantsResponse unrestricted() {
+        return unrestricted(List.of());
+    }
+
+    /**
+     * Factory method: Unrestricted access incluindo as próprias associações do super admin,
+     * para que ele tenha um contexto de tenant (X-Tenant-Id) ao operar o painel de plataforma.
+     */
+    public static UserTenantsResponse unrestricted(List<TenantSummary> tenants) {
         return UserTenantsResponse.builder()
             .accessType("UNRESTRICTED")
             .totalTenants(-1L)
             .message("Full platform access - use tenant search")
-            .tenants(List.of())
+            .tenants(tenants)
             .build();
     }
 

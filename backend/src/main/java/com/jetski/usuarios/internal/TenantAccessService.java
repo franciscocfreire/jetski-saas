@@ -3,6 +3,8 @@ package com.jetski.usuarios.internal;
 import com.jetski.usuarios.api.IdentityProviderMappingService;
 import com.jetski.usuarios.domain.Membro;
 import com.jetski.usuarios.internal.UsuarioGlobalRoles;
+import com.jetski.tenant.TenantQueryService;
+import com.jetski.tenant.domain.Tenant;
 import com.jetski.usuarios.internal.repository.MembroRepository;
 import com.jetski.usuarios.internal.repository.UsuarioGlobalRolesRepository;
 import com.jetski.shared.security.TenantAccessValidator;
@@ -44,6 +46,7 @@ public class TenantAccessService implements TenantAccessValidator {
     private final MembroRepository membroRepository;
     private final UsuarioGlobalRolesRepository globalRolesRepository;
     private final IdentityProviderMappingService identityMappingService;
+    private final TenantQueryService tenantQueryService;
 
     /**
      * Validates user access to tenant using identity provider mapping
@@ -118,9 +121,19 @@ public class TenantAccessService implements TenantAccessValidator {
 
         if (membro.isPresent()) {
             List<String> roles = Arrays.asList(membro.get().getPapeis());
-            log.debug("Access granted: user={}, tenant={}, roles={}",
-                usuarioId, tenantId, roles);
-            return TenantAccessInfo.allowed(roles, usuarioId);
+            // Carrega o status do tenant para o gate de acesso (TenantFilter).
+            Tenant tenant = tenantQueryService.findById(tenantId);
+            String tenantStatus = tenant != null ? tenant.getStatus().name() : null;
+            log.debug("Access granted: user={}, tenant={}, roles={}, status={}",
+                usuarioId, tenantId, roles, tenantStatus);
+            return TenantAccessInfo.builder()
+                .hasAccess(true)
+                .roles(roles)
+                .unrestricted(false)
+                .reason("Access granted via membro table")
+                .usuarioId(usuarioId)
+                .tenantStatus(tenantStatus)
+                .build();
         }
 
         // 3. Access denied

@@ -238,7 +238,8 @@ class TenantAccessInfoTest {
             roles,
             false,
             "All args constructor test",
-            TEST_USUARIO_ID
+            TEST_USUARIO_ID,
+            "ATIVO"
         );
 
         // Then
@@ -246,6 +247,7 @@ class TenantAccessInfoTest {
         assertThat(info.getRoles()).isEqualTo(roles);
         assertThat(info.isUnrestricted()).isFalse();
         assertThat(info.getReason()).isEqualTo("All args constructor test");
+        assertThat(info.getTenantStatus()).isEqualTo("ATIVO");
     }
 
     // ========================================================================

@@ -10,6 +10,12 @@ package com.jetski.tenant.domain;
  */
 public enum TenantStatus {
     /**
+     * Pending approval - empresa recém-cadastrada aguardando liberação de um super admin.
+     * Não opera até ser aprovada (ver gate em TenantFilter).
+     */
+    PENDENTE_APROVACAO,
+
+    /**
      * Trial tenant - testing period
      */
     TRIAL,
