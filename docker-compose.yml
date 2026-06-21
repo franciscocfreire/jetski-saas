@@ -147,6 +147,19 @@ services:
       - jetski-network
     restart: unless-stopped
 
+  # ============ EMAIL CATCHER (DEV) ============
+  # Mailpit: servidor SMTP local que captura todos os emails e mostra numa UI web.
+  # SMTP em :1025 (o backend envia pra cá), UI em http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: jetski-mailpit
+    ports:
+      - "0.0.0.0:1025:1025"   # SMTP
+      - "0.0.0.0:8025:8025"   # Web UI
+    networks:
+      - jetski-network
+    restart: unless-stopped
+
   # ============ BACKEND ============
   backend:
     build:
@@ -186,7 +199,9 @@ services:
       STORAGE_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       STORAGE_MINIO_BUCKET: ${MINIO_BUCKET:-jetski-docs}
 
-      # Email (Gmail SMTP)
+      # Email: em dev envia para o Mailpit (UI em http://localhost:8025).
+      # O host/port default (mailpit:1025) vêm do application-dev.yml.
+      EMAIL_DEV_SMTP_ENABLED: "true"
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
 
@@ -195,6 +210,9 @@ services:
 
       # External URL (for ngrok or other tunnels - used for JWT issuer validation)
       JETSKI_EXTERNAL_URL: ${JETSKI_EXTERNAL_URL:-}
+
+      # Super admin de plataforma (emails separados por vírgula) — promovidos no boot
+      PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
 
       # Logging
       LOGGING_LEVEL_ROOT: INFO
@@ -207,6 +225,7 @@ services:
       - keycloak
       - opa
       - minio
+      - mailpit
     restart: unless-stopped
     networks:
       - jetski-network

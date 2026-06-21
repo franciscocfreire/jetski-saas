@@ -127,3 +127,8 @@ jwt:
     # Secret for HMAC-SHA256 signing (min 32 bytes)
     # IMPORTANT: Override this in production with environment variable or secrets manager
     secret: jetski-magic-link-secret-change-this-in-production-at-least-32-bytes
+
+# Plataforma (super admin global). Emails separados por vírgula promovidos no boot a
+# usuario_global_roles.unrestricted_access=true (ver PlatformAdminSeeder). Vazio = nenhum.
+platform:
+  admin-emails: ${PLATFORM_ADMIN_EMAILS:}

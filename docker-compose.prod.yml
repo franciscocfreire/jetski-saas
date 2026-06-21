@@ -102,6 +102,8 @@ services:
       JETSKI_FRONTEND_URL: ${PUBLIC_URL}
       JETSKI_EXTERNAL_URL: ${PUBLIC_URL}
       JETSKI_ALLOWED_ORIGINS: ${PUBLIC_URL}
+      # Super admin de plataforma (emails separados por vírgula) — promovidos no boot
+      PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
     ports: !override
       - "127.0.0.1:8090:8090"
     mem_limit: 1500m
