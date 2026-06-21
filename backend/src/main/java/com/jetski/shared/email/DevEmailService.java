@@ -2,8 +2,14 @@ package com.jetski.shared.email;
 
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+
+import jakarta.mail.internet.MimeMessage;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -42,6 +48,23 @@ public class DevEmailService implements EmailService {
     // Pattern to extract magic token from activation link
     private static final Pattern MAGIC_TOKEN_PATTERN =
         Pattern.compile("magic-activate\\?token=([^\\s\"]+)");
+
+    /**
+     * Quando true, além de logar, envia o email via SMTP (Mailpit em dev).
+     * Default false → comportamento atual (só log), seguro para CI/test.
+     */
+    @Value("${jetski.email.dev-smtp-enabled:false}")
+    private boolean devSmtpEnabled;
+
+    @Value("${jetski.email.from:noreply@pegaojet.com.br}")
+    private String fromEmail;
+
+    @Value("${jetski.email.from-name:Pega o Jet}")
+    private String fromName;
+
+    /** Opcional: presente quando spring.mail.host está configurado (Mailpit em dev). */
+    @Autowired(required = false)
+    private JavaMailSender mailSender;
 
     /**
      * Last email data - stored for E2E testing purposes.
@@ -101,23 +124,33 @@ public class DevEmailService implements EmailService {
 
     @Override
     public void sendInvitationEmail(String to, String name, String activationLink, String temporaryPassword) {
-        String subject = "Você foi convidado para o Pega o Jet";
-        String body = buildInvitationEmailBody(name, activationLink, temporaryPassword);
+        String subject = EmailTemplates.INVITATION_SUBJECT;
 
         // Store last email data for E2E testing
         lastEmail = new LastEmailData(to, name, subject, activationLink, temporaryPassword);
         log.info("📧 Last email data stored for E2E testing: to={}, magicToken={}", to,
             lastEmail.getMagicToken() != null ? lastEmail.getMagicToken().substring(0, 20) + "..." : "null");
 
-        logAndSaveEmail(to, subject, body);
+        // Log/arquivo em texto legível; envio (Mailpit) usa o MESMO HTML do prod.
+        logAndSaveEmail(to, subject, buildInvitationEmailBody(name, activationLink, temporaryPassword));
+        maybeSendViaSmtp(to, subject, EmailTemplates.invitationHtml(name, activationLink, temporaryPassword));
     }
 
     @Override
     public void sendPasswordResetEmail(String to, String name, String resetLink) {
-        String subject = "Pega o Jet - Redefinição de senha";
-        String body = buildPasswordResetEmailBody(name, resetLink);
+        String subject = EmailTemplates.PASSWORD_RESET_SUBJECT;
 
+        logAndSaveEmail(to, subject, buildPasswordResetEmailBody(name, resetLink));
+        maybeSendViaSmtp(to, subject, EmailTemplates.passwordResetHtml(name, resetLink));
+    }
+
+    @Override
+    public void sendNewTenantNotification(String to, String razaoSocial, String slug) {
+        String subject = EmailTemplates.NEW_TENANT_SUBJECT;
+        String body = String.format(
+            "Nova empresa aguardando aprovação:%n  Empresa: %s%n  Identificador: %s%n", razaoSocial, slug);
         logAndSaveEmail(to, subject, body);
+        maybeSendViaSmtp(to, subject, EmailTemplates.newTenantNotificationHtml(razaoSocial, slug));
     }
 
     @Override
@@ -127,6 +160,8 @@ public class DevEmailService implements EmailService {
         String body = String.format("%s%n%n[ANEXO] %s (%s, %d bytes)",
             htmlBody, attachmentName, attachmentContentType, size);
         logAndSaveEmail(to, subject, body);
+        // Mailpit recebe o HTML (sem o anexo — suficiente para inspeção visual em dev).
+        maybeSendViaSmtp(to, subject, htmlBody);
     }
 
     private void logAndSaveEmail(String to, String subject, String body) {
@@ -156,6 +191,29 @@ public class DevEmailService implements EmailService {
             log.debug("Email saved to: {}", filePath);
         } catch (IOException e) {
             log.warn("Failed to save email to file: to={}", to, e);
+        }
+    }
+
+    /**
+     * Em dev, opcionalmente envia o email (HTML) via SMTP (Mailpit) para inspeção visual.
+     * Usa o MESMO template HTML do prod (EmailTemplates), então o que se vê no Mailpit é fiel.
+     * Best-effort: uma falha de SMTP NUNCA interrompe o fluxo (signup/convite) nem o E2E.
+     */
+    private void maybeSendViaSmtp(String to, String subject, String htmlBody) {
+        if (!devSmtpEnabled || mailSender == null) {
+            return;
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setFrom(fromEmail, fromName);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlBody, true);
+            mailSender.send(message);
+            log.info("📨 Email enviado para o capturador SMTP (Mailpit): to={}, subject={}", to, subject);
+        } catch (Exception e) {
+            log.warn("Falha (ignorada) ao enviar email via SMTP em dev: to={}, error={}", to, e.getMessage());
         }
     }
 

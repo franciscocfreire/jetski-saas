@@ -50,4 +50,13 @@ public interface EmailService {
      */
     void sendEmailComAnexo(String to, String subject, String htmlBody,
                            String attachmentName, byte[] attachment, String attachmentContentType);
+
+    /**
+     * Notifica um super admin de plataforma sobre uma nova empresa aguardando aprovação.
+     *
+     * @param to          email do super admin
+     * @param razaoSocial razão social da empresa cadastrada
+     * @param slug        identificador (slug) da empresa
+     */
+    void sendNewTenantNotification(String to, String razaoSocial, String slug);
 }
