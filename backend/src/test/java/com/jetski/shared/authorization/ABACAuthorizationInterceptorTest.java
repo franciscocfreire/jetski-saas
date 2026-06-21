@@ -494,6 +494,50 @@ class ABACAuthorizationInterceptorTest extends AbstractIntegrationTest {
                     .header("X-Tenant-Id", UUID.randomUUID().toString()))
                 .andExpect(status().isOk());
         }
+
+        @Test
+        @DisplayName("Should propagate unrestricted_access=true to OPAInput for platform admin")
+        void shouldPropagateUnrestrictedAccessForPlatformAdmin() throws Exception {
+            // Given - TenantAccessService grants unrestricted (super admin)
+            when(tenantAccessService.validateAccess(any(String.class), eq(PLATFORM_ADMIN_UUID), any(UUID.class)))
+                .thenReturn(TenantAccessInfo.unrestricted(
+                    List.of("PLATFORM_ADMIN"), UUID.fromString(PLATFORM_ADMIN_UUID)));
+
+            when(opaAuthorizationService.authorize(any(OPAInput.class)))
+                .thenReturn(OPADecision.builder().allow(true).tenantIsValid(true).build());
+
+            // When
+            mockMvc.perform(get("/v1/auth-test/me")
+                    .with(jwtPlatformAdmin())
+                    .header("X-Tenant-Id", TENANT_ID))
+                .andExpect(status().isOk());
+
+            // Then - OPAInput carries unrestricted_access=true (habilita platform_allow no OPA)
+            verify(opaAuthorizationService).authorize(argThat(input -> {
+                assertThat(input.getUser().getUnrestricted_access()).isTrue();
+                return true;
+            }));
+        }
+
+        @Test
+        @DisplayName("Should NOT set unrestricted_access for normal user (omitted/null)")
+        void shouldNotSetUnrestrictedForNormalUser() throws Exception {
+            // Given - default mock returns unrestricted=false
+            when(opaAuthorizationService.authorize(any(OPAInput.class)))
+                .thenReturn(OPADecision.builder().allow(true).tenantIsValid(true).build());
+
+            // When
+            mockMvc.perform(get("/v1/auth-test/me")
+                    .with(jwtOperador())
+                    .header("X-Tenant-Id", TENANT_ID))
+                .andExpect(status().isOk());
+
+            // Then - campo omitido (null) p/ usuário normal
+            verify(opaAuthorizationService).authorize(argThat(input -> {
+                assertThat(input.getUser().getUnrestricted_access()).isNull();
+                return true;
+            }));
+        }
     }
 
     @Nested

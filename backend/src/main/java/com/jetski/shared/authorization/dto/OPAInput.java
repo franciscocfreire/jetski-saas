@@ -64,6 +64,13 @@ public class OPAInput {
         private String role;
         private List<String> roles;
         private String email;
+
+        /**
+         * Acesso irrestrito de plataforma (super admin). Quando true, as políticas
+         * Rego liberam ações de plataforma (tenant:*, plano:*, platform:*) e bypassam
+         * a validação multi-tenant. Omitido (null) para usuários normais.
+         */
+        private Boolean unrestricted_access;
     }
 
     /**

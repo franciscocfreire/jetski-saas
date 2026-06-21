@@ -34,6 +34,7 @@ public class TenantContext {
     private static final ThreadLocal<UUID> TENANT_ID = new ThreadLocal<>();
     private static final ThreadLocal<List<String>> USER_ROLES = new ThreadLocal<>();
     private static final ThreadLocal<UUID> USUARIO_ID = new ThreadLocal<>();
+    private static final ThreadLocal<Boolean> UNRESTRICTED = new ThreadLocal<>();
 
     /**
      * Private constructor to prevent instantiation
@@ -132,6 +133,24 @@ public class TenantContext {
     }
 
     /**
+     * Set whether the current user has unrestricted platform access (super admin)
+     *
+     * @param unrestricted true if the user can access ANY tenant without membership
+     */
+    public static void setUnrestricted(boolean unrestricted) {
+        UNRESTRICTED.set(unrestricted);
+    }
+
+    /**
+     * Check if the current user has unrestricted platform access (super admin)
+     *
+     * @return true if unrestricted, false if not set or restricted
+     */
+    public static boolean isUnrestricted() {
+        return Boolean.TRUE.equals(UNRESTRICTED.get());
+    }
+
+    /**
      * Clear the tenant ID, roles, and usuario ID from the current thread
      *
      * MUST be called in a finally block to prevent memory leaks
@@ -144,6 +163,7 @@ public class TenantContext {
         TENANT_ID.remove();
         USER_ROLES.remove();
         USUARIO_ID.remove();
+        UNRESTRICTED.remove();
     }
 
     /**

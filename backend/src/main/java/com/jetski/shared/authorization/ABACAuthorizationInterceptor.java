@@ -181,12 +181,17 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
             email = authentication.getName() + "@test.com";
         }
 
+        // Super admin (acesso irrestrito de plataforma): resolvido pelo TenantFilter
+        // via TenantAccessService. Propaga true ao OPA; omite (null) p/ usuários normais.
+        Boolean unrestricted = TenantContext.isUnrestricted() ? Boolean.TRUE : null;
+
         return OPAInput.UserContext.builder()
             .id(userId)
             .tenant_id(tenantId != null ? tenantId.toString() : null)
             .role(role)
             .roles(roles)
             .email(email)
+            .unrestricted_access(unrestricted)
             .build();
     }
 
