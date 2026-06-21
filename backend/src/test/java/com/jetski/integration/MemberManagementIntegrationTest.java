@@ -158,6 +158,24 @@ class MemberManagementIntegrationTest extends AbstractIntegrationTest {
     }
 
     /**
+     * Create a global usuario WITHOUT any membership (existing identity in another context).
+     */
+    @org.springframework.transaction.annotation.Transactional
+    private UUID createUsuarioOnly(String email, String nome) {
+        UUID usuarioId = UUID.randomUUID();
+        entityManager.createNativeQuery(
+            "INSERT INTO usuario (id, email, nome, ativo, email_verified, created_at, updated_at) " +
+            "VALUES (?1, ?2, ?3, true, true, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')"
+        )
+        .setParameter(1, usuarioId)
+        .setParameter(2, email)
+        .setParameter(3, nome)
+        .executeUpdate();
+        entityManager.flush();
+        return usuarioId;
+    }
+
+    /**
      * Setup isolated plan with specific user limit for a tenant.
      */
     @org.springframework.transaction.annotation.Transactional
@@ -515,5 +533,105 @@ class MemberManagementIntegrationTest extends AbstractIntegrationTest {
                                         .subject(ADMIN_USER_ID.toString()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.planLimit.maxUsuarios").value(999));
+    }
+
+    // ========================================================================
+    // Test Cases: Add Existing Member (§6.4)
+    // ========================================================================
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional
+    void shouldAddExistingUserAsMember() throws Exception {
+        // Given - plano com folga + um usuário JÁ existente, sem vínculo neste tenant
+        setupIsolatedPlanWithLimit(TEST_TENANT_ID, 10);
+        String ts = String.valueOf(System.currentTimeMillis());
+        String email = "existing." + ts + "@example.com";
+        UUID usuarioId = createUsuarioOnly(email, "Existing User");
+
+        // When - adiciona como ADMIN_TENANT
+        mockMvc.perform(post("/v1/tenants/{tenantId}/members/add-existing", TEST_TENANT_ID)
+                        .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"papeis\":[\"ADMIN_TENANT\"]}")
+                        .with(jwt()
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TEST_TENANT_ID.toString())
+                                        .claim("roles", List.of("ADMIN_TENANT"))
+                                        .subject(ADMIN_USER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usuarioId").value(usuarioId.toString()))
+                .andExpect(jsonPath("$.ativo").value(true))
+                .andExpect(jsonPath("$.papeis[0]").value("ADMIN_TENANT"));
+
+        // Then - vínculo ativo criado (sem nova conta)
+        assertThat(membroRepository.findByTenantIdAndUsuarioId(TEST_TENANT_ID, usuarioId))
+                .isPresent().get().matches(m -> Boolean.TRUE.equals(m.getAtivo()));
+    }
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional
+    void shouldReturn404WhenEmailHasNoAccount() throws Exception {
+        String ts = String.valueOf(System.currentTimeMillis());
+        mockMvc.perform(post("/v1/tenants/{tenantId}/members/add-existing", TEST_TENANT_ID)
+                        .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ghost." + ts + "@nope.com\",\"papeis\":[\"OPERADOR\"]}")
+                        .with(jwt()
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TEST_TENANT_ID.toString())
+                                        .claim("roles", List.of("ADMIN_TENANT"))
+                                        .subject(ADMIN_USER_ID.toString()))))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional
+    void shouldReturn409WhenAlreadyActiveMember() throws Exception {
+        setupIsolatedPlanWithLimit(TEST_TENANT_ID, 10);
+        String ts = String.valueOf(System.currentTimeMillis());
+        String email = "dup." + ts + "@example.com";
+        createActiveMember(TEST_TENANT_ID, email, "Dup User", "OPERADOR");
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/members/add-existing", TEST_TENANT_ID)
+                        .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"papeis\":[\"GERENTE\"]}")
+                        .with(jwt()
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TEST_TENANT_ID.toString())
+                                        .claim("roles", List.of("ADMIN_TENANT"))
+                                        .subject(ADMIN_USER_ID.toString()))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", containsString("já é membro ativo")));
+    }
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional
+    void shouldReactivateInactiveMemberOnAddExisting() throws Exception {
+        setupIsolatedPlanWithLimit(TEST_TENANT_ID, 10);
+        String ts = String.valueOf(System.currentTimeMillis());
+        String email = "reactivate.add." + ts + "@example.com";
+        UUID usuarioId = createInactiveMember(TEST_TENANT_ID, email, "Inactive User", "OPERADOR");
+
+        // When - adiciona o mesmo email (inativo) com novos papéis
+        mockMvc.perform(post("/v1/tenants/{tenantId}/members/add-existing", TEST_TENANT_ID)
+                        .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"papeis\":[\"GERENTE\"]}")
+                        .with(jwt()
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TEST_TENANT_ID.toString())
+                                        .claim("roles", List.of("ADMIN_TENANT"))
+                                        .subject(ADMIN_USER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ativo").value(true))
+                .andExpect(jsonPath("$.papeis[0]").value("GERENTE"));
+
+        assertThat(membroRepository.findByTenantIdAndUsuarioId(TEST_TENANT_ID, usuarioId))
+                .isPresent().get().matches(m -> Boolean.TRUE.equals(m.getAtivo()));
     }
 }

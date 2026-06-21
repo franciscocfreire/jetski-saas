@@ -1,6 +1,8 @@
 package com.jetski.usuarios.internal;
 
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.exception.ConflictException;
+import com.jetski.shared.exception.NotFoundException;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.usuarios.api.dto.DeactivateMemberResponse;
 import com.jetski.usuarios.api.dto.ListMembersResponse;
@@ -10,6 +12,7 @@ import com.jetski.usuarios.domain.Usuario;
 import com.jetski.usuarios.domain.event.MemberDeactivatedEvent;
 import com.jetski.usuarios.domain.event.MemberRolesChangedEvent;
 import com.jetski.usuarios.internal.repository.MembroRepository;
+import com.jetski.usuarios.internal.repository.UsuarioRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +45,7 @@ import java.util.stream.Collectors;
 public class MemberManagementService {
 
     private final MembroRepository membroRepository;
+    private final UsuarioRepository usuarioRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @PersistenceContext
@@ -311,6 +315,109 @@ public class MemberManagementService {
             .nome(usuario.getNome())
             .papeis(membro.getPapeis())
             .ativo(true)
+            .joinedAt(membro.getCreatedAt())
+            .lastUpdated(membro.getUpdatedAt())
+            .build();
+    }
+
+    /**
+     * Adiciona um usuário JÁ EXISTENTE (que já tem conta) como membro do tenant,
+     * sem novo cadastro/convite/Keycloak. Permite que um usuário gerencie mais de uma empresa.
+     *
+     * Regras:
+     * - O email precisa pertencer a um usuário existente (senão use o convite).
+     * - Já membro ativo → conflito; membro inativo → reativa com os papéis informados.
+     * - Respeita o limite de usuários do plano.
+     *
+     * @param tenantId Tenant UUID
+     * @param email    Email do usuário existente
+     * @param papeis   Papéis a atribuir (ex.: ADMIN_TENANT)
+     * @return Resumo do membro
+     */
+    @Transactional
+    public MemberSummaryDTO addExistingMember(UUID tenantId, String email, List<String> papeis) {
+        log.info("Adding existing user as member: email={}, tenant={}, roles={}", email, tenantId, papeis);
+
+        // Validate roles
+        for (String papel : papeis) {
+            if (!VALID_ROLES.contains(papel)) {
+                throw new BusinessException("Papel inválido: " + papel + ". Papéis válidos: " + VALID_ROLES);
+            }
+        }
+
+        // O usuário (identidade global) precisa existir
+        Usuario usuario = usuarioRepository.findByEmail(email)
+            .orElseThrow(() -> new NotFoundException(
+                "Nenhum usuário com este email. Use o convite para criar uma nova conta."));
+        UUID usuarioId = usuario.getId();
+
+        // Idempotência: já existe vínculo?
+        var existing = membroRepository.findByTenantIdAndUsuarioId(tenantId, usuarioId);
+        if (existing.isPresent()) {
+            Membro membro = existing.get();
+            if (Boolean.TRUE.equals(membro.getAtivo())) {
+                throw new ConflictException("Usuário já é membro ativo deste tenant");
+            }
+            // Inativo → reativa com os papéis informados
+            assertPlanLimitNotReached(tenantId);
+            membro.setAtivo(true);
+            membro.setPapeis(papeis.toArray(new String[0]));
+            membroRepository.save(membro);
+            upsertTenantAccess(usuarioId, tenantId, papeis);
+            log.info("Existing inactive member reactivated: usuario={}, tenant={}", usuarioId, tenantId);
+            return toSummary(usuario, membro);
+        }
+
+        // Novo vínculo
+        assertPlanLimitNotReached(tenantId);
+        entityManager.createNativeQuery(
+            """
+            INSERT INTO membro (tenant_id, usuario_id, papeis, ativo, created_at, updated_at)
+            VALUES (?1, ?2, ?3, true, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')
+            """)
+            .setParameter(1, tenantId)
+            .setParameter(2, usuarioId)
+            .setParameter(3, papeis.toArray(new String[0]))
+            .executeUpdate();
+        upsertTenantAccess(usuarioId, tenantId, papeis);
+        log.info("Existing user added as member: usuario={}, tenant={}", usuarioId, tenantId);
+
+        Membro created = membroRepository.findByTenantIdAndUsuarioId(tenantId, usuarioId)
+            .orElseThrow(() -> new BusinessException("Falha ao criar membro"));
+        return toSummary(usuario, created);
+    }
+
+    private void assertPlanLimitNotReached(UUID tenantId) {
+        Integer maxUsuarios = getPlanLimit(tenantId);
+        long currentActive = membroRepository.countByTenantIdAndAtivo(tenantId, true);
+        if (currentActive >= maxUsuarios) {
+            throw new BusinessException(
+                "Limite de usuários do plano atingido (" + maxUsuarios + ").");
+        }
+    }
+
+    /** Upsert do tenant_access (espelha signup/convite); idempotente via UNIQUE(usuario_id, tenant_id). */
+    private void upsertTenantAccess(UUID usuarioId, UUID tenantId, List<String> papeis) {
+        entityManager.createNativeQuery(
+            """
+            INSERT INTO tenant_access (usuario_id, tenant_id, roles, is_default, created_at, updated_at)
+            VALUES (?1, ?2, ?3, false, NOW() AT TIME ZONE 'UTC', NOW() AT TIME ZONE 'UTC')
+            ON CONFLICT (usuario_id, tenant_id)
+            DO UPDATE SET roles = EXCLUDED.roles, updated_at = NOW() AT TIME ZONE 'UTC'
+            """)
+            .setParameter(1, usuarioId)
+            .setParameter(2, tenantId)
+            .setParameter(3, papeis.toArray(new String[0]))
+            .executeUpdate();
+    }
+
+    private MemberSummaryDTO toSummary(Usuario usuario, Membro membro) {
+        return MemberSummaryDTO.builder()
+            .usuarioId(usuario.getId())
+            .email(usuario.getEmail())
+            .nome(usuario.getNome())
+            .papeis(membro.getPapeis())
+            .ativo(Boolean.TRUE.equals(membro.getAtivo()))
             .joinedAt(membro.getCreatedAt())
             .lastUpdated(membro.getUpdatedAt())
             .build();

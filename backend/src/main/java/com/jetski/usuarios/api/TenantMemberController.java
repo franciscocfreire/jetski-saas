@@ -1,5 +1,6 @@
 package com.jetski.usuarios.api;
 
+import com.jetski.usuarios.api.dto.AddExistingMemberRequest;
 import com.jetski.usuarios.api.dto.DeactivateMemberResponse;
 import com.jetski.usuarios.api.dto.ListMembersResponse;
 import com.jetski.usuarios.api.dto.MemberSummaryDTO;
@@ -167,6 +168,40 @@ public class TenantMemberController {
         log.info("POST /v1/tenants/{}/members/{}/reactivate", tenantId, usuarioId);
 
         MemberSummaryDTO response = memberManagementService.reactivateMember(tenantId, usuarioId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Add an already-existing user (who already has an account) as a member of this tenant.
+     *
+     * Diferente do convite (que cria conta nova + magic-link), este endpoint apenas vincula
+     * uma identidade já existente ao tenant — permitindo que um usuário gerencie mais de uma
+     * empresa. Se o email não tiver conta, retorna 404 (use o convite).
+     *
+     * Requires: ADMIN_TENANT role
+     *
+     * @param tenantId Tenant UUID (from path)
+     * @param request  Email do usuário existente + papéis
+     * @return Member summary
+     */
+    @PostMapping("/add-existing")
+    @PreAuthorize("hasRole('ADMIN_TENANT')")
+    @Operation(
+        summary = "Adicionar usuário existente como membro",
+        description = "Vincula um usuário JÁ cadastrado a este tenant (sem novo convite/conta). " +
+                      "Se o email não existir, retorna 404 — nesse caso use o convite."
+    )
+    public ResponseEntity<MemberSummaryDTO> addExistingMember(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Valid @RequestBody AddExistingMemberRequest request
+    ) {
+        log.info("POST /v1/tenants/{}/members/add-existing - email: {}, papeis: {}",
+            tenantId, request.email(), request.papeis());
+
+        MemberSummaryDTO response =
+            memberManagementService.addExistingMember(tenantId, request.email(), request.papeis());
 
         return ResponseEntity.ok(response);
     }
