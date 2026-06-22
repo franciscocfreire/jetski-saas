@@ -59,3 +59,16 @@ jobs:
           name: surefire-reports
           path: backend/target/surefire-reports/
           retention-days: 7
+
+  # Testa as políticas de autorização (OPA/Rego). Os testes Java mockam o OPA, então
+  # furos de política (ex.: platform:* acessível por wildcard) só aparecem aqui.
+  policies:
+    name: Políticas OPA — opa test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: opa test ./policies
+        run: |
+          docker run --rm -v "${{ github.workspace }}/policies:/policies" \
+            openpolicyagent/opa:1.1.0 test /policies -v
