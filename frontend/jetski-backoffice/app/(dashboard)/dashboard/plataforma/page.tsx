@@ -64,17 +64,6 @@ export default function PlataformaPage() {
     enabled: isPlatformAdmin,
   })
 
-  if (!isPlatformAdmin) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-6">
-        <div className="flex flex-col items-center gap-2 text-center text-muted-foreground">
-          <ShieldAlert className="size-10" />
-          <p className="text-sm">Acesso restrito a administradores de plataforma.</p>
-        </div>
-      </div>
-    )
-  }
-
   const errMsg = (e: unknown, fallback: string) =>
     (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback
 
@@ -97,6 +86,19 @@ export default function PlataformaPage() {
     onSuccess: (res) => { toast({ title: 'Empresa reativada', description: res.message }); refresh() },
     onError: (e) => toast({ title: 'Falha ao reativar', description: errMsg(e, 'Erro inesperado'), variant: 'destructive' }),
   })
+
+  // Guarda de rota: só super admin (UNRESTRICTED). Vem APÓS todos os hooks acima
+  // (regras de hooks do React — o return condicional não pode preceder hooks).
+  if (!isPlatformAdmin) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-2 text-center text-muted-foreground">
+          <ShieldAlert className="size-10" />
+          <p className="text-sm">Acesso restrito a administradores de plataforma.</p>
+        </div>
+      </div>
+    )
+  }
 
   const renderAction = (t: TenantSummary) => {
     if (t.status === 'PENDENTE_APROVACAO') {
