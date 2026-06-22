@@ -1,8 +1,11 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ShieldCheck, Check, Ban, RotateCcw } from 'lucide-react'
+import { ShieldCheck, Check, Ban, RotateCcw, ShieldAlert } from 'lucide-react'
 import { platformService } from '@/lib/api/services'
+import { useTenantStore } from '@/lib/store/tenant-store'
 import type { TenantSummary } from '@/lib/api/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -43,11 +46,34 @@ const STATUS_BADGE: Record<string, { label: string; variant: BadgeVariant }> = {
 export default function PlataformaPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
+  const router = useRouter()
+  const { accessType } = useTenantStore()
+
+  // Guarda de rota: só super admin (UNRESTRICTED). Defesa em profundidade — o backend
+  // (OPA) já nega, mas evita expor a tela a quem digitar a URL direto.
+  const isPlatformAdmin = accessType === 'UNRESTRICTED'
+  useEffect(() => {
+    if (accessType !== null && !isPlatformAdmin) {
+      router.replace('/dashboard')
+    }
+  }, [accessType, isPlatformAdmin, router])
 
   const { data: tenants, isLoading } = useQuery({
     queryKey: ['platform', 'tenants'],
     queryFn: () => platformService.listAllTenants(),
+    enabled: isPlatformAdmin,
   })
+
+  if (!isPlatformAdmin) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <div className="flex flex-col items-center gap-2 text-center text-muted-foreground">
+          <ShieldAlert className="size-10" />
+          <p className="text-sm">Acesso restrito a administradores de plataforma.</p>
+        </div>
+      </div>
+    )
+  }
 
   const errMsg = (e: unknown, fallback: string) =>
     (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback

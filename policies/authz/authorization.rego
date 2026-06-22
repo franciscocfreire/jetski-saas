@@ -120,8 +120,12 @@ allow if {
     is_platform_admin
 }
 
-# Autorização normal: RBAC + Alçada + Business + Context + Tenant
+# Autorização normal: RBAC + Alçada + Business + Context + Tenant.
+# Ações de plataforma (platform:*) NUNCA são liberadas pelo RBAC de papel — nem pelo
+# wildcard "*" do ADMIN_TENANT — apenas via is_platform_admin (super admin). Sem isso,
+# qualquer admin de empresa conseguiria aprovar/listar todas as empresas.
 allow if {
+    not startswith(input.action, "platform:")
     tenant_is_valid
     rbac_allow
     alcada_allow
@@ -131,6 +135,7 @@ allow if {
 
 # Autorização sem alçada (ações que não requerem alçada)
 allow if {
+    not startswith(input.action, "platform:")
     tenant_is_valid
     rbac_allow
     not alcada_requer_aprovacao
