@@ -4,6 +4,17 @@
   "sslRequired": "none",
   "registrationAllowed": false,
   "resetPasswordAllowed": true,
+  "smtpServer": {
+    "host": "${SMTP_HOST:mailpit}",
+    "port": "${SMTP_PORT:1025}",
+    "from": "${SMTP_FROM:noreply@pegaojet.com.br}",
+    "fromDisplayName": "Pega o Jet",
+    "auth": "${SMTP_AUTH:false}",
+    "user": "${SMTP_USER:}",
+    "password": "${SMTP_PASSWORD:}",
+    "starttls": "${SMTP_STARTTLS:false}",
+    "ssl": "false"
+  },
   "editUsernameAllowed": false,
   "bruteForceProtected": true,
   "permanentLockout": false,

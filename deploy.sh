@@ -100,8 +100,9 @@ for i in $(seq 1 40); do
 done
 if [ "$kc_ready" = "1" ]; then
   bash infra/prod/configure-keycloak-client.sh || warn "config do client Keycloak falhou (verifique manualmente)"
+  bash infra/prod/configure-keycloak-smtp.sh || warn "config de SMTP do Keycloak falhou (verifique manualmente)"
 else
-  warn "Keycloak realm não respondeu — pulei a config do client (rode infra/prod/configure-keycloak-client.sh depois)"
+  warn "Keycloak realm não respondeu — pulei a config do client/SMTP (rode os scripts em infra/prod/ depois)"
 fi
 
 # 8. Smoke (aguarda o boot do Spring — pode levar ~30-60s)

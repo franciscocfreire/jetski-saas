@@ -50,6 +50,15 @@ services:
       # Nomes sem prefixo KC_ (reservado p/ opções de config do Keycloak).
       BACKOFFICE_URL: ${PUBLIC_URL}
       BACKOFFICE_REDIRECT: ${PUBLIC_URL}/*
+      # SMTP do realm (reset de senha, verificação de email) — Gmail (mesmas creds do backend).
+      # Aplica no import de realm NOVO; realm existente é configurado via admin API no deploy.
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: "587"
+      SMTP_AUTH: "true"
+      SMTP_STARTTLS: "true"
+      SMTP_USER: ${GMAIL_USER:-}
+      SMTP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      SMTP_FROM: ${GMAIL_USER:-noreply@jetsave.com.br}
     ports: !override
       - "127.0.0.1:8080:8080"
     mem_limit: 1200m
