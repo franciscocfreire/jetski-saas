@@ -34,6 +34,11 @@ public class HabilitacaoResponse {
     private Boolean gruPago;
     private Instant gruPagoEm;
 
+    // GRU gerada automaticamente — PIX e/ou boleto disponíveis para pagamento
+    private String gruPixCopiaECola;
+    private Instant gruPixExpiracao;
+    private Boolean gruBoletoDisponivel;
+
     private Boolean resolvida;
     private Instant createdAt;
     private Instant updatedAt;

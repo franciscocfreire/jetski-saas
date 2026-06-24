@@ -1,19 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-} from 'lucide-react'
+import { Calendar, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
-import { reservasService } from '@/lib/api/services'
-import { formatDateTime } from '@/lib/utils'
+import { reservasService, clientesService, modelosService, jetskisService } from '@/lib/api/services'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import type { ReservaStatus } from '@/lib/api/types'
+import { ReservaDetailSheet } from '@/components/agenda/reserva-detail-sheet'
+import type { Reserva, ReservaStatus } from '@/lib/api/types'
 
 const statusConfig: Record<ReservaStatus, { label: string; color: string }> = {
   PENDENTE: { label: 'Pendente', color: 'bg-yellow-500' },
@@ -23,59 +18,73 @@ const statusConfig: Record<ReservaStatus, { label: string; color: string }> = {
   EXPIRADA: { label: 'Expirada', color: 'bg-orange-500' },
 }
 
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+const horaDe = (iso: string) =>
+  new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+const origemLabel = (r: Reserva) => (r.cliente?.origem === 'PORTAL' ? 'Online' : 'Balcão')
+
 export default function AgendaPage() {
   const { currentTenant } = useTenantStore()
-
+  const [view, setView] = useState<'dia' | 'mes'>('dia')
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [detail, setDetail] = useState<Reserva | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
 
   const { data: reservas, isLoading } = useQuery({
     queryKey: ['reservas', currentTenant?.id],
     queryFn: () => reservasService.list(),
     enabled: !!currentTenant,
   })
+  const { data: clientes } = useQuery({
+    queryKey: ['clientes', currentTenant?.id],
+    queryFn: () => clientesService.list(),
+    enabled: !!currentTenant,
+  })
+  const { data: modelos } = useQuery({
+    queryKey: ['modelos', currentTenant?.id],
+    queryFn: () => modelosService.list(),
+    enabled: !!currentTenant,
+  })
+  const { data: jetskis } = useQuery({
+    queryKey: ['jetskis', currentTenant?.id],
+    queryFn: () => jetskisService.list(),
+    enabled: !!currentTenant,
+  })
 
-  const goToPreviousMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
-  }
-
-  const goToNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
-  }
-
-  const goToToday = () => {
-    setCurrentDate(new Date())
-  }
-
-  const monthName = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-
-  // Get days in month
-  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-  const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-  const daysInMonth = lastDayOfMonth.getDate()
-  const startingDayOfWeek = firstDayOfMonth.getDay()
-
-  // Generate calendar days
-  const calendarDays = []
-  for (let i = 0; i < startingDayOfWeek; i++) {
-    calendarDays.push(null)
-  }
-  for (let day = 1; day <= daysInMonth; day++) {
-    calendarDays.push(day)
-  }
-
-  // Get reservations for a specific day
-  const getReservationsForDay = (day: number) => {
+  // O ReservaResponse traz só IDs — enriquecemos com nome/origem/modelo/jetski no cliente.
+  const enriched = useMemo<Reserva[]>(() => {
     if (!reservas) return []
-    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    return reservas.filter(r => r.dataInicio.startsWith(dateStr))
+    const cMap = new Map((clientes ?? []).map((c) => [c.id, c]))
+    const mMap = new Map((modelos ?? []).map((m) => [m.id, m]))
+    const jMap = new Map((jetskis ?? []).map((j) => [j.id, j]))
+    return reservas.map((r) => ({
+      ...r,
+      cliente: cMap.get(r.clienteId),
+      modelo: mMap.get(r.modeloId),
+      jetski: r.jetskiId ? jMap.get(r.jetskiId) : undefined,
+    }))
+  }, [reservas, clientes, modelos, jetskis])
+
+  const abrir = (r: Reserva) => {
+    setDetail(r)
+    setSheetOpen(true)
   }
 
-  const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-  const today = new Date()
-  const isToday = (day: number) =>
-    day === today.getDate() &&
-    currentDate.getMonth() === today.getMonth() &&
-    currentDate.getFullYear() === today.getFullYear()
+  const reservasDoDia = useMemo(() => {
+    const key = ymd(currentDate)
+    return enriched
+      .filter((r) => r.dataInicio.startsWith(key))
+      .sort((a, b) => a.dataInicio.localeCompare(b.dataInicio))
+  }, [enriched, currentDate])
+
+  const stepDay = (delta: number) =>
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + delta))
+  const stepMonth = (delta: number) =>
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + delta, 1))
+  const goToday = () => setCurrentDate(new Date())
 
   if (!currentTenant) {
     return (
@@ -85,12 +94,19 @@ export default function AgendaPage() {
     )
   }
 
+  const dayLabel = currentDate.toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+  })
+  const monthName = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Agenda</h1>
-          <p className="text-muted-foreground">Visualize e gerencie as reservas</p>
+          <p className="text-muted-foreground">Reservas do dia, por horário</p>
         </div>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
@@ -98,106 +114,184 @@ export default function AgendaPage() {
         </Button>
       </div>
 
-      {/* Calendar Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={goToPreviousMonth}>
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="icon" onClick={() => (view === 'dia' ? stepDay(-1) : stepMonth(-1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h2 className="text-xl font-semibold capitalize">{monthName}</h2>
-          <Button variant="outline" size="icon" onClick={goToNextMonth}>
+          <h2 className="text-lg font-semibold capitalize min-w-[14rem] text-center">
+            {view === 'dia' ? dayLabel : monthName}
+          </h2>
+          <Button variant="outline" size="icon" onClick={() => (view === 'dia' ? stepDay(1) : stepMonth(1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
+          <Button variant="outline" onClick={goToday}>
+            Hoje
+          </Button>
         </div>
-        <Button variant="outline" onClick={goToToday}>
-          Hoje
-        </Button>
-      </div>
-
-      {/* Calendar Grid */}
-      <div className="rounded-lg border">
-        <div className="grid grid-cols-7 border-b">
-          {weekDays.map((day) => (
-            <div key={day} className="p-3 text-center text-sm font-medium text-muted-foreground">
-              {day}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7">
-          {calendarDays.map((day, index) => {
-            const dayReservations = day ? getReservationsForDay(day) : []
-            return (
-              <div
-                key={index}
-                className={`min-h-[120px] border-b border-r p-2 ${
-                  day ? 'bg-card hover:bg-accent/50 cursor-pointer' : 'bg-muted/20'
-                } ${index % 7 === 6 ? 'border-r-0' : ''}`}
-              >
-                {day && (
-                  <>
-                    <div className={`text-sm font-medium ${isToday(day) ? 'flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground' : ''}`}>
-                      {day}
-                    </div>
-                    <div className="mt-1 space-y-1">
-                      {dayReservations.slice(0, 3).map((reserva) => (
-                        <div
-                          key={reserva.id}
-                          className={`rounded px-1.5 py-0.5 text-xs text-white truncate ${statusConfig[reserva.status].color}`}
-                        >
-                          {reserva.cliente?.nome || 'Reserva'}
-                        </div>
-                      ))}
-                      {dayReservations.length > 3 && (
-                        <div className="text-xs text-muted-foreground">
-                          +{dayReservations.length - 3} mais
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            )
-          })}
+        <div className="inline-flex rounded-md border p-0.5">
+          <Button size="sm" variant={view === 'dia' ? 'default' : 'ghost'} onClick={() => setView('dia')}>
+            Dia
+          </Button>
+          <Button size="sm" variant={view === 'mes' ? 'default' : 'ghost'} onClick={() => setView('mes')}>
+            Mês
+          </Button>
         </div>
       </div>
 
-      {/* Upcoming Reservations */}
-      <div className="rounded-xl border bg-card p-6">
-        <h3 className="text-lg font-semibold">Próximas Reservas</h3>
-        <p className="text-sm text-muted-foreground">Reservas agendadas para os próximos dias</p>
+      {view === 'dia' ? (
+        <DayView
+          loading={isLoading}
+          reservas={reservasDoDia}
+          onSelect={abrir}
+        />
+      ) : (
+        <MonthView
+          currentDate={currentDate}
+          reservas={enriched}
+          onPickDay={(d) => {
+            setCurrentDate(d)
+            setView('dia')
+          }}
+          onSelect={abrir}
+        />
+      )}
 
-        <div className="mt-4 space-y-4">
-          {isLoading ? (
-            <p className="text-center text-muted-foreground py-4">Carregando...</p>
-          ) : reservas?.filter(r => r.status === 'PENDENTE' || r.status === 'CONFIRMADA').length === 0 ? (
-            <div className="text-center py-8">
-              <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-              <p className="mt-4 text-muted-foreground">Nenhuma reserva pendente</p>
+      <ReservaDetailSheet reserva={detail} open={sheetOpen} onOpenChange={setSheetOpen} />
+    </div>
+  )
+}
+
+function DayView({
+  loading,
+  reservas,
+  onSelect,
+}: {
+  loading: boolean
+  reservas: Reserva[]
+  onSelect: (r: Reserva) => void
+}) {
+  if (loading) {
+    return <p className="py-10 text-center text-muted-foreground">Carregando…</p>
+  }
+  if (reservas.length === 0) {
+    return (
+      <div className="rounded-xl border py-16 text-center">
+        <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
+        <p className="mt-4 text-muted-foreground">Nenhuma reserva para este dia</p>
+      </div>
+    )
+  }
+  return (
+    <div className="divide-y rounded-xl border">
+      {reservas.map((r) => (
+        <button
+          key={r.id}
+          onClick={() => onSelect(r)}
+          className="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-accent/50"
+        >
+          <div className="w-16 shrink-0 text-center">
+            <div className="text-lg font-semibold tabular-nums">{horaDe(r.dataInicio)}</div>
+            <div className="text-[11px] text-muted-foreground">{horaDe(r.dataFimPrevista)}</div>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-medium">{r.cliente?.nome || 'Cliente não informado'}</p>
+            <p className="truncate text-sm text-muted-foreground">{r.modelo?.nome}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Badge variant={r.cliente?.origem === 'PORTAL' ? 'default' : 'secondary'}>
+              {origemLabel(r)}
+            </Badge>
+            <Badge variant={r.status === 'CONFIRMADA' ? 'success' : 'warning'}>
+              {statusConfig[r.status].label}
+            </Badge>
+          </div>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function MonthView({
+  currentDate,
+  reservas,
+  onPickDay,
+  onSelect,
+}: {
+  currentDate: Date
+  reservas: Reserva[]
+  onPickDay: (d: Date) => void
+  onSelect: (r: Reserva) => void
+}) {
+  const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+  const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()
+  const cells: (number | null)[] = []
+  for (let i = 0; i < firstDay.getDay(); i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  const today = new Date()
+  const isToday = (day: number) =>
+    day === today.getDate() &&
+    currentDate.getMonth() === today.getMonth() &&
+    currentDate.getFullYear() === today.getFullYear()
+
+  const forDay = (day: number) => {
+    const key = ymd(new Date(currentDate.getFullYear(), currentDate.getMonth(), day))
+    return reservas.filter((r) => r.dataInicio.startsWith(key))
+  }
+
+  return (
+    <div className="rounded-lg border">
+      <div className="grid grid-cols-7 border-b">
+        {weekDays.map((d) => (
+          <div key={d} className="p-3 text-center text-sm font-medium text-muted-foreground">
+            {d}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {cells.map((day, i) => {
+          const list = day ? forDay(day) : []
+          return (
+            <div
+              key={i}
+              className={`min-h-[120px] border-b border-r p-2 ${day ? 'bg-card' : 'bg-muted/20'} ${
+                i % 7 === 6 ? 'border-r-0' : ''
+              }`}
+            >
+              {day && (
+                <>
+                  <button
+                    onClick={() => onPickDay(new Date(currentDate.getFullYear(), currentDate.getMonth(), day))}
+                    className={`text-sm font-medium ${
+                      isToday(day)
+                        ? 'flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground'
+                        : 'hover:underline'
+                    }`}
+                  >
+                    {day}
+                  </button>
+                  <div className="mt-1 space-y-1">
+                    {list.slice(0, 3).map((r) => (
+                      <button
+                        key={r.id}
+                        onClick={() => onSelect(r)}
+                        className={`block w-full truncate rounded px-1.5 py-0.5 text-left text-xs text-white ${statusConfig[r.status].color}`}
+                      >
+                        {horaDe(r.dataInicio)} {r.cliente?.nome || 'Reserva'}
+                      </button>
+                    ))}
+                    {list.length > 3 && (
+                      <div className="text-xs text-muted-foreground">+{list.length - 3} mais</div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
-          ) : (
-            reservas
-              ?.filter(r => r.status === 'PENDENTE' || r.status === 'CONFIRMADA')
-              .slice(0, 5)
-              .map((reserva) => (
-                <div key={reserva.id} className="flex items-center justify-between border-b pb-4 last:border-0">
-                  <div>
-                    <p className="font-medium">{reserva.cliente?.nome || 'Cliente não informado'}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {reserva.modelo?.nome} - {formatDateTime(reserva.dataInicio)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={reserva.status === 'CONFIRMADA' ? 'success' : 'warning'}>
-                      {statusConfig[reserva.status].label}
-                    </Badge>
-                    <Button variant="outline" size="sm">
-                      Ver detalhes
-                    </Button>
-                  </div>
-                </div>
-              ))
-          )}
-        </div>
+          )
+        })}
       </div>
     </div>
   )

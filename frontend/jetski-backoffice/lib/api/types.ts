@@ -282,6 +282,9 @@ export interface Habilitacao {
   gruValor?: number
   gruPago: boolean
   gruPagoEm?: string
+  gruPixCopiaECola?: string
+  gruPixExpiracao?: string
+  gruBoletoDisponivel?: boolean
   resolvida: boolean
 }
 
