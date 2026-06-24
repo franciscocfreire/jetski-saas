@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   CheckCircle2,
@@ -8,6 +9,7 @@ import {
   Copy,
   FileDown,
   Loader2,
+  PlayCircle,
   QrCode,
 } from 'lucide-react'
 import {
@@ -50,6 +52,7 @@ export function ReservaDetailSheet({
   onOpenChange: (v: boolean) => void
 }) {
   const qc = useQueryClient()
+  const router = useRouter()
   const reservaId = reserva?.id
 
   const { data: hab } = useQuery({
@@ -132,6 +135,19 @@ export function ReservaDetailSheet({
           </Badge>
           {reserva.jetski?.serie && <Badge variant="outline">Jetski {reserva.jetski.serie}</Badge>}
         </div>
+
+        {(reserva.status === 'PENDENTE' || reserva.status === 'CONFIRMADA') && (
+          <Button
+            className="mt-4 w-full"
+            onClick={() => {
+              onOpenChange(false)
+              router.push(`/dashboard/balcao?reserva=${reserva.id}`)
+            }}
+          >
+            <PlayCircle className="mr-2 h-4 w-4" />
+            Retomar atendimento
+          </Button>
+        )}
 
         <Separator className="my-4" />
 
