@@ -143,6 +143,20 @@ GruResultado {
 - Passo 6/7 não-200 ou sem `conteudo` → `PAGTESOURO_FALHOU`.
 - Qualquer erro → o backend mantém o **fluxo manual** (operador digita gruNumero/valor).
 
+## Alternativa: BOLETO (PDF) em vez de PIX
+Mesmos passos 1-2 (sessão + cascata). A partir daí, em vez de `pagtesouro.asp`:
+```
+3b. POST .../scam/emitgruscam/atualiza_gru.asp   (MESMO corpo do frm_registro do passo 3)
+    → 302 Location: imprime_gru.asp?v_id_gru=<N>&v_cd_recolhimento=060   (extrair id_gru)
+4b. GET  .../scam/emitgruscam/imprime_gru.asp?v_id_gru=<N>&v_cd_recolhimento=060
+    → 302 Location: /scam/emitgruscam/gru/tmp/<arquivo>.pdf
+5b. GET  .../scam/emitgruscam/gru/tmp/<arquivo>.pdf   → 200 application/pdf (o boleto)
+```
+Implementado em `GruClient.gerarBoleto` (GET binário p/ o PDF). `GruService.gerarBoleto` salva o
+PDF no storage (`{tenant}/reserva/{id}/gru-boleto.pdf`, campo `gru_pdf_s3_key`) e devolve URL
+presignada. Endpoint `POST .../habilitacao/gru/boleto`. ⚠️ Boleto e PIX geram **id_gru distintos**
+(GRUs separadas) — escolher um método por reserva; idempotência reaproveita o boleto não pago.
+
 ## Notas de implementação
 - **Confirmar na 1ª execução real**: corpo exato do passo 3 (363B) e do passo 5 (133B), e se a
   cascata (passo 2) é necessária. Fazer 1 chamada de teste controlada (sem volume).
