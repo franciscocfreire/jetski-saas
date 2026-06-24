@@ -85,6 +85,16 @@ public class ReservaHabilitacao {
     @Column(name = "gru_pago_em")
     private Instant gruPagoEm;
 
+    // GRU gerada automaticamente (robô HTTP Marinha/PagTesouro) — dados do PIX
+    @Column(name = "gru_pix_copia_e_cola", columnDefinition = "text")
+    private String gruPixCopiaECola;
+    @Column(name = "gru_pix_expiracao")
+    private Instant gruPixExpiracao;
+    @Column(name = "gru_id_marinha")
+    private String gruIdMarinha;
+    @Column(name = "gru_gerada_em")
+    private Instant gruGeradaEm;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean resolvida = false;

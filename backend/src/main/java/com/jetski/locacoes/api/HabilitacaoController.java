@@ -1,8 +1,10 @@
 package com.jetski.locacoes.api;
 
+import com.jetski.locacoes.api.dto.HabilitacaoGruResponse;
 import com.jetski.locacoes.api.dto.HabilitacaoRequest;
 import com.jetski.locacoes.api.dto.HabilitacaoResponse;
 import com.jetski.locacoes.domain.ReservaHabilitacao;
+import com.jetski.locacoes.internal.GruService;
 import com.jetski.locacoes.internal.HabilitacaoService;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.security.TenantContext;
@@ -29,6 +31,24 @@ import java.util.UUID;
 public class HabilitacaoController {
 
     private final HabilitacaoService habilitacaoService;
+    private final GruService gruService;
+
+    @PostMapping("/gru")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Gerar GRU + PIX automaticamente (Marinha/PagTesouro)",
+        description = "Emite a GRU da Capitania e gera o PIX (copia-e-cola + QR). " +
+                      "Reaproveita GRU válida já existente. Em falha, sucesso=false + erroCodigo " +
+                      "(o operador segue pelo fluxo manual)."
+    )
+    public ResponseEntity<HabilitacaoGruResponse> gerarGru(
+        @Parameter(description = "UUID do tenant") @PathVariable UUID tenantId,
+        @Parameter(description = "UUID da reserva") @PathVariable UUID id
+    ) {
+        log.info("POST /v1/tenants/{}/reservas/{}/habilitacao/gru", tenantId, id);
+        validateTenantContext(tenantId);
+        return ResponseEntity.ok(toGruResponse(gruService.gerarGru(id)));
+    }
 
     @PutMapping
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
@@ -108,6 +128,23 @@ public class HabilitacaoController {
             .resolvida(h.getResolvida())
             .createdAt(h.getCreatedAt())
             .updatedAt(h.getUpdatedAt())
+            .build();
+    }
+
+    private HabilitacaoGruResponse toGruResponse(GruService.GruGeracao g) {
+        ReservaHabilitacao h = g.habilitacao();
+        return HabilitacaoGruResponse.builder()
+            .sucesso(g.sucesso())
+            .reaproveitada(g.reaproveitada())
+            .gruNumero(h.getGruNumero())
+            .gruValor(h.getGruValor())
+            .gruPago(h.getGruPago())
+            .pixCopiaECola(h.getGruPixCopiaECola())
+            .pixQrPngBase64(g.qrPngBase64())
+            .pixExpiracao(h.getGruPixExpiracao())
+            .idMarinha(h.getGruIdMarinha())
+            .erroCodigo(g.erroCodigo())
+            .erroMensagem(g.erroMensagem())
             .build();
     }
 
