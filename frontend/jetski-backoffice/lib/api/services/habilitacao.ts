@@ -32,9 +32,15 @@ export const habilitacaoService = {
     return data
   },
 
-  /** Gera o boleto da GRU (PDF) e devolve a URL de download. Fallback manual se sucesso=false. */
+  /** Gera o boleto da GRU (PDF). Fallback manual se sucesso=false. */
   async gerarBoleto(reservaId: string): Promise<HabilitacaoGruBoletoResponse> {
     const { data } = await apiClient.post<HabilitacaoGruBoletoResponse>(`${path(reservaId)}/gru/boleto`)
     return data
+  },
+
+  /** Baixa o PDF do boleto já gerado (stream autenticado via Bearer). */
+  async baixarBoleto(reservaId: string): Promise<Blob> {
+    const res = await apiClient.get(`${path(reservaId)}/gru/boleto/download`, { responseType: 'blob' })
+    return res.data as Blob
   },
 }

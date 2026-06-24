@@ -6,8 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Resposta da geração do boleto da GRU (PDF). {@code downloadUrl} = URL presignada do PDF.
- * Em falha, {@code sucesso=false} + {@code erroCodigo} → backoffice cai no fluxo manual.
+ * Resposta da geração do boleto da GRU (PDF). O PDF é baixado via GET .../gru/boleto/download
+ * (stream autenticado). Em falha, {@code sucesso=false} + {@code erroCodigo} → fluxo manual.
  */
 @Data
 @Builder
@@ -17,7 +17,6 @@ public class HabilitacaoGruBoletoResponse {
 
     private boolean sucesso;
     private boolean reaproveitada;
-    private String downloadUrl;
     private String idMarinha;
     private String erroCodigo;
     private String erroMensagem;

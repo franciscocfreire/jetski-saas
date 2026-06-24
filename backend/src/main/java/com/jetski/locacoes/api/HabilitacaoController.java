@@ -68,11 +68,26 @@ public class HabilitacaoController {
         return ResponseEntity.ok(HabilitacaoGruBoletoResponse.builder()
             .sucesso(g.sucesso())
             .reaproveitada(g.reaproveitada())
-            .downloadUrl(g.downloadUrl())
             .idMarinha(g.habilitacao().getGruIdMarinha())
             .erroCodigo(g.erroCodigo())
             .erroMensagem(g.erroMensagem())
             .build());
+    }
+
+    @GetMapping("/gru/boleto/download")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Baixar o PDF do boleto da GRU (streaming autenticado)")
+    public ResponseEntity<byte[]> baixarBoleto(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id
+    ) {
+        validateTenantContext(tenantId);
+        byte[] pdf = gruService.baixarBoletoPdf(id);
+        return ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+            .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                "inline; filename=\"gru-boleto.pdf\"")
+            .body(pdf);
     }
 
     @PutMapping

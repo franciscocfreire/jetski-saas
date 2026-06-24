@@ -104,10 +104,15 @@ export function StepHabilitacao({
   })
 
   const gerarBoleto = useMutation({
-    mutationFn: () => habilitacaoService.gerarBoleto(atendimento.reserva!.id),
+    mutationFn: async () => {
+      const r = await habilitacaoService.gerarBoleto(atendimento.reserva!.id)
+      if (!r.sucesso) return r
+      const blob = await habilitacaoService.baixarBoleto(atendimento.reserva!.id)
+      window.open(URL.createObjectURL(blob), '_blank')
+      return r
+    },
     onSuccess: (r) => {
-      if (r.sucesso && r.downloadUrl) {
-        window.open(r.downloadUrl, '_blank')
+      if (r.sucesso) {
         toast.success(r.reaproveitada ? 'Boleto reaproveitado.' : 'Boleto (PDF) gerado.')
       } else {
         toast.warning('Não foi possível gerar o boleto automaticamente. Preencha manualmente.')

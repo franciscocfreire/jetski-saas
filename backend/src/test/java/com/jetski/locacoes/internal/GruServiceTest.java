@@ -168,20 +168,17 @@ class GruServiceTest {
     }
 
     @Test
-    void geraBoletoArmazenaPdfEDevolveUrl() {
+    void geraBoletoArmazenaPdf() {
         stubReservaECliente();
         when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.empty());
         when(gruClient.gerarBoleto(any())).thenReturn(
             new com.jetski.locacoes.internal.gru.GruBoletoResultado("7977050", new byte[]{1, 2, 3}));
         when(habilitacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-        when(storageService.generatePresignedDownloadUrl(any(), org.mockito.ArgumentMatchers.anyInt()))
-            .thenReturn(com.jetski.shared.storage.PresignedUrl.builder().url("https://dl/boleto.pdf").build());
 
         GruService.BoletoGeracao g = service.gerarBoleto(reservaId);
 
         assertThat(g.sucesso()).isTrue();
         assertThat(g.reaproveitada()).isFalse();
-        assertThat(g.downloadUrl()).isEqualTo("https://dl/boleto.pdf");
         ArgumentCaptor<ReservaHabilitacao> cap = ArgumentCaptor.forClass(ReservaHabilitacao.class);
         verify(habilitacaoRepository).save(cap.capture());
         assertThat(cap.getValue().getGruPdfS3Key())
@@ -199,14 +196,22 @@ class GruServiceTest {
             .gruPago(false)
             .build();
         when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.of(existente));
-        when(storageService.generatePresignedDownloadUrl(any(), org.mockito.ArgumentMatchers.anyInt()))
-            .thenReturn(com.jetski.shared.storage.PresignedUrl.builder().url("https://dl/again.pdf").build());
 
         GruService.BoletoGeracao g = service.gerarBoleto(reservaId);
 
         assertThat(g.reaproveitada()).isTrue();
-        assertThat(g.downloadUrl()).isEqualTo("https://dl/again.pdf");
         verify(gruClient, never()).gerarBoleto(any());
         verify(habilitacaoRepository, never()).save(any());
+    }
+
+    @Test
+    void baixarBoletoPdfLeDoStorage() {
+        ReservaHabilitacao hab = ReservaHabilitacao.builder()
+            .reservaId(reservaId).tenantId(tenantId).via(ReservaHabilitacao.Via.EMA)
+            .gruPdfS3Key("k/gru-boleto.pdf").build();
+        when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.of(hab));
+        when(storageService.getObject("k/gru-boleto.pdf")).thenReturn(new byte[]{9, 9});
+
+        assertThat(service.baixarBoletoPdf(reservaId)).containsExactly(9, 9);
     }
 }

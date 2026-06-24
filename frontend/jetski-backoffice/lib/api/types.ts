@@ -300,11 +300,10 @@ export interface HabilitacaoGruResponse {
   erroMensagem?: string
 }
 
-/** Resposta da geração do boleto da GRU (PDF). */
+/** Resposta da geração do boleto da GRU (PDF). O PDF é baixado via endpoint de stream. */
 export interface HabilitacaoGruBoletoResponse {
   sucesso: boolean
   reaproveitada: boolean
-  downloadUrl?: string
   idMarinha?: string
   erroCodigo?: string
   erroMensagem?: string

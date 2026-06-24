@@ -44,8 +44,6 @@ public class GruService {
     private final ObjectMapper objectMapper;
     private final StorageService storageService;
 
-    private static final int BOLETO_URL_TTL_MIN = 60;
-
     /** Resultado da tentativa de geração (sempre devolvido, mesmo em falha). */
     public record GruGeracao(
         boolean sucesso,
@@ -56,11 +54,10 @@ public class GruService {
         String erroMensagem
     ) {}
 
-    /** Resultado da geração do boleto (PDF) — devolve URL de download presignada. */
+    /** Resultado da geração do boleto (PDF). O PDF é baixado via {@link #baixarBoletoPdf}. */
     public record BoletoGeracao(
         boolean sucesso,
         ReservaHabilitacao habilitacao,
-        String downloadUrl,
         boolean reaproveitada,
         String erroCodigo,
         String erroMensagem
@@ -119,11 +116,9 @@ public class GruService {
                 .via(ReservaHabilitacao.Via.EMA)
                 .build());
 
-        // Idempotência: boleto já gerado e não pago → reaproveita o PDF (nova URL), não duplica GRU
+        // Idempotência: boleto já gerado e não pago → reaproveita o PDF, não duplica GRU
         if (hab.getGruPdfS3Key() != null && !Boolean.TRUE.equals(hab.getGruPago())) {
-            String url = storageService.generatePresignedDownloadUrl(
-                hab.getGruPdfS3Key(), BOLETO_URL_TTL_MIN).getUrl();
-            return new BoletoGeracao(true, hab, url, true, null, null);
+            return new BoletoGeracao(true, hab, true, null, null);
         }
 
         GruContribuinte contrib = montarContribuinte(cliente);
@@ -138,14 +133,24 @@ public class GruService {
             hab.setGruGeradaEm(Instant.now());
             ReservaHabilitacao salvo = habilitacaoRepository.save(hab);
 
-            String url = storageService.generatePresignedDownloadUrl(key, BOLETO_URL_TTL_MIN).getUrl();
-            return new BoletoGeracao(true, salvo, url, false, null, null);
+            return new BoletoGeracao(true, salvo, false, null, null);
         } catch (GruException e) {
             log.warn("Falha ao gerar boleto da GRU para reserva {}: {} - {}",
                 reservaId, e.getCodigo(), e.getMessage());
-            return new BoletoGeracao(false, hab, null, false,
+            return new BoletoGeracao(false, hab, false,
                 e.getCodigo().name(), e.getMessage());
         }
+    }
+
+    /** Lê os bytes do PDF do boleto já gerado (stream autenticado pelo backend). */
+    @Transactional(readOnly = true)
+    public byte[] baixarBoletoPdf(UUID reservaId) {
+        ReservaHabilitacao hab = habilitacaoRepository.findByReservaId(reservaId)
+            .orElseThrow(() -> new NotFoundException("Habilitação não encontrada: " + reservaId));
+        if (hab.getGruPdfS3Key() == null) {
+            throw new NotFoundException("Boleto da GRU ainda não gerado para a reserva " + reservaId);
+        }
+        return storageService.getObject(hab.getGruPdfS3Key());
     }
 
     private boolean gruValidaReaproveitavel(ReservaHabilitacao hab) {
