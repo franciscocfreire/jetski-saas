@@ -1,5 +1,5 @@
 import { apiClient, getTenantId } from '../client'
-import type { Habilitacao, HabilitacaoRequest } from '../types'
+import type { Habilitacao, HabilitacaoGruResponse, HabilitacaoRequest } from '../types'
 
 const path = (reservaId: string) =>
   `/v1/tenants/${getTenantId()}/reservas/${reservaId}/habilitacao`
@@ -19,5 +19,11 @@ export const habilitacaoService = {
     } catch {
       return null
     }
+  },
+
+  /** Gera a GRU + PIX automaticamente (Marinha/PagTesouro). Fallback manual se sucesso=false. */
+  async gerarGru(reservaId: string): Promise<HabilitacaoGruResponse> {
+    const { data } = await apiClient.post<HabilitacaoGruResponse>(`${path(reservaId)}/gru`)
+    return data
   },
 }

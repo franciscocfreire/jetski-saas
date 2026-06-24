@@ -285,6 +285,21 @@ export interface Habilitacao {
   resolvida: boolean
 }
 
+/** Resposta da geração automática da GRU + PIX (Marinha/PagTesouro). */
+export interface HabilitacaoGruResponse {
+  sucesso: boolean
+  reaproveitada: boolean
+  gruNumero?: string
+  gruValor?: number
+  gruPago?: boolean
+  pixCopiaECola?: string
+  pixQrPngBase64?: string
+  pixExpiracao?: string
+  idMarinha?: string
+  erroCodigo?: string
+  erroMensagem?: string
+}
+
 export type AceiteMetodo = 'SIGNATURE_PAD' | 'PAPEL'
 
 export interface AceiteRequest {

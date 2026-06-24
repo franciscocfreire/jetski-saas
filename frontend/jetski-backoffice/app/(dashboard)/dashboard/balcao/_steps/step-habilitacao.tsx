@@ -18,7 +18,7 @@ import {
 import { habilitacaoService, instrutoresService } from '@/lib/api/services'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import type { Atendimento } from '../types'
-import type { HabilitacaoRequest } from '@/lib/api/types'
+import type { HabilitacaoGruResponse, HabilitacaoRequest } from '@/lib/api/types'
 
 export function StepHabilitacao({
   atendimento,
@@ -42,6 +42,7 @@ export function StepHabilitacao({
   const [gruNumero, setGruNumero] = useState('')
   const [gruValor, setGruValor] = useState('')
   const [gruPago, setGruPago] = useState(false)
+  const [pix, setPix] = useState<HabilitacaoGruResponse | null>(null)
   // Autodeclaração de saúde (5-C)
   const [usaLentes, setUsaLentes] = useState(false)
   const [usaAparelho, setUsaAparelho] = useState(false)
@@ -85,6 +86,21 @@ export function StepHabilitacao({
       }
     },
     onError: () => toast.error('Falha ao registrar habilitação.'),
+  })
+
+  const gerarGru = useMutation({
+    mutationFn: () => habilitacaoService.gerarGru(atendimento.reserva!.id),
+    onSuccess: (r) => {
+      setPix(r)
+      if (r.sucesso) {
+        if (r.gruNumero) setGruNumero(r.gruNumero)
+        if (r.gruValor != null) setGruValor(String(r.gruValor))
+        toast.success(r.reaproveitada ? 'GRU válida reaproveitada.' : 'GRU gerada com sucesso.')
+      } else {
+        toast.warning('Não foi possível gerar a GRU automaticamente. Preencha manualmente.')
+      }
+    },
+    onError: () => toast.error('Falha ao gerar a GRU. Preencha manualmente.'),
   })
 
   return (
@@ -160,7 +176,68 @@ export function StepHabilitacao({
             )}
           </div>
           <div className="space-y-3 rounded-lg border p-4">
-            <Label className="text-sm font-medium">GRU (taxa CHA-MTA-E)</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">GRU (taxa CHA-MTA-E)</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={gerarGru.isPending}
+                onClick={() => gerarGru.mutate()}
+              >
+                {gerarGru.isPending ? 'Gerando…' : 'Gerar GRU + PIX automaticamente'}
+              </Button>
+            </div>
+
+            {pix?.sucesso && pix.pixCopiaECola && (
+              <div className="space-y-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/40">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  {pix.gruValor != null && (
+                    <span>
+                      Valor: <strong>R$ {pix.gruValor.toFixed(2)}</strong>
+                    </span>
+                  )}
+                  {pix.pixExpiracao && (
+                    <span className="text-muted-foreground">
+                      vence {new Date(pix.pixExpiracao).toLocaleString('pt-BR')}
+                    </span>
+                  )}
+                  {pix.reaproveitada && (
+                    <span className="text-muted-foreground">(GRU já existente)</span>
+                  )}
+                </div>
+                {pix.pixQrPngBase64 && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`data:image/png;base64,${pix.pixQrPngBase64}`}
+                    alt="QR Code PIX"
+                    className="h-44 w-44 rounded bg-white p-1"
+                  />
+                )}
+                <div className="flex items-center gap-2">
+                  <Input readOnly value={pix.pixCopiaECola} className="font-mono text-xs" />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(pix.pixCopiaECola!)
+                      toast.success('PIX copia-e-cola copiado.')
+                    }}
+                  >
+                    Copiar
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {pix && !pix.sucesso && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                Geração automática indisponível ({pix.erroCodigo}). Gere a GRU no site da Marinha e
+                preencha número/valor abaixo.
+              </p>
+            )}
+
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label className="text-xs">Número da GRU</Label>
