@@ -34,7 +34,10 @@ export function EmbarqueSection({
   const [modo, setModo] = useState<'agendado' | 'embarque'>('agendado')
   const [jetskiId, setJetskiId] = useState('')
   const [horimetro, setHorimetro] = useState('')
-  const [embarcado, setEmbarcado] = useState(false)
+  // Reserva já FINALIZADA = check-in feito antes (locação existe). Evita refazer.
+  const [embarcado, setEmbarcado] = useState(
+    () => atendimento.reserva?.status === 'FINALIZADA'
+  )
 
   const modeloId = atendimento.modelo?.id
 
@@ -46,21 +49,40 @@ export function EmbarqueSection({
   const disponiveis = (jetskis ?? []).filter((j) => j.modeloId === modeloId)
 
   const checkIn = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ jaEmbarcado: boolean }> => {
       const reservaId = atendimento.reserva!.id
-      await reservasService.confirmar(reservaId) // PENDENTE → CONFIRMADA
-      await reservasService.alocarJetski(reservaId, jetskiId) // exige CONFIRMADA + jetskiId null
-      return locacoesService.checkInFromReserva({
+      // Lê o estado atual para tornar o fluxo idempotente (retomada / clique duplo).
+      const r = await reservasService.getById(reservaId)
+      if (r.status === 'FINALIZADA') {
+        return { jaEmbarcado: true } // locação já criada antes — não refaz
+      }
+      if (r.status === 'CANCELADA' || r.status === 'EXPIRADA') {
+        throw new Error(`Reserva ${r.status.toLowerCase()} — não é possível embarcar.`)
+      }
+      if (r.status === 'PENDENTE') {
+        await reservasService.confirmar(reservaId) // PENDENTE → CONFIRMADA
+      }
+      if (!r.jetskiId) {
+        await reservasService.alocarJetski(reservaId, jetskiId) // exige CONFIRMADA + jetskiId null
+      }
+      await locacoesService.checkInFromReserva({
         reservaId,
         horimetroInicio: Number(horimetro),
       })
+      return { jaEmbarcado: false }
     },
-    onSuccess: () => {
+    onSuccess: ({ jaEmbarcado }) => {
       setEmbarcado(true)
-      toast.success('Check-in concluído — locação criada.')
+      toast.success(
+        jaEmbarcado
+          ? 'Esta reserva já tinha check-in (locação em curso).'
+          : 'Check-in concluído — locação criada.'
+      )
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        (e as Error)?.message
       toast.error(msg ?? 'Falha no check-in.')
     },
   })
