@@ -7,8 +7,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.net.CookieManager;
-import java.net.CookiePolicy;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -93,28 +91,30 @@ public class GruClient {
                 "CPF e nome são obrigatórios para gerar a GRU");
         }
 
+        // Cookie jar MANUAL: o CookieManager do JDK rejeita o Set-Cookie malformado
+        // da Marinha ("httpOnly;secure;") e descarta a sessão ASP. Gerenciamos à mão.
         HttpClient http = HttpClient.newBuilder()
-            .cookieHandler(new CookieManager(null, CookiePolicy.ACCEPT_ALL))
             .followRedirects(HttpClient.Redirect.NEVER)
             .connectTimeout(timeout)
             .build();
+        Map<String, String> cookies = new LinkedHashMap<>();
 
         String solicitarUrl = marinhaBase + "/scam/emitgruscam/solicitar_servico.asp";
 
         // Passo 1 — abrir o formulário (cria a sessão ASP / cookie)
-        get(http, solicitarUrl, null, GruException.Codigo.MARINHA_INDISPONIVEL);
+        get(http, cookies, solicitarUrl, null, GruException.Codigo.MARINHA_INDISPONIVEL);
 
         // Passo 2 — cascata (prepara o estado da sessão); pode ser desabilitada
         if (cascataHabilitada) {
             try {
-                executarCascata(http, c, solicitarUrl);
+                executarCascata(http, cookies, c, solicitarUrl);
             } catch (GruException e) {
                 log.warn("Cascata da GRU falhou (seguindo mesmo assim): {}", e.getMessage());
             }
         }
 
         // Passo 3 — gerar a GRU → 302 com id_gru no Location
-        HttpResponse<String> r3 = postForm(http,
+        HttpResponse<String> r3 = postForm(http, cookies,
             marinhaBase + "/scam/emitgruscam/pagtesouro.asp",
             formGerarGru(c), solicitarUrl, GruException.Codigo.MARINHA_INDISPONIVEL);
         String location = r3.headers().firstValue("Location").orElse("");
@@ -122,25 +122,40 @@ public class GruClient {
             throw new GruException(GruException.Codigo.MARINHA_INDISPONIVEL,
                 "pagtesouro.asp não retornou redirect (status " + r3.statusCode() + ")");
         }
-        String idGru = extrair(ID_GRU, location, GruException.Codigo.MARINHA_INDISPONIVEL,
-            "id_gru não encontrado no Location");
+        Matcher mGru = ID_GRU.matcher(location);
+        if (!mGru.find()) {
+            log.warn("Passo 3 sem id_gru. status={} location='{}'", r3.statusCode(), location);
+            throw new GruException(GruException.Codigo.MARINHA_INDISPONIVEL,
+                "id_gru não encontrado no Location");
+        }
+        String idGru = mGru.group(1);
         URI pontoUri = URI.create(solicitarUrl).resolve(location);
 
         // Passo 4 — página-ponte: pega o token (form auto-submit frm_envio)
-        HttpResponse<String> r4 = get(http, pontoUri.toString(), solicitarUrl,
+        HttpResponse<String> r4 = get(http, cookies, pontoUri.toString(), solicitarUrl,
             GruException.Codigo.BRIDGE_FALHOU);
         String token = extrair(TOKEN, r4.body(), GruException.Codigo.BRIDGE_FALHOU,
             "token não encontrado em pagtesouro_form.asp");
 
         // Passo 5 — bridge → cria idSessao no PagTesouro
-        HttpResponse<String> r5 = postForm(http,
+        HttpResponse<String> r5 = postForm(http, cookies,
             marinhaBase + "/pagtesouro/index.php",
             formBridge(c, idGru, token), pontoUri.toString(), GruException.Codigo.BRIDGE_FALHOU);
-        String idSessao = extrair(ID_SESSAO, r5.body(), GruException.Codigo.BRIDGE_FALHOU,
-            "idSessao não encontrado em index.php");
+        Matcher mSes = ID_SESSAO.matcher(r5.body());
+        if (!mSes.find()) {
+            String body = r5.body();
+            boolean authProblem = body.contains("autentica"); // "Houve um problema de autenticação!"
+            log.warn("Passo 5 sem idSessao. status={} len={} tokenLen={} authProblem={}",
+                r5.statusCode(), body.length(), token.length(), authProblem);
+            throw new GruException(GruException.Codigo.BRIDGE_FALHOU, authProblem
+                ? "Marinha recusou a autenticação no PagTesouro (token do site inválido/instável). "
+                  + "Gere a GRU manualmente no site da Marinha."
+                : "idSessao não encontrado na resposta do index.php");
+        }
+        String idSessao = mSes.group(1);
 
         // Passo 6 — dados do pagamento (valor, número da GRU, descrição)
-        HttpResponse<String> r6 = get(http,
+        HttpResponse<String> r6 = get(http, cookies,
             pagtesouroBase + "/api/pagamentos/dados-pagamento?idSessao=" + idSessao,
             pagtesouroBase + "/", GruException.Codigo.PAGTESOURO_FALHOU);
         JsonNode dados = parseJson(r6.body());
@@ -149,7 +164,7 @@ public class GruClient {
         String descricao = texto(dados, "descricao");
 
         // Passo 7 — gerar o PIX
-        HttpResponse<String> r7 = postJson(http,
+        HttpResponse<String> r7 = postJson(http, cookies,
             pagtesouroBase + "/api/pagamentos/meios-pagamento/pix",
             bodyPix(idSessao, descricao), GruException.Codigo.PAGTESOURO_FALHOU);
         JsonNode pix = parseJson(r7.body());
@@ -167,39 +182,42 @@ public class GruClient {
 
     // ---- passos auxiliares -------------------------------------------------
 
-    private void executarCascata(HttpClient http, GruContribuinte c, String referer) {
+    private void executarCascata(HttpClient http, Map<String, String> cookies,
+                                 GruContribuinte c, String referer) {
         String base = marinhaBase + "/scam/emitgruscam/";
-        postForm(http, base + "objTipoRecolhimentoAjax.asp",
+        postForm(http, cookies, base + "objTipoRecolhimentoAjax.asp",
             Map.of("v_cd_orgao", cdOrgao), referer, GruException.Codigo.MARINHA_INDISPONIVEL);
-        postForm(http, base + "objTipoServicoAjax.asp",
+        postForm(http, cookies, base + "objTipoServicoAjax.asp",
             ordered("v_cd_orgao", cdOrgao, "v_id_tipo_recolhimento", tipoRecolhimento),
             referer, GruException.Codigo.MARINHA_INDISPONIVEL);
-        postForm(http, base + "objServicosAjax.asp",
+        postForm(http, cookies, base + "objServicosAjax.asp",
             ordered("v_cd_orgao", cdOrgao, "v_id_tipo_recolhimento", tipoRecolhimento,
                 "v_tipo_servico", tipoServico),
             referer, GruException.Codigo.MARINHA_INDISPONIVEL);
-        postForm(http, base + "objQtdeServicoAjax.asp",
+        postForm(http, cookies, base + "objQtdeServicoAjax.asp",
             Map.of("v_sel_servico_adm", itemServico), referer,
             GruException.Codigo.MARINHA_INDISPONIVEL);
-        postForm(http, base + "objContribuinte.asp",
+        postForm(http, cookies, base + "objContribuinte.asp",
             ordered("v_nr_contribuinte", c.cpf(), "v_tipo_documento", "CPF"),
             referer, GruException.Codigo.MARINHA_INDISPONIVEL);
-        postForm(http, base + "objCidadeAjax.asp",
+        postForm(http, cookies, base + "objCidadeAjax.asp",
             ordered("v_cep", nz(c.cep()), "v_nr_endereco", nz(c.numero()),
                 "v_complemento_contribuinte", nz(c.complemento())),
             referer, GruException.Codigo.MARINHA_INDISPONIVEL);
     }
 
     private Map<String, String> formGerarGru(GruContribuinte c) {
+        // Campos e ordem conforme o POST real capturado (HAR). NÃO enviar
+        // telefone/email/sexo (o site não os submete); id_tipo_recolhimento e
+        // tipo_servico são obrigatórios para o servidor gerar o id_gru.
         Map<String, String> f = new LinkedHashMap<>();
         f.put("cd_orgao", cdOrgao);
+        f.put("id_tipo_recolhimento", tipoRecolhimento);
+        f.put("tipo_servico", tipoServico);
         f.put("cd_servico", itemServico);
         f.put("tipo_documento", "CPF");
         f.put("nr_contribuinte", c.cpf());
         f.put("ds_contribuinte", c.nome());
-        f.put("nr_telefone", nz(c.telefone()));
-        f.put("ds_email", nz(c.email()));
-        f.put("sg_sexo", nz(c.sexo()));
         f.put("fg_incluir_contribuinte", "0");
         f.put("cep_contribuinte", nz(c.cep()));
         f.put("ender_contribuinte", nz(c.logradouro()));
@@ -239,8 +257,8 @@ public class GruClient {
 
     // ---- HTTP helpers ------------------------------------------------------
 
-    private HttpResponse<String> get(HttpClient http, String url, String referer,
-                                     GruException.Codigo erro) {
+    private HttpResponse<String> get(HttpClient http, Map<String, String> cookies, String url,
+                                     String referer, GruException.Codigo erro) {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url))
             .timeout(timeout).GET()
             .header("User-Agent", UA)
@@ -248,44 +266,48 @@ public class GruClient {
         if (referer != null) {
             b.header("Referer", referer);
         }
-        return send(http, b.build(), erro);
+        return send(http, cookies, b, erro);
     }
 
-    private HttpResponse<String> postForm(HttpClient http, String url, Map<String, String> form,
-                                          String referer, GruException.Codigo erro) {
-        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+    private HttpResponse<String> postForm(HttpClient http, Map<String, String> cookies, String url,
+                                          Map<String, String> form, String referer,
+                                          GruException.Codigo erro) {
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url))
             .timeout(timeout)
             .header("User-Agent", UA)
             .header("Accept-Language", "pt-BR,pt;q=0.9")
             .header("Content-Type", "application/x-www-form-urlencoded")
             .header("Referer", referer == null ? marinhaBase : referer)
-            .POST(HttpRequest.BodyPublishers.ofString(urlEncode(form), StandardCharsets.UTF_8))
-            .build();
-        return send(http, req, erro);
+            .POST(HttpRequest.BodyPublishers.ofString(urlEncode(form), StandardCharsets.UTF_8));
+        return send(http, cookies, b, erro);
     }
 
-    private HttpResponse<String> postJson(HttpClient http, String url, String json,
-                                          GruException.Codigo erro) {
-        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+    private HttpResponse<String> postJson(HttpClient http, Map<String, String> cookies, String url,
+                                          String json, GruException.Codigo erro) {
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url))
             .timeout(timeout)
             .header("User-Agent", UA)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
             .header("Origin", pagtesouroBase)
             .header("Referer", pagtesouroBase + "/")
-            .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))
-            .build();
-        return send(http, req, erro);
+            .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8));
+        return send(http, cookies, b, erro);
     }
 
-    private HttpResponse<String> send(HttpClient http, HttpRequest req, GruException.Codigo erro) {
+    private HttpResponse<String> send(HttpClient http, Map<String, String> cookies,
+                                      HttpRequest.Builder builder, GruException.Codigo erro) {
+        if (!cookies.isEmpty()) {
+            builder.header("Cookie", cookieHeader(cookies));
+        }
+        HttpRequest req = builder.build();
         try {
             HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            storeCookies(cookies, resp);
             int s = resp.statusCode();
             // 302 é esperado no passo 3; demais devem ser 2xx
             if (s >= 400) {
-                throw new GruException(erro,
-                    "HTTP " + s + " em " + req.uri().getPath());
+                throw new GruException(erro, "HTTP " + s + " em " + req.uri().getPath());
             }
             return resp;
         } catch (GruException e) {
@@ -293,6 +315,32 @@ public class GruClient {
         } catch (Exception e) {
             throw new GruException(erro, "falha de rede em " + req.uri().getPath(), e);
         }
+    }
+
+    /** Guarda cookies do Set-Cookie, ignorando headers malformados (sem name=value). */
+    private static void storeCookies(Map<String, String> cookies, HttpResponse<String> resp) {
+        for (String sc : resp.headers().allValues("Set-Cookie")) {
+            String first = sc.split(";", 2)[0].trim();
+            int eq = first.indexOf('=');
+            if (eq > 0) {
+                String name = first.substring(0, eq).trim();
+                String value = first.substring(eq + 1).trim();
+                if (!name.isEmpty()) {
+                    cookies.put(name, value);
+                }
+            }
+        }
+    }
+
+    private static String cookieHeader(Map<String, String> cookies) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> e : cookies.entrySet()) {
+            if (sb.length() > 0) {
+                sb.append("; ");
+            }
+            sb.append(e.getKey()).append('=').append(e.getValue());
+        }
+        return sb.toString();
     }
 
     // ---- parsing / util ----------------------------------------------------
