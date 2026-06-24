@@ -300,6 +300,16 @@ export interface HabilitacaoGruResponse {
   erroMensagem?: string
 }
 
+/** Resposta da geração do boleto da GRU (PDF). */
+export interface HabilitacaoGruBoletoResponse {
+  sucesso: boolean
+  reaproveitada: boolean
+  downloadUrl?: string
+  idMarinha?: string
+  erroCodigo?: string
+  erroMensagem?: string
+}
+
 export type AceiteMetodo = 'SIGNATURE_PAD' | 'PAPEL'
 
 export interface AceiteRequest {

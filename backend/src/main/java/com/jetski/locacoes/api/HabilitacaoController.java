@@ -1,5 +1,6 @@
 package com.jetski.locacoes.api;
 
+import com.jetski.locacoes.api.dto.HabilitacaoGruBoletoResponse;
 import com.jetski.locacoes.api.dto.HabilitacaoGruResponse;
 import com.jetski.locacoes.api.dto.HabilitacaoRequest;
 import com.jetski.locacoes.api.dto.HabilitacaoResponse;
@@ -48,6 +49,30 @@ public class HabilitacaoController {
         log.info("POST /v1/tenants/{}/reservas/{}/habilitacao/gru", tenantId, id);
         validateTenantContext(tenantId);
         return ResponseEntity.ok(toGruResponse(gruService.gerarGru(id)));
+    }
+
+    @PostMapping("/gru/boleto")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Gerar boleto da GRU (PDF) automaticamente",
+        description = "Emite a GRU da Capitania na modalidade boleto e devolve a URL do PDF. " +
+                      "Reaproveita boleto já gerado e não pago. Em falha, sucesso=false + erroCodigo."
+    )
+    public ResponseEntity<HabilitacaoGruBoletoResponse> gerarBoleto(
+        @Parameter(description = "UUID do tenant") @PathVariable UUID tenantId,
+        @Parameter(description = "UUID da reserva") @PathVariable UUID id
+    ) {
+        log.info("POST /v1/tenants/{}/reservas/{}/habilitacao/gru/boleto", tenantId, id);
+        validateTenantContext(tenantId);
+        GruService.BoletoGeracao g = gruService.gerarBoleto(id);
+        return ResponseEntity.ok(HabilitacaoGruBoletoResponse.builder()
+            .sucesso(g.sucesso())
+            .reaproveitada(g.reaproveitada())
+            .downloadUrl(g.downloadUrl())
+            .idMarinha(g.habilitacao().getGruIdMarinha())
+            .erroCodigo(g.erroCodigo())
+            .erroMensagem(g.erroMensagem())
+            .build());
     }
 
     @PutMapping

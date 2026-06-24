@@ -68,6 +68,18 @@ class GruClientTest {
                 case "/api/pagamentos/meios-pagamento/pix" -> send(exchange, 200,
                     "{\"conteudo\":\"" + PIX_EMV + "\",\"imagem\":\"QRBASE64\","
                     + "\"dataExpiracao\":\"24/06/2026 20:10\"}");
+                case "/scam/emitgruscam/atualiza_gru.asp" -> {
+                    exchange.getResponseHeaders().add("Location",
+                        "imprime_gru.asp?v_id_gru=7977050&v_cd_recolhimento=060");
+                    send(exchange, 302, "");
+                }
+                case "/scam/emitgruscam/imprime_gru.asp" -> {
+                    exchange.getResponseHeaders().add("Location",
+                        "/scam/emitgruscam/gru/tmp/4017977050.pdf");
+                    send(exchange, 302, "");
+                }
+                case "/scam/emitgruscam/gru/tmp/4017977050.pdf" ->
+                    send(exchange, 200, "%PDF-1.4\n" + "x".repeat(1100));
                 default -> {
                     if (path.startsWith("/scam/emitgruscam/obj")) {
                         send(exchange, 200, "ok");
@@ -117,6 +129,20 @@ class GruClientTest {
             "/pagtesouro/index.php",
             "/api/pagamentos/dados-pagamento",
             "/api/pagamentos/meios-pagamento/pix");
+    }
+
+    @Test
+    void geraBoletoPdf() {
+        GruBoletoResultado r = client().gerarBoleto(CONTRIB);
+
+        assertThat(r.idGru()).isEqualTo("7977050");
+        assertThat(r.pdf()).isNotEmpty();
+        assertThat(new String(r.pdf(), StandardCharsets.UTF_8)).startsWith("%PDF");
+        assertThat(hits).containsSubsequence(
+            "/scam/emitgruscam/solicitar_servico.asp",
+            "/scam/emitgruscam/atualiza_gru.asp",
+            "/scam/emitgruscam/imprime_gru.asp",
+            "/scam/emitgruscam/gru/tmp/4017977050.pdf");
     }
 
     @Test

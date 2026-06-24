@@ -103,6 +103,19 @@ export function StepHabilitacao({
     onError: () => toast.error('Falha ao gerar a GRU. Preencha manualmente.'),
   })
 
+  const gerarBoleto = useMutation({
+    mutationFn: () => habilitacaoService.gerarBoleto(atendimento.reserva!.id),
+    onSuccess: (r) => {
+      if (r.sucesso && r.downloadUrl) {
+        window.open(r.downloadUrl, '_blank')
+        toast.success(r.reaproveitada ? 'Boleto reaproveitado.' : 'Boleto (PDF) gerado.')
+      } else {
+        toast.warning('Não foi possível gerar o boleto automaticamente. Preencha manualmente.')
+      }
+    },
+    onError: () => toast.error('Falha ao gerar o boleto. Preencha manualmente.'),
+  })
+
   return (
     <div className="space-y-5">
       <div className="rounded-md bg-muted/40 px-3 py-2 text-sm">
@@ -178,15 +191,26 @@ export function StepHabilitacao({
           <div className="space-y-3 rounded-lg border p-4">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">GRU (taxa CHA-MTA-E)</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={gerarGru.isPending}
-                onClick={() => gerarGru.mutate()}
-              >
-                {gerarGru.isPending ? 'Gerando…' : 'Gerar GRU + PIX automaticamente'}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={gerarGru.isPending}
+                  onClick={() => gerarGru.mutate()}
+                >
+                  {gerarGru.isPending ? 'Gerando…' : 'Gerar PIX'}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={gerarBoleto.isPending}
+                  onClick={() => gerarBoleto.mutate()}
+                >
+                  {gerarBoleto.isPending ? 'Gerando…' : 'Gerar boleto (PDF)'}
+                </Button>
+              </div>
             </div>
 
             {pix?.sucesso && pix.pixCopiaECola && (

@@ -94,6 +94,8 @@ public class ReservaHabilitacao {
     private String gruIdMarinha;
     @Column(name = "gru_gerada_em")
     private Instant gruGeradaEm;
+    @Column(name = "gru_pdf_s3_key", columnDefinition = "text")
+    private String gruPdfS3Key;
 
     @Column(nullable = false)
     @Builder.Default

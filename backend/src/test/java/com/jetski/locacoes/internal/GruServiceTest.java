@@ -40,6 +40,7 @@ class GruServiceTest {
     @Mock ReservaRepository reservaRepository;
     @Mock ClienteRepository clienteRepository;
     @Mock GruClient gruClient;
+    @Mock com.jetski.shared.storage.StorageService storageService;
 
     GruService service;
 
@@ -50,7 +51,7 @@ class GruServiceTest {
     @BeforeEach
     void setUp() {
         service = new GruService(habilitacaoRepository, reservaRepository,
-            clienteRepository, gruClient, new ObjectMapper());
+            clienteRepository, gruClient, new ObjectMapper(), storageService);
     }
 
     private void stubReservaECliente() {
@@ -164,5 +165,48 @@ class GruServiceTest {
         when(reservaRepository.findById(reservaId)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.gerarGru(reservaId))
             .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void geraBoletoArmazenaPdfEDevolveUrl() {
+        stubReservaECliente();
+        when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.empty());
+        when(gruClient.gerarBoleto(any())).thenReturn(
+            new com.jetski.locacoes.internal.gru.GruBoletoResultado("7977050", new byte[]{1, 2, 3}));
+        when(habilitacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(storageService.generatePresignedDownloadUrl(any(), org.mockito.ArgumentMatchers.anyInt()))
+            .thenReturn(com.jetski.shared.storage.PresignedUrl.builder().url("https://dl/boleto.pdf").build());
+
+        GruService.BoletoGeracao g = service.gerarBoleto(reservaId);
+
+        assertThat(g.sucesso()).isTrue();
+        assertThat(g.reaproveitada()).isFalse();
+        assertThat(g.downloadUrl()).isEqualTo("https://dl/boleto.pdf");
+        ArgumentCaptor<ReservaHabilitacao> cap = ArgumentCaptor.forClass(ReservaHabilitacao.class);
+        verify(habilitacaoRepository).save(cap.capture());
+        assertThat(cap.getValue().getGruPdfS3Key())
+            .isEqualTo(tenantId + "/reserva/" + reservaId + "/gru-boleto.pdf");
+        assertThat(cap.getValue().getGruIdMarinha()).isEqualTo("7977050");
+        verify(storageService).putObject(any(), any(), org.mockito.ArgumentMatchers.eq("application/pdf"));
+    }
+
+    @Test
+    void reaproveitaBoletoExistenteNaoPago() {
+        stubReservaECliente();
+        ReservaHabilitacao existente = ReservaHabilitacao.builder()
+            .reservaId(reservaId).tenantId(tenantId).via(ReservaHabilitacao.Via.EMA)
+            .gruPdfS3Key(tenantId + "/reserva/" + reservaId + "/gru-boleto.pdf")
+            .gruPago(false)
+            .build();
+        when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.of(existente));
+        when(storageService.generatePresignedDownloadUrl(any(), org.mockito.ArgumentMatchers.anyInt()))
+            .thenReturn(com.jetski.shared.storage.PresignedUrl.builder().url("https://dl/again.pdf").build());
+
+        GruService.BoletoGeracao g = service.gerarBoleto(reservaId);
+
+        assertThat(g.reaproveitada()).isTrue();
+        assertThat(g.downloadUrl()).isEqualTo("https://dl/again.pdf");
+        verify(gruClient, never()).gerarBoleto(any());
+        verify(habilitacaoRepository, never()).save(any());
     }
 }

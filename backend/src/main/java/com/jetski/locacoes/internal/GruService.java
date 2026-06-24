@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jetski.locacoes.domain.Cliente;
 import com.jetski.locacoes.domain.Reserva;
 import com.jetski.locacoes.domain.ReservaHabilitacao;
+import com.jetski.locacoes.internal.gru.GruBoletoResultado;
 import com.jetski.locacoes.internal.gru.GruClient;
 import com.jetski.locacoes.internal.gru.GruContribuinte;
 import com.jetski.locacoes.internal.gru.GruException;
@@ -13,6 +14,7 @@ import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.locacoes.internal.repository.ReservaHabilitacaoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
 import com.jetski.shared.exception.NotFoundException;
+import com.jetski.shared.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,12 +42,25 @@ public class GruService {
     private final ClienteRepository clienteRepository;
     private final GruClient gruClient;
     private final ObjectMapper objectMapper;
+    private final StorageService storageService;
+
+    private static final int BOLETO_URL_TTL_MIN = 60;
 
     /** Resultado da tentativa de geração (sempre devolvido, mesmo em falha). */
     public record GruGeracao(
         boolean sucesso,
         ReservaHabilitacao habilitacao,
         String qrPngBase64,      // só no sucesso "fresco"; null se reaproveitada/falha
+        boolean reaproveitada,
+        String erroCodigo,
+        String erroMensagem
+    ) {}
+
+    /** Resultado da geração do boleto (PDF) — devolve URL de download presignada. */
+    public record BoletoGeracao(
+        boolean sucesso,
+        ReservaHabilitacao habilitacao,
+        String downloadUrl,
         boolean reaproveitada,
         String erroCodigo,
         String erroMensagem
@@ -86,6 +101,49 @@ public class GruService {
             log.warn("Falha ao gerar GRU para reserva {}: {} - {}",
                 reservaId, e.getCodigo(), e.getMessage());
             return new GruGeracao(false, hab, null, false,
+                e.getCodigo().name(), e.getMessage());
+        }
+    }
+
+    @Transactional
+    public BoletoGeracao gerarBoleto(UUID reservaId) {
+        Reserva reserva = reservaRepository.findById(reservaId)
+            .orElseThrow(() -> new NotFoundException("Reserva não encontrada: " + reservaId));
+        Cliente cliente = clienteRepository.findById(reserva.getClienteId())
+            .orElseThrow(() -> new NotFoundException("Cliente não encontrado: " + reserva.getClienteId()));
+
+        ReservaHabilitacao hab = habilitacaoRepository.findByReservaId(reservaId)
+            .orElseGet(() -> ReservaHabilitacao.builder()
+                .tenantId(reserva.getTenantId())
+                .reservaId(reservaId)
+                .via(ReservaHabilitacao.Via.EMA)
+                .build());
+
+        // Idempotência: boleto já gerado e não pago → reaproveita o PDF (nova URL), não duplica GRU
+        if (hab.getGruPdfS3Key() != null && !Boolean.TRUE.equals(hab.getGruPago())) {
+            String url = storageService.generatePresignedDownloadUrl(
+                hab.getGruPdfS3Key(), BOLETO_URL_TTL_MIN).getUrl();
+            return new BoletoGeracao(true, hab, url, true, null, null);
+        }
+
+        GruContribuinte contrib = montarContribuinte(cliente);
+        try {
+            GruBoletoResultado r = gruClient.gerarBoleto(contrib);
+            String key = String.format("%s/reserva/%s/gru-boleto.pdf",
+                reserva.getTenantId(), reservaId);
+            storageService.putObject(key, r.pdf(), "application/pdf");
+
+            hab.setGruPdfS3Key(key);
+            hab.setGruIdMarinha(r.idGru());
+            hab.setGruGeradaEm(Instant.now());
+            ReservaHabilitacao salvo = habilitacaoRepository.save(hab);
+
+            String url = storageService.generatePresignedDownloadUrl(key, BOLETO_URL_TTL_MIN).getUrl();
+            return new BoletoGeracao(true, salvo, url, false, null, null);
+        } catch (GruException e) {
+            log.warn("Falha ao gerar boleto da GRU para reserva {}: {} - {}",
+                reservaId, e.getCodigo(), e.getMessage());
+            return new BoletoGeracao(false, hab, null, false,
                 e.getCodigo().name(), e.getMessage());
         }
     }

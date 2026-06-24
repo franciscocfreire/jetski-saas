@@ -180,6 +180,74 @@ public class GruClient {
         return new GruResultado(gruNumero, gruValor, descricao, copiaECola, qr, expiracao, idGru);
     }
 
+    /**
+     * Gera o BOLETO da GRU (PDF) — caminho alternativo ao PIX. Fluxo:
+     * solicitar_servico → cascata → POST atualiza_gru.asp (302 → imprime_gru.asp)
+     * → GET imprime_gru.asp (302 → .pdf) → GET .pdf. Lança {@link GruException} em falha.
+     */
+    public GruBoletoResultado gerarBoleto(GruContribuinte c) {
+        if (c == null || isBlank(c.cpf()) || isBlank(c.nome())) {
+            throw new GruException(GruException.Codigo.DADOS_INVALIDOS,
+                "CPF e nome são obrigatórios para gerar a GRU");
+        }
+
+        HttpClient http = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NEVER)
+            .connectTimeout(timeout)
+            .build();
+        Map<String, String> cookies = new LinkedHashMap<>();
+
+        String solicitarUrl = marinhaBase + "/scam/emitgruscam/solicitar_servico.asp";
+        get(http, cookies, solicitarUrl, null, GruException.Codigo.MARINHA_INDISPONIVEL);
+        if (cascataHabilitada) {
+            try {
+                executarCascata(http, cookies, c, solicitarUrl);
+            } catch (GruException e) {
+                log.warn("Cascata da GRU (boleto) falhou (seguindo): {}", e.getMessage());
+            }
+        }
+
+        // POST atualiza_gru.asp → 302 imprime_gru.asp?v_id_gru=N&v_cd_recolhimento=...
+        HttpResponse<String> r1 = postForm(http, cookies,
+            marinhaBase + "/scam/emitgruscam/atualiza_gru.asp",
+            formGerarGru(c), solicitarUrl, GruException.Codigo.MARINHA_INDISPONIVEL);
+        String loc1 = r1.headers().firstValue("Location").orElse("");
+        Matcher mGru = ID_GRU.matcher(loc1);
+        if (r1.statusCode() != 302 || !mGru.find()) {
+            log.warn("Boleto: atualiza_gru.asp sem id_gru. status={} location='{}'",
+                r1.statusCode(), loc1);
+            throw new GruException(GruException.Codigo.MARINHA_INDISPONIVEL,
+                "atualiza_gru.asp não retornou a GRU (boleto)");
+        }
+        String idGru = mGru.group(1);
+        URI imprimeUri = URI.create(solicitarUrl).resolve(loc1);
+
+        // GET imprime_gru.asp → 302 .../gru/tmp/<arquivo>.pdf
+        HttpResponse<String> r2 = get(http, cookies, imprimeUri.toString(), solicitarUrl,
+            GruException.Codigo.MARINHA_INDISPONIVEL);
+        String loc2 = r2.headers().firstValue("Location").orElse("");
+        if (r2.statusCode() != 302 || loc2.isBlank()) {
+            throw new GruException(GruException.Codigo.MARINHA_INDISPONIVEL,
+                "imprime_gru.asp não retornou o PDF (status " + r2.statusCode() + ")");
+        }
+        URI pdfUri = URI.create(solicitarUrl).resolve(loc2);
+
+        // GET o PDF (binário)
+        HttpResponse<byte[]> r3 = getBytes(http, cookies, pdfUri.toString(),
+            imprimeUri.toString(), GruException.Codigo.MARINHA_INDISPONIVEL);
+        byte[] pdf = r3.body();
+        if (pdf == null || pdf.length < 1000 || !looksLikePdf(pdf)) {
+            throw new GruException(GruException.Codigo.MARINHA_INDISPONIVEL,
+                "PDF do boleto inválido/vazio");
+        }
+        log.info("Boleto GRU gerado: idGru={}, pdfBytes={}", idGru, pdf.length);
+        return new GruBoletoResultado(idGru, pdf);
+    }
+
+    private static boolean looksLikePdf(byte[] b) {
+        return b.length >= 5 && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F';
+    }
+
     // ---- passos auxiliares -------------------------------------------------
 
     private void executarCascata(HttpClient http, Map<String, String> cookies,
@@ -295,6 +363,33 @@ public class GruClient {
         return send(http, cookies, b, erro);
     }
 
+    private HttpResponse<byte[]> getBytes(HttpClient http, Map<String, String> cookies, String url,
+                                          String referer, GruException.Codigo erro) {
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url))
+            .timeout(timeout).GET()
+            .header("User-Agent", UA)
+            .header("Accept-Language", "pt-BR,pt;q=0.9");
+        if (referer != null) {
+            b.header("Referer", referer);
+        }
+        if (!cookies.isEmpty()) {
+            b.header("Cookie", cookieHeader(cookies));
+        }
+        HttpRequest req = b.build();
+        try {
+            HttpResponse<byte[]> resp = http.send(req, HttpResponse.BodyHandlers.ofByteArray());
+            storeCookies(cookies, resp);
+            if (resp.statusCode() >= 400) {
+                throw new GruException(erro, "HTTP " + resp.statusCode() + " em " + req.uri().getPath());
+            }
+            return resp;
+        } catch (GruException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new GruException(erro, "falha de rede em " + req.uri().getPath(), e);
+        }
+    }
+
     private HttpResponse<String> send(HttpClient http, Map<String, String> cookies,
                                       HttpRequest.Builder builder, GruException.Codigo erro) {
         if (!cookies.isEmpty()) {
@@ -318,7 +413,7 @@ public class GruClient {
     }
 
     /** Guarda cookies do Set-Cookie, ignorando headers malformados (sem name=value). */
-    private static void storeCookies(Map<String, String> cookies, HttpResponse<String> resp) {
+    private static void storeCookies(Map<String, String> cookies, HttpResponse<?> resp) {
         for (String sc : resp.headers().allValues("Set-Cookie")) {
             String first = sc.split(";", 2)[0].trim();
             int eq = first.indexOf('=');

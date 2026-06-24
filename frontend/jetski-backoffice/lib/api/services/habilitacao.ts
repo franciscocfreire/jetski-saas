@@ -1,5 +1,10 @@
 import { apiClient, getTenantId } from '../client'
-import type { Habilitacao, HabilitacaoGruResponse, HabilitacaoRequest } from '../types'
+import type {
+  Habilitacao,
+  HabilitacaoGruBoletoResponse,
+  HabilitacaoGruResponse,
+  HabilitacaoRequest,
+} from '../types'
 
 const path = (reservaId: string) =>
   `/v1/tenants/${getTenantId()}/reservas/${reservaId}/habilitacao`
@@ -24,6 +29,12 @@ export const habilitacaoService = {
   /** Gera a GRU + PIX automaticamente (Marinha/PagTesouro). Fallback manual se sucesso=false. */
   async gerarGru(reservaId: string): Promise<HabilitacaoGruResponse> {
     const { data } = await apiClient.post<HabilitacaoGruResponse>(`${path(reservaId)}/gru`)
+    return data
+  },
+
+  /** Gera o boleto da GRU (PDF) e devolve a URL de download. Fallback manual se sucesso=false. */
+  async gerarBoleto(reservaId: string): Promise<HabilitacaoGruBoletoResponse> {
+    const { data } = await apiClient.post<HabilitacaoGruBoletoResponse>(`${path(reservaId)}/gru/boleto`)
     return data
   },
 }

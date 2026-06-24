@@ -262,7 +262,7 @@ CREATE TABLE IF NOT EXISTS public.reserva_habilitacao (
     videoaula_em timestamptz,
     anexo_saude boolean DEFAULT false NOT NULL, anexo_regras boolean DEFAULT false NOT NULL, anexo_residencia boolean DEFAULT false NOT NULL,
     gru_numero varchar(60), gru_valor numeric(10,2), gru_pago boolean DEFAULT false NOT NULL, gru_pago_em timestamptz,
-    gru_pix_copia_e_cola text, gru_pix_expiracao timestamp, gru_id_marinha varchar(40), gru_gerada_em timestamp,
+    gru_pix_copia_e_cola text, gru_pix_expiracao timestamp, gru_id_marinha varchar(40), gru_gerada_em timestamp, gru_pdf_s3_key text,
     resolvida boolean DEFAULT false NOT NULL,
     created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL,
     CONSTRAINT reserva_habilitacao_reserva_uq UNIQUE (reserva_id)
