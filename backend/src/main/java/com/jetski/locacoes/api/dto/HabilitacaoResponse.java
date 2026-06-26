@@ -38,6 +38,7 @@ public class HabilitacaoResponse {
     private String gruPixCopiaECola;
     private Instant gruPixExpiracao;
     private Boolean gruBoletoDisponivel;
+    private Boolean gruComprovanteDisponivel;
 
     private Boolean resolvida;
     private Instant createdAt;

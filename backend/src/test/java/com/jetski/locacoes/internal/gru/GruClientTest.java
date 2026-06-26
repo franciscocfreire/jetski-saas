@@ -80,6 +80,19 @@ class GruClientTest {
                 }
                 case "/scam/emitgruscam/gru/tmp/4017977050.pdf" ->
                     send(exchange, 200, "%PDF-1.4\n" + "x".repeat(1100));
+                case "/api/pagamentos/pix-stn/sonda" -> {
+                    String q = exchange.getRequestURI().getQuery();
+                    if (q != null && q.contains("pago")) {
+                        send(exchange, 200, """
+                            {"idPagamento":"75sG","numeroReferencia":"80893100021762026",
+                             "descricao":"CHA","valor":8,"refTran":"E182",
+                             "tipoPagamentoEscolhido":"PIX",
+                             "contribuinte":{"nome":"THALIA","codigoIdentificador":"23472084898"},
+                             "situacao":{"codigo":"CONCLUIDO","data":"2026-06-26T07:04:31Z"}}""");
+                    } else {
+                        send(exchange, 200, "[{\"codigo\":\"C0008\",\"descricao\":\"Erro desconhecido.\"}]");
+                    }
+                }
                 default -> {
                     if (path.startsWith("/scam/emitgruscam/obj")) {
                         send(exchange, 200, "ok");
@@ -143,6 +156,22 @@ class GruClientTest {
             "/scam/emitgruscam/atualiza_gru.asp",
             "/scam/emitgruscam/imprime_gru.asp",
             "/scam/emitgruscam/gru/tmp/4017977050.pdf");
+    }
+
+    @Test
+    void sondaPixPago() {
+        GruPagamentoStatus s = client().consultarStatusPix("ses-pago");
+        assertThat(s.pago()).isTrue();
+        assertThat(s.situacao()).isEqualTo("CONCLUIDO");
+        assertThat(s.numeroReferencia()).isEqualTo("80893100021762026");
+        assertThat(s.nomeContribuinte()).isEqualTo("THALIA");
+        assertThat(s.dataPagamento()).isEqualTo(java.time.Instant.parse("2026-06-26T07:04:31Z"));
+    }
+
+    @Test
+    void sondaPixPendenteRetornaNaoPago() {
+        GruPagamentoStatus s = client().consultarStatusPix("ses-qualquer");
+        assertThat(s.pago()).isFalse();
     }
 
     @Test

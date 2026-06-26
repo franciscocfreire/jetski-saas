@@ -2,6 +2,7 @@ import { apiClient, getTenantId } from '../client'
 import type {
   Habilitacao,
   HabilitacaoGruBoletoResponse,
+  HabilitacaoGruPagamentoResponse,
   HabilitacaoGruResponse,
   HabilitacaoRequest,
 } from '../types'
@@ -41,6 +42,22 @@ export const habilitacaoService = {
   /** Baixa o PDF do boleto já gerado (stream autenticado via Bearer). */
   async baixarBoleto(reservaId: string): Promise<Blob> {
     const res = await apiClient.get(`${path(reservaId)}/gru/boleto/download`, { responseType: 'blob' })
+    return res.data as Blob
+  },
+
+  /** Verifica no PagTesouro se o PIX da GRU foi pago (e gera o comprovante se sim). */
+  async verificarPagamento(reservaId: string): Promise<HabilitacaoGruPagamentoResponse> {
+    const { data } = await apiClient.post<HabilitacaoGruPagamentoResponse>(
+      `${path(reservaId)}/gru/verificar-pagamento`
+    )
+    return data
+  },
+
+  /** Baixa o comprovante de pagamento da GRU (PDF, stream autenticado). */
+  async baixarComprovante(reservaId: string): Promise<Blob> {
+    const res = await apiClient.get(`${path(reservaId)}/gru/comprovante/download`, {
+      responseType: 'blob',
+    })
     return res.data as Blob
   },
 }

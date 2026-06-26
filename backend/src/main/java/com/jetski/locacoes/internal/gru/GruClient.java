@@ -177,7 +177,7 @@ public class GruClient {
         Instant expiracao = parseExpiracao(texto(pix, "dataExpiracao"));
 
         log.info("GRU gerada: numero={}, valor={}, idGru={}", gruNumero, gruValor, idGru);
-        return new GruResultado(gruNumero, gruValor, descricao, copiaECola, qr, expiracao, idGru);
+        return new GruResultado(gruNumero, gruValor, descricao, copiaECola, qr, expiracao, idGru, idSessao);
     }
 
     /**
@@ -246,6 +246,73 @@ public class GruClient {
 
     private static boolean looksLikePdf(byte[] b) {
         return b.length >= 5 && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F';
+    }
+
+    /**
+     * Consulta o status do PIX no PagTesouro ({@code pix-stn/sonda}).
+     * Pago ⟺ a resposta é um objeto com {@code situacao.codigo == "CONCLUIDO"};
+     * pendente/não-pago ⟺ array de erro (ex.: C0008) ou objeto sem CONCLUIDO.
+     */
+    public GruPagamentoStatus consultarStatusPix(String idSessao) {
+        if (isBlank(idSessao)) {
+            return GruPagamentoStatus.naoPago("SEM_SESSAO");
+        }
+        HttpRequest req = HttpRequest.newBuilder(
+                URI.create(pagtesouroBase + "/api/pagamentos/pix-stn/sonda?idSessao=" + idSessao))
+            .timeout(timeout).GET()
+            .header("User-Agent", UA)
+            .header("Accept", "application/json")
+            .header("Referer", pagtesouroBase + "/")
+            .build();
+        String body;
+        try {
+            HttpResponse<String> resp = HttpClient.newBuilder().connectTimeout(timeout).build()
+                .send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 500) {
+                throw new GruException(GruException.Codigo.PAGTESOURO_FALHOU,
+                    "HTTP " + resp.statusCode() + " em pix-stn/sonda");
+            }
+            body = resp.body();
+        } catch (GruException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new GruException(GruException.Codigo.PAGTESOURO_FALHOU,
+                "falha de rede ao consultar pix-stn/sonda", e);
+        }
+
+        JsonNode node = parseJson(body);
+        if (!node.isObject()) {
+            // array de erro (C0008) = ainda não pago
+            return GruPagamentoStatus.naoPago("PENDENTE");
+        }
+        JsonNode sit = node.get("situacao");
+        String codigo = sit != null ? texto(sit, "codigo") : null;
+        boolean pago = "CONCLUIDO".equals(codigo);
+        if (!pago) {
+            return GruPagamentoStatus.naoPago(codigo != null ? codigo : "PENDENTE");
+        }
+        JsonNode contrib = node.get("contribuinte");
+        return new GruPagamentoStatus(
+            true, codigo, parseInstant(texto(sit, "data")),
+            texto(node, "idPagamento"),
+            texto(node, "numeroReferencia"),
+            texto(node, "descricao"),
+            node.has("valor") && !node.get("valor").isNull() ? node.get("valor").decimalValue() : null,
+            texto(node, "refTran"),
+            contrib != null ? texto(contrib, "nome") : null,
+            contrib != null ? texto(contrib, "codigoIdentificador") : null,
+            texto(node, "tipoPagamentoEscolhido"));
+    }
+
+    private static Instant parseInstant(String iso) {
+        if (iso == null || iso.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(iso);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // ---- passos auxiliares -------------------------------------------------

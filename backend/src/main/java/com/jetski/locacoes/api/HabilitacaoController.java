@@ -1,6 +1,7 @@
 package com.jetski.locacoes.api;
 
 import com.jetski.locacoes.api.dto.HabilitacaoGruBoletoResponse;
+import com.jetski.locacoes.api.dto.HabilitacaoGruPagamentoResponse;
 import com.jetski.locacoes.api.dto.HabilitacaoGruResponse;
 import com.jetski.locacoes.api.dto.HabilitacaoRequest;
 import com.jetski.locacoes.api.dto.HabilitacaoResponse;
@@ -72,6 +73,41 @@ public class HabilitacaoController {
             .erroCodigo(g.erroCodigo())
             .erroMensagem(g.erroMensagem())
             .build());
+    }
+
+    @PostMapping("/gru/verificar-pagamento")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Verificar se o PIX da GRU foi pago (PagTesouro)",
+        description = "Consulta o pix-stn/sonda; se pago, marca a GRU como paga e gera o comprovante."
+    )
+    public ResponseEntity<HabilitacaoGruPagamentoResponse> verificarPagamento(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id
+    ) {
+        validateTenantContext(tenantId);
+        GruService.VerificacaoPagamento v = gruService.verificarPagamento(id);
+        return ResponseEntity.ok(HabilitacaoGruPagamentoResponse.builder()
+            .pago(v.pago())
+            .situacao(v.situacao())
+            .comprovanteDisponivel(v.comprovanteDisponivel())
+            .build());
+    }
+
+    @GetMapping("/gru/comprovante/download")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Baixar o comprovante de pagamento da GRU (PDF, streaming)")
+    public ResponseEntity<byte[]> baixarComprovante(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id
+    ) {
+        validateTenantContext(tenantId);
+        byte[] pdf = gruService.baixarComprovantePdf(id);
+        return ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+            .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                "inline; filename=\"gru-comprovante.pdf\"")
+            .body(pdf);
     }
 
     @GetMapping("/gru/boleto/download")
@@ -168,6 +204,7 @@ public class HabilitacaoController {
             .gruPixCopiaECola(h.getGruPixCopiaECola())
             .gruPixExpiracao(h.getGruPixExpiracao())
             .gruBoletoDisponivel(h.getGruPdfS3Key() != null)
+            .gruComprovanteDisponivel(h.getGruComprovanteS3Key() != null)
             .resolvida(h.getResolvida())
             .createdAt(h.getCreatedAt())
             .updatedAt(h.getUpdatedAt())

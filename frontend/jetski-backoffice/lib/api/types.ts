@@ -285,7 +285,15 @@ export interface Habilitacao {
   gruPixCopiaECola?: string
   gruPixExpiracao?: string
   gruBoletoDisponivel?: boolean
+  gruComprovanteDisponivel?: boolean
   resolvida: boolean
+}
+
+/** Resposta da verificação de pagamento do PIX da GRU. */
+export interface HabilitacaoGruPagamentoResponse {
+  pago: boolean
+  situacao: string
+  comprovanteDisponivel: boolean
 }
 
 /** Resposta da geração automática da GRU + PIX (Marinha/PagTesouro). */

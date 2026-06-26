@@ -96,6 +96,10 @@ public class ReservaHabilitacao {
     private Instant gruGeradaEm;
     @Column(name = "gru_pdf_s3_key", columnDefinition = "text")
     private String gruPdfS3Key;
+    @Column(name = "gru_id_sessao", columnDefinition = "text")
+    private String gruIdSessao;
+    @Column(name = "gru_comprovante_s3_key", columnDefinition = "text")
+    private String gruComprovanteS3Key;
 
     @Column(nullable = false)
     @Builder.Default

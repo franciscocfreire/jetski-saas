@@ -9,6 +9,7 @@ import com.jetski.locacoes.internal.gru.GruBoletoResultado;
 import com.jetski.locacoes.internal.gru.GruClient;
 import com.jetski.locacoes.internal.gru.GruContribuinte;
 import com.jetski.locacoes.internal.gru.GruException;
+import com.jetski.locacoes.internal.gru.GruPagamentoStatus;
 import com.jetski.locacoes.internal.gru.GruResultado;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.locacoes.internal.repository.ReservaHabilitacaoRepository;
@@ -43,6 +44,7 @@ public class GruService {
     private final GruClient gruClient;
     private final ObjectMapper objectMapper;
     private final StorageService storageService;
+    private final GruComprovantePdfService comprovantePdfService;
 
     /** Resultado da tentativa de geração (sempre devolvido, mesmo em falha). */
     public record GruGeracao(
@@ -91,6 +93,7 @@ public class GruService {
             hab.setGruPixCopiaECola(r.pixCopiaECola());
             hab.setGruPixExpiracao(r.pixExpiracao());
             hab.setGruIdMarinha(r.idGru());
+            hab.setGruIdSessao(r.idSessao());
             hab.setGruGeradaEm(Instant.now());
             ReservaHabilitacao salvo = habilitacaoRepository.save(hab);
             return new GruGeracao(true, salvo, r.pixQrPngBase64(), false, null, null);
@@ -140,6 +143,67 @@ public class GruService {
             return new BoletoGeracao(false, hab, false,
                 e.getCodigo().name(), e.getMessage());
         }
+    }
+
+    /** Resultado da verificação de pagamento do PIX (sob demanda). */
+    public record VerificacaoPagamento(
+        boolean pago,
+        String situacao,
+        boolean comprovanteDisponivel
+    ) {}
+
+    /**
+     * Verifica no PagTesouro se o PIX da GRU foi pago. Se sim, marca {@code gruPago},
+     * grava {@code gruPagoEm} e gera o comprovante PDF. Best-effort: em falha de rede,
+     * devolve o estado atual sem alterar.
+     */
+    @Transactional
+    public VerificacaoPagamento verificarPagamento(UUID reservaId) {
+        ReservaHabilitacao hab = habilitacaoRepository.findByReservaId(reservaId)
+            .orElseThrow(() -> new NotFoundException("Habilitação não encontrada: " + reservaId));
+
+        if (Boolean.TRUE.equals(hab.getGruPago())) {
+            return new VerificacaoPagamento(true, "CONCLUIDO", hab.getGruComprovanteS3Key() != null);
+        }
+        if (hab.getGruIdSessao() == null) {
+            return new VerificacaoPagamento(false, "SEM_SESSAO", false);
+        }
+
+        try {
+            GruPagamentoStatus st = gruClient.consultarStatusPix(hab.getGruIdSessao());
+            if (!st.pago()) {
+                return new VerificacaoPagamento(false, st.situacao(), false);
+            }
+            hab.setGruPago(true);
+            hab.setGruPagoEm(st.dataPagamento() != null ? st.dataPagamento() : Instant.now());
+            try {
+                byte[] pdf = comprovantePdfService.gerar(st);
+                String key = String.format("%s/reserva/%s/gru-comprovante.pdf",
+                    hab.getTenantId(), reservaId);
+                storageService.putObject(key, pdf, "application/pdf");
+                hab.setGruComprovanteS3Key(key);
+            } catch (Exception e) {
+                log.warn("GRU paga mas falhou ao gerar/armazenar comprovante (reserva {}): {}",
+                    reservaId, e.getMessage());
+            }
+            habilitacaoRepository.save(hab);
+            log.info("GRU paga confirmada para reserva {} (pagoEm={})", reservaId, hab.getGruPagoEm());
+            return new VerificacaoPagamento(true, "CONCLUIDO", hab.getGruComprovanteS3Key() != null);
+        } catch (GruException e) {
+            log.warn("Falha ao verificar pagamento da GRU (reserva {}): {}", reservaId, e.getMessage());
+            return new VerificacaoPagamento(false, "ERRO", false);
+        }
+    }
+
+    /** Lê os bytes do comprovante de pagamento já gerado. */
+    @Transactional(readOnly = true)
+    public byte[] baixarComprovantePdf(UUID reservaId) {
+        ReservaHabilitacao hab = habilitacaoRepository.findByReservaId(reservaId)
+            .orElseThrow(() -> new NotFoundException("Habilitação não encontrada: " + reservaId));
+        if (hab.getGruComprovanteS3Key() == null) {
+            throw new NotFoundException("Comprovante da GRU ainda não disponível para a reserva " + reservaId);
+        }
+        return storageService.getObject(hab.getGruComprovanteS3Key());
     }
 
     /** Lê os bytes do PDF do boleto já gerado (stream autenticado pelo backend). */

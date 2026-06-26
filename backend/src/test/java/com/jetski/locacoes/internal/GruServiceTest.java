@@ -41,6 +41,7 @@ class GruServiceTest {
     @Mock ClienteRepository clienteRepository;
     @Mock GruClient gruClient;
     @Mock com.jetski.shared.storage.StorageService storageService;
+    @Mock GruComprovantePdfService comprovantePdfService;
 
     GruService service;
 
@@ -51,7 +52,7 @@ class GruServiceTest {
     @BeforeEach
     void setUp() {
         service = new GruService(habilitacaoRepository, reservaRepository,
-            clienteRepository, gruClient, new ObjectMapper(), storageService);
+            clienteRepository, gruClient, new ObjectMapper(), storageService, comprovantePdfService);
     }
 
     private void stubReservaECliente() {
@@ -74,7 +75,7 @@ class GruServiceTest {
         when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.empty());
         when(gruClient.gerar(any(GruContribuinte.class))).thenReturn(new GruResultado(
             "60893100225672026", new BigDecimal("60.32"), "CHA",
-            "PIXEMV", "QR", Instant.now().plus(1, ChronoUnit.HOURS), "7976123"));
+            "PIXEMV", "QR", Instant.now().plus(1, ChronoUnit.HOURS), "7976123", "sessao-1"));
         when(habilitacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         GruService.GruGeracao g = service.gerarGru(reservaId);
@@ -96,7 +97,7 @@ class GruServiceTest {
         stubReservaECliente();
         when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.empty());
         when(gruClient.gerar(any())).thenReturn(new GruResultado(
-            "1", BigDecimal.ONE, "CHA", "PIX", "QR", null, "9"));
+            "1", BigDecimal.ONE, "CHA", "PIX", "QR", null, "9", "sessao-2"));
         when(habilitacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         service.gerarGru(reservaId);
@@ -137,7 +138,7 @@ class GruServiceTest {
         when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.of(vencida));
         when(gruClient.gerar(any())).thenReturn(new GruResultado(
             "999", BigDecimal.TEN, "CHA", "NOVO", "QR",
-            Instant.now().plus(1, ChronoUnit.HOURS), "7"));
+            Instant.now().plus(1, ChronoUnit.HOURS), "7", "sessao-3"));
         when(habilitacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         GruService.GruGeracao g = service.gerarGru(reservaId);
@@ -202,6 +203,75 @@ class GruServiceTest {
         assertThat(g.reaproveitada()).isTrue();
         verify(gruClient, never()).gerarBoleto(any());
         verify(habilitacaoRepository, never()).save(any());
+    }
+
+    @Test
+    void verificarPagamentoMarcaPagaEGeraComprovante() {
+        ReservaHabilitacao hab = ReservaHabilitacao.builder()
+            .reservaId(reservaId).tenantId(tenantId).via(ReservaHabilitacao.Via.EMA)
+            .gruIdSessao("sessao-x").gruPago(false).build();
+        when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.of(hab));
+        when(gruClient.consultarStatusPix("sessao-x")).thenReturn(
+            new com.jetski.locacoes.internal.gru.GruPagamentoStatus(true, "CONCLUIDO",
+                Instant.parse("2026-06-26T07:04:31Z"), "idPag", "80893100021762026", "CHA",
+                new BigDecimal("8.00"), "E182", "THALIA", "23472084898", "PIX"));
+        when(comprovantePdfService.gerar(any())).thenReturn(new byte[]{1, 2});
+        when(habilitacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        GruService.VerificacaoPagamento v = service.verificarPagamento(reservaId);
+
+        assertThat(v.pago()).isTrue();
+        assertThat(v.comprovanteDisponivel()).isTrue();
+        ArgumentCaptor<ReservaHabilitacao> cap = ArgumentCaptor.forClass(ReservaHabilitacao.class);
+        verify(habilitacaoRepository).save(cap.capture());
+        assertThat(cap.getValue().getGruPago()).isTrue();
+        assertThat(cap.getValue().getGruPagoEm()).isEqualTo(Instant.parse("2026-06-26T07:04:31Z"));
+        assertThat(cap.getValue().getGruComprovanteS3Key())
+            .isEqualTo(tenantId + "/reserva/" + reservaId + "/gru-comprovante.pdf");
+        verify(storageService).putObject(any(), any(), org.mockito.ArgumentMatchers.eq("application/pdf"));
+    }
+
+    @Test
+    void verificarPagamentoPendenteNaoMarca() {
+        ReservaHabilitacao hab = ReservaHabilitacao.builder()
+            .reservaId(reservaId).tenantId(tenantId).via(ReservaHabilitacao.Via.EMA)
+            .gruIdSessao("sessao-x").gruPago(false).build();
+        when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.of(hab));
+        when(gruClient.consultarStatusPix("sessao-x")).thenReturn(
+            com.jetski.locacoes.internal.gru.GruPagamentoStatus.naoPago("PENDENTE"));
+
+        GruService.VerificacaoPagamento v = service.verificarPagamento(reservaId);
+
+        assertThat(v.pago()).isFalse();
+        assertThat(v.situacao()).isEqualTo("PENDENTE");
+        verify(habilitacaoRepository, never()).save(any());
+    }
+
+    @Test
+    void verificarPagamentoJaPagaNaoConsulta() {
+        ReservaHabilitacao hab = ReservaHabilitacao.builder()
+            .reservaId(reservaId).tenantId(tenantId).via(ReservaHabilitacao.Via.EMA)
+            .gruIdSessao("sessao-x").gruPago(true).build();
+        when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.of(hab));
+
+        GruService.VerificacaoPagamento v = service.verificarPagamento(reservaId);
+
+        assertThat(v.pago()).isTrue();
+        verify(gruClient, never()).consultarStatusPix(any());
+    }
+
+    @Test
+    void verificarPagamentoSemSessao() {
+        ReservaHabilitacao hab = ReservaHabilitacao.builder()
+            .reservaId(reservaId).tenantId(tenantId).via(ReservaHabilitacao.Via.EMA)
+            .gruPago(false).build();
+        when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.of(hab));
+
+        GruService.VerificacaoPagamento v = service.verificarPagamento(reservaId);
+
+        assertThat(v.pago()).isFalse();
+        assertThat(v.situacao()).isEqualTo("SEM_SESSAO");
+        verify(gruClient, never()).consultarStatusPix(any());
     }
 
     @Test

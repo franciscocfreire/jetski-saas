@@ -13,5 +13,6 @@ public record GruResultado(
     String pixCopiaECola,    // EMV copia-e-cola
     String pixQrPngBase64,   // QR code (PNG base64) — não persistido, só resposta
     Instant pixExpiracao,    // vencimento do PIX
-    String idGru             // id interno da Marinha (referência/suporte)
+    String idGru,            // id interno da Marinha (referência/suporte)
+    String idSessao          // idSessao do PagTesouro (p/ consultar pagamento depois)
 ) {}

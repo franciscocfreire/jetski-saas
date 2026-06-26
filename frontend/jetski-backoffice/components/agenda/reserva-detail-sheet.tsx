@@ -11,6 +11,8 @@ import {
   Loader2,
   PlayCircle,
   QrCode,
+  Receipt,
+  RefreshCw,
 } from 'lucide-react'
 import {
   Sheet,
@@ -101,6 +103,22 @@ export function ReservaDetailSheet({
     mutationFn: () => habilitacaoService.baixarBoleto(reservaId!),
     onSuccess: (blob) => window.open(URL.createObjectURL(blob), '_blank'),
     onError: () => toast.error('Falha ao baixar o boleto.'),
+  })
+
+  const verificarPagamento = useMutation({
+    mutationFn: () => habilitacaoService.verificarPagamento(reservaId!),
+    onSuccess: (r) => {
+      invalidar()
+      if (r.pago) toast.success('Pagamento confirmado — GRU paga.')
+      else toast.info('Pagamento ainda não identificado. Tente novamente em instantes.')
+    },
+    onError: () => toast.error('Falha ao verificar o pagamento.'),
+  })
+
+  const baixarComprovante = useMutation({
+    mutationFn: () => habilitacaoService.baixarComprovante(reservaId!),
+    onSuccess: (blob) => window.open(URL.createObjectURL(blob), '_blank'),
+    onError: () => toast.error('Falha ao baixar o comprovante.'),
   })
 
   if (!reserva) return null
@@ -201,6 +219,22 @@ export function ReservaDetailSheet({
                 </p>
               )}
 
+              {(temPix || temBoleto) && (
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={verificarPagamento.isPending}
+                  onClick={() => verificarPagamento.mutate()}
+                >
+                  {verificarPagamento.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                  )}
+                  Verificar pagamento
+                </Button>
+              )}
+
               {temPix && (
                 <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/40">
                   <div className="flex items-center gap-2 text-sm font-medium">
@@ -273,6 +307,22 @@ export function ReservaDetailSheet({
                 )}
               </div>
             </div>
+          </>
+        )}
+
+        {ema && gruPaga && hab?.gruComprovanteDisponivel && (
+          <>
+            <Separator className="my-4" />
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={baixarComprovante.isPending}
+              onClick={() => baixarComprovante.mutate()}
+            >
+              <Receipt className="mr-2 h-4 w-4" />
+              {baixarComprovante.isPending ? 'Abrindo…' : 'Baixar comprovante (PDF)'}
+            </Button>
           </>
         )}
       </SheetContent>
