@@ -2,19 +2,20 @@
 
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Search, UserPlus, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Search, UserPlus, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { clientesService } from '@/lib/api/services'
+import { formatTelefoneBR, telefoneToE164BR } from '@/lib/utils'
 import type { Cliente } from '@/lib/api/types'
 
 export function StepCliente({ onDone }: { onDone: (cliente: Cliente) => void }) {
   const [cpf, setCpf] = useState('')
   const [buscou, setBuscou] = useState(false)
   const [encontrado, setEncontrado] = useState<Cliente | null>(null)
-  const [form, setForm] = useState({ nome: '', email: '', telefone: '', whatsapp: '' })
+  const [form, setForm] = useState({ nome: '', email: '', celular: '' })
 
   const buscar = useMutation({
     mutationFn: async () => {
@@ -31,7 +32,12 @@ export function StepCliente({ onDone }: { onDone: (cliente: Cliente) => void }) 
         if (cliente.statusConta === 'ATIVA') {
           toast.warning('Cliente com conta ativa — verificação (OTP) necessária antes de vincular.')
         }
-        setForm((f) => ({ ...f, nome: cliente.nome, email: cliente.email ?? '', telefone: cliente.telefone ?? '' }))
+        setForm((f) => ({
+          ...f,
+          nome: cliente.nome,
+          email: cliente.email ?? '',
+          celular: formatTelefoneBR(cliente.whatsapp || cliente.telefone || ''),
+        }))
       } else if (nomeMarinha) {
         setForm((f) => ({ ...f, nome: nomeMarinha }))
         toast.info('Nome encontrado na base da Marinha pelo CPF.')
@@ -46,8 +52,8 @@ export function StepCliente({ onDone }: { onDone: (cliente: Cliente) => void }) 
         nome: form.nome.trim(),
         documento: cpf.trim() || undefined,
         email: form.email.trim() || undefined,
-        telefone: form.telefone.trim() || undefined,
-        whatsapp: form.whatsapp.trim() || undefined,
+        telefone: telefoneToE164BR(form.celular),
+        whatsapp: telefoneToE164BR(form.celular),
       }),
     onSuccess: (c) => {
       toast.success('Pré-conta criada.')
@@ -115,25 +121,15 @@ export function StepCliente({ onDone }: { onDone: (cliente: Cliente) => void }) 
               />
             </div>
             <div>
-              <Label className="text-xs">Telefone</Label>
+              <Label className="text-xs">Celular / WhatsApp</Label>
               <Input
-                value={form.telefone}
-                onChange={(e) => setForm({ ...form, telefone: e.target.value })}
-                placeholder="+5521988887777"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">WhatsApp</Label>
-              <Input
-                value={form.whatsapp}
-                onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
-                placeholder="+5521988887777"
+                inputMode="tel"
+                value={form.celular}
+                onChange={(e) => setForm({ ...form, celular: formatTelefoneBR(e.target.value) })}
+                placeholder="+55 (11) 99999-9999"
               />
             </div>
           </div>
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            <AlertTriangle size={12} /> Telefone/WhatsApp no formato E.164 (+55…).
-          </p>
           <Button
             type="button"
             disabled={!form.nome.trim() || criar.isPending}
