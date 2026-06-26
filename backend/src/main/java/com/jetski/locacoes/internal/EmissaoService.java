@@ -100,6 +100,16 @@ public class EmissaoService {
         DocumentoPdfService.DocumentoPdf pdf = documentoPdfService.gerarDocumentoConsolidado(
             dados, assinatura, anexosDoCliente(cliente.getId()));
 
+        // Anexa o comprovante de pagamento da GRU (vai junto à documentação da Marinha).
+        if (hab.getGruComprovanteS3Key() != null) {
+            try {
+                pdf = documentoPdfService.anexarPdf(pdf,
+                    storageService.getObject(hab.getGruComprovanteS3Key()));
+            } catch (Exception e) {
+                log.warn("Comprovante da GRU não anexado ao PDF (reserva {}): {}", reservaId, e.getMessage());
+            }
+        }
+
         String key = String.format("%s/reserva/%s/documento.pdf", reserva.getTenantId(), reservaId);
         storageService.putObject(key, pdf.conteudo(), "application/pdf");
 

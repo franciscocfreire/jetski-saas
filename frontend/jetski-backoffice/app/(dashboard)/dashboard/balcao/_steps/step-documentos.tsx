@@ -35,7 +35,7 @@ export function StepDocumentos({
 }: {
   atendimento: Atendimento
   onBack: () => void
-  onDone: (patch: { endereco?: Address; temComprovanteResidencia: boolean; temCha: boolean }) => void
+  onDone: (patch: { endereco?: Address; temComprovanteResidencia: boolean }) => void
 }) {
   const c = atendimento.cliente!
   const [temComprovante, setTemComprovante] = useState(atendimento.temComprovanteResidencia)
@@ -43,7 +43,6 @@ export function StepDocumentos({
   const [endereco, setEndereco] = useState<Address | undefined>(
     atendimento.endereco ?? parseEnderecoSalvo(c.enderecoJson)
   )
-  const [temCha, setTemCha] = useState(atendimento.temCha)
   // Dados pessoais dos anexos (preenchimento manual — sem OCR)
   const [rg, setRg] = useState(c.rg ?? '')
   const [orgaoEmissor, setOrgaoEmissor] = useState(c.orgaoEmissor ?? '')
@@ -77,7 +76,7 @@ export function StepDocumentos({
         }
       }
     },
-    onSuccess: () => onDone({ endereco, temComprovanteResidencia: temComprovante, temCha }),
+    onSuccess: () => onDone({ endereco, temComprovanteResidencia: temComprovante }),
     onError: () => toast.error('Falha ao salvar os dados do cliente.'),
   })
 
@@ -167,29 +166,6 @@ export function StepDocumentos({
             onChange={(f) => setAnexos((a) => ({ ...a, COMPROVANTE_RESIDENCIA: f?.dataUrl }))}
           />
         )}
-      </div>
-
-      <div className="space-y-2 rounded-lg border p-4">
-        <Label className="text-sm font-medium">Habilitação náutica</Label>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant={temCha ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setTemCha(true)}
-          >
-            Tem CHA/CHV
-          </Button>
-          <Button
-            type="button"
-            variant={!temCha ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setTemCha(false)}
-          >
-            Não tem → EMA + GRU
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">Detalhado no passo de Habilitação.</p>
       </div>
 
       <div className="flex justify-between">

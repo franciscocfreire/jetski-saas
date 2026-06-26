@@ -17,8 +17,8 @@ export type Atendimento = {
 export const BALCAO_STEPS = [
   { key: 'cliente', label: 'Cliente' },
   { key: 'aluguel', label: 'Passeio & Preço' },
-  { key: 'documentos', label: 'Documentos' },
   { key: 'habilitacao', label: 'Habilitação' },
+  { key: 'documentos', label: 'Documentos' },
   { key: 'termos', label: 'Termos' },
   { key: 'emissao', label: 'Emissão' },
 ] as const

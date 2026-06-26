@@ -13,8 +13,10 @@ import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
 import com.lowagie.text.Rectangle;
 import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfCopy;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfReader;
 import com.lowagie.text.pdf.PdfWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -115,6 +117,32 @@ public class DocumentoPdfService {
 
     /** Imagem anexada ao fim do PDF (documento de identidade, comprovante, selfie). */
     public record AnexoImagem(String titulo, byte[] bytes) {}
+
+    /** Anexa as páginas de outro PDF (ex.: comprovante da GRU) ao fim do documento. */
+    public DocumentoPdf anexarPdf(DocumentoPdf base, byte[] anexoPdf) {
+        if (anexoPdf == null || anexoPdf.length == 0) {
+            return base;
+        }
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Document doc = new Document();
+            PdfCopy copy = new PdfCopy(doc, out);
+            doc.open();
+            for (byte[] src : new byte[][]{base.conteudo(), anexoPdf}) {
+                PdfReader reader = new PdfReader(src);
+                for (int i = 1; i <= reader.getNumberOfPages(); i++) {
+                    copy.addPage(copy.getImportedPage(reader, i));
+                }
+                reader.close();
+            }
+            doc.close();
+            byte[] merged = out.toByteArray();
+            return new DocumentoPdf(merged, sha256Hex(merged));
+        } catch (Exception e) {
+            log.warn("Falha ao anexar PDF (comprovante) ao documento: {}", e.getMessage());
+            return base;
+        }
+    }
 
     public DocumentoPdf gerarDocumentoConsolidado(DadosDocumento d, byte[] assinaturaPng) {
         return gerarDocumentoConsolidado(d, assinaturaPng, java.util.List.of());

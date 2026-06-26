@@ -71,8 +71,8 @@ function BalcaoWizard() {
           habilitacaoResolvida,
           aceiteFeito,
         })
-        // 1º passo pendente: habilitação (3) → termos (4) → emissão (5)
-        setStep(!habilitacaoResolvida ? 3 : !aceiteFeito ? 4 : 5)
+        // 1º passo pendente: habilitação (2) → termos (4) → emissão (5)
+        setStep(!habilitacaoResolvida ? 2 : !aceiteFeito ? 4 : 5)
       } catch {
         toast.error('Não foi possível retomar o atendimento.')
       } finally {
@@ -152,22 +152,22 @@ function BalcaoWizard() {
           )}
 
           {step === 2 && (
-            <StepDocumentos
+            <StepHabilitacao
               atendimento={at}
               onBack={() => setStep(1)}
-              onDone={(patch) => {
-                setAt((a) => ({ ...a, ...patch }))
+              onDone={(resolvida, temCha) => {
+                setAt((a) => ({ ...a, habilitacaoResolvida: resolvida, temCha }))
                 setStep(3)
               }}
             />
           )}
 
           {step === 3 && (
-            <StepHabilitacao
+            <StepDocumentos
               atendimento={at}
               onBack={() => setStep(2)}
-              onDone={(resolvida) => {
-                setAt((a) => ({ ...a, habilitacaoResolvida: resolvida }))
+              onDone={(patch) => {
+                setAt((a) => ({ ...a, ...patch }))
                 setStep(4)
               }}
             />

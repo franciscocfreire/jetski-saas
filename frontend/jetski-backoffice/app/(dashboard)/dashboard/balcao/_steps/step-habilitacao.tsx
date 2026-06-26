@@ -27,9 +27,10 @@ export function StepHabilitacao({
 }: {
   atendimento: Atendimento
   onBack: () => void
-  onDone: (resolvida: boolean) => void
+  onDone: (resolvida: boolean, temCha: boolean) => void
 }) {
-  const via = atendimento.temCha ? 'CHA' : 'EMA'
+  const [temCha, setTemCha] = useState(atendimento.temCha)
+  const via = temCha ? 'CHA' : 'EMA'
   // CHA
   const [chaCategoria, setChaCategoria] = useState('')
   const [chaNumero, setChaNumero] = useState('')
@@ -115,10 +116,10 @@ export function StepHabilitacao({
     onSuccess: (h) => {
       if (h.resolvida) {
         toast.success('Habilitação resolvida.')
-        onDone(true)
+        onDone(true, temCha)
       } else {
-        toast.warning('Habilitação registrada, mas ainda pendente (CHA/GRU).')
-        onDone(false)
+        toast.warning('Habilitação registrada, mas ainda pendente (GRU não paga).')
+        onDone(false, temCha)
       }
     },
     onError: () => toast.error('Falha ao registrar habilitação.'),
@@ -159,8 +160,31 @@ export function StepHabilitacao({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-md bg-muted/40 px-3 py-2 text-sm">
-        Via: <strong>{via === 'CHA' ? 'CHA/CHV (já habilitado)' : 'EMA + GRU (CHA-MTA-E)'}</strong>
+      <div className="space-y-2 rounded-lg border p-4">
+        <Label className="text-sm font-medium">O cliente já tem habilitação (CHA/CHV)?</Label>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={temCha ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setTemCha(true)}
+          >
+            Sim, já tem CHA/CHV
+          </Button>
+          <Button
+            type="button"
+            variant={!temCha ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setTemCha(false)}
+          >
+            Não → emitir temporária (EMA + GRU)
+          </Button>
+        </div>
+        {!temCha && (
+          <p className="text-xs text-muted-foreground">
+            Gere o PIX/boleto da GRU agora — o cliente pode pagar enquanto você segue com documentos e termos.
+          </p>
+        )}
       </div>
 
       {via === 'CHA' ? (
