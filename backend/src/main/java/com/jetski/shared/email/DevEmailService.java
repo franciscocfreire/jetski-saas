@@ -160,8 +160,8 @@ public class DevEmailService implements EmailService {
         String body = String.format("%s%n%n[ANEXO] %s (%s, %d bytes)",
             htmlBody, attachmentName, attachmentContentType, size);
         logAndSaveEmail(to, subject, body);
-        // Mailpit recebe o HTML (sem o anexo — suficiente para inspeção visual em dev).
-        maybeSendViaSmtp(to, subject, htmlBody);
+        // Mailpit recebe o HTML COM o anexo (p/ inspeção/download em dev).
+        maybeSendViaSmtp(to, subject, htmlBody, attachmentName, attachment, attachmentContentType);
     }
 
     @Override
@@ -206,18 +206,29 @@ public class DevEmailService implements EmailService {
      * Best-effort: uma falha de SMTP NUNCA interrompe o fluxo (signup/convite) nem o E2E.
      */
     private void maybeSendViaSmtp(String to, String subject, String htmlBody) {
+        maybeSendViaSmtp(to, subject, htmlBody, null, null, null);
+    }
+
+    private void maybeSendViaSmtp(String to, String subject, String htmlBody,
+                                  String attachmentName, byte[] attachment, String attachmentContentType) {
         if (!devSmtpEnabled || mailSender == null) {
             return;
         }
+        boolean comAnexo = attachment != null && attachment.length > 0;
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            MimeMessageHelper helper = new MimeMessageHelper(message, comAnexo, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
+            if (comAnexo) {
+                helper.addAttachment(attachmentName,
+                    new org.springframework.core.io.ByteArrayResource(attachment), attachmentContentType);
+            }
             mailSender.send(message);
-            log.info("📨 Email enviado para o capturador SMTP (Mailpit): to={}, subject={}", to, subject);
+            log.info("📨 Email enviado ao Mailpit: to={}, subject={}, anexo={} ({} bytes)",
+                to, subject, comAnexo ? attachmentName : "—", attachment == null ? 0 : attachment.length);
         } catch (Exception e) {
             log.warn("Falha (ignorada) ao enviar email via SMTP em dev: to={}, error={}", to, e.getMessage());
         }
