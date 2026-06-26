@@ -12,6 +12,17 @@ import { AddressForm, type Address } from '@/components/address-form'
 import { clientesService } from '@/lib/api/services'
 import type { Atendimento } from '../types'
 
+/** Endereço salvo do cliente (enderecoJson) → Address, para reaproveitar. */
+function parseEnderecoSalvo(json?: string): Address | undefined {
+  if (!json) return undefined
+  try {
+    const e = JSON.parse(json)
+    return e && (e.cep || e.logradouro) ? (e as Address) : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * Passo 2 — Documentos. Coleta RG/CPF (preview local) e o comprovante de
  * residência: "tem" (upload) ou "não tem" → endereço p/ a Declaração 1-C,
@@ -28,7 +39,10 @@ export function StepDocumentos({
 }) {
   const c = atendimento.cliente!
   const [temComprovante, setTemComprovante] = useState(atendimento.temComprovanteResidencia)
-  const [endereco, setEndereco] = useState<Address | undefined>(atendimento.endereco)
+  // Reaproveita o endereço já salvo do cliente (enderecoJson) quando voltar numa próxima vez.
+  const [endereco, setEndereco] = useState<Address | undefined>(
+    atendimento.endereco ?? parseEnderecoSalvo(c.enderecoJson)
+  )
   const [temCha, setTemCha] = useState(atendimento.temCha)
   // Dados pessoais dos anexos (preenchimento manual — sem OCR)
   const [rg, setRg] = useState(c.rg ?? '')
