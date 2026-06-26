@@ -940,6 +940,44 @@ CREATE INDEX IF NOT EXISTS idx_despesa_manutencao_status ON despesa_manutencao(t
 EOSQL
 echo -e "${GREEN}   OK - Tabela despesa_manutencao configurada!${NC}"
 
+# 7.16 Seed de demonstracao: GRU com idSessao JA PAGO no PagTesouro
+# Permite testar "Verificar pagamento" + comprovante sem pagar outro PIX.
+# O idSessao 55e08f7a... corresponde a um pagamento real CONCLUIDO (THALIA, R$ 8,00).
+echo -e "${YELLOW}7.16 Inserindo reserva demo com GRU paga (verificar pagamento)...${NC}"
+docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << EOSQL > /dev/null 2>&1
+-- Cliente THALIA (CPF do pagamento real no PagTesouro)
+INSERT INTO cliente (id, tenant_id, nome, documento, origem, status_conta, ativo, endereco, created_at, updated_at)
+VALUES ('f0000000-0000-0000-0000-000000000001', '${TENANT_ID}', 'THALIA I G N', '23472084898',
+        'BALCAO', 'SEM_LOGIN', true,
+        '{"cep":"11095460","logradouro":"Rua A","numero":"1","bairro":"Alemoa","cidade":"Santos","uf":"SP"}'::jsonb,
+        now(), now())
+ON CONFLICT (id) DO UPDATE SET nome=EXCLUDED.nome, documento=EXCLUDED.documento, ativo=true;
+
+-- Reserva de hoje (aparece na visao Dia da Agenda)
+INSERT INTO reserva (id, tenant_id, modelo_id, cliente_id, data_inicio, data_fim_prevista,
+        status, prioridade, sinal_pago, ativo, created_at, updated_at)
+VALUES ('f0000000-0000-0000-0000-000000000002', '${TENANT_ID}',
+        (SELECT id FROM modelo WHERE tenant_id='${TENANT_ID}' AND ativo=true ORDER BY created_at LIMIT 1),
+        'f0000000-0000-0000-0000-000000000001',
+        date_trunc('hour', now()) + interval '1 hour', date_trunc('hour', now()) + interval '3 hour',
+        'PENDENTE', 'ALTA', false, true, now(), now())
+ON CONFLICT (id) DO UPDATE SET data_inicio=EXCLUDED.data_inicio,
+        data_fim_prevista=EXCLUDED.data_fim_prevista, status='PENDENTE', ativo=true;
+
+-- Habilitacao EMA: GRU gerada com idSessao PAGO, mas gru_pago=false (p/ testar "Verificar pagamento")
+INSERT INTO reserva_habilitacao (id, tenant_id, reserva_id, via, gru_numero, gru_valor, gru_pago,
+        gru_id_sessao, gru_pix_copia_e_cola, gru_gerada_em, resolvida, created_at, updated_at)
+VALUES ('f0000000-0000-0000-0000-000000000003', '${TENANT_ID}', 'f0000000-0000-0000-0000-000000000002',
+        'EMA', '80893100021762026', 8.00, false,
+        '55e08f7a-62c9-4781-8541-6979dbd04a0c',
+        '00020101021226930014br.gov.bcb.pix-DEMO-PAGO',
+        now(), false, now(), now())
+ON CONFLICT (reserva_id) DO UPDATE SET gru_id_sessao=EXCLUDED.gru_id_sessao,
+        gru_numero=EXCLUDED.gru_numero, gru_valor=EXCLUDED.gru_valor,
+        gru_pago=false, gru_pago_em=NULL, gru_comprovante_s3_key=NULL, resolvida=false;
+EOSQL
+echo -e "${GREEN}   OK - Reserva demo (THALIA, GRU 80893100021762026, idSessao pago) criada!${NC}"
+
 # 8. Verificar se realm foi importado automaticamente
 echo -e "${YELLOW}8. Verificando realm Keycloak...${NC}"
 if curl -sf "http://${KC_HOST}:${KC_PORT}/realms/${KC_REALM}" > /dev/null 2>&1; then
