@@ -141,22 +141,22 @@ function BalcaoWizard() {
           )}
 
           {step === 1 && (
-            <StepDocumentos
+            <StepAluguel
               atendimento={at}
               onBack={() => setStep(0)}
-              onDone={(patch) => {
-                setAt((a) => ({ ...a, ...patch }))
+              onDone={(reserva, modelo) => {
+                setAt((a) => ({ ...a, reserva, modelo }))
                 setStep(2)
               }}
             />
           )}
 
           {step === 2 && (
-            <StepAluguel
+            <StepDocumentos
               atendimento={at}
               onBack={() => setStep(1)}
-              onDone={(reserva, modelo) => {
-                setAt((a) => ({ ...a, reserva, modelo }))
+              onDone={(patch) => {
+                setAt((a) => ({ ...a, ...patch }))
                 setStep(3)
               }}
             />
