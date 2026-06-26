@@ -5,7 +5,6 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -21,12 +20,6 @@ import type { Modelo, Reserva } from '@/lib/api/types'
 
 const DURACOES = [1, 2, 3, 4]
 
-/** Formata um Date como string aceita pelo input datetime-local (hora local). */
-function toLocalInput(d: Date): string {
-  const off = d.getTimezoneOffset() * 60_000
-  return new Date(d.getTime() - off).toISOString().slice(0, 16)
-}
-
 export function StepAluguel({
   atendimento,
   onBack,
@@ -39,9 +32,6 @@ export function StepAluguel({
   const { currentTenant } = useTenantStore()
   const [modeloId, setModeloId] = useState('')
   const [horas, setHoras] = useState(1)
-  // Início padrão: agora + 30min (folga p/ a validação @Future e desvio de
-  // relógio cliente↔servidor). O atendente pode ajustar (ex.: reserva adiantada).
-  const [inicioLocal, setInicioLocal] = useState(() => toLocalInput(new Date(Date.now() + 30 * 60_000)))
 
   const { data: modelos, isLoading } = useQuery({
     queryKey: ['modelos', currentTenant?.id],
@@ -54,7 +44,8 @@ export function StepAluguel({
 
   const criar = useMutation({
     mutationFn: async (): Promise<Reserva> => {
-      const inicio = new Date(inicioLocal) // string local → Date (UTC correto)
+      // O horário real é definido no embarque (fila). Aqui só um início provisório.
+      const inicio = new Date(Date.now() + 30 * 60_000)
       const fim = new Date(inicio.getTime() + horas * 3600_000)
       const reserva = await reservasService.create({
         modeloId,
@@ -120,18 +111,6 @@ export function StepAluguel({
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <Label className="text-xs">Início</Label>
-          <Input
-            type="datetime-local"
-            value={inicioLocal}
-            onChange={(e) => setInicioLocal(e.target.value)}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Padrão: agora + 30 min (ajuste p/ reserva adiantada).
-          </p>
-        </div>
-        <div className="hidden sm:block" />
       </div>
 
       <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-4">
@@ -145,7 +124,7 @@ export function StepAluguel({
         </Button>
         <Button
           type="button"
-          disabled={!modeloId || !inicioLocal || criar.isPending}
+          disabled={!modeloId || criar.isPending}
           onClick={() => criar.mutate()}
         >
           {criar.isPending ? 'Processando…' : 'Criar reserva e cobrar total'}

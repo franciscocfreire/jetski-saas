@@ -2,11 +2,10 @@
 
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { FileDown, CheckCircle2, Anchor, Mail, Printer, AlertTriangle } from 'lucide-react'
+import { FileDown, CheckCircle2, Anchor, Mail, Printer, AlertTriangle, Ship } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { reservasService, documentosService } from '@/lib/api/services'
-import { EmbarqueSection } from './embarque'
 import type { Atendimento } from '../types'
 import type { ResultadoEmissao } from '@/lib/api/types'
 
@@ -111,7 +110,16 @@ export function StepEmissao({
           )}
         </div>
 
-        <EmbarqueSection atendimento={atendimento} onReset={onReset} />
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Ship size={16} className="text-primary" />
+            A reserva entrou na <strong className="text-foreground">fila de espera</strong>. O embarque
+            (check-in) é feito na Fila quando o jetski do modelo estiver livre.
+          </p>
+          <Button type="button" onClick={onReset}>
+            Concluir atendimento
+          </Button>
+        </div>
       </div>
     )
   }
