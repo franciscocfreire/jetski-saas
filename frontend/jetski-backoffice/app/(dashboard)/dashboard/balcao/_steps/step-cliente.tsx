@@ -17,15 +17,24 @@ export function StepCliente({ onDone }: { onDone: (cliente: Cliente) => void }) 
   const [form, setForm] = useState({ nome: '', email: '', telefone: '', whatsapp: '' })
 
   const buscar = useMutation({
-    mutationFn: () => clientesService.buscarPorCpf(cpf.trim()),
-    onSuccess: (c) => {
+    mutationFn: async () => {
+      const c = await clientesService.buscarPorCpf(cpf.trim())
+      if (c) return { cliente: c, nomeMarinha: null as string | null }
+      // Não está na base local → tenta o nome na Marinha pelo CPF (pré-preenchimento)
+      const nomeMarinha = await clientesService.consultarNomeMarinha(cpf.trim()).catch(() => null)
+      return { cliente: null, nomeMarinha }
+    },
+    onSuccess: ({ cliente, nomeMarinha }) => {
       setBuscou(true)
-      setEncontrado(c)
-      if (c) {
-        if (c.statusConta === 'ATIVA') {
+      setEncontrado(cliente)
+      if (cliente) {
+        if (cliente.statusConta === 'ATIVA') {
           toast.warning('Cliente com conta ativa — verificação (OTP) necessária antes de vincular.')
         }
-        setForm((f) => ({ ...f, nome: c.nome, email: c.email ?? '', telefone: c.telefone ?? '' }))
+        setForm((f) => ({ ...f, nome: cliente.nome, email: cliente.email ?? '', telefone: cliente.telefone ?? '' }))
+      } else if (nomeMarinha) {
+        setForm((f) => ({ ...f, nome: nomeMarinha }))
+        toast.info('Nome encontrado na base da Marinha pelo CPF.')
       }
     },
     onError: () => toast.error('Falha ao buscar cliente.'),

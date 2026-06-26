@@ -39,6 +39,23 @@ import java.util.stream.Collectors;
 public class ClienteController {
 
     private final ClienteService clienteService;
+    private final com.jetski.locacoes.internal.gru.GruClient gruClient;
+
+    @GetMapping("/consulta-marinha")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Consultar nome do contribuinte por CPF na Marinha",
+        description = "Pré-preenchimento do balcão: consulta o nome pelo CPF na base da Marinha " +
+                      "(objContribuinte). Devolve nome=null se não encontrado."
+    )
+    public ResponseEntity<com.jetski.locacoes.api.dto.ConsultaCpfMarinhaResponse> consultarCpfMarinha(
+        @PathVariable UUID tenantId,
+        @RequestParam String cpf
+    ) {
+        validateTenantContext(tenantId);
+        String nome = gruClient.consultarNomePorCpf(cpf);
+        return ResponseEntity.ok(new com.jetski.locacoes.api.dto.ConsultaCpfMarinhaResponse(nome));
+    }
 
     /**
      * List all customers for a tenant.

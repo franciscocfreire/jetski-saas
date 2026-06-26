@@ -36,4 +36,12 @@ export const clientesService = {
     const { data } = await apiClient.get<Cliente[]>(getBasePath(), { params: { cpf } })
     return data.length > 0 ? data[0] : null
   },
+
+  /** Consulta o nome do contribuinte por CPF na base da Marinha (pré-preenchimento). */
+  async consultarNomeMarinha(cpf: string): Promise<string | null> {
+    const { data } = await apiClient.get<{ nome: string | null }>(`${getBasePath()}/consulta-marinha`, {
+      params: { cpf },
+    })
+    return data.nome ?? null
+  },
 }

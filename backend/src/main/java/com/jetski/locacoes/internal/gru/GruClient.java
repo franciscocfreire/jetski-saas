@@ -47,6 +47,8 @@ public class GruClient {
         Pattern.compile("name=\"token\"[^>]*value=\"([^\"]+)\"");
     private static final Pattern ID_SESSAO =
         Pattern.compile("idSessao=([0-9a-fA-F-]{36})");
+    private static final Pattern DS_CONTRIBUINTE =
+        Pattern.compile("name=\"ds_contribuinte\"[^>]*value=\"([^\"]*)\"");
 
     private final ObjectMapper objectMapper;
     private final String marinhaBase;
@@ -320,6 +322,40 @@ public class GruClient {
         try {
             return Instant.parse(iso);
         } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Consulta o nome do contribuinte por CPF na Marinha ({@code objContribuinte.asp}
+     * devolve o nome no input ds_contribuinte). Best-effort: devolve {@code null}
+     * em qualquer falha ou quando não encontrado.
+     */
+    public String consultarNomePorCpf(String cpf) {
+        String digitos = cpf == null ? "" : cpf.replaceAll("\\D", "");
+        if (digitos.isBlank()) {
+            return null;
+        }
+        try {
+            HttpClient http = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .connectTimeout(timeout)
+                .build();
+            Map<String, String> cookies = new LinkedHashMap<>();
+            String solicitar = marinhaBase + "/scam/emitgruscam/solicitar_servico.asp";
+            get(http, cookies, solicitar, null, GruException.Codigo.MARINHA_INDISPONIVEL);
+            HttpResponse<String> r = postForm(http, cookies,
+                marinhaBase + "/scam/emitgruscam/objContribuinte.asp",
+                ordered("v_nr_contribuinte", digitos, "v_tipo_documento", "CPF"),
+                solicitar, GruException.Codigo.MARINHA_INDISPONIVEL);
+            Matcher m = DS_CONTRIBUINTE.matcher(r.body());
+            if (m.find()) {
+                String nome = m.group(1).trim();
+                return nome.isBlank() ? null : nome;
+            }
+            return null;
+        } catch (Exception e) {
+            log.warn("Consulta de nome por CPF na Marinha falhou: {}", e.getMessage());
             return null;
         }
     }
