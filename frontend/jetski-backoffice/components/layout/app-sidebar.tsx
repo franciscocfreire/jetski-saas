@@ -62,6 +62,11 @@ const mainNavItems = [
     icon: Calendar,
   },
   {
+    title: 'Pendências',
+    href: '/dashboard/pendencias',
+    icon: CalendarCheck,
+  },
+  {
     title: 'Locações',
     href: '/dashboard/locacoes',
     icon: Anchor,
