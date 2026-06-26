@@ -51,6 +51,7 @@ public class ReservaResponse {
     private String pagamentoStatus;
     private String pagamentoMotivoRecusa;
     private BigDecimal valorTotal;
+    private Instant documentoEmitidoEm;
     private String observacoes;
     private Boolean ativo;
     private Instant createdAt;
