@@ -68,6 +68,8 @@ public class EmissaoService {
         String gruValor;
         boolean enviadoMarinha;
         boolean enviadoCliente;
+        boolean docCompleta;
+        java.util.List<String> pendencias;
     }
 
     @Transactional
@@ -113,17 +115,27 @@ public class EmissaoService {
             .emitidoEm(Instant.now())
             .build());
 
-        // Documentos emitidos = atendimento concluído → confirma a reserva (sai de "pendente").
-        if (reserva.getStatus() == Reserva.ReservaStatus.PENDENTE) {
-            reserva.setStatus(Reserva.ReservaStatus.CONFIRMADA);
+        // Documentação completa? Só com tudo cumprido a Marinha pode receber o e-mail.
+        java.util.List<String> pendencias = pendenciasDocumentacao(hab);
+        boolean docCompleta = pendencias.isEmpty();
+
+        // Completo → CONFIRMADA; faltando algo → PENDENTE (mas segue na fila).
+        if (reserva.getStatus() == Reserva.ReservaStatus.PENDENTE
+                || reserva.getStatus() == Reserva.ReservaStatus.CONFIRMADA) {
+            reserva.setStatus(docCompleta
+                ? Reserva.ReservaStatus.CONFIRMADA : Reserva.ReservaStatus.PENDENTE);
         }
         reserva.setDocumentoEmitidoEm(Instant.now());
         reservaRepository.save(reserva);
 
-        boolean enviadoMarinha = enviar(marinhaEmail,
+        // E-mail à Marinha só quando a documentação está completa.
+        boolean enviadoMarinha = docCompleta && enviar(marinhaEmail,
             "Documentos NORMAM-212 — reserva " + reservaId, corpoMarinha(cliente), pdf.conteudo());
         boolean enviadoCliente = enviar(clienteEmail,
             "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente), pdf.conteudo());
+        if (!docCompleta) {
+            log.info("Marinha NÃO notificada (reserva {}): pendências {}", reservaId, pendencias);
+        }
 
         eventPublisher.publishEvent(DocumentosEmitidosEvent.of(
             reserva.getTenantId(), reservaId, doc.getId(),
@@ -142,7 +154,24 @@ public class EmissaoService {
             .gruValor(hab.getGruValor() != null ? hab.getGruValor().toPlainString() : null)
             .enviadoMarinha(enviadoMarinha)
             .enviadoCliente(enviadoCliente)
+            .docCompleta(docCompleta)
+            .pendencias(pendencias)
             .build();
+    }
+
+    /** Itens exigidos p/ liberar a Marinha (habilitação resolvida + termos + anexos NORMAM). */
+    private java.util.List<String> pendenciasDocumentacao(ReservaHabilitacao hab) {
+        java.util.List<String> p = new java.util.ArrayList<>();
+        if (!Boolean.TRUE.equals(hab.getResolvida())) {
+            p.add(hab.getVia() == ReservaHabilitacao.Via.CHA ? "CHA não informada" : "GRU não paga");
+        }
+        if (hab.getVia() == ReservaHabilitacao.Via.EMA) {
+            if (!Boolean.TRUE.equals(hab.getAnexoSaude())) p.add("Autodeclaração de saúde (5-C)");
+            if (!Boolean.TRUE.equals(hab.getAnexoRegras())) p.add("Anexo de regras");
+            if (!Boolean.TRUE.equals(hab.getAnexoResidencia())) p.add("Comprovante/Declaração de residência");
+            if (hab.getInstrutorId() == null) p.add("Instrutor");
+        }
+        return p;
     }
 
     private DocumentoPdfService.DadosDocumento montarDados(Reserva reserva, Cliente cliente,

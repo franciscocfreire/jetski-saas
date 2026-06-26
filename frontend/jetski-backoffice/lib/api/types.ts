@@ -349,6 +349,8 @@ export interface ResultadoEmissao {
   gruValor?: string
   enviadoMarinha: boolean
   enviadoCliente: boolean
+  docCompleta: boolean
+  pendencias: string[]
 }
 
 /** Documento emitido (consulta por cliente). */

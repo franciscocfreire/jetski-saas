@@ -206,6 +206,26 @@ export function ReservaDetailSheet({
           />
         </div>
 
+        {/* Checklist detalhado dos pré-requisitos (EMA) — visibilidade do que foi entregue */}
+        {ema && hab && (
+          <>
+            <Separator className="my-4" />
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">Pré-requisitos (EMA)</h4>
+              <Etapa ok={!!hab.videoaulaEm} label="Videoaula assistida" />
+              <Etapa ok={!!hab.anexoSaude} label="Autodeclaração de saúde (5-C)" />
+              <Etapa ok={!!hab.anexoRegras} label="Anexo de regras de navegação" />
+              <Etapa ok={!!hab.anexoResidencia} label="Comprovante/Declaração de residência" />
+              <Etapa ok={!!hab.instrutorId} label="Instrutor (atestado de demonstração)" />
+              <Etapa
+                ok={!!hab.gruPago}
+                label="GRU paga"
+                hint={hab.gruNumero ? `nº ${hab.gruNumero}` : ''}
+              />
+            </div>
+          </>
+        )}
+
         {/* Pagamento da GRU quando pendente */}
         {mostrarPagamentoGru && (
           <>

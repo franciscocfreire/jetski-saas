@@ -82,10 +82,26 @@ export function StepEmissao({
         </div>
 
         <div className="space-y-2 rounded-lg border p-4 text-sm">
-          <p className="flex items-center gap-2">
-            <Anchor size={15} className={resultado.enviadoMarinha ? 'text-emerald-600' : 'text-muted-foreground'} />
-            {resultado.enviadoMarinha ? '✓ Enviado à Marinha' : 'Não enviado à Marinha (sem e-mail configurado)'}
-          </p>
+          {resultado.docCompleta ? (
+            <p className="flex items-center gap-2">
+              <Anchor size={15} className={resultado.enviadoMarinha ? 'text-emerald-600' : 'text-muted-foreground'} />
+              {resultado.enviadoMarinha ? '✓ Enviado à Marinha' : 'Não enviado à Marinha (sem e-mail configurado)'}
+            </p>
+          ) : (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-800 dark:bg-amber-950/30">
+              <p className="flex items-center gap-2 font-medium">
+                <Anchor size={15} /> Marinha não notificada — documentação incompleta
+              </p>
+              <ul className="ml-6 mt-1 list-disc text-xs">
+                {resultado.pendencias.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+              <p className="mt-1 text-xs">
+                A reserva fica pendente e na fila; complete os itens e reenvie à Marinha.
+              </p>
+            </div>
+          )}
           <p className="flex items-center gap-2">
             <Mail size={15} className={resultado.enviadoCliente ? 'text-emerald-600' : 'text-muted-foreground'} />
             {resultado.enviadoCliente ? '✓ E-mail ao cliente' : 'Não enviado ao cliente (sem e-mail)'}

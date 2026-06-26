@@ -71,7 +71,8 @@ class EmissaoServiceTest {
         when(reservaRepo.findById(reservaId))
             .thenReturn(Optional.of(Reserva.builder().id(reservaId).tenantId(tenant).clienteId(clienteId).build()));
         when(habRepo.findByReservaId(reservaId)).thenReturn(Optional.of(ReservaHabilitacao.builder()
-            .via(ReservaHabilitacao.Via.EMA).resolvida(true).anexoResidencia(true)
+            .via(ReservaHabilitacao.Via.EMA).resolvida(true)
+            .anexoSaude(true).anexoRegras(true).anexoResidencia(true).instrutorId(UUID.randomUUID())
             .gruNumero("GRU-1").gruValor(new BigDecimal("23.13")).build()));
         when(aceiteRepo.findFirstByReservaIdOrderByAceitoEmDesc(reservaId))
             .thenReturn(Optional.of(ReservaAceite.builder().assinaturaS3Key("t/r/assinatura.png").build()));
