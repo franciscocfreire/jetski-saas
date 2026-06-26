@@ -53,6 +53,12 @@ export const habilitacaoService = {
     return data
   },
 
+  /** Envia ao cliente o e-mail com o número da GRU. */
+  async enviarEmailGru(reservaId: string): Promise<boolean> {
+    const { data } = await apiClient.post<{ enviado: boolean }>(`${path(reservaId)}/gru/enviar-email`)
+    return data.enviado
+  },
+
   /** Baixa o comprovante de pagamento da GRU (PDF, stream autenticado). */
   async baixarComprovante(reservaId: string): Promise<Blob> {
     const res = await apiClient.get(`${path(reservaId)}/gru/comprovante/download`, {

@@ -9,6 +9,7 @@ import {
   Copy,
   FileDown,
   Loader2,
+  Mail,
   PlayCircle,
   QrCode,
   Receipt,
@@ -121,6 +122,15 @@ export function ReservaDetailSheet({
     mutationFn: () => habilitacaoService.baixarComprovante(reservaId!),
     onSuccess: (blob) => window.open(URL.createObjectURL(blob), '_blank'),
     onError: () => toast.error('Falha ao baixar o comprovante.'),
+  })
+
+  const enviarEmailGru = useMutation({
+    mutationFn: () => habilitacaoService.enviarEmailGru(reservaId!),
+    onSuccess: (enviado) =>
+      enviado
+        ? toast.success('E-mail da GRU enviado ao cliente.')
+        : toast.warning('Cliente sem e-mail ou GRU ainda não gerada.'),
+    onError: () => toast.error('Falha ao enviar o e-mail da GRU.'),
   })
 
   if (!reserva) return null
@@ -254,6 +264,20 @@ export function ReservaDetailSheet({
                     <RefreshCw className="mr-2 h-4 w-4" />
                   )}
                   Verificar pagamento
+                </Button>
+              )}
+
+              {hab?.gruNumero && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={enviarEmailGru.isPending}
+                  onClick={() => enviarEmailGru.mutate()}
+                >
+                  <Mail className="mr-2 h-4 w-4" />
+                  {enviarEmailGru.isPending ? 'Enviando…' : 'Enviar GRU por e-mail ao cliente'}
                 </Button>
               )}
 

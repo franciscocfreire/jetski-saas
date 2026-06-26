@@ -164,6 +164,12 @@ public class DevEmailService implements EmailService {
         maybeSendViaSmtp(to, subject, htmlBody);
     }
 
+    @Override
+    public void sendEmail(String to, String subject, String htmlBody) {
+        logAndSaveEmail(to, subject, htmlBody);
+        maybeSendViaSmtp(to, subject, htmlBody);
+    }
+
     private void logAndSaveEmail(String to, String subject, String body) {
         // Log to console
         log.info("\n" +

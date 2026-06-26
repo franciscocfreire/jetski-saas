@@ -94,6 +94,17 @@ public class HabilitacaoController {
             .build());
     }
 
+    @PostMapping("/gru/enviar-email")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Enviar ao cliente o e-mail com o número da GRU")
+    public ResponseEntity<java.util.Map<String, Boolean>> enviarEmailGru(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id
+    ) {
+        validateTenantContext(tenantId);
+        return ResponseEntity.ok(java.util.Map.of("enviado", gruService.enviarEmailGru(id)));
+    }
+
     @GetMapping("/gru/comprovante/download")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
     @Operation(summary = "Baixar o comprovante de pagamento da GRU (PDF, streaming)")

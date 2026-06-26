@@ -42,6 +42,8 @@ class GruServiceTest {
     @Mock GruClient gruClient;
     @Mock com.jetski.shared.storage.StorageService storageService;
     @Mock GruComprovantePdfService comprovantePdfService;
+    @Mock com.jetski.shared.email.EmailService emailService;
+    @Mock com.jetski.tenant.TenantQueryService tenantQueryService;
 
     GruService service;
 
@@ -52,7 +54,8 @@ class GruServiceTest {
     @BeforeEach
     void setUp() {
         service = new GruService(habilitacaoRepository, reservaRepository,
-            clienteRepository, gruClient, new ObjectMapper(), storageService, comprovantePdfService);
+            clienteRepository, gruClient, new ObjectMapper(), storageService, comprovantePdfService,
+            emailService, tenantQueryService);
     }
 
     private void stubReservaECliente() {

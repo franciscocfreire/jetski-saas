@@ -85,7 +85,8 @@ public class SmtpEmailService implements EmailService {
         }
     }
 
-    private void sendEmail(String to, String subject, String htmlBody) {
+    @Override
+    public void sendEmail(String to, String subject, String htmlBody) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");

@@ -14,8 +14,11 @@ import com.jetski.locacoes.internal.gru.GruResultado;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.locacoes.internal.repository.ReservaHabilitacaoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
+import com.jetski.shared.email.EmailService;
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.shared.storage.StorageService;
+import com.jetski.tenant.TenantQueryService;
+import com.jetski.tenant.domain.Tenant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -45,6 +48,8 @@ public class GruService {
     private final ObjectMapper objectMapper;
     private final StorageService storageService;
     private final GruComprovantePdfService comprovantePdfService;
+    private final EmailService emailService;
+    private final TenantQueryService tenantQueryService;
 
     /** Resultado da tentativa de geração (sempre devolvido, mesmo em falha). */
     public record GruGeracao(
@@ -225,6 +230,45 @@ public class GruService {
             throw new NotFoundException("Boleto da GRU ainda não gerado para a reserva " + reservaId);
         }
         return storageService.getObject(hab.getGruPdfS3Key());
+    }
+
+    /** Envia ao cliente o 1º e-mail com o número da GRU (+ PIX/valor). Best-effort. */
+    @Transactional(readOnly = true)
+    public boolean enviarEmailGru(UUID reservaId) {
+        Reserva reserva = reservaRepository.findById(reservaId)
+            .orElseThrow(() -> new NotFoundException("Reserva não encontrada: " + reservaId));
+        Cliente cliente = clienteRepository.findById(reserva.getClienteId())
+            .orElseThrow(() -> new NotFoundException("Cliente não encontrado: " + reserva.getClienteId()));
+        ReservaHabilitacao hab = habilitacaoRepository.findByReservaId(reservaId)
+            .orElseThrow(() -> new NotFoundException("Habilitação não encontrada: " + reservaId));
+
+        String email = cliente.getEmail();
+        if (hab.getGruNumero() == null || email == null || email.isBlank()) {
+            return false;
+        }
+        Tenant tenant = tenantQueryService.findById(reserva.getTenantId());
+        String loja = tenant != null ? tenant.getRazaoSocial() : "";
+        StringBuilder b = new StringBuilder();
+        b.append("<p>Olá, ").append(cliente.getNome()).append("!</p>");
+        b.append("<p>Sua GRU (taxa da Marinha) foi gerada:</p><ul>");
+        b.append("<li><b>Número da GRU:</b> ").append(hab.getGruNumero()).append("</li>");
+        if (hab.getGruValor() != null) {
+            b.append("<li><b>Valor:</b> R$ ").append(hab.getGruValor().toPlainString().replace('.', ',')).append("</li>");
+        }
+        if (hab.getGruPixExpiracao() != null) {
+            b.append("<li><b>Vencimento do PIX:</b> ").append(hab.getGruPixExpiracao()).append("</li>");
+        }
+        b.append("</ul>");
+        if (hab.getGruPixCopiaECola() != null) {
+            b.append("<p><b>PIX copia-e-cola:</b></p><p style=\"word-break:break-all;font-family:monospace\">")
+             .append(hab.getGruPixCopiaECola()).append("</p>");
+        }
+        b.append("<p>Após o pagamento, siga com os próximos passos do seu atendimento.</p>");
+        b.append("<p>").append(loja).append("</p>");
+
+        emailService.sendEmail(email, "Sua GRU — " + loja, b.toString());
+        log.info("E-mail da GRU enviado ao cliente da reserva {} (gru={})", reservaId, hab.getGruNumero());
+        return true;
     }
 
     private boolean gruValidaReaproveitavel(ReservaHabilitacao hab) {

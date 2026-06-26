@@ -59,4 +59,7 @@ public interface EmailService {
      * @param slug        identificador (slug) da empresa
      */
     void sendNewTenantNotification(String to, String razaoSocial, String slug);
+
+    /** Envia um e-mail HTML simples (sem anexo). */
+    void sendEmail(String to, String subject, String htmlBody);
 }
