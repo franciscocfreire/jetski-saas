@@ -75,5 +75,15 @@ PENDENTE → CONFIRMADA → EM CURSO (locação) → FINALIZADA · (CANCELADA / 
 | 9. Reserva confirmada/pendente | emissão confirma a reserva (PENDENTE→CONFIRMADA) | falta "pendente por falta de doc" + compromisso de entrega |
 | 9. Fila de espera | — (jetski alocado só no embarque) | **falta o conceito de fila por modelo/horário** |
 
-> Ordem atual do wizard: Cliente → Documentos → **Aluguel&Pagamento** → Habilitação → Termos → Emissão.
-> Ordem da jornada: Cliente → **Passeio&Preço** → Dados → Documentos → Habilitação(GRU/vídeos/termos/instrutor) → Emissão.
+## Implementado nesta leva (jun/2026)
+- **Wizard reordenado**: Cliente → **Passeio & Preço** → Documentos → Habilitação → Termos → Emissão.
+- **Travar Marinha por documentação completa** (habilitação resolvida + termos + anexos NORMAM
+  5-C/regras/residência + instrutor). Completo → reserva CONFIRMADA; faltando → PENDENTE (segue na fila).
+  `StepEmissao` lista as pendências.
+- **1º e-mail ao cliente com o nº da GRU** (botão no drawer).
+- **Fila de espera** (`/dashboard/fila`): atendimentos concluídos aguardando embarque, por modelo/horário;
+  jetski alocado só no embarque (não consome unidade na reserva).
+- **Checklist de pré-requisitos (EMA)** com tick por item no drawer da reserva.
+
+> Pendente/futuro: vídeo como conteúdo de fato (hoje é checkbox); refinos da fila (chamar próximo,
+> notificação ao cliente); pendências entregues depois → reenvio automático à Marinha quando completar.
