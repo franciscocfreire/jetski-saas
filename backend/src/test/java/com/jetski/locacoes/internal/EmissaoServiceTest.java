@@ -55,11 +55,12 @@ class EmissaoServiceTest {
     private final EmailService email = mock(EmailService.class);
     private final TenantQueryService tenantQuery = mock(TenantQueryService.class);
     private final DocumentoPdfService pdfService = mock(DocumentoPdfService.class);
+    private final ClienteAnexoService anexoService = mock(ClienteAnexoService.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
 
     private final EmissaoService service = new EmissaoService(
         reservaRepo, clienteRepo, instrutorRepo, habRepo, aceiteRepo, docRepo, storage, email,
-        tenantQuery, pdfService, events, new ObjectMapper());
+        tenantQuery, pdfService, anexoService, events, new ObjectMapper());
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID reservaId = UUID.randomUUID();
@@ -84,7 +85,7 @@ class EmissaoServiceTest {
         when(storage.getObject(anyString())).thenReturn("png".getBytes());
         when(storage.generatePresignedDownloadUrl(anyString(), anyInt()))
             .thenReturn(PresignedUrl.builder().url("http://download/doc.pdf").build());
-        when(pdfService.gerarDocumentoConsolidado(any(), any()))
+        when(pdfService.gerarDocumentoConsolidado(any(), any(), any()))
             .thenReturn(new DocumentoPdfService.DocumentoPdf("%PDF-fake".getBytes(), "abc123hash"));
         when(docRepo.save(any(DocumentoEmitido.class))).thenAnswer(i -> i.getArgument(0));
     }
