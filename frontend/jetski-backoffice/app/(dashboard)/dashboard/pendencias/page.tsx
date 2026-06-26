@@ -62,7 +62,8 @@ export default function PendenciasPage() {
     const jMap = new Map((jetskis ?? []).map((j) => [j.id, j]))
     const termo = q.trim().toLowerCase()
     return reservas
-      .filter((r) => !TERMINAIS.includes(r.status))
+      // pendência = não-terminal E sem documentos emitidos (atendimento ainda em aberto)
+      .filter((r) => !TERMINAIS.includes(r.status) && !r.documentoEmitidoEm)
       .map((r) => ({
         ...r,
         cliente: cMap.get(r.clienteId),

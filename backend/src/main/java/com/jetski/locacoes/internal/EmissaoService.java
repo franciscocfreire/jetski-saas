@@ -113,6 +113,10 @@ public class EmissaoService {
             .emitidoEm(Instant.now())
             .build());
 
+        // Documentos emitidos = atendimento concluído → confirma a reserva (sai de "pendente").
+        if (reserva.getStatus() == Reserva.ReservaStatus.PENDENTE) {
+            reserva.setStatus(Reserva.ReservaStatus.CONFIRMADA);
+        }
         reserva.setDocumentoEmitidoEm(Instant.now());
         reservaRepository.save(reserva);
 
