@@ -7,8 +7,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { clientesService } from '@/lib/api/services'
-import { formatTelefoneBR, telefoneToE164BR } from '@/lib/utils'
 import type { Cliente } from '@/lib/api/types'
 
 export function StepCliente({ onDone }: { onDone: (cliente: Cliente) => void }) {
@@ -36,7 +36,7 @@ export function StepCliente({ onDone }: { onDone: (cliente: Cliente) => void }) 
           ...f,
           nome: cliente.nome,
           email: cliente.email ?? '',
-          celular: formatTelefoneBR(cliente.whatsapp || cliente.telefone || ''),
+          celular: cliente.whatsapp || cliente.telefone || '',
         }))
       } else if (nomeMarinha) {
         setForm((f) => ({ ...f, nome: nomeMarinha }))
@@ -52,8 +52,8 @@ export function StepCliente({ onDone }: { onDone: (cliente: Cliente) => void }) 
         nome: form.nome.trim(),
         documento: cpf.trim() || undefined,
         email: form.email.trim() || undefined,
-        telefone: telefoneToE164BR(form.celular),
-        whatsapp: telefoneToE164BR(form.celular),
+        telefone: form.celular || undefined,
+        whatsapp: form.celular || undefined,
       }),
     onSuccess: (c) => {
       toast.success('Pré-conta criada.')
@@ -122,11 +122,9 @@ export function StepCliente({ onDone }: { onDone: (cliente: Cliente) => void }) 
             </div>
             <div>
               <Label className="text-xs">Celular / WhatsApp</Label>
-              <Input
-                inputMode="tel"
+              <PhoneInput
                 value={form.celular}
-                onChange={(e) => setForm({ ...form, celular: formatTelefoneBR(e.target.value) })}
-                placeholder="+55 (11) 99999-9999"
+                onChange={(v) => setForm({ ...form, celular: v })}
               />
             </div>
           </div>
