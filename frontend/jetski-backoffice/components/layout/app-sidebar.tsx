@@ -6,6 +6,7 @@ import {
   Anchor,
   Calendar,
   CalendarCheck,
+  ListOrdered,
   ChartBar,
   ClipboardList,
   FileText,
@@ -65,6 +66,11 @@ const mainNavItems = [
     title: 'Pendências',
     href: '/dashboard/pendencias',
     icon: CalendarCheck,
+  },
+  {
+    title: 'Fila de espera',
+    href: '/dashboard/fila',
+    icon: ListOrdered,
   },
   {
     title: 'Locações',
