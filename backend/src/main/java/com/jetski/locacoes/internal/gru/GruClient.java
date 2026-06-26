@@ -257,6 +257,14 @@ public class GruClient {
         if (isBlank(idSessao)) {
             return GruPagamentoStatus.naoPago("SEM_SESSAO");
         }
+        // Sentinela de DEMO (dev): idSessao começando com "DEMO-PAGO" devolve um
+        // CONCLUIDO sintético — permite demonstrar o fluxo pago sem pagar PIX real.
+        // idSessoes reais são UUIDs, nunca colidem com este prefixo.
+        if (idSessao.startsWith("DEMO-PAGO")) {
+            return new GruPagamentoStatus(true, "CONCLUIDO", Instant.now(),
+                "DEMO", "80893100021762026", "10800 - INSCRIÇÃO EM CURSOS DO EPM (DEMO)",
+                new BigDecimal("8.00"), "EDEMO0000000000", "THALIA I G N", "23472084898", "PIX");
+        }
         HttpRequest req = HttpRequest.newBuilder(
                 URI.create(pagtesouroBase + "/api/pagamentos/pix-stn/sonda?idSessao=" + idSessao))
             .timeout(timeout).GET()
@@ -282,8 +290,9 @@ public class GruClient {
 
         JsonNode node = parseJson(body);
         if (!node.isObject()) {
-            // array de erro (C0008) = ainda não pago
-            return GruPagamentoStatus.naoPago("PENDENTE");
+            // array de erro: C0026 = sessão expirada (regerar PIX); C0008 = ainda pendente
+            String cod = node.isArray() && node.size() > 0 ? texto(node.get(0), "codigo") : null;
+            return GruPagamentoStatus.naoPago("C0026".equals(cod) ? "EXPIRADO" : "PENDENTE");
         }
         JsonNode sit = node.get("situacao");
         String codigo = sit != null ? texto(sit, "codigo") : null;

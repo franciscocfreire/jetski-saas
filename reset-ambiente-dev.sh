@@ -940,9 +940,10 @@ CREATE INDEX IF NOT EXISTS idx_despesa_manutencao_status ON despesa_manutencao(t
 EOSQL
 echo -e "${GREEN}   OK - Tabela despesa_manutencao configurada!${NC}"
 
-# 7.16 Seed de demonstracao: GRU com idSessao JA PAGO no PagTesouro
+# 7.16 Seed de demonstracao: GRU com idSessao sentinela DEMO-PAGO
 # Permite testar "Verificar pagamento" + comprovante sem pagar outro PIX.
-# O idSessao 55e08f7a... corresponde a um pagamento real CONCLUIDO (THALIA, R$ 8,00).
+# O backend reconhece idSessao "DEMO-PAGO*" e devolve CONCLUIDO sintetico
+# (idSessao reais expiram em poucas horas; por isso usamos o sentinela).
 echo -e "${YELLOW}7.16 Inserindo reserva demo com GRU paga (verificar pagamento)...${NC}"
 docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << EOSQL > /dev/null 2>&1
 -- Cliente THALIA (CPF do pagamento real no PagTesouro)
@@ -969,7 +970,7 @@ INSERT INTO reserva_habilitacao (id, tenant_id, reserva_id, via, gru_numero, gru
         gru_id_sessao, gru_pix_copia_e_cola, gru_gerada_em, resolvida, created_at, updated_at)
 VALUES ('f0000000-0000-0000-0000-000000000003', '${TENANT_ID}', 'f0000000-0000-0000-0000-000000000002',
         'EMA', '80893100021762026', 8.00, false,
-        '55e08f7a-62c9-4781-8541-6979dbd04a0c',
+        'DEMO-PAGO-55e08f7a',
         '00020101021226930014br.gov.bcb.pix-DEMO-PAGO',
         now(), false, now(), now())
 ON CONFLICT (reserva_id) DO UPDATE SET gru_id_sessao=EXCLUDED.gru_id_sessao,

@@ -110,6 +110,8 @@ export function ReservaDetailSheet({
     onSuccess: (r) => {
       invalidar()
       if (r.pago) toast.success('Pagamento confirmado — GRU paga.')
+      else if (r.situacao === 'EXPIRADO')
+        toast.warning('A sessão do PIX expirou. Gere um novo PIX ou boleto.')
       else toast.info('Pagamento ainda não identificado. Tente novamente em instantes.')
     },
     onError: () => toast.error('Falha ao verificar o pagamento.'),

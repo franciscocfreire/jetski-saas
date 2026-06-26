@@ -89,6 +89,8 @@ class GruClientTest {
                              "tipoPagamentoEscolhido":"PIX",
                              "contribuinte":{"nome":"THALIA","codigoIdentificador":"23472084898"},
                              "situacao":{"codigo":"CONCLUIDO","data":"2026-06-26T07:04:31Z"}}""");
+                    } else if (q != null && q.contains("expirado")) {
+                        send(exchange, 200, "[{\"codigo\":\"C0026\",\"descricao\":\"Sessão expirada.\"}]");
                     } else {
                         send(exchange, 200, "[{\"codigo\":\"C0008\",\"descricao\":\"Erro desconhecido.\"}]");
                     }
@@ -172,6 +174,23 @@ class GruClientTest {
     void sondaPixPendenteRetornaNaoPago() {
         GruPagamentoStatus s = client().consultarStatusPix("ses-qualquer");
         assertThat(s.pago()).isFalse();
+        assertThat(s.situacao()).isEqualTo("PENDENTE");
+    }
+
+    @Test
+    void sondaSessaoExpiradaC0026() {
+        GruPagamentoStatus s = client().consultarStatusPix("ses-expirado");
+        assertThat(s.pago()).isFalse();
+        assertThat(s.situacao()).isEqualTo("EXPIRADO");
+    }
+
+    @Test
+    void sentinelaDemoPagoRetornaConcluido() {
+        // não toca na rede — sentinela DEMO
+        GruPagamentoStatus s = client().consultarStatusPix("DEMO-PAGO-xyz");
+        assertThat(s.pago()).isTrue();
+        assertThat(s.situacao()).isEqualTo("CONCLUIDO");
+        assertThat(s.numeroReferencia()).isEqualTo("80893100021762026");
     }
 
     @Test
