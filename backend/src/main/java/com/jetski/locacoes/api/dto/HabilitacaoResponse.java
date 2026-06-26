@@ -28,6 +28,9 @@ public class HabilitacaoResponse {
     private Boolean anexoSaude;
     private Boolean anexoRegras;
     private Boolean anexoResidencia;
+    private Boolean usaLentes;
+    private Boolean usaAparelho;
+    private UUID instrutorId;
 
     private String gruNumero;
     private BigDecimal gruValor;

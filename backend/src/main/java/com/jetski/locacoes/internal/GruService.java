@@ -176,6 +176,10 @@ public class GruService {
             }
             hab.setGruPago(true);
             hab.setGruPagoEm(st.dataPagamento() != null ? st.dataPagamento() : Instant.now());
+            // EMA resolve quando a GRU é paga; CHA depende do número.
+            hab.setResolvida(hab.getVia() == ReservaHabilitacao.Via.CHA
+                ? (hab.getChaNumero() != null && !hab.getChaNumero().isBlank())
+                : true);
             try {
                 byte[] pdf = comprovantePdfService.gerar(st);
                 String key = String.format("%s/reserva/%s/gru-comprovante.pdf",

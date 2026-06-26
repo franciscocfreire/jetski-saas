@@ -55,15 +55,19 @@ public class HabilitacaoService {
         h.setUsaLentes(Boolean.TRUE.equals(dados.getUsaLentes()));
         h.setUsaAparelho(Boolean.TRUE.equals(dados.getUsaAparelho()));
         h.setInstrutorId(dados.getInstrutorId());
-        h.setGruNumero(dados.getGruNumero());
-        h.setGruValor(dados.getGruValor());
+        // Preserva número/valor já gerados se o form não os reenviar.
+        if (dados.getGruNumero() != null) {
+            h.setGruNumero(dados.getGruNumero());
+        }
+        if (dados.getGruValor() != null) {
+            h.setGruValor(dados.getGruValor());
+        }
 
-        boolean gruPago = Boolean.TRUE.equals(dados.getGruPago());
+        // NÃO rebaixar uma GRU já paga (ex.: confirmada via "Verificar pagamento").
+        boolean gruPago = Boolean.TRUE.equals(dados.getGruPago()) || Boolean.TRUE.equals(h.getGruPago());
         h.setGruPago(gruPago);
         if (gruPago && h.getGruPagoEm() == null) {
             h.setGruPagoEm(Instant.now());
-        } else if (!gruPago) {
-            h.setGruPagoEm(null);
         }
 
         h.setResolvida(computeResolvida(h));

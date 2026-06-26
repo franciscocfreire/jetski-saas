@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { SignaturePad } from '@/components/signature-pad'
 import { aceiteService } from '@/lib/api/services'
+import { formatDateTime } from '@/lib/utils'
 import type { Atendimento } from '../types'
 
 const TERMO = `TERMO DE RESPONSABILIDADE E CIÊNCIA DE RISCOS
@@ -27,6 +29,14 @@ export function StepTermos({
   onDone: () => void
 }) {
   const [assinatura, setAssinatura] = useState<string | null>(null)
+  const [reassinar, setReassinar] = useState(false)
+
+  // Reflete aceite já registrado (retomada / voltar pelo breadcrumb) p/ não perder a assinatura.
+  const { data: aceiteExistente } = useQuery({
+    queryKey: ['aceite', atendimento.reserva?.id],
+    queryFn: () => aceiteService.get(atendimento.reserva!.id),
+    enabled: !!atendimento.reserva?.id,
+  })
 
   const registrar = useMutation({
     mutationFn: () =>
@@ -41,30 +51,55 @@ export function StepTermos({
     onError: () => toast.error('Falha ao registrar o aceite.'),
   })
 
+  const jaAssinado = !!aceiteExistente && !reassinar
+
   return (
     <div className="space-y-5">
       <div className="max-h-56 overflow-y-auto whitespace-pre-line rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
         {TERMO}
       </div>
 
-      <div>
-        <Label className="mb-2 block text-sm font-medium">
-          Assinatura do locatário ({atendimento.cliente?.nome})
-        </Label>
-        <SignaturePad onChange={setAssinatura} />
-      </div>
+      {jaAssinado ? (
+        <div className="flex items-center justify-between rounded-lg border border-emerald-300 bg-emerald-50 p-4 dark:bg-emerald-950/30">
+          <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
+            <CheckCircle2 className="h-5 w-5" />
+            Termos já assinados
+            {aceiteExistente?.aceitoEm && (
+              <span className="font-normal text-muted-foreground">
+                em {formatDateTime(aceiteExistente.aceitoEm)}
+              </span>
+            )}
+          </p>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setReassinar(true)}>
+            Assinar novamente
+          </Button>
+        </div>
+      ) : (
+        <div>
+          <Label className="mb-2 block text-sm font-medium">
+            Assinatura do locatário ({atendimento.cliente?.nome})
+          </Label>
+          <SignaturePad onChange={setAssinatura} />
+        </div>
+      )}
 
       <div className="flex justify-between">
         <Button type="button" variant="outline" onClick={onBack}>
           Voltar
         </Button>
-        <Button
-          type="button"
-          disabled={!assinatura || registrar.isPending}
-          onClick={() => registrar.mutate()}
-        >
-          {registrar.isPending ? 'Registrando…' : 'Assinar e avançar'}
-        </Button>
+        {jaAssinado ? (
+          <Button type="button" onClick={onDone}>
+            Avançar
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            disabled={!assinatura || registrar.isPending}
+            onClick={() => registrar.mutate()}
+          >
+            {registrar.isPending ? 'Registrando…' : 'Assinar e avançar'}
+          </Button>
+        )}
       </div>
     </div>
   )

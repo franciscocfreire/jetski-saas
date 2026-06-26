@@ -278,6 +278,9 @@ export interface Habilitacao {
   anexoSaude: boolean
   anexoRegras: boolean
   anexoResidencia: boolean
+  usaLentes?: boolean
+  usaAparelho?: boolean
+  instrutorId?: string
   gruNumero?: string
   gruValor?: number
   gruPago: boolean

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -55,6 +55,42 @@ export function StepHabilitacao({
     queryFn: () => instrutoresService.list(),
     enabled: !!currentTenant && via === 'EMA',
   })
+
+  // Pré-preenche a partir da habilitação já salva (retomada / voltar pelo breadcrumb),
+  // evitando que "Registrar habilitação" sobrescreva os dados com os defaults.
+  const { data: habSalva } = useQuery({
+    queryKey: ['habilitacao', atendimento.reserva?.id],
+    queryFn: () => habilitacaoService.get(atendimento.reserva!.id),
+    enabled: !!atendimento.reserva?.id,
+  })
+  const prefilled = useRef(false)
+  useEffect(() => {
+    if (!habSalva || prefilled.current) return
+    prefilled.current = true
+    if (habSalva.chaCategoria) setChaCategoria(habSalva.chaCategoria)
+    if (habSalva.chaNumero) setChaNumero(habSalva.chaNumero)
+    if (habSalva.chaValidade) setChaValidade(habSalva.chaValidade)
+    setVideoaula(!!habSalva.videoaulaEm)
+    setAnexoSaude(!!habSalva.anexoSaude)
+    setAnexoRegras(!!habSalva.anexoRegras)
+    setAnexoResidencia(!!habSalva.anexoResidencia)
+    setUsaLentes(!!habSalva.usaLentes)
+    setUsaAparelho(!!habSalva.usaAparelho)
+    if (habSalva.instrutorId) setInstrutorId(habSalva.instrutorId)
+    if (habSalva.gruNumero) setGruNumero(habSalva.gruNumero)
+    if (habSalva.gruValor != null) setGruValor(String(habSalva.gruValor))
+    setGruPago(!!habSalva.gruPago)
+    if (habSalva.gruPixCopiaECola) {
+      setPix({
+        sucesso: true,
+        reaproveitada: true,
+        gruNumero: habSalva.gruNumero,
+        gruValor: habSalva.gruValor,
+        pixCopiaECola: habSalva.gruPixCopiaECola,
+        pixExpiracao: habSalva.gruPixExpiracao,
+      })
+    }
+  }, [habSalva])
 
   const registrar = useMutation({
     mutationFn: () => {
