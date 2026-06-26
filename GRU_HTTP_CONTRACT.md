@@ -157,6 +157,27 @@ PDF no storage (`{tenant}/reserva/{id}/gru-boleto.pdf`, campo `gru_pdf_s3_key`) 
 presignada. Endpoint `POST .../habilitacao/gru/boleto`. ⚠️ Boleto e PIX geram **id_gru distintos**
 (GRUs separadas) — escolher um método por reserva; idempotência reaproveita o boleto não pago.
 
+## Verificação de pagamento (PIX) + comprovante
+Guardar o `idSessao` (passo 5) ao gerar o PIX. Depois, consultar quando quiser:
+```
+GET https://pagtesouro.tesouro.gov.br/api/pagamentos/pix-stn/sonda?idSessao=<uuid>
+   headers: Accept: application/json, Referer: https://pagtesouro.tesouro.gov.br/
+```
+- **PAGO** → resposta é um **objeto** com `"situacao":{"codigo":"CONCLUIDO","data":"...Z"}` +
+  `idPagamento`, `numeroReferencia`, `refTran`, `contribuinte`, `valor`.
+- **PENDENTE/não-pago** → array de erro `[{"codigo":"C0008","descricao":"Erro desconhecido..."}]`.
+- O `idSessao` continua consultável **horas após** a geração (pagamento tardio funciona).
+
+O **comprovante** ("Imprimir comprovante" do site) é só `window.print()` de um HTML — todos os
+dados vêm do `pix-stn/sonda`. Geramos o PDF nós mesmos (`GruComprovantePdfService`/OpenPDF).
+Existe tb o caminho `comprovante_pgt.php?id=base64(id_gru)` (HTML), não usado.
+Há ainda um WebSocket SockJS/STOMP (`/api/sonda-pgto-ws/notificacoes-pgto-ws`) para push em
+tempo real, mas o REST acima é suficiente para verificação sob demanda.
+
+Implementado: `POST .../habilitacao/gru/verificar-pagamento` (marca gruPago + gera comprovante),
+`GET .../habilitacao/gru/comprovante/download` (stream do PDF). Campos `gru_id_sessao` e
+`gru_comprovante_s3_key` (V016).
+
 ## Notas de implementação
 - **Confirmar na 1ª execução real**: corpo exato do passo 3 (363B) e do passo 5 (133B), e se a
   cascata (passo 2) é necessária. Fazer 1 chamada de teste controlada (sem volume).
