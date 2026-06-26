@@ -163,6 +163,12 @@ public class GruService {
             .orElseThrow(() -> new NotFoundException("Habilitação não encontrada: " + reservaId));
 
         if (Boolean.TRUE.equals(hab.getGruPago())) {
+            // Auto-heal: GRU paga mas resolvida ficou false (dados antigos).
+            if (!Boolean.TRUE.equals(hab.getResolvida())
+                    && hab.getVia() != ReservaHabilitacao.Via.CHA) {
+                hab.setResolvida(true);
+                habilitacaoRepository.save(hab);
+            }
             return new VerificacaoPagamento(true, "CONCLUIDO", hab.getGruComprovanteS3Key() != null);
         }
         if (hab.getGruIdSessao() == null) {
