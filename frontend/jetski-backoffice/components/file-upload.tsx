@@ -20,10 +20,13 @@ export function FileUpload({
   label,
   accept = 'image/*,application/pdf',
   onChange,
+  initialUrl,
 }: {
   label: string
   accept?: string
   onChange?: (f: UploadedFile | null) => void
+  /** URL de uma imagem já enviada (carrega automaticamente; pode trocar). */
+  initialUrl?: string
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -32,6 +35,7 @@ export function FileUpload({
   const [cameraAberta, setCameraAberta] = useState(false)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [erro, setErro] = useState<string | null>(null)
+  const [trocar, setTrocar] = useState(false)
 
   // Liga o stream ao <video> quando a câmera abre.
   useEffect(() => {
@@ -131,6 +135,18 @@ export function FileUpload({
               Cancelar
             </Button>
           </div>
+        </div>
+      ) : initialUrl && !picked && !trocar ? (
+        <div className="flex items-center gap-3 rounded-xl border bg-card p-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={initialUrl} alt="anexo enviado" className="h-12 w-12 rounded-md object-cover" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-emerald-600">✓ Já enviado</p>
+            <p className="text-xs text-muted-foreground">Carregado do cadastro do cliente</p>
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setTrocar(true)}>
+            Trocar foto
+          </Button>
         </div>
       ) : !picked ? (
         <div className="space-y-2">

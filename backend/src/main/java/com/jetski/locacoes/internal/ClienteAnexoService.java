@@ -49,6 +49,11 @@ public class ClienteAnexoService {
     }
 
     @Transactional(readOnly = true)
+    public java.util.Optional<ClienteAnexo> buscar(UUID clienteId, ClienteAnexo.Tipo tipo) {
+        return repository.findByClienteIdAndTipo(clienteId, tipo);
+    }
+
+    @Transactional(readOnly = true)
     public byte[] lerImagem(ClienteAnexo anexo) {
         return storageService.getObject(anexo.getS3Key());
     }

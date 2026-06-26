@@ -53,4 +53,18 @@ export const clientesService = {
   ): Promise<void> {
     await apiClient.put(`${getBasePath()}/${clienteId}/anexos/${tipo}`, { conteudoBase64 })
   },
+
+  /** Lista os tipos de anexo já enviados do cliente. */
+  async listarAnexos(clienteId: string): Promise<{ tipo: string }[]> {
+    const { data } = await apiClient.get<{ tipo: string }[]>(`${getBasePath()}/${clienteId}/anexos`)
+    return data
+  },
+
+  /** Baixa a imagem de um anexo já enviado (blob). */
+  async baixarAnexo(clienteId: string, tipo: string): Promise<Blob> {
+    const res = await apiClient.get(`${getBasePath()}/${clienteId}/anexos/${tipo}/download`, {
+      responseType: 'blob',
+    })
+    return res.data as Blob
+  },
 }

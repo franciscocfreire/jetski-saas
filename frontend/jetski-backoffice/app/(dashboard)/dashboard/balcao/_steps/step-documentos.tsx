@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,6 +56,21 @@ export function StepDocumentos({
     SELFIE?: string
   }>({})
 
+  // Pré-carrega as fotos já enviadas do cliente (carrega automático; pode trocar).
+  const { data: anexosUrls } = useQuery({
+    queryKey: ['cliente-anexos', c.id],
+    queryFn: async () => {
+      const lista = await clientesService.listarAnexos(c.id)
+      const urls: Record<string, string> = {}
+      for (const a of lista) {
+        const blob = await clientesService.baixarAnexo(c.id, a.tipo).catch(() => null)
+        if (blob) urls[a.tipo] = URL.createObjectURL(blob)
+      }
+      return urls
+    },
+    enabled: !!c.id,
+  })
+
   const salvarDados = useMutation({
     mutationFn: async () => {
       await clientesService.update(c.id, {
@@ -95,6 +110,7 @@ export function StepDocumentos({
           <Label className="mb-1 block text-xs">Documento de identidade (RG/CNH)</Label>
           <FileUpload
             label="Enviar RG/CNH"
+            initialUrl={anexosUrls?.IDENTIDADE}
             onChange={(f) => setAnexos((a) => ({ ...a, IDENTIDADE: f?.dataUrl }))}
           />
         </div>
@@ -103,6 +119,7 @@ export function StepDocumentos({
           <FileUpload
             label="Tirar/enviar selfie"
             accept="image/*"
+            initialUrl={anexosUrls?.SELFIE}
             onChange={(f) => setAnexos((a) => ({ ...a, SELFIE: f?.dataUrl }))}
           />
         </div>
@@ -163,6 +180,7 @@ export function StepDocumentos({
         {temComprovante && (
           <FileUpload
             label="Enviar comprovante de residência"
+            initialUrl={anexosUrls?.COMPROVANTE_RESIDENCIA}
             onChange={(f) => setAnexos((a) => ({ ...a, COMPROVANTE_RESIDENCIA: f?.dataUrl }))}
           />
         )}

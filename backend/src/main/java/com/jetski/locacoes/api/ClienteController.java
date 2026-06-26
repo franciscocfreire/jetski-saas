@@ -60,6 +60,25 @@ public class ClienteController {
             a.getTipo().name(), a.getContentType(), a.getUpdatedAt()));
     }
 
+    @GetMapping("/{id}/anexos/{tipo}/download")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Baixar a imagem de um anexo do cliente (streaming)")
+    public ResponseEntity<byte[]> baixarAnexo(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @PathVariable String tipo
+    ) {
+        validateTenantContext(tenantId);
+        var t = com.jetski.locacoes.domain.ClienteAnexo.Tipo.valueOf(tipo.toUpperCase());
+        var anexo = anexoService.buscar(id, t)
+            .orElseThrow(() -> new com.jetski.shared.exception.NotFoundException("Anexo não encontrado"));
+        byte[] bytes = anexoService.lerImagem(anexo);
+        String ct = anexo.getContentType() != null ? anexo.getContentType() : "image/jpeg";
+        return ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.parseMediaType(ct))
+            .body(bytes);
+    }
+
     @GetMapping("/{id}/anexos")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
     @Operation(summary = "Listar anexos presentes do cliente")
