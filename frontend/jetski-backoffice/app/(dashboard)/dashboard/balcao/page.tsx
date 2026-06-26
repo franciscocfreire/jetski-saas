@@ -19,12 +19,13 @@ import { StepCliente } from './_steps/step-cliente'
 import { StepDocumentos } from './_steps/step-documentos'
 import { StepAluguel } from './_steps/step-aluguel'
 import { StepHabilitacao } from './_steps/step-habilitacao'
+import { StepPreRequisitos } from './_steps/step-prerequisitos'
 import { StepTermos } from './_steps/step-termos'
 import { StepEmissao } from './_steps/step-emissao'
 
 const VAZIO: Atendimento = {
   temComprovanteResidencia: true,
-  temCha: true,
+  temCha: false, // padrão: cliente NÃO tem CHA → emite temporária (EMA + GRU)
   habilitacaoResolvida: false,
   aceiteFeito: false,
 }
@@ -71,8 +72,8 @@ function BalcaoWizard() {
           habilitacaoResolvida,
           aceiteFeito,
         })
-        // 1º passo pendente: habilitação (2) → termos (4) → emissão (5)
-        setStep(!habilitacaoResolvida ? 2 : !aceiteFeito ? 4 : 5)
+        // 1º passo pendente: habilitação (2) → termos (5) → emissão (6)
+        setStep(!habilitacaoResolvida ? 2 : !aceiteFeito ? 5 : 6)
       } catch {
         toast.error('Não foi possível retomar o atendimento.')
       } finally {
@@ -157,35 +158,47 @@ function BalcaoWizard() {
               onBack={() => setStep(1)}
               onDone={(resolvida, temCha) => {
                 setAt((a) => ({ ...a, habilitacaoResolvida: resolvida, temCha }))
-                setStep(3)
+                // CHA pula os pré-requisitos EMA → Documentos
+                setStep(temCha ? 4 : 3)
               }}
             />
           )}
 
           {step === 3 && (
-            <StepDocumentos
+            <StepPreRequisitos
               atendimento={at}
               onBack={() => setStep(2)}
-              onDone={(patch) => {
-                setAt((a) => ({ ...a, ...patch }))
+              onDone={(resolvida) => {
+                setAt((a) => ({ ...a, habilitacaoResolvida: resolvida }))
                 setStep(4)
               }}
             />
           )}
 
           {step === 4 && (
-            <StepTermos
+            <StepDocumentos
               atendimento={at}
-              onBack={() => setStep(3)}
-              onDone={() => {
-                setAt((a) => ({ ...a, aceiteFeito: true }))
+              onBack={() => setStep(at.temCha ? 2 : 3)}
+              onDone={(patch) => {
+                setAt((a) => ({ ...a, ...patch }))
                 setStep(5)
               }}
             />
           )}
 
           {step === 5 && (
-            <StepEmissao atendimento={at} onBack={() => setStep(4)} onReset={reset} />
+            <StepTermos
+              atendimento={at}
+              onBack={() => setStep(4)}
+              onDone={() => {
+                setAt((a) => ({ ...a, aceiteFeito: true }))
+                setStep(6)
+              }}
+            />
+          )}
+
+          {step === 6 && (
+            <StepEmissao atendimento={at} onBack={() => setStep(5)} onReset={reset} />
           )}
         </CardContent>
       </Card>

@@ -124,7 +124,7 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
         // 3) Habilitação via EMA + GRU paga → resolvida
         ReservaHabilitacao hab = habilitacaoService.registrar(reservaId, ReservaHabilitacao.builder()
             .via(ReservaHabilitacao.Via.EMA)
-            .anexoSaude(true).anexoRegras(true).anexoResidencia(true)
+            .anexoSaude(true).anexoRegras(true).anexoResidencia(true).instrutorId(UUID.randomUUID())
             .gruNumero("GRU-E2E-001").gruValor(new BigDecimal("23.13")).gruPago(true)
             .build());
         assertThat(hab.getResolvida()).isTrue();

@@ -49,12 +49,13 @@ public class HabilitacaoService {
         if (dados.getVideoaulaEm() != null) {
             h.setVideoaulaEm(dados.getVideoaulaEm());
         }
-        h.setAnexoSaude(Boolean.TRUE.equals(dados.getAnexoSaude()));
-        h.setAnexoRegras(Boolean.TRUE.equals(dados.getAnexoRegras()));
-        h.setAnexoResidencia(Boolean.TRUE.equals(dados.getAnexoResidencia()));
-        h.setUsaLentes(Boolean.TRUE.equals(dados.getUsaLentes()));
-        h.setUsaAparelho(Boolean.TRUE.equals(dados.getUsaAparelho()));
-        h.setInstrutorId(dados.getInstrutorId());
+        // Preserva quando o passo não envia o campo (fluxo dividido: GRU x pré-requisitos).
+        if (dados.getAnexoSaude() != null) h.setAnexoSaude(dados.getAnexoSaude());
+        if (dados.getAnexoRegras() != null) h.setAnexoRegras(dados.getAnexoRegras());
+        if (dados.getAnexoResidencia() != null) h.setAnexoResidencia(dados.getAnexoResidencia());
+        if (dados.getUsaLentes() != null) h.setUsaLentes(dados.getUsaLentes());
+        if (dados.getUsaAparelho() != null) h.setUsaAparelho(dados.getUsaAparelho());
+        if (dados.getInstrutorId() != null) h.setInstrutorId(dados.getInstrutorId());
         // Preserva número/valor já gerados se o form não os reenviar.
         if (dados.getGruNumero() != null) {
             h.setGruNumero(dados.getGruNumero());

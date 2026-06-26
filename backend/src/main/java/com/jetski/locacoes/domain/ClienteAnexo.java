@@ -32,7 +32,8 @@ public class ClienteAnexo {
     public enum Tipo {
         IDENTIDADE,
         COMPROVANTE_RESIDENCIA,
-        SELFIE
+        SELFIE,
+        CHA
     }
 
     @Id

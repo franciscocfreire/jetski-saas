@@ -251,6 +251,7 @@ public class EmissaoService {
             case IDENTIDADE -> "Documento de Identidade";
             case COMPROVANTE_RESIDENCIA -> "Comprovante de Residência";
             case SELFIE -> "Foto do Cliente";
+            case CHA -> "Habilitação (CHA/CHV)";
         };
     }
 
