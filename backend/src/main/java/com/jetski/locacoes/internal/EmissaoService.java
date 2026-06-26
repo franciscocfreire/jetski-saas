@@ -53,6 +53,7 @@ public class EmissaoService {
     private final EmailService emailService;
     private final TenantQueryService tenantQueryService;
     private final DocumentoPdfService documentoPdfService;
+    private final ClienteAnexoService clienteAnexoService;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
 
@@ -94,7 +95,8 @@ public class EmissaoService {
         byte[] assinatura = lerAssinatura(aceite.getAssinaturaS3Key());
 
         DocumentoPdfService.DadosDocumento dados = montarDados(reserva, cliente, hab, tenant);
-        DocumentoPdfService.DocumentoPdf pdf = documentoPdfService.gerarDocumentoConsolidado(dados, assinatura);
+        DocumentoPdfService.DocumentoPdf pdf = documentoPdfService.gerarDocumentoConsolidado(
+            dados, assinatura, anexosDoCliente(cliente.getId()));
 
         String key = String.format("%s/reserva/%s/documento.pdf", reserva.getTenantId(), reservaId);
         storageService.putObject(key, pdf.conteudo(), "application/pdf");
@@ -183,6 +185,30 @@ public class EmissaoService {
     private String dataExtenso() {
         java.time.LocalDate hoje = java.time.LocalDate.now();
         return String.format("%d de %s de %d", hoje.getDayOfMonth(), MESES[hoje.getMonthValue() - 1], hoje.getYear());
+    }
+
+    /** Lê os anexos do cliente (identidade, comprovante, selfie) p/ anexar ao PDF. */
+    private java.util.List<DocumentoPdfService.AnexoImagem> anexosDoCliente(UUID clienteId) {
+        var lista = new java.util.ArrayList<>(clienteAnexoService.listar(clienteId));
+        lista.sort(java.util.Comparator.comparingInt(a -> a.getTipo().ordinal()));
+        var out = new java.util.ArrayList<DocumentoPdfService.AnexoImagem>();
+        for (com.jetski.locacoes.domain.ClienteAnexo a : lista) {
+            try {
+                out.add(new DocumentoPdfService.AnexoImagem(
+                    tituloAnexo(a.getTipo()), clienteAnexoService.lerImagem(a)));
+            } catch (Exception e) {
+                log.warn("Anexo {} do cliente {} ilegível: {}", a.getTipo(), clienteId, e.getMessage());
+            }
+        }
+        return out;
+    }
+
+    private static String tituloAnexo(com.jetski.locacoes.domain.ClienteAnexo.Tipo t) {
+        return switch (t) {
+            case IDENTIDADE -> "Documento de Identidade";
+            case COMPROVANTE_RESIDENCIA -> "Comprovante de Residência";
+            case SELFIE -> "Foto do Cliente";
+        };
     }
 
     private String[] parseEndereco(String json) {

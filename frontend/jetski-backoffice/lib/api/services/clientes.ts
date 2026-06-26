@@ -44,4 +44,13 @@ export const clientesService = {
     })
     return data.nome ?? null
   },
+
+  /** Envia um anexo do cliente (imagem em dataURL/base64) para incluir no PDF. */
+  async uploadAnexo(
+    clienteId: string,
+    tipo: 'IDENTIDADE' | 'COMPROVANTE_RESIDENCIA' | 'SELFIE',
+    conteudoBase64: string
+  ): Promise<void> {
+    await apiClient.put(`${getBasePath()}/${clienteId}/anexos/${tipo}`, { conteudoBase64 })
+  },
 }

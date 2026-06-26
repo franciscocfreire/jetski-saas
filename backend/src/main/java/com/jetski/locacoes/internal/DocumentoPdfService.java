@@ -113,7 +113,15 @@ public class DocumentoPdfService {
     // PDF consolidado (F2.5)
     // ------------------------------------------------------------------
 
+    /** Imagem anexada ao fim do PDF (documento de identidade, comprovante, selfie). */
+    public record AnexoImagem(String titulo, byte[] bytes) {}
+
     public DocumentoPdf gerarDocumentoConsolidado(DadosDocumento d, byte[] assinaturaPng) {
+        return gerarDocumentoConsolidado(d, assinaturaPng, java.util.List.of());
+    }
+
+    public DocumentoPdf gerarDocumentoConsolidado(DadosDocumento d, byte[] assinaturaPng,
+            java.util.List<AnexoImagem> anexos) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         Document doc = new Document(PageSize.A4, 56, 56, 54, 54);
         try {
@@ -147,6 +155,16 @@ public class DocumentoPdfService {
             first = section(doc, first);
             writeTermo(doc, f, d.razaoSocialLoja(), d.cnpjLoja(), d.nomeCliente(),
                     d.cpfCliente(), d.local(), d.dataCurta(), assinaturaPng);
+
+            if (anexos != null) {
+                for (AnexoImagem a : anexos) {
+                    if (a == null || a.bytes() == null || a.bytes().length == 0) {
+                        continue;
+                    }
+                    first = section(doc, first);
+                    writeImagemAnexo(doc, f, a.titulo(), a.bytes());
+                }
+            }
 
             doc.close();
             byte[] bytes = baos.toByteArray();
@@ -182,6 +200,19 @@ public class DocumentoPdfService {
      * Anexo 1-C — DECLARAÇÃO DE RESIDÊNCIA, em estilo formulário (campos
      * rotulados com linha), aproximando o layout oficial NORMAM-212/DPC.
      */
+    private void writeImagemAnexo(Document doc, Fonts f, String titulo, byte[] bytes)
+            throws DocumentException, IOException {
+        Paragraph t = new Paragraph(titulo, f.sansTitle);
+        t.setSpacingAfter(14);
+        doc.add(t);
+        Image img = Image.getInstance(bytes);
+        float maxW = doc.getPageSize().getWidth() - doc.leftMargin() - doc.rightMargin();
+        float maxH = doc.getPageSize().getHeight() - doc.topMargin() - doc.bottomMargin() - 60;
+        img.scaleToFit(maxW, maxH);
+        img.setAlignment(Image.ALIGN_CENTER);
+        doc.add(img);
+    }
+
     private void writeAnexo1C(Document doc, Fonts f, DadosDocumento d, byte[] sig) throws DocumentException, IOException {
         // Cabeçalho oficial
         Paragraph norma = new Paragraph("NORMAM-212/DPC", f.sansHeader);

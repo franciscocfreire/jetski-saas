@@ -50,10 +50,16 @@ export function StepDocumentos({
   const [nacionalidade, setNacionalidade] = useState(c.nacionalidade ?? 'Brasileira')
   const [naturalidade, setNaturalidade] = useState(c.naturalidade ?? '')
   const [estrangeiro, setEstrangeiro] = useState(c.estrangeiro ?? false)
+  // Anexos capturados (dataURL) p/ incluir no PDF: identidade, comprovante, selfie.
+  const [anexos, setAnexos] = useState<{
+    IDENTIDADE?: string
+    COMPROVANTE_RESIDENCIA?: string
+    SELFIE?: string
+  }>({})
 
   const salvarDados = useMutation({
-    mutationFn: () =>
-      clientesService.update(c.id, {
+    mutationFn: async () => {
+      await clientesService.update(c.id, {
         nome: c.nome,
         rg: rg || undefined,
         orgaoEmissor: orgaoEmissor || undefined,
@@ -61,7 +67,16 @@ export function StepDocumentos({
         naturalidade: naturalidade || undefined,
         estrangeiro,
         enderecoJson: endereco ? JSON.stringify(endereco) : undefined,
-      }),
+      })
+      // sobe os anexos capturados (best-effort)
+      for (const [tipo, dataUrl] of Object.entries(anexos)) {
+        if (dataUrl) {
+          await clientesService
+            .uploadAnexo(c.id, tipo as 'IDENTIDADE' | 'COMPROVANTE_RESIDENCIA' | 'SELFIE', dataUrl)
+            .catch(() => null)
+        }
+      }
+    },
     onSuccess: () => onDone({ endereco, temComprovanteResidencia: temComprovante, temCha }),
     onError: () => toast.error('Falha ao salvar os dados do cliente.'),
   })
@@ -79,11 +94,18 @@ export function StepDocumentos({
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <Label className="mb-1 block text-xs">Documento de identidade (RG/CNH)</Label>
-          <FileUpload label="Enviar RG/CNH" />
+          <FileUpload
+            label="Enviar RG/CNH"
+            onChange={(f) => setAnexos((a) => ({ ...a, IDENTIDADE: f?.dataUrl }))}
+          />
         </div>
         <div>
-          <Label className="mb-1 block text-xs">CPF</Label>
-          <FileUpload label="Enviar CPF" />
+          <Label className="mb-1 block text-xs">Selfie / foto do cliente</Label>
+          <FileUpload
+            label="Tirar/enviar selfie"
+            accept="image/*"
+            onChange={(f) => setAnexos((a) => ({ ...a, SELFIE: f?.dataUrl }))}
+          />
         </div>
       </div>
 
@@ -139,7 +161,12 @@ export function StepDocumentos({
             Não tem → Declaração 1-C
           </Button>
         </div>
-        {temComprovante && <FileUpload label="Enviar comprovante de residência" />}
+        {temComprovante && (
+          <FileUpload
+            label="Enviar comprovante de residência"
+            onChange={(f) => setAnexos((a) => ({ ...a, COMPROVANTE_RESIDENCIA: f?.dataUrl }))}
+          />
+        )}
       </div>
 
       <div className="space-y-2 rounded-lg border p-4">

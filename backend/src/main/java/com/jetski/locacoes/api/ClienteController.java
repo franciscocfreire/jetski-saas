@@ -40,6 +40,40 @@ public class ClienteController {
 
     private final ClienteService clienteService;
     private final com.jetski.locacoes.internal.gru.GruClient gruClient;
+    private final com.jetski.locacoes.internal.ClienteAnexoService anexoService;
+
+    @PutMapping("/{id}/anexos/{tipo}")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Enviar anexo do cliente (identidade, comprovante, selfie)")
+    public ResponseEntity<com.jetski.locacoes.api.dto.AnexoResumo> uploadAnexo(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @PathVariable String tipo,
+        @org.springframework.web.bind.annotation.RequestBody
+            @jakarta.validation.Valid com.jetski.locacoes.api.dto.AnexoUploadRequest req
+    ) {
+        validateTenantContext(tenantId);
+        com.jetski.locacoes.domain.ClienteAnexo.Tipo t =
+            com.jetski.locacoes.domain.ClienteAnexo.Tipo.valueOf(tipo.toUpperCase());
+        var a = anexoService.salvar(id, t, req.conteudoBase64());
+        return ResponseEntity.ok(new com.jetski.locacoes.api.dto.AnexoResumo(
+            a.getTipo().name(), a.getContentType(), a.getUpdatedAt()));
+    }
+
+    @GetMapping("/{id}/anexos")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Listar anexos presentes do cliente")
+    public ResponseEntity<java.util.List<com.jetski.locacoes.api.dto.AnexoResumo>> listarAnexos(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id
+    ) {
+        validateTenantContext(tenantId);
+        var lista = anexoService.listar(id).stream()
+            .map(a -> new com.jetski.locacoes.api.dto.AnexoResumo(
+                a.getTipo().name(), a.getContentType(), a.getUpdatedAt()))
+            .toList();
+        return ResponseEntity.ok(lista);
+    }
 
     @GetMapping("/consulta-marinha")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
