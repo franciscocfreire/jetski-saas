@@ -32,3 +32,13 @@ export function formatDuration(minutes: number): string {
   if (mins === 0) return `${hours}h`
   return `${hours}h ${mins}min`
 }
+
+/** Duração por extenso em pt-BR: "30 min", "1 hora", "2 horas", "2 horas e 20 min". */
+export function formatDuracao(minutes: number): string {
+  const m = Math.max(0, Math.round(minutes))
+  const h = Math.floor(m / 60)
+  const r = m % 60
+  if (h === 0) return `${r} min`
+  const hp = `${h} ${h === 1 ? 'hora' : 'horas'}`
+  return r === 0 ? hp : `${hp} e ${r} min`
+}
