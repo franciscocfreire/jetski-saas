@@ -34,7 +34,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { habilitacaoService, aceiteService, reservasService } from '@/lib/api/services'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import type { Reserva } from '@/lib/api/types'
 
 /** Duração (horas) implícita nas datas previstas. */
@@ -348,18 +348,7 @@ export function ReservaDetailSheet({
           <Etapa
             ok={!!aceite}
             label="Termos assinados"
-            hint={aceite ? formatDate(aceite.aceitoEm) : 'pendente'}
-          />
-          <Etapa
-            ok={!!reserva.sinalPago || reserva.pagamentoStatus === 'CONFIRMADO'}
-            label="Pagamento/sinal"
-            hint={
-              reserva.pagamentoStatus
-                ? reserva.pagamentoStatus.toLowerCase()
-                : reserva.sinalPago
-                  ? 'pago'
-                  : 'pendente'
-            }
+            hint={aceite ? formatDateTime(aceite.aceitoEm) : 'pendente'}
           />
           {hab ? (
             <Etapa
@@ -370,10 +359,25 @@ export function ReservaDetailSheet({
           ) : (
             <Etapa ok={false} label="Habilitação" hint="não registrada" />
           )}
+          {/* O passeio é pago no fim da locação; aqui o pagamento relevante é a GRU.
+              Sinaliza quem já tem o comprovante anexado. */}
+          {ema && (
+            <Etapa
+              ok={!!hab?.gruComprovanteDisponivel}
+              label="Comprovante de pagamento (GRU)"
+              hint={
+                hab?.gruComprovanteDisponivel
+                  ? 'anexado'
+                  : gruPaga
+                    ? 'paga, sem comprovante'
+                    : 'pendente'
+              }
+            />
+          )}
           <Etapa
             ok={!!reserva.documentoEmitidoEm}
             label="Documentos emitidos"
-            hint={reserva.documentoEmitidoEm ? formatDate(reserva.documentoEmitidoEm) : 'pendente'}
+            hint={reserva.documentoEmitidoEm ? formatDateTime(reserva.documentoEmitidoEm) : 'pendente'}
           />
         </div>
 
