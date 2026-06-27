@@ -31,6 +31,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { EmbarqueDialog } from '@/components/fila/embarque-dialog'
 import { EmbarqueGrupoDialog } from '@/components/fila/embarque-grupo-dialog'
 import { NotaInline } from '@/components/fila/nota-inline'
+import { ClienteDetailSheet } from '@/components/clientes/cliente-detail-sheet'
 import { WhatsAppLink, waHref } from '@/components/whatsapp-link'
 import { cn, formatDuracao } from '@/lib/utils'
 import {
@@ -41,7 +42,7 @@ import {
   type JetEstado,
   type Party,
 } from '@/lib/fila/otimizador'
-import type { Reserva } from '@/lib/api/types'
+import type { Cliente, Reserva } from '@/lib/api/types'
 
 const TURNAROUND_KEY = 'fila.turnaround'
 const LIMITE_KEY = 'fila.limiteEspera'
@@ -73,6 +74,8 @@ export default function FilaPage() {
     modeloId?: string
   } | null>(null)
   const [grupoOpen, setGrupoOpen] = useState(false)
+  const [clienteAlvo, setClienteAlvo] = useState<Cliente | null>(null)
+  const [clienteOpen, setClienteOpen] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [turnaround, setTurnaround] = useState(5)
   const [limiteEspera, setLimiteEspera] = useState(20)
@@ -104,6 +107,12 @@ export default function FilaPage() {
       ids.forEach((id) => n.set(id, Date.now()))
       return n
     })
+
+  const abrirCliente = (c?: Cliente) => {
+    if (!c) return
+    setClienteAlvo(c)
+    setClienteOpen(true)
+  }
 
   const invalidarFila = () => {
     qc.invalidateQueries({ queryKey: ['reservas', currentTenant?.id] })
@@ -482,7 +491,33 @@ export default function FilaPage() {
                           <div className="min-w-0 flex-1">
                             <p className="flex flex-wrap items-center gap-2 font-medium">
                               {grupo && <Users className="h-4 w-4 text-primary" />}
-                              {p.label}
+                              {grupo ? (
+                                <span className="flex flex-wrap items-center gap-1">
+                                  {p.reservaIds.map((rid, i) => {
+                                    const c = cliDe.get(rid)
+                                    return (
+                                      <span key={rid} className="flex items-center gap-1">
+                                        {i > 0 && <span className="text-muted-foreground">+</span>}
+                                        <button
+                                          type="button"
+                                          onClick={() => abrirCliente(c)}
+                                          className="hover:text-primary hover:underline"
+                                        >
+                                          {c?.nome?.split(' ')[0] ?? 'Cliente'}
+                                        </button>
+                                      </span>
+                                    )
+                                  })}
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => abrirCliente(cliDe.get(p.reservaIds[0]))}
+                                  className="hover:text-primary hover:underline"
+                                >
+                                  {p.label}
+                                </button>
+                              )}
                               {!grupo && (
                                 <WhatsAppLink phone={telProx} nome={primeiro?.nome} />
                               )}
@@ -629,6 +664,8 @@ export default function FilaPage() {
         onOpenChange={setGrupoOpen}
         onEmbarcado={invalidarFila}
       />
+
+      <ClienteDetailSheet cliente={clienteAlvo} open={clienteOpen} onOpenChange={setClienteOpen} />
     </div>
   )
 }
