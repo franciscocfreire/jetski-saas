@@ -2,7 +2,19 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Ship, Anchor, Lightbulb, Users, Timer, Link2, Unlink } from 'lucide-react'
+import {
+  Ship,
+  Anchor,
+  Lightbulb,
+  Users,
+  Timer,
+  Link2,
+  Unlink,
+  Clock,
+  BellRing,
+  CheckCircle2,
+  AlertTriangle,
+} from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import {
   reservasService,
@@ -17,7 +29,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { EmbarqueDialog } from '@/components/fila/embarque-dialog'
-import { WhatsAppLink } from '@/components/whatsapp-link'
+import { WhatsAppLink, waHref } from '@/components/whatsapp-link'
 import { cn, formatDuracao } from '@/lib/utils'
 import {
   otimizarFila,
@@ -30,6 +42,7 @@ import {
 import type { Reserva } from '@/lib/api/types'
 
 const TURNAROUND_KEY = 'fila.turnaround'
+const LIMITE_KEY = 'fila.limiteEspera'
 
 const durMin = (r: Reserva) =>
   Math.max(1, Math.round((new Date(r.dataFimPrevista).getTime() - new Date(r.dataInicio).getTime()) / 60_000))
@@ -55,21 +68,35 @@ export default function FilaPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [turnaround, setTurnaround] = useState(5)
+  const [limiteEspera, setLimiteEspera] = useState(20)
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [grupos, setGrupos] = useState<string[][]>([])
+  const [chamados, setChamados] = useState<Map<string, number>>(new Map())
 
-  // Relógio (atualiza contagens) + turnaround persistido no navegador.
+  // Relógio (atualiza contagens) + config persistida no navegador.
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000)
     return () => clearInterval(id)
   }, [])
   useEffect(() => {
-    const v = Number(localStorage.getItem(TURNAROUND_KEY))
-    if (Number.isFinite(v) && v > 0) setTurnaround(v)
+    const t = Number(localStorage.getItem(TURNAROUND_KEY))
+    if (Number.isFinite(t) && t > 0) setTurnaround(t)
+    const l = Number(localStorage.getItem(LIMITE_KEY))
+    if (Number.isFinite(l) && l > 0) setLimiteEspera(l)
   }, [])
   useEffect(() => {
     localStorage.setItem(TURNAROUND_KEY, String(turnaround))
   }, [turnaround])
+  useEffect(() => {
+    localStorage.setItem(LIMITE_KEY, String(limiteEspera))
+  }, [limiteEspera])
+
+  const marcarChamado = (ids: string[]) =>
+    setChamados((m) => {
+      const n = new Map(m)
+      ids.forEach((id) => n.set(id, Date.now()))
+      return n
+    })
 
   const { data: reservas, isLoading } = useQuery({
     queryKey: ['reservas', currentTenant?.id],
@@ -188,6 +215,21 @@ export default function FilaPage() {
   const fmtClock = (min: number) =>
     new Date(now + min * 60_000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
+  // Resumo da frota (todos os modelos).
+  const kpis = useMemo(() => {
+    const jets = blocos.flatMap((b) => b.jets)
+    const livres = jets.filter((j) => j.livre).length
+    const ocupados = jets.filter((j) => !j.livre)
+    const proxLivreMin = livres > 0 ? 0 : ocupados.length ? Math.min(...ocupados.map((j) => j.retornoMin)) : null
+    return {
+      total: jets.length,
+      livres,
+      emUso: jets.length - livres,
+      naFila: blocos.reduce((s, b) => s + b.reservasNaFila.length, 0),
+      proxLivreMin,
+    }
+  }, [blocos])
+
   const embarcar = (reservaId: string) => {
     const r = reservas?.find((x) => x.id === reservaId) ?? null
     setAlvo(r)
@@ -234,23 +276,70 @@ export default function FilaPage() {
             Otimize o uso da frota: a sugestão considera quando cada jet volta, a duração e os grupos.
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border px-3 py-2">
-          <Timer className="h-4 w-4 text-muted-foreground" />
-          <Label htmlFor="turn" className="text-xs text-muted-foreground">
-            Embarque/desembarque
-          </Label>
-          <Input
-            id="turn"
-            type="number"
-            min={0}
-            max={60}
-            value={turnaround}
-            onChange={(e) => setTurnaround(Math.max(0, Number(e.target.value) || 0))}
-            className="h-8 w-16"
-          />
-          <span className="text-xs text-muted-foreground">min</span>
+        <div className="flex flex-wrap gap-3">
+          <div className="flex items-center gap-2 rounded-lg border px-3 py-2">
+            <Timer className="h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="turn" className="text-xs text-muted-foreground">
+              Embarque/desembarque
+            </Label>
+            <Input
+              id="turn"
+              type="number"
+              min={0}
+              max={60}
+              value={turnaround}
+              onChange={(e) => setTurnaround(Math.max(0, Number(e.target.value) || 0))}
+              className="h-8 w-16"
+            />
+            <span className="text-xs text-muted-foreground">min</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg border px-3 py-2">
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="lim" className="text-xs text-muted-foreground">
+              Espera longa &gt;
+            </Label>
+            <Input
+              id="lim"
+              type="number"
+              min={1}
+              max={240}
+              value={limiteEspera}
+              onChange={(e) => setLimiteEspera(Math.max(1, Number(e.target.value) || 1))}
+              className="h-8 w-16"
+            />
+            <span className="text-xs text-muted-foreground">min</span>
+          </div>
         </div>
       </div>
+
+      {/* Resumo da frota */}
+      {!vazia && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {[
+            { label: 'Jets ativos', valor: String(kpis.total), icon: Ship },
+            { label: 'Livres', valor: String(kpis.livres), icon: CheckCircle2, cor: 'text-emerald-600' },
+            { label: 'Em uso', valor: String(kpis.emUso), icon: Anchor, cor: 'text-amber-600' },
+            { label: 'Na fila', valor: String(kpis.naFila), icon: Users },
+            {
+              label: 'Próx. livre',
+              valor:
+                kpis.proxLivreMin === null
+                  ? '—'
+                  : kpis.proxLivreMin < 1
+                    ? 'agora'
+                    : fmtClock(kpis.proxLivreMin),
+              icon: Clock,
+            },
+          ].map((k) => (
+            <div key={k.label} className="rounded-lg border px-3 py-2">
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <k.icon className="h-3.5 w-3.5" /> {k.label}
+              </p>
+              <p className={cn('text-xl font-bold tabular-nums', k.cor)}>{k.valor}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {isLoading ? (
         <p className="py-10 text-center text-muted-foreground">Carregando…</p>
@@ -266,6 +355,7 @@ export default function FilaPage() {
             const idsModelo = b.reservasNaFila.map((r) => r.id)
             const selNoModelo = idsModelo.filter((id) => sel.has(id)).length
             const cliDe = new Map(b.reservasNaFila.map((r) => [r.id, r.cliente]))
+            const resDe = new Map(b.reservasNaFila.map((r) => [r.id, r]))
             return (
               <div key={b.modeloId} className="overflow-hidden rounded-xl border">
                 <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2">
@@ -343,10 +433,27 @@ export default function FilaPage() {
                   {b.parties.map((p) => {
                     const ehProxima = proxima?.party.id === p.id
                     const grupo = p.jets > 1
+                    const membros = p.reservaIds.map((id) => resDe.get(id)).filter(Boolean) as Reserva[]
+                    const esperaMin = membros.length
+                      ? (now -
+                          Math.min(...membros.map((m) => new Date(m.documentoEmitidoEm!).getTime()))) /
+                        60_000
+                      : 0
+                    const esperaLonga = esperaMin > limiteEspera
+                    const pronto = membros.every((m) => m.status === 'CONFIRMADA')
+                    const chamadoEm = Math.max(0, ...p.reservaIds.map((id) => chamados.get(id) ?? 0))
+                    const primeiro = cliDe.get(p.reservaIds[0])
+                    const telProx = primeiro?.telefone || primeiro?.whatsapp
+                    const msgChamar = `Olá, ${primeiro?.nome?.split(' ')[0] ?? ''}! Seu jetski (${b.modeloNome}) está pronto para embarque. 🛥️`
+                    const hrefChamar = waHref(telProx, msgChamar)
                     return (
                       <div
                         key={p.id}
-                        className={cn('px-4 py-3', ehProxima && 'bg-amber-50/60 dark:bg-amber-950/20')}
+                        className={cn(
+                          'px-4 py-3',
+                          ehProxima && 'bg-amber-50/60 dark:bg-amber-950/20',
+                          esperaLonga && !ehProxima && 'bg-red-50/40 dark:bg-red-950/20'
+                        )}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-6 shrink-0 text-center text-sm font-semibold tabular-nums text-muted-foreground">
@@ -359,25 +466,61 @@ export default function FilaPage() {
                             />
                           )}
                           <div className="min-w-0 flex-1">
-                            <p className="flex items-center gap-2 truncate font-medium">
+                            <p className="flex flex-wrap items-center gap-2 font-medium">
                               {grupo && <Users className="h-4 w-4 text-primary" />}
                               {p.label}
-                              {!grupo &&
-                                (() => {
-                                  const c = cliDe.get(p.reservaIds[0])
-                                  return (
-                                    <WhatsAppLink phone={c?.telefone || c?.whatsapp} nome={c?.nome} />
-                                  )
-                                })()}
+                              {!grupo && (
+                                <WhatsAppLink phone={telProx} nome={primeiro?.nome} />
+                              )}
                               {ehProxima && (
                                 <Badge className="bg-amber-500 hover:bg-amber-500">próximo</Badge>
                               )}
+                              {pronto ? (
+                                <Badge variant="success" className="gap-1">
+                                  <CheckCircle2 className="h-3 w-3" /> Pronto
+                                </Badge>
+                              ) : (
+                                <Badge variant="warning" className="gap-1">
+                                  <AlertTriangle className="h-3 w-3" /> Pendência
+                                </Badge>
+                              )}
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                              {grupo ? `${p.jets} jets juntos · ` : ''}
-                              {b.modeloNome} · {formatDuracao(p.duracaoMin)}
+                            <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                              <span>
+                                {grupo ? `${p.jets} jets juntos · ` : ''}
+                                {b.modeloNome} · {formatDuracao(p.duracaoMin)}
+                              </span>
+                              <span
+                                className={cn(
+                                  'inline-flex items-center gap-1',
+                                  esperaLonga && 'font-medium text-red-600 dark:text-red-400'
+                                )}
+                              >
+                                <Clock className="h-3 w-3" /> aguardando há {formatDuracao(esperaMin)}
+                              </span>
+                              {chamadoEm > 0 && (
+                                <span className="inline-flex items-center gap-1 text-emerald-600">
+                                  <BellRing className="h-3 w-3" /> chamado{' '}
+                                  {new Date(chamadoEm).toLocaleTimeString('pt-BR', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                              )}
                             </p>
                           </div>
+                          {hrefChamar && (
+                            <a
+                              href={hrefChamar}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={() => marcarChamado(p.reservaIds)}
+                            >
+                              <Button type="button" size="sm" variant="outline">
+                                <BellRing className="mr-1 h-3.5 w-3.5" /> Chamar
+                              </Button>
+                            </a>
+                          )}
                           {grupo ? (
                             <div className="flex items-center gap-2">
                               <Button

@@ -21,6 +21,13 @@ function waNumber(raw?: string): string | null {
   return d
 }
 
+/** URL do wa.me (conversa direta) com mensagem opcional. null se sem telefone. */
+export function waHref(phone?: string, message?: string): string | null {
+  const num = waNumber(phone)
+  if (!num) return null
+  return `https://wa.me/${num}${message ? `?text=${encodeURIComponent(message)}` : ''}`
+}
+
 /**
  * Ícone do WhatsApp que abre a conversa direta (wa.me) com o cliente,
  * opcionalmente já com uma saudação pré-preenchida.
