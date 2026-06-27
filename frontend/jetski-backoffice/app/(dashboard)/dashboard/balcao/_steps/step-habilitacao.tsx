@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
 import { FileUpload } from '@/components/file-upload'
 import { habilitacaoService, clientesService } from '@/lib/api/services'
 import type { Atendimento } from '../types'
@@ -39,8 +39,12 @@ export function StepHabilitacao({
   // EMA / GRU
   const [gruNumero, setGruNumero] = useState('')
   const [gruValor, setGruValor] = useState('')
-  const [gruPago, setGruPago] = useState(false)
+  const [pago, setPago] = useState(false)
   const [pix, setPix] = useState<HabilitacaoGruResponse | null>(null)
+  const [temSessaoPix, setTemSessaoPix] = useState(false)
+  // Comprovante manual (pago por outro meio / verificação falhou)
+  const [modoComprovante, setModoComprovante] = useState(false)
+  const [comprovante, setComprovante] = useState<string | undefined>(undefined)
 
   // Foto da CHA já enviada (carrega automático, pode trocar).
   const { data: chaFotoUrl } = useQuery({
@@ -69,7 +73,8 @@ export function StepHabilitacao({
     if (habSalva.chaValidade) setChaValidade(habSalva.chaValidade)
     if (habSalva.gruNumero) setGruNumero(habSalva.gruNumero)
     if (habSalva.gruValor != null) setGruValor(String(habSalva.gruValor))
-    setGruPago(!!habSalva.gruPago)
+    setPago(!!habSalva.gruPago)
+    if (habSalva.gruPixCopiaECola) setTemSessaoPix(true)
     if (habSalva.gruPixCopiaECola) {
       setPix({
         sucesso: true,
@@ -89,12 +94,38 @@ export function StepHabilitacao({
       if (r.sucesso) {
         if (r.gruNumero) setGruNumero(r.gruNumero)
         if (r.gruValor != null) setGruValor(String(r.gruValor))
+        setTemSessaoPix(true)
         toast.success(r.reaproveitada ? 'GRU válida reaproveitada.' : 'GRU gerada com sucesso.')
       } else {
         toast.warning('Não foi possível gerar a GRU automaticamente. Preencha manualmente.')
       }
     },
     onError: () => toast.error('Falha ao gerar a GRU. Preencha manualmente.'),
+  })
+
+  const verificar = useMutation({
+    mutationFn: () => habilitacaoService.verificarPagamento(atendimento.reserva!.id),
+    onSuccess: (r) => {
+      if (r.pago) {
+        setPago(true)
+        toast.success('Pagamento confirmado — GRU paga.')
+      } else if (r.situacao === 'EXPIRADO') {
+        toast.warning('A sessão do PIX expirou. Gere um novo PIX/boleto ou anexe o comprovante.')
+      } else {
+        toast.info('Pagamento ainda não identificado. Tente novamente ou anexe o comprovante.')
+      }
+    },
+    onError: () => toast.error('Falha ao verificar o pagamento.'),
+  })
+
+  const enviarComprovante = useMutation({
+    mutationFn: () => habilitacaoService.registrarComprovante(atendimento.reserva!.id, comprovante!),
+    onSuccess: () => {
+      setPago(true)
+      setModoComprovante(false)
+      toast.success('Comprovante registrado — GRU marcada como paga.')
+    },
+    onError: () => toast.error('Falha ao registrar o comprovante.'),
   })
 
   const gerarBoleto = useMutation({
@@ -105,10 +136,15 @@ export function StepHabilitacao({
       window.open(URL.createObjectURL(blob), '_blank')
       return r
     },
-    onSuccess: (r) =>
-      r.sucesso
-        ? toast.success(r.reaproveitada ? 'Boleto reaproveitado.' : 'Boleto (PDF) gerado.')
-        : toast.warning('Não foi possível gerar o boleto automaticamente.'),
+    onSuccess: (r) => {
+      if (r.sucesso) {
+        if (r.gruNumero) setGruNumero(r.gruNumero)
+        if (r.gruValor != null) setGruValor(String(r.gruValor))
+        toast.success(r.reaproveitada ? 'Boleto reaproveitado.' : 'Boleto (PDF) gerado.')
+      } else {
+        toast.warning('Não foi possível gerar o boleto automaticamente.')
+      }
+    },
     onError: () => toast.error('Falha ao gerar o boleto.'),
   })
 
@@ -125,12 +161,12 @@ export function StepHabilitacao({
         if (chaFoto) await clientesService.uploadAnexo(clienteId, 'CHA', chaFoto).catch(() => null)
         return !!h.resolvida
       }
-      // EMA: persiste via + GRU (manual ou gerada). Pré-requisitos vão no passo seguinte.
+      // EMA: persiste via + número da GRU (referência). O pagamento NÃO é marcado
+      // aqui — só via "Verificar pagamento" (PIX) ou anexo do comprovante. Sem isso,
+      // a reserva segue como pendência e a Marinha não é notificada.
       const h = await habilitacaoService.registrar(reservaId, {
         via: 'EMA',
         gruNumero: gruNumero || undefined,
-        gruValor: gruValor ? Number(gruValor) : undefined,
-        gruPago,
       })
       return !!h.resolvida
     },
@@ -246,26 +282,127 @@ export function StepHabilitacao({
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label className="text-xs">Número da GRU</Label>
-              <Input value={gruNumero} onChange={(e) => setGruNumero(e.target.value)} />
+              <Input
+                value={gruNumero}
+                onChange={(e) => setGruNumero(e.target.value)}
+                placeholder="(preenchido ao gerar)"
+              />
             </div>
             <div>
               <Label className="text-xs">Valor (R$)</Label>
-              <Input type="number" step="0.01" value={gruValor} onChange={(e) => setGruValor(e.target.value)} placeholder="23.13" />
+              <div className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm">
+                {gruValor ? (
+                  `R$ ${Number(gruValor).toFixed(2)}`
+                ) : (
+                  <span className="text-muted-foreground">consta no boleto/GRU</span>
+                )}
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Valor oficial da taxa — não editável.
+              </p>
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={gruPago} onCheckedChange={(v) => setGruPago(!!v)} /> GRU paga
-          </label>
         </div>
       )}
 
-      <div className="flex justify-between">
+      {/* Confirmação do pagamento da GRU (EMA) */}
+      {via === 'EMA' && (
+        <div className="space-y-3 rounded-lg border p-4">
+          <Label className="text-sm font-medium">Confirmação do pagamento da GRU</Label>
+          {pago ? (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+              <CheckCircle2 className="h-4 w-4 shrink-0" /> GRU paga — comprovante anexado à documentação.
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                A Marinha só é notificada com a GRU paga. Confirme pelo PIX ou anexe o comprovante.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {temSessaoPix && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={verificar.isPending}
+                    onClick={() => verificar.mutate()}
+                  >
+                    {verificar.isPending ? 'Verificando…' : 'Verificar pagamento do PIX'}
+                  </Button>
+                )}
+                {!modoComprovante && (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setModoComprovante(true)}>
+                    Paguei por outro meio / a verificação não funcionou
+                  </Button>
+                )}
+              </div>
+
+              {modoComprovante && (
+                <div className="space-y-2 rounded-md border border-dashed p-3">
+                  <Label className="text-xs">Comprovante de pagamento (obrigatório)</Label>
+                  <FileUpload
+                    label="Enviar/tirar foto do comprovante"
+                    accept="image/*,application/pdf"
+                    onChange={(f) => setComprovante(f?.dataUrl)}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!comprovante || enviarComprovante.isPending}
+                      onClick={() => enviarComprovante.mutate()}
+                    >
+                      {enviarComprovante.isPending ? 'Enviando…' : 'Confirmar pagamento com comprovante'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setModoComprovante(false)
+                        setComprovante(undefined)
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                Se prosseguir sem confirmar, a reserva fica marcada como <b>GRU não paga</b> (pendência)
+                e o e-mail à Marinha não é enviado até o comprovante ser anexado.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Button type="button" variant="outline" onClick={onBack}>
           Voltar
         </Button>
-        <Button type="button" disabled={avancar.isPending} onClick={() => avancar.mutate()}>
-          {avancar.isPending ? 'Salvando…' : 'Avançar'}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {via === 'EMA' && !pago && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={avancar.isPending}
+              onClick={() => avancar.mutate()}
+              className="border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/40"
+            >
+              <AlertTriangle className="mr-1 h-4 w-4" />
+              Prosseguir sem confirmar a GRU
+            </Button>
+          )}
+          <Button
+            type="button"
+            disabled={avancar.isPending || (via === 'EMA' && !pago)}
+            onClick={() => avancar.mutate()}
+          >
+            {avancar.isPending ? 'Salvando…' : 'Avançar'}
+          </Button>
+        </div>
       </div>
     </div>
   )

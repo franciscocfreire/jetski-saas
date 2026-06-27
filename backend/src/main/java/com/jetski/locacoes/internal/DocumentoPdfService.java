@@ -144,6 +144,25 @@ public class DocumentoPdfService {
         }
     }
 
+    /**
+     * Gera um PDF de 1 página com a imagem informada (ex.: comprovante de pagamento
+     * fotografado/enviado manualmente), para poder ser anexado ao documento da Marinha.
+     */
+    public DocumentoPdf imagemParaPdf(byte[] imagem, String titulo) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        Document doc = new Document(PageSize.A4, 56, 56, 54, 54);
+        try {
+            PdfWriter.getInstance(doc, baos);
+            doc.open();
+            writeImagemAnexo(doc, new Fonts(), titulo, imagem);
+            doc.close();
+            byte[] bytes = baos.toByteArray();
+            return new DocumentoPdf(bytes, sha256Hex(bytes));
+        } catch (DocumentException | IOException e) {
+            throw new IllegalStateException("Falha ao gerar o PDF do comprovante", e);
+        }
+    }
+
     public DocumentoPdf gerarDocumentoConsolidado(DadosDocumento d, byte[] assinaturaPng) {
         return gerarDocumentoConsolidado(d, assinaturaPng, java.util.List.of());
     }

@@ -15,15 +15,18 @@ import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.locacoes.internal.repository.ReservaHabilitacaoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
 import com.jetski.shared.email.EmailService;
+import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.shared.storage.StorageService;
 import com.jetski.tenant.TenantQueryService;
 import com.jetski.tenant.domain.Tenant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -48,8 +51,19 @@ public class GruService {
     private final ObjectMapper objectMapper;
     private final StorageService storageService;
     private final GruComprovantePdfService comprovantePdfService;
+    private final DocumentoPdfService documentoPdfService;
     private final EmailService emailService;
     private final TenantQueryService tenantQueryService;
+
+    /**
+     * Valor oficial da taxa da GRU (CHA-MTA-E). Usado como exibição no caminho de
+     * BOLETO, que — diferente do PIX — não percorre o PagTesouro e portanto não
+     * retorna o valor pela API. Vazio = não preenche (o valor consta no PDF do boleto).
+     * Configure via {@code JETSKI_GRU_VALOR}. O PIX, quando gerado, sempre sobrescreve
+     * com o valor real retornado pela Marinha.
+     */
+    @Value("${jetski.gru.valor:}")
+    private String valorPadraoConfig;
 
     /** Resultado da tentativa de geração (sempre devolvido, mesmo em falha). */
     public record GruGeracao(
@@ -139,6 +153,14 @@ public class GruService {
             hab.setGruPdfS3Key(key);
             hab.setGruIdMarinha(r.idGru());
             hab.setGruGeradaEm(Instant.now());
+            // O boleto não passa pelo PagTesouro → não retorna valor. Preenche com o
+            // valor oficial configurado (se houver) para exibição no backoffice.
+            if (hab.getGruValor() == null) {
+                BigDecimal vp = valorPadrao();
+                if (vp != null) {
+                    hab.setGruValor(vp);
+                }
+            }
             ReservaHabilitacao salvo = habilitacaoRepository.save(hab);
 
             return new BoletoGeracao(true, salvo, false, null, null);
@@ -207,6 +229,54 @@ public class GruService {
         } catch (GruException e) {
             log.warn("Falha ao verificar pagamento da GRU (reserva {}): {}", reservaId, e.getMessage());
             return new VerificacaoPagamento(false, "ERRO", false);
+        }
+    }
+
+    /**
+     * Registra um comprovante de pagamento da GRU enviado <b>manualmente</b> — pago
+     * por outro meio (boleto, caixa, transferência) ou quando a verificação automática
+     * do PIX não funcionou. Converte imagem em PDF (para anexar à documentação da
+     * Marinha), marca a GRU como paga e resolve a habilitação EMA.
+     *
+     * @param conteudo  bytes do comprovante (imagem ou PDF)
+     * @param ehImagem  true se {@code conteudo} é imagem (será embutida num PDF); false se já é PDF
+     */
+    @Transactional
+    public void registrarComprovanteManual(UUID reservaId, byte[] conteudo, boolean ehImagem) {
+        ReservaHabilitacao hab = habilitacaoRepository.findByReservaId(reservaId)
+            .orElseThrow(() -> new NotFoundException("Habilitação não encontrada: " + reservaId));
+        if (conteudo == null || conteudo.length == 0) {
+            throw new BusinessException("Comprovante vazio");
+        }
+
+        byte[] pdf = ehImagem
+            ? documentoPdfService.imagemParaPdf(conteudo, "COMPROVANTE DE PAGAMENTO DA GRU").conteudo()
+            : conteudo;
+        String key = String.format("%s/reserva/%s/gru-comprovante.pdf", hab.getTenantId(), reservaId);
+        storageService.putObject(key, pdf, "application/pdf");
+
+        hab.setGruComprovanteS3Key(key);
+        hab.setGruPago(true);
+        if (hab.getGruPagoEm() == null) {
+            hab.setGruPagoEm(Instant.now());
+        }
+        // EMA resolve quando a GRU é paga; CHA depende do número da CHA.
+        hab.setResolvida(hab.getVia() == ReservaHabilitacao.Via.CHA
+            ? (hab.getChaNumero() != null && !hab.getChaNumero().isBlank())
+            : true);
+        habilitacaoRepository.save(hab);
+        log.info("Comprovante manual da GRU registrado para reserva {} (gruPago=true)", reservaId);
+    }
+
+    private BigDecimal valorPadrao() {
+        if (valorPadraoConfig == null || valorPadraoConfig.isBlank()) {
+            return null;
+        }
+        try {
+            return new BigDecimal(valorPadraoConfig.trim().replace(',', '.'));
+        } catch (NumberFormatException e) {
+            log.warn("jetski.gru.valor inválido: '{}'", valorPadraoConfig);
+            return null;
         }
     }
 

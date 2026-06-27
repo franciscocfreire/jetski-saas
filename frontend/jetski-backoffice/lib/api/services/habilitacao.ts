@@ -59,6 +59,17 @@ export const habilitacaoService = {
     return data.enviado
   },
 
+  /**
+   * Registra um comprovante de pagamento da GRU enviado manualmente (pago por outro
+   * meio ou quando a verificação automática não funcionou). Marca a GRU como paga.
+   */
+  async registrarComprovante(reservaId: string, conteudoBase64: string): Promise<Habilitacao> {
+    const { data } = await apiClient.put<Habilitacao>(`${path(reservaId)}/gru/comprovante`, {
+      conteudoBase64,
+    })
+    return data
+  },
+
   /** Baixa o comprovante de pagamento da GRU (PDF, stream autenticado). */
   async baixarComprovante(reservaId: string): Promise<Blob> {
     const res = await apiClient.get(`${path(reservaId)}/gru/comprovante/download`, {

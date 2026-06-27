@@ -18,6 +18,8 @@ public class HabilitacaoGruBoletoResponse {
     private boolean sucesso;
     private boolean reaproveitada;
     private String idMarinha;
+    private String gruNumero;
+    private java.math.BigDecimal gruValor;
     private String erroCodigo;
     private String erroMensagem;
 }

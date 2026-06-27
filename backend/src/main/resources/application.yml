@@ -120,6 +120,10 @@ jetski:
       - https://539d02e90662.ngrok-free.app
   frontend:
     url: http://localhost:3000
+  gru:
+    # Valor oficial da taxa da GRU (CHA-MTA-E). Usado para exibição no caminho de
+    # BOLETO, que não passa pelo PagTesouro. O PIX sempre sobrescreve com o valor real.
+    valor: ${JETSKI_GRU_VALOR:60.32}
 
 # JWT configuration for magic link tokens
 jwt:

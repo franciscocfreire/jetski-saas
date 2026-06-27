@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -14,7 +15,9 @@ import {
   QrCode,
   Receipt,
   RefreshCw,
+  Upload,
 } from 'lucide-react'
+import { FileUpload } from '@/components/file-upload'
 import {
   Sheet,
   SheetContent,
@@ -57,6 +60,8 @@ export function ReservaDetailSheet({
   const qc = useQueryClient()
   const router = useRouter()
   const reservaId = reserva?.id
+  const [compModo, setCompModo] = useState(false)
+  const [compFile, setCompFile] = useState<string | undefined>(undefined)
 
   const { data: hab } = useQuery({
     queryKey: ['habilitacao', reservaId],
@@ -122,6 +127,17 @@ export function ReservaDetailSheet({
     mutationFn: () => habilitacaoService.baixarComprovante(reservaId!),
     onSuccess: (blob) => window.open(URL.createObjectURL(blob), '_blank'),
     onError: () => toast.error('Falha ao baixar o comprovante.'),
+  })
+
+  const enviarComprovante = useMutation({
+    mutationFn: () => habilitacaoService.registrarComprovante(reservaId!, compFile!),
+    onSuccess: () => {
+      invalidar()
+      setCompModo(false)
+      setCompFile(undefined)
+      toast.success('Comprovante registrado — GRU marcada como paga.')
+    },
+    onError: () => toast.error('Falha ao registrar o comprovante.'),
   })
 
   const enviarEmailGru = useMutation({
@@ -265,6 +281,50 @@ export function ReservaDetailSheet({
                   )}
                   Verificar pagamento
                 </Button>
+              )}
+
+              {/* Comprovante manual — pago por outro meio ou verificação não funcionou */}
+              {!compModo ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setCompModo(true)}
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Anexar comprovante (pago por outro meio)
+                </Button>
+              ) : (
+                <div className="space-y-2 rounded-md border border-dashed p-3">
+                  <p className="text-xs font-medium">Comprovante de pagamento (obrigatório)</p>
+                  <FileUpload
+                    label="Enviar/tirar foto do comprovante"
+                    accept="image/*,application/pdf"
+                    onChange={(f) => setCompFile(f?.dataUrl)}
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!compFile || enviarComprovante.isPending}
+                      onClick={() => enviarComprovante.mutate()}
+                    >
+                      {enviarComprovante.isPending ? 'Enviando…' : 'Confirmar com comprovante'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setCompModo(false)
+                        setCompFile(undefined)
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
               )}
 
               {hab?.gruNumero && (

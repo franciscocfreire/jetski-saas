@@ -70,9 +70,54 @@ public class HabilitacaoController {
             .sucesso(g.sucesso())
             .reaproveitada(g.reaproveitada())
             .idMarinha(g.habilitacao().getGruIdMarinha())
+            .gruNumero(g.habilitacao().getGruNumero())
+            .gruValor(g.habilitacao().getGruValor())
             .erroCodigo(g.erroCodigo())
             .erroMensagem(g.erroMensagem())
             .build());
+    }
+
+    @PutMapping("/gru/comprovante")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Registrar comprovante de pagamento da GRU (manual)",
+        description = "Para quando a GRU foi paga por outro meio ou a verificação automática do PIX " +
+                      "não funcionou. Recebe a imagem/PDF do comprovante (base64/dataURL), marca a GRU " +
+                      "como paga e a anexa à documentação da Marinha."
+    )
+    public ResponseEntity<HabilitacaoResponse> registrarComprovante(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @RequestBody ComprovanteRequest request
+    ) {
+        validateTenantContext(tenantId);
+        byte[] conteudo = decodeBase64(request.conteudoBase64());
+        gruService.registrarComprovanteManual(id, conteudo, !ehPdf(conteudo));
+        return habilitacaoService.getByReserva(id)
+            .map(h -> ResponseEntity.ok(toResponse(h)))
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** Corpo do upload do comprovante manual (imagem ou PDF em base64/dataURL). */
+    public record ComprovanteRequest(String conteudoBase64) {}
+
+    private static byte[] decodeBase64(String conteudo) {
+        String b64 = conteudo == null ? "" : conteudo.trim();
+        if (b64.startsWith("data:")) {
+            int comma = b64.indexOf(',');
+            if (comma > 0) {
+                b64 = b64.substring(comma + 1);
+            }
+        }
+        if (b64.isBlank()) {
+            throw new BusinessException("Comprovante vazio");
+        }
+        return java.util.Base64.getDecoder().decode(b64);
+    }
+
+    private static boolean ehPdf(byte[] b) {
+        return b != null && b.length >= 4
+            && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F';
     }
 
     @PostMapping("/gru/verificar-pagamento")

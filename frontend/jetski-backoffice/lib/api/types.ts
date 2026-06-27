@@ -171,7 +171,13 @@ export interface VendedorUpdateRequest {
 }
 
 // Reserva Module
-export type ReservaStatus = 'PENDENTE' | 'CONFIRMADA' | 'CANCELADA' | 'FINALIZADA' | 'EXPIRADA'
+export type ReservaStatus =
+  | 'RASCUNHO'
+  | 'PENDENTE'
+  | 'CONFIRMADA'
+  | 'CANCELADA'
+  | 'FINALIZADA'
+  | 'EXPIRADA'
 export type ReservaPrioridade = 'ALTA' | 'BAIXA'
 export type PagamentoTipo = 'SINAL' | 'TOTAL'
 export type PagamentoStatus = 'AGUARDANDO' | 'EM_ANALISE' | 'CONFIRMADO' | 'RECUSADO'
@@ -319,6 +325,8 @@ export interface HabilitacaoGruBoletoResponse {
   sucesso: boolean
   reaproveitada: boolean
   idMarinha?: string
+  gruNumero?: string
+  gruValor?: number
   erroCodigo?: string
   erroMensagem?: string
 }
