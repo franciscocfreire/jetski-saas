@@ -35,6 +35,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ClienteDetailSheet } from '@/components/clientes/cliente-detail-sheet'
+import { WhatsAppLink } from '@/components/whatsapp-link'
 
 function ClienteFormDialog({
   cliente,
@@ -175,6 +177,8 @@ export default function ClientesPage() {
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingCliente, setEditingCliente] = useState<Cliente | undefined>()
+  const [detailCliente, setDetailCliente] = useState<Cliente | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
 
   const { data: clientes, isLoading } = useQuery({
     queryKey: ['clientes', currentTenant?.id],
@@ -208,6 +212,11 @@ export default function ClientesPage() {
     setDialogOpen(true)
   }
 
+  const abrirDetalhe = (cliente: Cliente) => {
+    setDetailCliente(cliente)
+    setDetailOpen(true)
+  }
+
   if (!currentTenant) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
@@ -221,7 +230,9 @@ export default function ClientesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Clientes</h1>
-          <p className="text-muted-foreground">Gerencie os clientes cadastrados</p>
+          <p className="text-muted-foreground">
+            Clique em um cliente para ver fotos, comprovantes e histórico de passeios
+          </p>
         </div>
         <Button onClick={handleNew}>
           <Plus className="mr-2 h-4 w-4" />
@@ -276,7 +287,11 @@ export default function ClientesPage() {
               </TableRow>
             ) : (
               filteredClientes?.map((cliente) => (
-                <TableRow key={cliente.id}>
+                <TableRow
+                  key={cliente.id}
+                  className="cursor-pointer"
+                  onClick={() => abrirDetalhe(cliente)}
+                >
                   <TableCell className="font-medium">{cliente.nome}</TableCell>
                   <TableCell>
                     {cliente.email ? (
@@ -289,10 +304,14 @@ export default function ClientesPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {cliente.telefone ? (
+                    {cliente.telefone || cliente.whatsapp ? (
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4 text-muted-foreground" />
-                        {cliente.telefone}
+                        {cliente.telefone || cliente.whatsapp}
+                        <WhatsAppLink
+                          phone={cliente.telefone || cliente.whatsapp}
+                          nome={cliente.nome}
+                        />
                       </div>
                     ) : (
                       '-'
@@ -308,7 +327,7 @@ export default function ClientesPage() {
                       '-'
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
@@ -351,6 +370,12 @@ export default function ClientesPage() {
         cliente={editingCliente}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+      />
+
+      <ClienteDetailSheet
+        cliente={detailCliente}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
       />
     </div>
   )
