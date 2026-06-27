@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -11,11 +11,14 @@ import {
   FileDown,
   Loader2,
   Mail,
+  Pencil,
   PlayCircle,
   QrCode,
   Receipt,
   RefreshCw,
+  Save,
   Upload,
+  X,
 } from 'lucide-react'
 import { FileUpload } from '@/components/file-upload'
 import {
@@ -27,10 +30,18 @@ import {
 } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { habilitacaoService, aceiteService } from '@/lib/api/services'
+import { habilitacaoService, aceiteService, reservasService } from '@/lib/api/services'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { Reserva } from '@/lib/api/types'
+
+/** Duração (horas) implícita nas datas previstas. */
+function horasDe(r: Reserva): number {
+  const ms = new Date(r.dataFimPrevista).getTime() - new Date(r.dataInicio).getTime()
+  return Math.max(1, Math.round(ms / 3_600_000))
+}
 
 function Etapa({ ok, label, hint }: { ok: boolean; label: string; hint?: string }) {
   return (
@@ -62,6 +73,60 @@ export function ReservaDetailSheet({
   const reservaId = reserva?.id
   const [compModo, setCompModo] = useState(false)
   const [compFile, setCompFile] = useState<string | undefined>(undefined)
+
+  // Fase 2 — visualizar → editar → salvar. Abrir = somente leitura; só vira edição
+  // quando o operador clica "Editar". Sem estado persistido EM_EDICAO: é modo de tela.
+  const [editMode, setEditMode] = useState(false)
+  const [obs, setObs] = useState('')
+  const [dur, setDur] = useState(1)
+
+  // Reseta o modo/valores ao trocar de reserva ou reabrir o drawer.
+  useEffect(() => {
+    setEditMode(false)
+    setObs(reserva?.observacoes ?? '')
+    setDur(reserva ? horasDe(reserva) : 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reserva?.id, open])
+
+  const dirty =
+    editMode && reserva != null && (obs !== (reserva.observacoes ?? '') || dur !== horasDe(reserva))
+
+  // Aviso ao fechar a aba/navegador com alterações não salvas.
+  useEffect(() => {
+    if (!dirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
+  const salvarEdicao = useMutation({
+    mutationFn: () => {
+      const inicio = new Date(reserva!.dataInicio)
+      const fim = new Date(inicio.getTime() + dur * 3_600_000)
+      return reservasService.atualizar(reservaId!, {
+        observacoes: obs,
+        dataFimPrevista: fim.toISOString(),
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reservas'] })
+      setEditMode(false)
+      toast.success('Reserva atualizada.')
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ?? 'Falha ao salvar a reserva.')
+    },
+  })
+
+  // Fecha o drawer com guarda de alterações não salvas.
+  const fecharComGuarda = (v: boolean) => {
+    if (!v && dirty && !window.confirm('Há alterações não salvas. Descartar?')) return
+    onOpenChange(v)
+  }
 
   const { data: hab } = useQuery({
     queryKey: ['habilitacao', reservaId],
@@ -154,6 +219,11 @@ export function ReservaDetailSheet({
   const online = reserva.cliente?.origem === 'PORTAL'
   const ema = hab?.via === 'EMA'
   const gruPaga = !!hab?.gruPago
+  // Editável enquanto não-terminal (rascunho/pendente/confirmada).
+  const editavel =
+    reserva.status === 'RASCUNHO' ||
+    reserva.status === 'PENDENTE' ||
+    reserva.status === 'CONFIRMADA'
   const inicio = new Date(reserva.dataInicio)
   const hora = inicio.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
@@ -163,7 +233,7 @@ export function ReservaDetailSheet({
   const temBoleto = !!hab?.gruBoletoDisponivel
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={fecharComGuarda}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <SheetTitle>{reserva.cliente?.nome || 'Reserva'}</SheetTitle>
@@ -194,6 +264,81 @@ export function ReservaDetailSheet({
             Retomar atendimento
           </Button>
         )}
+
+        <Separator className="my-4" />
+
+        {/* Detalhes da reserva — visualizar → editar → salvar (Fase 2) */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium">Detalhes da reserva</h4>
+            {editavel && !editMode && (
+              <Button variant="ghost" size="sm" onClick={() => setEditMode(true)}>
+                <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
+              </Button>
+            )}
+            {editMode && dirty && <Badge variant="warning">Não salvo</Badge>}
+          </div>
+
+          {!editMode ? (
+            <div className="space-y-1 text-sm">
+              <p>
+                <span className="text-muted-foreground">Duração: </span>
+                <span className="font-medium">{horasDe(reserva)} h</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Observações: </span>
+                <span className="font-medium">{reserva.observacoes || '—'}</span>
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">Duração (horas)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={dur}
+                  onChange={(e) => setDur(Math.max(1, Number(e.target.value) || 1))}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Observações</Label>
+                <Input
+                  value={obs}
+                  onChange={(e) => setObs(e.target.value)}
+                  placeholder="Anotações da reserva"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  disabled={!dirty || salvarEdicao.isPending}
+                  onClick={() => salvarEdicao.mutate()}
+                >
+                  {salvarEdicao.isPending ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="mr-1 h-3.5 w-3.5" />
+                  )}
+                  Salvar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    if (dirty && !window.confirm('Descartar alterações?')) return
+                    setEditMode(false)
+                    setObs(reserva.observacoes ?? '')
+                    setDur(horasDe(reserva))
+                  }}
+                >
+                  <X className="mr-1 h-3.5 w-3.5" /> Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
 
         <Separator className="my-4" />
 
