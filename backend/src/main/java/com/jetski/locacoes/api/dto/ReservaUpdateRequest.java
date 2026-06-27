@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * DTO: Update Reserva Request
@@ -29,6 +30,11 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ReservaUpdateRequest {
+
+    /**
+     * Novo modelo (opcional). Só pode ser alterado enquanto a reserva é RASCUNHO.
+     */
+    private UUID modeloId;
 
     /**
      * New start date/time (optional)

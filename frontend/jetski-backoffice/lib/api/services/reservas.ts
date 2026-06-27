@@ -30,6 +30,21 @@ export const reservasService = {
     return data
   },
 
+  /** Cria a reserva como RASCUNHO (balcão): sem cobrança, não bloqueia jetski. */
+  async criarRascunho(request: ReservaCreateRequest): Promise<Reserva> {
+    const { data } = await apiClient.post<Reserva>(`${getBasePath()}/rascunho`, request)
+    return data
+  },
+
+  /** Atualiza a reserva (modelo/duração só enquanto RASCUNHO). */
+  async atualizar(
+    id: string,
+    request: { modeloId?: string; dataInicio?: string; dataFimPrevista?: string; observacoes?: string }
+  ): Promise<Reserva> {
+    const { data } = await apiClient.put<Reserva>(`${getBasePath()}/${id}`, request)
+    return data
+  },
+
   async confirmar(id: string): Promise<Reserva> {
     const { data } = await apiClient.post<Reserva>(`${getBasePath()}/${id}/confirmar`)
     return data

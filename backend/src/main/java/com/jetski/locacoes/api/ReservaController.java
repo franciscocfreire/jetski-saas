@@ -181,6 +181,26 @@ public class ReservaController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PostMapping("/rascunho")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Criar rascunho de reserva (balcão)",
+        description = "Cria a reserva como RASCUNHO (atendimento em preenchimento): guarda modelo/duração, " +
+                      "sem cobrança e sem bloquear jetski. A emissão a transiciona para PENDENTE/CONFIRMADA."
+    )
+    public ResponseEntity<ReservaResponse> criarRascunho(
+        @Parameter(description = "UUID do tenant") @PathVariable UUID tenantId,
+        @Valid @RequestBody ReservaCreateRequest request
+    ) {
+        log.info("POST /v1/tenants/{}/reservas/rascunho - modelo: {}, cliente: {}",
+                 tenantId, request.getModeloId(), request.getClienteId());
+        validateTenantContext(tenantId);
+
+        Reserva reserva = toEntity(request, tenantId);
+        Reserva created = reservaService.criarRascunho(reserva);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(created));
+    }
+
     /**
      * Update an existing reservation.
      *
@@ -551,6 +571,7 @@ public class ReservaController {
 
     private Reserva toEntity(ReservaUpdateRequest request) {
         return Reserva.builder()
+            .modeloId(request.getModeloId())
             .dataInicio(request.getDataInicio())
             .dataFimPrevista(request.getDataFimPrevista())
             .observacoes(request.getObservacoes())

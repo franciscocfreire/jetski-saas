@@ -11,6 +11,7 @@ import { ReservaDetailSheet } from '@/components/agenda/reserva-detail-sheet'
 import type { Reserva, ReservaStatus } from '@/lib/api/types'
 
 const statusConfig: Record<ReservaStatus, { label: string; color: string }> = {
+  RASCUNHO: { label: 'Rascunho', color: 'bg-slate-400' },
   PENDENTE: { label: 'Pendente', color: 'bg-yellow-500' },
   CONFIRMADA: { label: 'Confirmada', color: 'bg-green-500' },
   CANCELADA: { label: 'Cancelada', color: 'bg-red-500' },
@@ -76,7 +77,7 @@ export default function AgendaPage() {
   const reservasDoDia = useMemo(() => {
     const key = ymd(currentDate)
     return enriched
-      .filter((r) => r.dataInicio.startsWith(key))
+      .filter((r) => r.status !== 'RASCUNHO' && r.dataInicio.startsWith(key))
       .sort((a, b) => a.dataInicio.localeCompare(b.dataInicio))
   }, [enriched, currentDate])
 
@@ -239,7 +240,7 @@ function MonthView({
 
   const forDay = (day: number) => {
     const key = ymd(new Date(currentDate.getFullYear(), currentDate.getMonth(), day))
-    return reservas.filter((r) => r.dataInicio.startsWith(key))
+    return reservas.filter((r) => r.status !== 'RASCUNHO' && r.dataInicio.startsWith(key))
   }
 
   return (

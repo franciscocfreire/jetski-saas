@@ -203,6 +203,11 @@ ALTER TABLE public.reserva
     ADD COLUMN IF NOT EXISTS valor_total               numeric(10,2),
     ADD COLUMN IF NOT EXISTS documento_emitido_em      timestamptz;
 
+-- V018: estado RASCUNHO no CHECK de status (idempotente).
+ALTER TABLE public.reserva DROP CONSTRAINT IF EXISTS reserva_status_check;
+ALTER TABLE public.reserva ADD CONSTRAINT reserva_status_check
+    CHECK ((status)::text = ANY (ARRAY['RASCUNHO','PENDENTE','CONFIRMADA','CANCELADA','FINALIZADA','EXPIRADA']::varchar[]::text[]));
+
 ALTER TABLE public.cliente
     ADD COLUMN IF NOT EXISTS origem       varchar(20) NOT NULL DEFAULT 'PORTAL',
     ADD COLUMN IF NOT EXISTS status_conta varchar(20) NOT NULL DEFAULT 'SEM_LOGIN';

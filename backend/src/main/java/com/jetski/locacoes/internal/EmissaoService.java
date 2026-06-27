@@ -129,8 +129,10 @@ public class EmissaoService {
         java.util.List<String> pendencias = pendenciasDocumentacao(hab);
         boolean docCompleta = pendencias.isEmpty();
 
-        // Completo → CONFIRMADA; faltando algo → PENDENTE (mas segue na fila).
-        if (reserva.getStatus() == Reserva.ReservaStatus.PENDENTE
+        // Finaliza o atendimento: RASCUNHO/PENDENTE/CONFIRMADA → CONFIRMADA (completo)
+        // ou PENDENTE (faltando algo). É aqui que o rascunho vira reserva "real".
+        if (reserva.getStatus() == Reserva.ReservaStatus.RASCUNHO
+                || reserva.getStatus() == Reserva.ReservaStatus.PENDENTE
                 || reserva.getStatus() == Reserva.ReservaStatus.CONFIRMADA) {
             reserva.setStatus(docCompleta
                 ? Reserva.ReservaStatus.CONFIRMADA : Reserva.ReservaStatus.PENDENTE);

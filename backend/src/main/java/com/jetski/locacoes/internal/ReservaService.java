@@ -358,6 +358,44 @@ public class ReservaService {
     }
 
     /**
+     * Cria um RASCUNHO de reserva (atendimento de balcão em preenchimento).
+     *
+     * <p>Validação mínima (modelo ativo, cliente existe, datas coerentes). NÃO checa
+     * capacidade/disponibilidade de jetski — o rascunho não bloqueia nada (só guarda
+     * modelo/duração) e não é cobrado. A emissão dos documentos depois o transiciona
+     * para PENDENTE/CONFIRMADA.
+     */
+    @Transactional
+    public Reserva criarRascunho(Reserva reserva) {
+        if (reserva.getDataInicio() == null || reserva.getDataFimPrevista() == null) {
+            throw new BusinessException("Data de início e fim são obrigatórias");
+        }
+        if (!reserva.getDataInicio().isBefore(reserva.getDataFimPrevista())) {
+            throw new BusinessException("Data de início deve ser anterior à data de fim");
+        }
+        if (reserva.getModeloId() == null) {
+            throw new BusinessException("Modelo é obrigatório para criar reserva");
+        }
+        Modelo modelo = modeloService.findById(reserva.getModeloId());
+        if (!Boolean.TRUE.equals(modelo.getAtivo())) {
+            throw new BusinessException("Modelo não está ativo");
+        }
+        clienteService.findById(reserva.getClienteId());
+
+        reserva.setStatus(ReservaStatus.RASCUNHO);
+        reserva.setPrioridade(ReservaPrioridade.BAIXA);
+        reserva.setSinalPago(false);
+        if (reserva.getAtivo() == null) {
+            reserva.setAtivo(true);
+        }
+
+        Reserva saved = reservaRepository.save(reserva);
+        log.info("Rascunho de reserva criado: id={}, modelo={}, cliente={}",
+                 saved.getId(), saved.getModeloId(), saved.getClienteId());
+        return saved;
+    }
+
+    /**
      * Update existing reservation.
      *
      * Validations:
@@ -386,6 +424,21 @@ public class ReservaService {
             );
         }
 
+        boolean rascunho = existing.getStatus() == ReservaStatus.RASCUNHO;
+
+        // Modelo só pode ser trocado enquanto RASCUNHO (atendimento em preenchimento):
+        // ainda estamos escolhendo o modelo, nada está cobrado nem bloqueado.
+        if (updates.getModeloId() != null && !updates.getModeloId().equals(existing.getModeloId())) {
+            if (!rascunho) {
+                throw new BusinessException("Modelo só pode ser alterado enquanto a reserva é rascunho");
+            }
+            Modelo modelo = modeloService.findById(updates.getModeloId());
+            if (!Boolean.TRUE.equals(modelo.getAtivo())) {
+                throw new BusinessException("Modelo não está ativo");
+            }
+            existing.setModeloId(updates.getModeloId());
+        }
+
         // Update dates if provided
         boolean datesChanged = false;
         LocalDateTime newDataInicio = existing.getDataInicio();
@@ -407,8 +460,11 @@ public class ReservaService {
             throw new BusinessException("Data de início deve ser anterior à data de fim");
         }
 
-        // Check for conflicts if dates changed
-        if (datesChanged) {
+        // Conflito de jetski não se aplica a RASCUNHO (sem jetski alocado / sem bloqueio).
+        if (datesChanged && rascunho) {
+            existing.setDataInicio(newDataInicio);
+            existing.setDataFimPrevista(newDataFimPrevista);
+        } else if (datesChanged) {
             List<Reserva> conflicts = reservaRepository.findConflictingReservationsExcluding(
                 existing.getJetskiId(),
                 newDataInicio,

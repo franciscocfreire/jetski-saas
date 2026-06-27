@@ -339,6 +339,14 @@ public class Reserva {
      */
     public enum ReservaStatus {
         /**
+         * Draft (atendimento de balcão em preenchimento) — ainda não finalizado.
+         * Guarda modelo/duração e os sub-recursos (GRU/habilitação/termos), mas NÃO
+         * é cobrada, NÃO bloqueia jetski e NÃO entra na fila/agenda. A emissão dos
+         * documentos transiciona para PENDENTE/CONFIRMADA.
+         */
+        RASCUNHO,
+
+        /**
          * Pending confirmation - initial state
          * Waiting for customer to pay deposit or operator to confirm
          */

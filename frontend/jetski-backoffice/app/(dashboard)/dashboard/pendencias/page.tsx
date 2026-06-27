@@ -18,9 +18,9 @@ import { ReservaDetailSheet } from '@/components/agenda/reserva-detail-sheet'
 import { cn } from '@/lib/utils'
 import type { Reserva, ReservaStatus, Habilitacao } from '@/lib/api/types'
 
-const TERMINAIS: ReservaStatus[] = ['CANCELADA', 'EXPIRADA', 'FINALIZADA']
 
 const statusBadge: Record<ReservaStatus, 'success' | 'warning' | 'secondary'> = {
+  RASCUNHO: 'secondary',
   PENDENTE: 'warning',
   CONFIRMADA: 'success',
   CANCELADA: 'secondary',
@@ -64,12 +64,6 @@ function etapasDe(
   const habLabel = ema ? 'GRU' : hab?.via === 'CHA' ? 'CHA' : 'Habilitação'
   return [
     { chave: 'termos', label: 'Termos', ok: !!aceite, hint: aceite ? 'assinados' : 'pendentes' },
-    {
-      chave: 'sinal',
-      label: 'Sinal',
-      ok: !!r.sinalPago || r.pagamentoStatus === 'CONFIRMADO',
-      hint: r.sinalPago || r.pagamentoStatus === 'CONFIRMADO' ? 'pago' : 'pendente',
-    },
     { chave: 'hab', label: habLabel, ok: !!hab?.resolvida, hint: faltaHabilitacao(hab) },
     { chave: 'docs', label: 'Documentos', ok: !!r.documentoEmitidoEm, hint: r.documentoEmitidoEm ? 'emitidos' : 'a emitir' },
   ]
@@ -131,8 +125,9 @@ export default function PendenciasPage() {
     const mMap = new Map((modelos ?? []).map((m) => [m.id, m]))
     const jMap = new Map((jetskis ?? []).map((j) => [j.id, j]))
     return reservas
-      // pendência = não-terminal E sem documentos emitidos (atendimento ainda em aberto)
-      .filter((r) => !TERMINAIS.includes(r.status) && !r.documentoEmitidoEm)
+      // Pendência = reserva PENDENTE (finalizada com algo faltando, ou portal aguardando).
+      // RASCUNHO (atendimento em aberto) e CONFIRMADA (completa) ficam fora.
+      .filter((r) => r.status === 'PENDENTE')
       .map((r) => ({
         ...r,
         cliente: cMap.get(r.clienteId),

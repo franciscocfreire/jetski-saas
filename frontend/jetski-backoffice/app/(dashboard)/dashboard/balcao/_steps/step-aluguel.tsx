@@ -30,8 +30,25 @@ export function StepAluguel({
   onDone: (reserva: Reserva, modelo: Modelo) => void
 }) {
   const { currentTenant } = useTenantStore()
-  const [modeloId, setModeloId] = useState('')
-  const [horas, setHoras] = useState(1)
+
+  // Rascunho deste atendimento → semeia modelo/duração (a seleção não "some" ao
+  // voltar). Modelo/duração continuam editáveis enquanto é rascunho.
+  const reservaExistente = atendimento.reserva
+  const horasIniciais = reservaExistente
+    ? Math.max(
+        1,
+        Math.round(
+          (new Date(reservaExistente.dataFimPrevista).getTime() -
+            new Date(reservaExistente.dataInicio).getTime()) /
+            3_600_000
+        )
+      )
+    : 1
+
+  const [modeloId, setModeloId] = useState(
+    reservaExistente?.modeloId ?? atendimento.modelo?.id ?? ''
+  )
+  const [horas, setHoras] = useState(horasIniciais)
 
   const { data: modelos, isLoading } = useQuery({
     queryKey: ['modelos', currentTenant?.id],
@@ -39,34 +56,43 @@ export function StepAluguel({
     enabled: !!currentTenant,
   })
 
-  const modelo = modelos?.find((m) => m.id === modeloId)
-  const valorTotal = modelo ? modelo.precoBaseHora * horas : 0
+  const modelo = modelos?.find((m) => m.id === modeloId) ?? atendimento.modelo
+  const valorIlustrativo = modelo ? modelo.precoBaseHora * horas : 0
 
-  const criar = useMutation({
+  const salvar = useMutation({
     mutationFn: async (): Promise<Reserva> => {
       // O horário real é definido no embarque (fila). Aqui só um início provisório.
-      const inicio = new Date(Date.now() + 30 * 60_000)
+      const inicio = reservaExistente
+        ? new Date(reservaExistente.dataInicio)
+        : new Date(Date.now() + 30 * 60_000)
       const fim = new Date(inicio.getTime() + horas * 3600_000)
-      const reserva = await reservasService.create({
-        modeloId,
-        clienteId: atendimento.cliente!.id,
-        dataInicio: inicio.toISOString(),
-        dataFimPrevista: fim.toISOString(),
-        prioridade: 'ALTA',
-      })
-      // Balcão: pagamento TOTAL imediato (sem sinal).
-      return reservasService.confirmarPagamento(reserva.id, {
-        tipo: 'TOTAL',
-        valorPago: valorTotal,
-      })
+
+      // NÃO há cobrança do passeio aqui — o passeio é pago no fim da locação.
+      // A reserva nasce como RASCUNHO (a única taxa, a GRU, vem na emissão da CHA).
+      if (!reservaExistente) {
+        return reservasService.criarRascunho({
+          modeloId,
+          clienteId: atendimento.cliente!.id,
+          dataInicio: inicio.toISOString(),
+          dataFimPrevista: fim.toISOString(),
+          prioridade: 'BAIXA',
+        })
+      }
+      // Já existe rascunho → atualiza modelo/duração só se mudou.
+      const mudouModelo = modeloId !== reservaExistente.modeloId
+      const mudouDuracao = horas !== horasIniciais
+      if (mudouModelo || mudouDuracao) {
+        return reservasService.atualizar(reservaExistente.id, {
+          modeloId,
+          dataFimPrevista: fim.toISOString(),
+        })
+      }
+      return reservaExistente
     },
-    onSuccess: (reserva) => {
-      toast.success('Reserva criada e pagamento registrado.')
-      onDone(reserva, modelo!)
-    },
+    onSuccess: (reserva) => onDone(reserva, modelo!),
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      toast.error(msg ?? 'Falha ao criar reserva/pagamento.')
+      toast.error(msg ?? 'Falha ao salvar o passeio.')
     },
   })
 
@@ -114,20 +140,21 @@ export function StepAluguel({
       </div>
 
       <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-4">
-        <span className="text-sm text-muted-foreground">Valor total (pagamento no balcão)</span>
-        <span className="text-2xl font-bold">R$ {valorTotal.toFixed(2)}</span>
+        <div>
+          <span className="text-sm text-muted-foreground">Valor do passeio (ilustrativo)</span>
+          <p className="text-[11px] text-muted-foreground">
+            Cobrado no fim da locação — não é pago agora.
+          </p>
+        </div>
+        <span className="text-2xl font-bold">R$ {valorIlustrativo.toFixed(2)}</span>
       </div>
 
       <div className="flex justify-between">
         <Button type="button" variant="outline" onClick={onBack}>
           Voltar
         </Button>
-        <Button
-          type="button"
-          disabled={!modeloId || criar.isPending}
-          onClick={() => criar.mutate()}
-        >
-          {criar.isPending ? 'Processando…' : 'Criar reserva e cobrar total'}
+        <Button type="button" disabled={!modelo || salvar.isPending} onClick={() => salvar.mutate()}>
+          {salvar.isPending ? 'Salvando…' : 'Continuar'}
         </Button>
       </div>
     </div>

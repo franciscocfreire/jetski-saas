@@ -25,6 +25,7 @@ import {
   Wallet,
   Percent,
   Store,
+  FileClock,
   GraduationCap,
   ShieldCheck,
 } from 'lucide-react'
@@ -81,6 +82,11 @@ const mainNavItems = [
     title: 'Balcão',
     href: '/dashboard/balcao',
     icon: Store,
+  },
+  {
+    title: 'Atendimentos em aberto',
+    href: '/dashboard/atendimentos',
+    icon: FileClock,
   },
 ]
 
