@@ -10,8 +10,16 @@ import { Label } from '@/components/ui/label'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { clientesService } from '@/lib/api/services'
 import type { Cliente } from '@/lib/api/types'
+import type { Atendimento } from '../types'
 
-export function StepCliente({ onDone }: { onDone: (cliente: Cliente) => void }) {
+export function StepCliente({
+  atendimento,
+  onDone,
+}: {
+  atendimento: Atendimento
+  onDone: (cliente: Cliente) => void
+}) {
+  const clienteAtual = atendimento.cliente
   const [cpf, setCpf] = useState('')
   const [buscou, setBuscou] = useState(false)
   const [encontrado, setEncontrado] = useState<Cliente | null>(null)
@@ -67,8 +75,26 @@ export function StepCliente({ onDone }: { onDone: (cliente: Cliente) => void }) 
 
   return (
     <div className="space-y-5">
+      {clienteAtual && (
+        <div className="flex items-start gap-3 rounded-lg border bg-emerald-50 p-3 dark:bg-emerald-950/30">
+          <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
+          <div className="flex-1">
+            <p className="font-medium">{clienteAtual.nome}</p>
+            <p className="text-sm text-muted-foreground">
+              {clienteAtual.documento || clienteAtual.cpf || 'sem CPF'} ·{' '}
+              {clienteAtual.email ?? 'sem e-mail'}
+            </p>
+          </div>
+          <Button type="button" onClick={() => onDone(clienteAtual)}>
+            Continuar
+          </Button>
+        </div>
+      )}
+
       <div>
-        <Label className="text-xs">CPF do cliente</Label>
+        <Label className="text-xs">
+          {clienteAtual ? 'Trocar cliente (buscar outro CPF)' : 'CPF do cliente'}
+        </Label>
         <div className="flex gap-2">
           <Input
             value={cpf}

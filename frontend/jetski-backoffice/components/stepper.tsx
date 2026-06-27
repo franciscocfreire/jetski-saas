@@ -13,18 +13,22 @@ export type Step = { key: string; label: string }
 export function Stepper({
   steps,
   current,
+  maxStep,
   onStepClick,
 }: {
   steps: Step[]
   current: number
+  /** Maior passo já alcançado — permite navegar (ida e volta) até ele. Default: current. */
+  maxStep?: number
   onStepClick?: (index: number) => void
 }) {
+  const reach = maxStep ?? current
   return (
     <ol className="flex w-full items-center">
       {steps.map((step, i) => {
         const done = i < current
         const active = i === current
-        const clickable = !!onStepClick && i <= current
+        const clickable = !!onStepClick && i <= reach
         return (
           <li key={step.key} className={cn('flex items-center', i < steps.length - 1 && 'flex-1')}>
             <button

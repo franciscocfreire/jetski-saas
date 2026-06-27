@@ -161,12 +161,14 @@ export function StepHabilitacao({
         if (chaFoto) await clientesService.uploadAnexo(clienteId, 'CHA', chaFoto).catch(() => null)
         return !!h.resolvida
       }
-      // EMA: persiste via + número da GRU (referência). O pagamento NÃO é marcado
-      // aqui — só via "Verificar pagamento" (PIX) ou anexo do comprovante. Sem isso,
-      // a reserva segue como pendência e a Marinha não é notificada.
+      // EMA: persiste via + número da GRU (referência) + instrutor (coletado no
+      // Passeio & Preço). O pagamento NÃO é marcado aqui — só via "Verificar
+      // pagamento" (PIX) ou anexo do comprovante. Sem isso, a reserva segue como
+      // pendência e a Marinha não é notificada.
       const h = await habilitacaoService.registrar(reservaId, {
         via: 'EMA',
         gruNumero: gruNumero || undefined,
+        instrutorId: atendimento.instrutorId || undefined,
       })
       return !!h.resolvida
     },

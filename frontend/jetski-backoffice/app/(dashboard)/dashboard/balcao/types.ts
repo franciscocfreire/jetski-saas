@@ -9,7 +9,9 @@ export type Atendimento = {
   endereco?: Address
   temComprovanteResidencia: boolean
   temCha: boolean
-  // habilitação/aceite/emissão preenchidos nos passos 4-6
+  /** Instrutor (Atestado 5-B-1) — coletado no Passeio & Preço (EMA). */
+  instrutorId?: string
+  // habilitação/aceite/emissão preenchidos nos passos seguintes
   habilitacaoResolvida: boolean
   aceiteFeito: boolean
 }
@@ -18,7 +20,6 @@ export const BALCAO_STEPS = [
   { key: 'cliente', label: 'Cliente' },
   { key: 'aluguel', label: 'Passeio & Preço' },
   { key: 'habilitacao', label: 'Habilitação' },
-  { key: 'prerequisitos', label: 'Pré-requisitos' },
   { key: 'documentos', label: 'Documentos' },
   { key: 'termos', label: 'Termos' },
   { key: 'emissao', label: 'Emissão' },

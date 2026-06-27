@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { FileUpload } from '@/components/file-upload'
 import { AddressForm, type Address } from '@/components/address-form'
-import { clientesService } from '@/lib/api/services'
+import { clientesService, habilitacaoService } from '@/lib/api/services'
 import type { Atendimento } from '../types'
 
 /** Endereço salvo do cliente (enderecoJson) → Address, para reaproveitar. */
@@ -90,6 +90,12 @@ export function StepDocumentos({
             .catch(() => null)
         }
       }
+      // EMA: residência resolvida aqui (comprovante OU Declaração 1-C) → marca o anexo.
+      if (!atendimento.temCha && atendimento.reserva?.id) {
+        await habilitacaoService
+          .registrar(atendimento.reserva.id, { via: 'EMA', anexoResidencia: true })
+          .catch(() => null)
+      }
     },
     onSuccess: () => onDone({ endereco, temComprovanteResidencia: temComprovante }),
     onError: () => toast.error('Falha ao salvar os dados do cliente.'),
@@ -98,6 +104,11 @@ export function StepDocumentos({
   function avancar() {
     if (!temComprovante && (!endereco?.cep || !endereco?.logradouro)) {
       toast.warning('Sem comprovante: informe o endereço para a Declaração 1-C.')
+      return
+    }
+    // "Tem comprovante" → a foto/arquivo é obrigatória.
+    if (temComprovante && !anexos.COMPROVANTE_RESIDENCIA && !anexosUrls?.COMPROVANTE_RESIDENCIA) {
+      toast.warning('Anexe a foto/arquivo do comprovante de residência.')
       return
     }
     salvarDados.mutate()
