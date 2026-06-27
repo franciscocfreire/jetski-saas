@@ -29,6 +29,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { EmbarqueDialog } from '@/components/fila/embarque-dialog'
+import { EmbarqueGrupoDialog } from '@/components/fila/embarque-grupo-dialog'
+import { NotaInline } from '@/components/fila/nota-inline'
 import { WhatsAppLink, waHref } from '@/components/whatsapp-link'
 import { cn, formatDuracao } from '@/lib/utils'
 import {
@@ -66,6 +68,11 @@ export default function FilaPage() {
   const qc = useQueryClient()
   const [alvo, setAlvo] = useState<Reserva | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [grupoAlvo, setGrupoAlvo] = useState<{
+    membros: { reservaId: string; nome: string }[]
+    modeloId?: string
+  } | null>(null)
+  const [grupoOpen, setGrupoOpen] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [turnaround, setTurnaround] = useState(5)
   const [limiteEspera, setLimiteEspera] = useState(20)
@@ -97,6 +104,12 @@ export default function FilaPage() {
       ids.forEach((id) => n.set(id, Date.now()))
       return n
     })
+
+  const invalidarFila = () => {
+    qc.invalidateQueries({ queryKey: ['reservas', currentTenant?.id] })
+    qc.invalidateQueries({ queryKey: ['locacoes-em-curso', currentTenant?.id] })
+    qc.invalidateQueries({ queryKey: ['jetskis', currentTenant?.id] })
+  }
 
   const { data: reservas, isLoading } = useQuery({
     queryKey: ['reservas', currentTenant?.id],
@@ -356,6 +369,7 @@ export default function FilaPage() {
             const selNoModelo = idsModelo.filter((id) => sel.has(id)).length
             const cliDe = new Map(b.reservasNaFila.map((r) => [r.id, r.cliente]))
             const resDe = new Map(b.reservasNaFila.map((r) => [r.id, r]))
+            const inicioDe = new Map(b.plano.map((a) => [a.party.id, a.inicio]))
             return (
               <div key={b.modeloId} className="overflow-hidden rounded-xl border">
                 <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2">
@@ -490,6 +504,12 @@ export default function FilaPage() {
                                 {grupo ? `${p.jets} jets juntos · ` : ''}
                                 {b.modeloNome} · {formatDuracao(p.duracaoMin)}
                               </span>
+                              {inicioDe.has(p.id) && (
+                                <span className="font-medium text-primary">
+                                  previsto{' '}
+                                  {inicioDe.get(p.id)! < 1 ? 'agora' : `~${fmtClock(inicioDe.get(p.id)!)}`}
+                                </span>
+                              )}
                               <span
                                 className={cn(
                                   'inline-flex items-center gap-1',
@@ -508,6 +528,12 @@ export default function FilaPage() {
                                 </span>
                               )}
                             </p>
+                            <div className="mt-1">
+                              <NotaInline
+                                reservaId={p.reservaIds[0]}
+                                nota={resDe.get(p.reservaIds[0])?.observacoes}
+                              />
+                            </div>
                           </div>
                           {hrefChamar && (
                             <a
@@ -523,6 +549,18 @@ export default function FilaPage() {
                           )}
                           {grupo ? (
                             <div className="flex items-center gap-2">
+                              <div className="flex gap-1">
+                                {p.reservaIds.map((rid) => {
+                                  const m = cliDe.get(rid)
+                                  return (
+                                    <WhatsAppLink
+                                      key={rid}
+                                      phone={m?.telefone || m?.whatsapp}
+                                      nome={m?.nome}
+                                    />
+                                  )
+                                })}
+                              </div>
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -531,25 +569,22 @@ export default function FilaPage() {
                               >
                                 <Unlink className="mr-1 h-3.5 w-3.5" /> Desagrupar
                               </Button>
-                              <div className="flex flex-col gap-1">
-                                {p.reservaIds.map((rid, i) => {
-                                  const m = cliDe.get(rid)
-                                  return (
-                                    <div key={rid} className="flex items-center gap-1">
-                                      <WhatsAppLink phone={m?.telefone || m?.whatsapp} nome={m?.nome} />
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => embarcar(rid)}
-                                      >
-                                        <Anchor className="mr-1 h-3.5 w-3.5" />{' '}
-                                        {m?.nome?.split(' ')[0] ?? `Embarcar ${i + 1}`}
-                                      </Button>
-                                    </div>
-                                  )
-                                })}
-                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => {
+                                  setGrupoAlvo({
+                                    membros: p.reservaIds.map((rid) => ({
+                                      reservaId: rid,
+                                      nome: cliDe.get(rid)?.nome ?? 'Cliente',
+                                    })),
+                                    modeloId: b.modeloId,
+                                  })
+                                  setGrupoOpen(true)
+                                }}
+                              >
+                                <Anchor className="mr-1 h-4 w-4" /> Embarcar grupo ({p.jets})
+                              </Button>
                             </div>
                           ) : (
                             <Button type="button" size="sm" onClick={() => embarcar(p.reservaIds[0])}>
@@ -584,11 +619,15 @@ export default function FilaPage() {
         modeloId={alvo?.modeloId}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onEmbarcado={() => {
-          qc.invalidateQueries({ queryKey: ['reservas', currentTenant?.id] })
-          qc.invalidateQueries({ queryKey: ['locacoes-em-curso', currentTenant?.id] })
-          qc.invalidateQueries({ queryKey: ['jetskis', currentTenant?.id] })
-        }}
+        onEmbarcado={invalidarFila}
+      />
+
+      <EmbarqueGrupoDialog
+        membros={grupoAlvo?.membros ?? []}
+        modeloId={grupoAlvo?.modeloId}
+        open={grupoOpen}
+        onOpenChange={setGrupoOpen}
+        onEmbarcado={invalidarFila}
       />
     </div>
   )
