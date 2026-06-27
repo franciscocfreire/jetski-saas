@@ -48,6 +48,7 @@ export function WhatsAppLink({
 
   const texto = message ?? (nome ? `Olá, ${nome.split(' ')[0]}!` : '')
   const href = `https://wa.me/${num}${texto ? `?text=${encodeURIComponent(texto)}` : ''}`
+  const titulo = nome ? `Conversar com ${nome}` : 'Conversar no WhatsApp'
 
   return (
     <a
@@ -55,8 +56,8 @@ export function WhatsAppLink({
       target="_blank"
       rel="noreferrer"
       onClick={(e) => e.stopPropagation()}
-      title="Conversar no WhatsApp"
-      aria-label="Conversar no WhatsApp"
+      title={titulo}
+      aria-label={titulo}
       className={cn(
         'inline-flex items-center text-emerald-600 transition-colors hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300',
         className

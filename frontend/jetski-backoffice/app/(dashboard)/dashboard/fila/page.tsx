@@ -505,6 +505,7 @@ export default function FilaPage() {
                                         >
                                           {c?.nome?.split(' ')[0] ?? 'Cliente'}
                                         </button>
+                                        <WhatsAppLink phone={c?.telefone || c?.whatsapp} nome={c?.nome} />
                                       </span>
                                     )
                                   })}
@@ -584,18 +585,6 @@ export default function FilaPage() {
                           )}
                           {grupo ? (
                             <div className="flex items-center gap-2">
-                              <div className="flex gap-1">
-                                {p.reservaIds.map((rid) => {
-                                  const m = cliDe.get(rid)
-                                  return (
-                                    <WhatsAppLink
-                                      key={rid}
-                                      phone={m?.telefone || m?.whatsapp}
-                                      nome={m?.nome}
-                                    />
-                                  )
-                                })}
-                              </div>
                               <Button
                                 type="button"
                                 variant="ghost"
