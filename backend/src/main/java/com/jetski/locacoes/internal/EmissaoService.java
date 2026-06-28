@@ -150,7 +150,7 @@ public class EmissaoService {
         boolean enviadoMarinha = marinhaAplicavel && docCompleta && enviar(marinhaEmail,
             "Documentos NORMAM-212 — reserva " + reservaId, corpoMarinha(cliente), pdfMarinha.conteudo());
         boolean enviadoCliente = enviar(clienteEmail,
-            "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente), pdfCliente.conteudo());
+            "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente, hab), pdfCliente.conteudo());
         if (!docCompleta) {
             log.info("Marinha NÃO notificada (reserva {}): pendências {}", reservaId, pendencias);
         }
@@ -459,9 +459,8 @@ public class EmissaoService {
 
         // CHA não tem documentação à Marinha; EMA tem (PDF específico, ou o canônico
         // como fallback para emissões anteriores a essa separação).
-        boolean marinhaAplicavel = habilitacaoRepository.findByReservaId(reserva.getId())
-            .map(h -> h.getVia() == ReservaHabilitacao.Via.EMA)
-            .orElse(true);
+        ReservaHabilitacao hab = habilitacaoRepository.findByReservaId(reserva.getId()).orElse(null);
+        boolean marinhaAplicavel = hab == null || hab.getVia() == ReservaHabilitacao.Via.EMA;
         byte[] pdfMarinha = null;
         if (marinhaAplicavel) {
             try {
@@ -473,7 +472,7 @@ public class EmissaoService {
         boolean enviadoMarinha = pdfMarinha != null && enviar(tenant.getMarinhaEmail(),
             "Documentos NORMAM-212 — reserva " + reserva.getId(), corpoMarinha(cliente), pdfMarinha);
         boolean enviadoCliente = enviar(cliente.getEmail(),
-            "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente), pdfCliente);
+            "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente, hab), pdfCliente);
         log.info("Reenvio de documento: docId={}, marinha={}, cliente={}",
             documentoId, enviadoMarinha, enviadoCliente);
         return ResultadoReenvio.builder()
@@ -503,8 +502,19 @@ public class EmissaoService {
             + "<b>" + safe(c.getNome()) + "</b> (CPF " + safe(c.getDocumento()) + ").</p>";
     }
 
-    private String corpoCliente(Cliente c) {
-        return "<p>Olá " + safe(c.getNome()) + ",</p><p>Seguem em anexo seus documentos do passeio.</p>";
+    private String corpoCliente(Cliente c, ReservaHabilitacao hab) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<p>Olá ").append(safe(c.getNome())).append(",</p>");
+        sb.append("<p>Seguem em anexo seus documentos do passeio.</p>");
+        // GRU (habilitação temporária EMA): informa o número no corpo do e-mail.
+        if (hab != null && hab.getGruNumero() != null && !hab.getGruNumero().isBlank()) {
+            sb.append("<p>GRU (taxa CHA-MTA-E): <b>").append(safe(hab.getGruNumero())).append("</b>");
+            if (hab.getGruValor() != null) {
+                sb.append(" — Valor: R$ ").append(hab.getGruValor().toPlainString());
+            }
+            sb.append("</p>");
+        }
+        return sb.toString();
         // O link de ativação da conta (claim, F2.7) é enviado separadamente,
         // como passo próprio do balcão (POST /clientes/{id}/claim).
     }
