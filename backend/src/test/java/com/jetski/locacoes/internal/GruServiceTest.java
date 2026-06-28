@@ -177,7 +177,8 @@ class GruServiceTest {
         stubReservaECliente();
         when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.empty());
         when(gruClient.gerarBoleto(any())).thenReturn(
-            new com.jetski.locacoes.internal.gru.GruBoletoResultado("7977050", new byte[]{1, 2, 3}));
+            new com.jetski.locacoes.internal.gru.GruBoletoResultado(
+                "7977050", "60893100226022026", new byte[]{1, 2, 3}));
         when(habilitacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         GruService.BoletoGeracao g = service.gerarBoleto(reservaId);
@@ -189,6 +190,8 @@ class GruServiceTest {
         assertThat(cap.getValue().getGruPdfS3Key())
             .isEqualTo(tenantId + "/reserva/" + reservaId + "/gru-boleto.pdf");
         assertThat(cap.getValue().getGruIdMarinha()).isEqualTo("7977050");
+        // número de referência extraído do PDF é preenchido automaticamente
+        assertThat(cap.getValue().getGruNumero()).isEqualTo("60893100226022026");
         verify(storageService).putObject(any(), any(), org.mockito.ArgumentMatchers.eq("application/pdf"));
     }
 

@@ -242,8 +242,40 @@ public class GruClient {
             throw new GruException(GruException.Codigo.MARINHA_INDISPONIVEL,
                 "PDF do boleto inválido/vazio");
         }
-        log.info("Boleto GRU gerado: idGru={}, pdfBytes={}", idGru, pdf.length);
-        return new GruBoletoResultado(idGru, pdf);
+        String gruNumero = extrairNumeroReferencia(pdf, cdOrgao);
+        log.info("Boleto GRU gerado: idGru={}, numero={}, pdfBytes={}", idGru, gruNumero, pdf.length);
+        return new GruBoletoResultado(idGru, gruNumero, pdf);
+    }
+
+    /**
+     * Extrai o número de referência da GRU do PDF do boleto (best-effort). O número
+     * é "60" + cd_orgao + 10 dígitos (ex.: 60893100226022026). Se não achar, null.
+     */
+    static String extrairNumeroReferencia(byte[] pdf, String cdOrgao) {
+        try {
+            com.lowagie.text.pdf.PdfReader reader = new com.lowagie.text.pdf.PdfReader(pdf);
+            com.lowagie.text.pdf.parser.PdfTextExtractor ext =
+                new com.lowagie.text.pdf.parser.PdfTextExtractor(reader);
+            StringBuilder sb = new StringBuilder();
+            for (int i = 1; i <= reader.getNumberOfPages(); i++) {
+                sb.append(ext.getTextFromPage(i)).append('\n');
+            }
+            reader.close();
+            String texto = sb.toString();
+            Pattern p = Pattern.compile("(?<!\\d)(60" + Pattern.quote(cdOrgao) + "\\d{10})(?!\\d)");
+            // tenta direto e com espaços/quebras removidos entre dígitos (PDF pode espaçar)
+            for (String t : new String[]{texto, texto.replaceAll("(?<=\\d)\\s+(?=\\d)", "")}) {
+                Matcher m = p.matcher(t);
+                if (m.find()) {
+                    return m.group(1);
+                }
+            }
+            log.warn("Número de referência não encontrado no PDF do boleto (cd_orgao={}).", cdOrgao);
+            return null;
+        } catch (Exception e) {
+            log.warn("Falha ao extrair número de referência do boleto: {}", e.getMessage());
+            return null;
+        }
     }
 
     private static boolean looksLikePdf(byte[] b) {

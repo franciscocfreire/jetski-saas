@@ -152,6 +152,10 @@ public class GruService {
 
             hab.setGruPdfS3Key(key);
             hab.setGruIdMarinha(r.idGru());
+            // Número de referência extraído do PDF (preenche automático na tela).
+            if (r.gruNumero() != null && hab.getGruNumero() == null) {
+                hab.setGruNumero(r.gruNumero());
+            }
             hab.setGruGeradaEm(Instant.now());
             // O boleto não passa pelo PagTesouro → não retorna valor. Preenche com o
             // valor oficial configurado (se houver) para exibição no backoffice.
