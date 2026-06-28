@@ -425,6 +425,10 @@ export function ReservaDetailSheet({
               <Etapa ok={!!hab.anexoRegras} label="Anexo de regras de navegação" />
               <Etapa ok={!!hab.anexoResidencia} label="Comprovante/Declaração de residência" />
               <Etapa ok={!!hab.instrutorId} label="Instrutor (atestado de demonstração)" />
+              <Etapa ok={!!reserva.cliente?.rg} label="RG (dados pessoais NORMAM)" />
+              <Etapa ok={!!reserva.cliente?.orgaoEmissor} label="Órgão emissor" />
+              <Etapa ok={!!reserva.cliente?.nacionalidade} label="Nacionalidade" />
+              <Etapa ok={!!reserva.cliente?.naturalidade} label="Naturalidade" />
               <Etapa
                 ok={!!hab.gruPago}
                 label="GRU paga"

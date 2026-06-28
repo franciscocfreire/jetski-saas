@@ -154,18 +154,29 @@ export function StepTermos({
         </div>
       )}
 
+      {ema && (!cienteRegras || !videoaula) && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          Marque <strong>ciência das regras</strong> e <strong>videoaula assistida</strong> para
+          continuar (obrigatórias).
+        </p>
+      )}
+
       <div className="flex justify-between">
         <Button type="button" variant="outline" onClick={onBack}>
           Voltar
         </Button>
         {jaAssinado ? (
-          <Button type="button" disabled={concluir.isPending} onClick={() => concluir.mutate()}>
+          <Button
+            type="button"
+            disabled={concluir.isPending || (ema && (!cienteRegras || !videoaula))}
+            onClick={() => concluir.mutate()}
+          >
             {concluir.isPending ? 'Salvando…' : 'Avançar'}
           </Button>
         ) : (
           <Button
             type="button"
-            disabled={!assinatura || concluir.isPending}
+            disabled={!assinatura || concluir.isPending || (ema && (!cienteRegras || !videoaula))}
             onClick={() => concluir.mutate()}
           >
             {concluir.isPending ? 'Registrando…' : 'Assinar e avançar'}

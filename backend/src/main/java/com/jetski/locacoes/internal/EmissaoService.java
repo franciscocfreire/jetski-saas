@@ -126,7 +126,7 @@ public class EmissaoService {
             .build());
 
         // Documentação completa? Só com tudo cumprido a Marinha pode receber o e-mail.
-        java.util.List<String> pendencias = pendenciasDocumentacao(hab);
+        java.util.List<String> pendencias = pendenciasDocumentacao(hab, cliente);
         boolean docCompleta = pendencias.isEmpty();
 
         // Finaliza o atendimento: RASCUNHO/PENDENTE/CONFIRMADA → CONFIRMADA (completo)
@@ -172,7 +172,7 @@ public class EmissaoService {
     }
 
     /** Itens exigidos p/ liberar a Marinha (habilitação resolvida + termos + anexos NORMAM). */
-    private java.util.List<String> pendenciasDocumentacao(ReservaHabilitacao hab) {
+    private java.util.List<String> pendenciasDocumentacao(ReservaHabilitacao hab, Cliente cliente) {
         java.util.List<String> p = new java.util.ArrayList<>();
         if (!Boolean.TRUE.equals(hab.getResolvida())) {
             p.add(hab.getVia() == ReservaHabilitacao.Via.CHA ? "CHA não informada" : "GRU não paga");
@@ -182,8 +182,17 @@ public class EmissaoService {
             if (!Boolean.TRUE.equals(hab.getAnexoRegras())) p.add("Anexo de regras");
             if (!Boolean.TRUE.equals(hab.getAnexoResidencia())) p.add("Comprovante/Declaração de residência");
             if (hab.getInstrutorId() == null) p.add("Instrutor");
+            // Dados pessoais (anexos NORMAM-212): exigidos para emitir, não para a reserva.
+            if (vazio(cliente.getRg())) p.add("RG");
+            if (vazio(cliente.getOrgaoEmissor())) p.add("Órgão emissor");
+            if (vazio(cliente.getNacionalidade())) p.add("Nacionalidade");
+            if (vazio(cliente.getNaturalidade())) p.add("Naturalidade");
         }
         return p;
+    }
+
+    private static boolean vazio(String s) {
+        return s == null || s.isBlank();
     }
 
     private DocumentoPdfService.DadosDocumento montarDados(Reserva reserva, Cliente cliente,

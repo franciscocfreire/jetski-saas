@@ -78,6 +78,7 @@ class EmissaoServiceTest {
             .thenReturn(Optional.of(ReservaAceite.builder().assinaturaS3Key("t/r/assinatura.png").build()));
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(Cliente.builder()
             .nome("Roberto Lima").documento("987.654.321-00").email("roberto@email.com")
+            .rg("12.345.678-9").orgaoEmissor("SSP/SP").nacionalidade("Brasileira").naturalidade("São Paulo/SP")
             .enderecoJson("{\"logradouro\":\"Av. Paulista\",\"numero\":\"1500\",\"cidade\":\"São Paulo\",\"uf\":\"SP\",\"cep\":\"01310-100\"}")
             .build()));
         when(tenantQuery.findById(tenant)).thenReturn(Tenant.builder()

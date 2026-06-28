@@ -459,10 +459,23 @@ export default function FilaPage() {
                     const ehProxima = proxima?.party.id === p.id
                     const grupo = p.jets > 1
                     const membros = p.reservaIds.map((id) => resDe.get(id)).filter(Boolean) as Reserva[]
+                    // "Aguardando desde" = entrou na fila. Após os Termos a reserva pode
+                    // não ter documentoEmitidoEm ainda → cai para updatedAt/createdAt
+                    // (evita new Date(null)=1970 → milhares de horas).
                     const esperaMin = membros.length
-                      ? (now -
-                          Math.min(...membros.map((m) => new Date(m.documentoEmitidoEm!).getTime()))) /
-                        60_000
+                      ? Math.max(
+                          0,
+                          (now -
+                            Math.min(
+                              ...membros.map((m) => {
+                                const t = new Date(
+                                  m.documentoEmitidoEm || m.updatedAt || m.createdAt || m.dataInicio
+                                ).getTime()
+                                return Number.isFinite(t) ? t : now
+                              })
+                            )) /
+                            60_000
+                        )
                       : 0
                     const esperaLonga = esperaMin > limiteEspera
                     const pronto = membros.every((m) => m.status === 'CONFIRMADA')

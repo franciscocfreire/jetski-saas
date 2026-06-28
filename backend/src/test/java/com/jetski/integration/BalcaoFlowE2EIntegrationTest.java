@@ -110,6 +110,10 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
             .documento("987.654.321-00")
             .email("roberto.e2e@example.com")
             .telefone("+5521988887777")
+            .rg("12.345.678-9")
+            .orgaoEmissor("SSP/RJ")
+            .nacionalidade("Brasileira")
+            .naturalidade("Rio de Janeiro/RJ")
             .build());
         assertThat(cliente.getOrigem()).isEqualTo(Cliente.Origem.BALCAO);
         assertThat(cliente.getStatusConta()).isEqualTo(Cliente.StatusConta.PRE_CONTA);
