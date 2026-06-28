@@ -81,7 +81,12 @@ export function StepEmissao({
         </div>
 
         <div className="space-y-2 rounded-lg border p-4 text-sm">
-          {resultado.docCompleta ? (
+          {/* CHA não exige envio à Marinha (sem documentação NORMAM). */}
+          {atendimento.temCha ? (
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <Anchor size={15} /> Habilitação por CHA — sem envio à Marinha.
+            </p>
+          ) : resultado.docCompleta ? (
             <p className="flex items-center gap-2">
               <Anchor size={15} className={resultado.enviadoMarinha ? 'text-emerald-600' : 'text-muted-foreground'} />
               {resultado.enviadoMarinha ? '✓ Enviado à Marinha' : 'Não enviado à Marinha (sem e-mail configurado)'}
@@ -136,22 +141,36 @@ export function StepEmissao({
     )
   }
 
-  // Termos OK + GRU NÃO paga → a reserva já vale (está na fila); a emissão fica para depois.
+  // Habilitação ainda não resolvida. Para EMA = GRU não paga; para CHA = falta o
+  // número da carteira (sem GRU e sem envio à Marinha). A reserva já vale e está na fila.
   if (!atendimento.habilitacaoResolvida) {
+    const cha = atendimento.temCha
     return (
       <div className="space-y-5">
         <div className="space-y-1 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:bg-amber-950/30">
           <p className="flex items-center gap-2 font-medium">
             <Ship className="h-4 w-4" /> Reserva confirmada — entrou na fila de espera
           </p>
-          <p>
-            A <strong>GRU ainda não está paga</strong>, então os documentos NÃO podem ser emitidos
-            agora. A reserva já vale e pode embarcar normalmente. Pague a GRU (PIX/boleto ou
-            comprovante) e <strong>emita os documentos depois</strong> em Pendências → Retomar.
-          </p>
+          {cha ? (
+            <p>
+              O cliente já é <strong>habilitado (CHA)</strong> — não há GRU a pagar nem envio à
+              Marinha. O embarque já está liberado. Para emitir o comprovante, falta apenas{' '}
+              <strong>informar o número da CHA</strong> na etapa de Habilitação.
+            </p>
+          ) : (
+            <p>
+              A <strong>GRU ainda não está paga</strong>, então os documentos NÃO podem ser emitidos
+              agora. A reserva já vale e pode embarcar normalmente. Pague a GRU (PIX/boleto ou
+              comprovante) e <strong>emita os documentos depois</strong> em Pendências → Retomar.
+            </p>
+          )}
         </div>
         {atendimento.reserva && (
-          <DocumentoPreviewButtons reservaId={atendimento.reserva.id} className="rounded-lg border p-4" />
+          <DocumentoPreviewButtons
+            reservaId={atendimento.reserva.id}
+            marinha={!cha}
+            className="rounded-lg border p-4"
+          />
         )}
         <div className="flex justify-between">
           <Button type="button" variant="outline" onClick={onBack}>Voltar</Button>
@@ -165,11 +184,16 @@ export function StepEmissao({
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
-        Gera o PDF consolidado (anexos + termo + assinatura), arquiva, envia à Marinha e ao
-        cliente, e disponibiliza a GRU.
+        {atendimento.temCha
+          ? 'Gera o comprovante (termo + assinatura) para o cliente. Habilitação por CHA — sem envio à Marinha.'
+          : 'Gera o PDF consolidado (anexos + termo + assinatura), arquiva, envia à Marinha e ao cliente, e disponibiliza a GRU.'}
       </p>
       {atendimento.reserva && (
-        <DocumentoPreviewButtons reservaId={atendimento.reserva.id} className="rounded-lg border p-4" />
+        <DocumentoPreviewButtons
+          reservaId={atendimento.reserva.id}
+          marinha={!atendimento.temCha}
+          className="rounded-lg border p-4"
+        />
       )}
       <div className="flex justify-between">
         <Button type="button" variant="outline" onClick={onBack}>

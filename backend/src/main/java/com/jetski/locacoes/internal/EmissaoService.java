@@ -100,18 +100,24 @@ public class EmissaoService {
         DocumentoPdfService.DadosDocumento dados = montarDados(reserva, cliente, hab, tenant);
         DocumentoConfig cfg = configDocumento(tenant);
 
+        // CHA = cliente já habilitado: não há documentação NORMAM nem envio à Marinha.
+        boolean marinhaAplicavel = hab.getVia() == ReservaHabilitacao.Via.EMA;
+
         // PDFs por destino: a Marinha pode receber um recorte diferente do cliente
         // (ex.: sem o Termo de Responsabilidade), conforme a parametrização do tenant.
         DocumentoPdfService.DocumentoPdf pdfCliente =
             gerarParaDestino(dados, assinatura, cliente.getId(), hab, cfg.cliente(), false);
-        DocumentoPdfService.DocumentoPdf pdfMarinha =
-            gerarParaDestino(dados, assinatura, cliente.getId(), hab, cfg.marinha(), false);
+        DocumentoPdfService.DocumentoPdf pdfMarinha = marinhaAplicavel
+            ? gerarParaDestino(dados, assinatura, cliente.getId(), hab, cfg.marinha(), false)
+            : null;
 
         // Canônico p/ download/consulta = visão do cliente (completa). Marinha à parte.
         String key = String.format("%s/reserva/%s/documento.pdf", reserva.getTenantId(), reservaId);
         storageService.putObject(key, pdfCliente.conteudo(), "application/pdf");
-        storageService.putObject(keyMarinha(reserva.getTenantId(), reservaId),
-            pdfMarinha.conteudo(), "application/pdf");
+        if (pdfMarinha != null) {
+            storageService.putObject(keyMarinha(reserva.getTenantId(), reservaId),
+                pdfMarinha.conteudo(), "application/pdf");
+        }
 
         String marinhaEmail = tenant.getMarinhaEmail();
         String clienteEmail = cliente.getEmail();
@@ -140,8 +146,8 @@ public class EmissaoService {
         reserva.setDocumentoEmitidoEm(Instant.now());
         reservaRepository.save(reserva);
 
-        // E-mail à Marinha só quando a documentação está completa.
-        boolean enviadoMarinha = docCompleta && enviar(marinhaEmail,
+        // E-mail à Marinha só quando aplicável (EMA) e a documentação está completa.
+        boolean enviadoMarinha = marinhaAplicavel && docCompleta && enviar(marinhaEmail,
             "Documentos NORMAM-212 — reserva " + reservaId, corpoMarinha(cliente), pdfMarinha.conteudo());
         boolean enviadoCliente = enviar(clienteEmail,
             "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente), pdfCliente.conteudo());
@@ -418,15 +424,21 @@ public class EmissaoService {
         }
 
         byte[] pdfCliente = storageService.getObject(doc.getS3Key());
-        // PDF específico da Marinha, se existir (emissões novas); senão, o canônico.
-        byte[] pdfMarinha = pdfCliente;
-        String marinhaKey = keyMarinha(reserva.getTenantId(), reserva.getId());
-        try {
-            pdfMarinha = storageService.getObject(marinhaKey);
-        } catch (Exception e) {
-            log.debug("PDF da Marinha ausente ({}), reenvio usa o canônico: {}", marinhaKey, e.getMessage());
+
+        // CHA não tem documentação à Marinha; EMA tem (PDF específico, ou o canônico
+        // como fallback para emissões anteriores a essa separação).
+        boolean marinhaAplicavel = habilitacaoRepository.findByReservaId(reserva.getId())
+            .map(h -> h.getVia() == ReservaHabilitacao.Via.EMA)
+            .orElse(true);
+        byte[] pdfMarinha = null;
+        if (marinhaAplicavel) {
+            try {
+                pdfMarinha = storageService.getObject(keyMarinha(reserva.getTenantId(), reserva.getId()));
+            } catch (Exception e) {
+                pdfMarinha = pdfCliente; // legado: emissão sem PDF da Marinha separado
+            }
         }
-        boolean enviadoMarinha = enviar(tenant.getMarinhaEmail(),
+        boolean enviadoMarinha = pdfMarinha != null && enviar(tenant.getMarinhaEmail(),
             "Documentos NORMAM-212 — reserva " + reserva.getId(), corpoMarinha(cliente), pdfMarinha);
         boolean enviadoCliente = enviar(cliente.getEmail(),
             "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente), pdfCliente);

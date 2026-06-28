@@ -16,9 +16,12 @@ type Destino = 'MARINHA' | 'CLIENTE'
 export function DocumentoPreviewButtons({
   reservaId,
   className,
+  marinha = true,
 }: {
   reservaId: string
   className?: string
+  /** Exibe a prévia da Marinha (oculte em CHA — não há documentação à Marinha). */
+  marinha?: boolean
 }) {
   const [carregando, setCarregando] = useState<Destino | null>(null)
 
@@ -42,21 +45,23 @@ export function DocumentoPreviewButtons({
       <p className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
         <Eye className="h-3.5 w-3.5" /> Prévia do documento (não envia; RASCUNHO enquanto há pendências)
       </p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={carregando !== null}
-          onClick={() => abrir('MARINHA')}
-        >
-          {carregando === 'MARINHA' ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Anchor className="mr-2 h-4 w-4" />
-          )}
-          Prévia Marinha
-        </Button>
+      <div className={marinha ? 'grid gap-2 sm:grid-cols-2' : 'grid gap-2'}>
+        {marinha && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={carregando !== null}
+            onClick={() => abrir('MARINHA')}
+          >
+            {carregando === 'MARINHA' ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Anchor className="mr-2 h-4 w-4" />
+            )}
+            Prévia Marinha
+          </Button>
+        )}
         <Button
           type="button"
           variant="outline"
