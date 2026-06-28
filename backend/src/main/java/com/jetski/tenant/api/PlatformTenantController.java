@@ -4,6 +4,7 @@ import com.jetski.tenant.api.dto.PendingTenantDTO;
 import com.jetski.tenant.api.dto.PlatformTenantSummary;
 import com.jetski.tenant.api.dto.SuspendTenantRequest;
 import com.jetski.tenant.api.dto.TenantStatusResult;
+import com.jetski.tenant.internal.PlatformSecretsService;
 import com.jetski.tenant.internal.PlatformTenantService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +27,7 @@ import java.util.UUID;
 public class PlatformTenantController {
 
     private final PlatformTenantService platformTenantService;
+    private final PlatformSecretsService platformSecretsService;
 
     /** Lista TODAS as empresas (qualquer status) — visão completa do super admin. */
     @GetMapping("/tenants")
@@ -56,5 +58,15 @@ public class PlatformTenantController {
     @PostMapping("/tenants/{id}/reactivate")
     public TenantStatusResult reactivate(@PathVariable("id") UUID id) {
         return platformTenantService.reactivate(id);
+    }
+
+    /**
+     * Re-cifra os segredos de todos os tenants com a chave ATUAL (passo eager da
+     * rotação de chave). Após rodar e checar falhas=0, a JETSKI_SECRET_KEY_PREVIOUS
+     * pode ser removida. Ação: platform:reencrypt (só super admin via OPA).
+     */
+    @PostMapping("/secrets/reencrypt")
+    public PlatformSecretsService.ReencryptResult reencryptSecrets() {
+        return platformSecretsService.reencrypt();
     }
 }

@@ -50,4 +50,17 @@ export const platformService = {
     )
     return data
   },
+
+  /** Re-cifra os segredos de todos os tenants com a chave atual (rotação de chave). */
+  async reencryptSecrets(): Promise<ReencryptResult> {
+    const { data } = await apiClient.post<ReencryptResult>('/v1/platform/secrets/reencrypt')
+    return data
+  },
+}
+
+export interface ReencryptResult {
+  comSegredo: number
+  recifrados: number
+  falhas: number
+  criptografiaAtiva: boolean
 }

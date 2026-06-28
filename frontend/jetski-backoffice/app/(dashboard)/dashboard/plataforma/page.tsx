@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ShieldCheck, Check, Ban, RotateCcw, ShieldAlert } from 'lucide-react'
+import { ShieldCheck, Check, Ban, RotateCcw, ShieldAlert, KeyRound, Loader2 } from 'lucide-react'
 import { platformService } from '@/lib/api/services'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import type { TenantSummary } from '@/lib/api/types'
@@ -87,6 +87,21 @@ export default function PlataformaPage() {
     onError: (e) => toast({ title: 'Falha ao reativar', description: errMsg(e, 'Erro inesperado'), variant: 'destructive' }),
   })
 
+  const reencryptMutation = useMutation({
+    mutationFn: () => platformService.reencryptSecrets(),
+    onSuccess: (r) =>
+      toast({
+        title: r.criptografiaAtiva ? 'Segredos re-cifrados' : 'Criptografia desativada',
+        description: r.criptografiaAtiva
+          ? `${r.recifrados}/${r.comSegredo} re-cifrados${r.falhas ? ` · ${r.falhas} falha(s)` : ''}.` +
+            (r.falhas === 0 ? ' Pode remover a chave anterior.' : '')
+          : 'Defina JETSKI_SECRET_KEY para ativar a criptografia.',
+        variant: r.falhas > 0 ? 'destructive' : undefined,
+      }),
+    onError: (e) =>
+      toast({ title: 'Falha na re-cifragem', description: errMsg(e, 'Erro inesperado'), variant: 'destructive' }),
+  })
+
   // Guarda de rota: só super admin (UNRESTRICTED). Vem APÓS todos os hooks acima
   // (regras de hooks do React — o return condicional não pode preceder hooks).
   if (!isPlatformAdmin) {
@@ -151,6 +166,29 @@ export default function PlataformaPage() {
           Visão completa da plataforma — aprovar, suspender e reativar empresas (super admin).
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="size-5" /> Rotação de chave de criptografia
+          </CardTitle>
+          <CardDescription>
+            Re-cifra os segredos (senha SMTP) de todos os tenants com a chave atual. Use após trocar
+            a <code>JETSKI_SECRET_KEY</code>; quando <strong>falhas = 0</strong>, remova a{' '}
+            <code>JETSKI_SECRET_KEY_PREVIOUS</code>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => reencryptMutation.mutate()} disabled={reencryptMutation.isPending}>
+            {reencryptMutation.isPending ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <KeyRound className="mr-2 size-4" />
+            )}
+            Re-cifrar segredos
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
