@@ -247,21 +247,19 @@ public class GruClient {
         return new GruBoletoResultado(idGru, gruNumero, pdf);
     }
 
+    /** Extrai o número da GRU de um PDF de boleto já gerado (usa o cd_orgao configurado). */
+    public String extrairNumeroDoBoleto(byte[] pdf) {
+        return extrairNumeroReferencia(pdf, cdOrgao);
+    }
+
     /**
      * Extrai o número de referência da GRU do PDF do boleto (best-effort). O número
      * é "60" + cd_orgao + 10 dígitos (ex.: 60893100226022026). Se não achar, null.
      */
     static String extrairNumeroReferencia(byte[] pdf, String cdOrgao) {
-        try {
-            com.lowagie.text.pdf.PdfReader reader = new com.lowagie.text.pdf.PdfReader(pdf);
-            com.lowagie.text.pdf.parser.PdfTextExtractor ext =
-                new com.lowagie.text.pdf.parser.PdfTextExtractor(reader);
-            StringBuilder sb = new StringBuilder();
-            for (int i = 1; i <= reader.getNumberOfPages(); i++) {
-                sb.append(ext.getTextFromPage(i)).append('\n');
-            }
-            reader.close();
-            String texto = sb.toString();
+        try (org.apache.pdfbox.pdmodel.PDDocument doc =
+                 org.apache.pdfbox.pdmodel.PDDocument.load(pdf)) {
+            String texto = new org.apache.pdfbox.text.PDFTextStripper().getText(doc);
             Pattern p = Pattern.compile("(?<!\\d)(60" + Pattern.quote(cdOrgao) + "\\d{10})(?!\\d)");
             // tenta direto e com espaços/quebras removidos entre dígitos (PDF pode espaçar)
             for (String t : new String[]{texto, texto.replaceAll("(?<=\\d)\\s+(?=\\d)", "")}) {

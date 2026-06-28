@@ -138,8 +138,20 @@ public class GruService {
                 .via(ReservaHabilitacao.Via.EMA)
                 .build());
 
-        // Idempotência: boleto já gerado e não pago → reaproveita o PDF, não duplica GRU
+        // Idempotência: boleto já gerado e não pago → reaproveita o PDF, não duplica GRU.
+        // Se o número ainda não foi preenchido, tenta extrair do PDF já salvo.
         if (hab.getGruPdfS3Key() != null && !Boolean.TRUE.equals(hab.getGruPago())) {
+            if (hab.getGruNumero() == null) {
+                try {
+                    String num = gruClient.extrairNumeroDoBoleto(storageService.getObject(hab.getGruPdfS3Key()));
+                    if (num != null) {
+                        hab.setGruNumero(num);
+                        hab = habilitacaoRepository.save(hab);
+                    }
+                } catch (Exception e) {
+                    log.warn("Falha ao re-extrair número do boleto salvo (reserva {}): {}", reservaId, e.getMessage());
+                }
+            }
             return new BoletoGeracao(true, hab, true, null, null);
         }
 
