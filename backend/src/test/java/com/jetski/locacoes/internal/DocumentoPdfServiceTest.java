@@ -93,6 +93,30 @@ class DocumentoPdfServiceTest {
         assertThat(new PdfReader(pdf.conteudo()).getNumberOfPages()).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("Anexo do cliente em PDF (ex.: identidade) é mesclado como página, não embutido como imagem")
+    void anexoPdfMesclado() throws Exception {
+        // 1 página de Termo (CHA) + 1 página vinda do anexo PDF = 2.
+        byte[] anexoPdf = service.gerarTermoResponsabilidade(
+                new DocumentoPdfService.DadosTermo("X", "1", "Y", "2", "Z", "16/06/2026"), null).conteudo();
+        DocumentoPdfService.DocumentoPdf pdf = service.gerarDocumentoConsolidado(
+                dados("CHA", false), null,
+                java.util.List.of(new DocumentoPdfService.AnexoImagem("Identidade (PDF)", anexoPdf)));
+
+        assertThat(new String(pdf.conteudo(), 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
+        assertThat(new PdfReader(pdf.conteudo()).getNumberOfPages()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("Anexo com bytes ilegíveis (nem imagem nem PDF) é ignorado sem derrubar a geração")
+    void anexoIlegivelIgnorado() {
+        DocumentoPdfService.DocumentoPdf pdf = service.gerarDocumentoConsolidado(
+                dados("CHA", false), null,
+                java.util.List.of(new DocumentoPdfService.AnexoImagem("Lixo", "não-é-imagem".getBytes())));
+
+        assertThat(new String(pdf.conteudo(), 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
+    }
+
     private static DocumentoPdfService.DadosDocumento dados(String via, boolean residencia) {
         return new DocumentoPdfService.DadosDocumento(
                 "Roberto Lima", "987.654.321-00", "12.345.678-9", "DETRAN/RJ",

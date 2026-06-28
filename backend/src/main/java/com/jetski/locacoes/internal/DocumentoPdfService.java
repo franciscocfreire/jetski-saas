@@ -162,6 +162,12 @@ public class DocumentoPdfService {
         }
     }
 
+    /** Heurística de magic-number: o conteúdo começa com "%PDF". */
+    private static boolean isPdf(byte[] b) {
+        return b != null && b.length >= 4
+            && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F';
+    }
+
     /** Anexa as páginas de outro PDF (ex.: comprovante da GRU) ao fim do documento. */
     public DocumentoPdf anexarPdf(DocumentoPdf base, byte[] anexoPdf) {
         if (anexoPdf == null || anexoPdf.length == 0) {
@@ -265,24 +271,42 @@ public class DocumentoPdfService {
                         d.cpfCliente(), d.local(), d.dataCurta(), assinaturaPng);
             }
 
+            // Anexos do cliente: imagens vão embutidas; PDFs (ex.: identidade enviada
+            // como PDF) são mesclados como páginas DEPOIS de fechar o documento, pois
+            // não são imagens (Image.getInstance falharia e derrubaria a geração).
+            java.util.List<byte[]> anexosPdf = new java.util.ArrayList<>();
             if (anexos != null) {
                 for (AnexoImagem a : anexos) {
                     if (a == null || a.bytes() == null || a.bytes().length == 0) {
                         continue;
                     }
-                    first = section(doc, first);
-                    writeImagemAnexo(doc, f, a.titulo(), a.bytes());
+                    if (isPdf(a.bytes())) {
+                        anexosPdf.add(a.bytes());
+                        continue;
+                    }
+                    section(doc, first);
+                    first = false;
+                    try {
+                        writeImagemAnexo(doc, f, a.titulo(), a.bytes());
+                    } catch (Exception e) {
+                        log.warn("Anexo '{}' ignorado (imagem ilegível): {}", a.titulo(), e.getMessage());
+                    }
                 }
             }
 
-            // Nenhuma seção selecionada p/ este destino → evita "document has no pages".
-            if (first) {
+            // Sem páginas geradas e sem anexos em PDF → evita "document has no pages".
+            if (first && anexosPdf.isEmpty()) {
                 doc.add(new Paragraph("(Sem seções selecionadas para este destino.)", f.sans));
             }
 
             doc.close();
             byte[] bytes = baos.toByteArray();
-            log.info("PDF consolidado gerado: {} bytes (via={})", bytes.length, d.via());
+            // Mescla os anexos em PDF ao final (cada um pode ter várias páginas).
+            for (byte[] anexoPdf : anexosPdf) {
+                bytes = anexarPdf(new DocumentoPdf(bytes, ""), anexoPdf).conteudo();
+            }
+            log.info("PDF consolidado gerado: {} bytes (via={}, anexosPdf={})",
+                    bytes.length, d.via(), anexosPdf.size());
             return new DocumentoPdf(bytes, sha256Hex(bytes));
         } catch (DocumentException | IOException e) {
             throw new IllegalStateException("Falha ao gerar o PDF consolidado", e);
