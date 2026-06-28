@@ -19,6 +19,7 @@ import com.jetski.shared.email.EmailService;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.shared.storage.StorageService;
 import com.jetski.tenant.TenantQueryService;
+import com.jetski.tenant.domain.DocumentoConfig;
 import com.jetski.tenant.domain.Tenant;
 import lombok.Builder;
 import lombok.Value;
@@ -97,21 +98,20 @@ public class EmissaoService {
         byte[] assinatura = lerAssinatura(aceite.getAssinaturaS3Key());
 
         DocumentoPdfService.DadosDocumento dados = montarDados(reserva, cliente, hab, tenant);
-        DocumentoPdfService.DocumentoPdf pdf = documentoPdfService.gerarDocumentoConsolidado(
-            dados, assinatura, anexosDoCliente(cliente.getId()));
+        DocumentoConfig cfg = configDocumento(tenant);
 
-        // Anexa o comprovante de pagamento da GRU (vai junto à documentação da Marinha).
-        if (hab.getGruComprovanteS3Key() != null) {
-            try {
-                pdf = documentoPdfService.anexarPdf(pdf,
-                    storageService.getObject(hab.getGruComprovanteS3Key()));
-            } catch (Exception e) {
-                log.warn("Comprovante da GRU não anexado ao PDF (reserva {}): {}", reservaId, e.getMessage());
-            }
-        }
+        // PDFs por destino: a Marinha pode receber um recorte diferente do cliente
+        // (ex.: sem o Termo de Responsabilidade), conforme a parametrização do tenant.
+        DocumentoPdfService.DocumentoPdf pdfCliente =
+            gerarParaDestino(dados, assinatura, cliente.getId(), hab, cfg.cliente(), false);
+        DocumentoPdfService.DocumentoPdf pdfMarinha =
+            gerarParaDestino(dados, assinatura, cliente.getId(), hab, cfg.marinha(), false);
 
+        // Canônico p/ download/consulta = visão do cliente (completa). Marinha à parte.
         String key = String.format("%s/reserva/%s/documento.pdf", reserva.getTenantId(), reservaId);
-        storageService.putObject(key, pdf.conteudo(), "application/pdf");
+        storageService.putObject(key, pdfCliente.conteudo(), "application/pdf");
+        storageService.putObject(keyMarinha(reserva.getTenantId(), reservaId),
+            pdfMarinha.conteudo(), "application/pdf");
 
         String marinhaEmail = tenant.getMarinhaEmail();
         String clienteEmail = cliente.getEmail();
@@ -120,7 +120,7 @@ public class EmissaoService {
             .tenantId(reserva.getTenantId())
             .reservaId(reservaId)
             .s3Key(key)
-            .hashSha256(pdf.sha256())
+            .hashSha256(pdfCliente.sha256())
             .destinos(destinosJson(marinhaEmail, clienteEmail))
             .emitidoEm(Instant.now())
             .build());
@@ -142,9 +142,9 @@ public class EmissaoService {
 
         // E-mail à Marinha só quando a documentação está completa.
         boolean enviadoMarinha = docCompleta && enviar(marinhaEmail,
-            "Documentos NORMAM-212 — reserva " + reservaId, corpoMarinha(cliente), pdf.conteudo());
+            "Documentos NORMAM-212 — reserva " + reservaId, corpoMarinha(cliente), pdfMarinha.conteudo());
         boolean enviadoCliente = enviar(clienteEmail,
-            "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente), pdf.conteudo());
+            "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente), pdfCliente.conteudo());
         if (!docCompleta) {
             log.info("Marinha NÃO notificada (reserva {}): pendências {}", reservaId, pendencias);
         }
@@ -160,7 +160,7 @@ public class EmissaoService {
         return ResultadoEmissao.builder()
             .documentoId(doc.getId())
             .s3Key(key)
-            .hashSha256(pdf.sha256())
+            .hashSha256(pdfCliente.sha256())
             .downloadUrl(downloadUrl)
             .gruNumero(hab.getGruNumero())
             .gruValor(hab.getGruValor() != null ? hab.getGruValor().toPlainString() : null)
@@ -193,6 +193,79 @@ public class EmissaoService {
 
     private static boolean vazio(String s) {
         return s == null || s.isBlank();
+    }
+
+    /** Destino do documento — define o recorte de seções e a marca d'água da prévia. */
+    public enum Destino { MARINHA, CLIENTE }
+
+    private DocumentoConfig configDocumento(Tenant tenant) {
+        DocumentoConfig c = tenant.getDocumentoConfig();
+        return (c != null ? c : DocumentoConfig.padrao()).comDefaults();
+    }
+
+    private String keyMarinha(UUID tenantId, UUID reservaId) {
+        return String.format("%s/reserva/%s/documento-marinha.pdf", tenantId, reservaId);
+    }
+
+    /**
+     * Monta o PDF para um destino, aplicando o recorte de seções configurado
+     * (1-C/5-C/5-B/Termo internos + anexos do cliente + comprovante da GRU).
+     */
+    private DocumentoPdfService.DocumentoPdf gerarParaDestino(
+            DocumentoPdfService.DadosDocumento dados, byte[] assinatura, UUID clienteId,
+            ReservaHabilitacao hab, DocumentoConfig.Destino cfg, boolean rascunho) {
+        java.util.Set<DocumentoPdfService.Secao> secoes =
+            java.util.EnumSet.noneOf(DocumentoPdfService.Secao.class);
+        if (cfg.residenciaOn()) secoes.add(DocumentoPdfService.Secao.RESIDENCIA);
+        if (cfg.saudeOn()) secoes.add(DocumentoPdfService.Secao.SAUDE);
+        if (cfg.instrutorOn()) secoes.add(DocumentoPdfService.Secao.INSTRUTOR);
+        if (cfg.termoOn()) secoes.add(DocumentoPdfService.Secao.TERMO);
+
+        java.util.List<DocumentoPdfService.AnexoImagem> anexos =
+            cfg.anexosClienteOn() ? anexosDoCliente(clienteId) : java.util.List.of();
+
+        DocumentoPdfService.DocumentoPdf pdf =
+            documentoPdfService.gerarDocumentoConsolidado(dados, assinatura, anexos, secoes, rascunho);
+
+        if (cfg.comprovanteGruOn() && hab != null && hab.getGruComprovanteS3Key() != null) {
+            try {
+                pdf = documentoPdfService.anexarPdf(pdf,
+                    storageService.getObject(hab.getGruComprovanteS3Key()));
+            } catch (Exception e) {
+                log.warn("Comprovante da GRU não anexado ao PDF: {}", e.getMessage());
+            }
+        }
+        return pdf;
+    }
+
+    /**
+     * Gera, sem enviar nem persistir, a prévia do PDF que um destino receberá
+     * (respeitando a parametrização do tenant). Carimba "RASCUNHO" enquanto a
+     * documentação ainda tem pendências — útil quando a GRU não foi paga e os
+     * documentos definitivos ainda não podem ser emitidos.
+     */
+    @Transactional(readOnly = true)
+    public byte[] preview(UUID reservaId, Destino destino) {
+        Reserva reserva = reservaRepository.findById(reservaId)
+            .orElseThrow(() -> new NotFoundException("Reserva não encontrada: " + reservaId));
+        ReservaHabilitacao hab = habilitacaoRepository.findByReservaId(reservaId)
+            .orElseThrow(() -> new BusinessException("Registre a habilitação antes de pré-visualizar"));
+        Cliente cliente = clienteRepository.findById(reserva.getClienteId())
+            .orElseThrow(() -> new NotFoundException("Cliente não encontrado: " + reserva.getClienteId()));
+        Tenant tenant = tenantQueryService.findById(reserva.getTenantId());
+        if (tenant == null) {
+            throw new NotFoundException("Tenant não encontrado: " + reserva.getTenantId());
+        }
+
+        ReservaAceite aceite = aceiteRepository.findFirstByReservaIdOrderByAceitoEmDesc(reservaId).orElse(null);
+        byte[] assinatura = (aceite != null) ? lerAssinatura(aceite.getAssinaturaS3Key()) : null;
+
+        DocumentoPdfService.DadosDocumento dados = montarDados(reserva, cliente, hab, tenant);
+        DocumentoConfig cfg = configDocumento(tenant);
+        DocumentoConfig.Destino destinoCfg = (destino == Destino.MARINHA) ? cfg.marinha() : cfg.cliente();
+
+        boolean rascunho = !pendenciasDocumentacao(hab, cliente).isEmpty();
+        return gerarParaDestino(dados, assinatura, cliente.getId(), hab, destinoCfg, rascunho).conteudo();
     }
 
     private DocumentoPdfService.DadosDocumento montarDados(Reserva reserva, Cliente cliente,
@@ -344,11 +417,19 @@ public class EmissaoService {
             throw new NotFoundException("Tenant não encontrado: " + reserva.getTenantId());
         }
 
-        byte[] pdf = storageService.getObject(doc.getS3Key());
+        byte[] pdfCliente = storageService.getObject(doc.getS3Key());
+        // PDF específico da Marinha, se existir (emissões novas); senão, o canônico.
+        byte[] pdfMarinha = pdfCliente;
+        String marinhaKey = keyMarinha(reserva.getTenantId(), reserva.getId());
+        try {
+            pdfMarinha = storageService.getObject(marinhaKey);
+        } catch (Exception e) {
+            log.debug("PDF da Marinha ausente ({}), reenvio usa o canônico: {}", marinhaKey, e.getMessage());
+        }
         boolean enviadoMarinha = enviar(tenant.getMarinhaEmail(),
-            "Documentos NORMAM-212 — reserva " + reserva.getId(), corpoMarinha(cliente), pdf);
+            "Documentos NORMAM-212 — reserva " + reserva.getId(), corpoMarinha(cliente), pdfMarinha);
         boolean enviadoCliente = enviar(cliente.getEmail(),
-            "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente), pdf);
+            "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente), pdfCliente);
         log.info("Reenvio de documento: docId={}, marinha={}, cliente={}",
             documentoId, enviadoMarinha, enviadoCliente);
         return ResultadoReenvio.builder()

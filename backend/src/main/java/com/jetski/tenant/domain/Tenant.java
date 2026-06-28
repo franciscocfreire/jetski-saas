@@ -175,6 +175,13 @@ public class Tenant {
     @Column(name = "comissao_config", columnDefinition = "jsonb")
     private ComissaoConfig comissaoConfig;
 
+    // ========== CONFIGURAÇÃO DE DOCUMENTOS (emissão) ==========
+
+    /** O que vai em cada destino (Marinha vs Cliente) na emissão. Ver {@link DocumentoConfig}. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "documento_config", columnDefinition = "jsonb")
+    private DocumentoConfig documentoConfig;
+
     @PrePersist
     protected void onCreate() {
         createdAt = Instant.now();

@@ -6,6 +6,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -38,6 +40,29 @@ public class EmissaoController {
         log.info("POST /v1/tenants/{}/reservas/{}/emitir-documentos", tenantId, id);
         validateTenantContext(tenantId);
         return ResponseEntity.ok(emissaoService.emitir(id));
+    }
+
+    @GetMapping(value = "/preview", produces = MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Pré-visualizar o documento (sem enviar)",
+        description = "Gera o PDF que o destino (MARINHA|CLIENTE) receberá, respeitando a parametrização "
+                    + "do tenant. Não envia e-mail, não persiste e não altera o status. Carimba RASCUNHO "
+                    + "enquanto houver pendências."
+    )
+    public ResponseEntity<byte[]> preview(
+        @Parameter(description = "UUID do tenant") @PathVariable UUID tenantId,
+        @Parameter(description = "UUID da reserva") @PathVariable UUID id,
+        @Parameter(description = "Destino: MARINHA ou CLIENTE")
+        @RequestParam(defaultValue = "CLIENTE") EmissaoService.Destino destino
+    ) {
+        validateTenantContext(tenantId);
+        byte[] pdf = emissaoService.preview(id, destino);
+        String nome = "previa-" + destino.name().toLowerCase() + ".pdf";
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_PDF)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + nome + "\"")
+            .body(pdf);
     }
 
     private void validateTenantContext(UUID tenantId) {

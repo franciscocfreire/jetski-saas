@@ -5,6 +5,7 @@ import { useMutation } from '@tanstack/react-query'
 import { FileDown, CheckCircle2, Anchor, Mail, Printer, AlertTriangle, Ship } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { DocumentoPreviewButtons } from '@/components/documento-preview-buttons'
 import { reservasService, documentosService } from '@/lib/api/services'
 import type { Atendimento } from '../types'
 import type { ResultadoEmissao } from '@/lib/api/types'
@@ -149,6 +150,9 @@ export function StepEmissao({
             comprovante) e <strong>emita os documentos depois</strong> em Pendências → Retomar.
           </p>
         </div>
+        {atendimento.reserva && (
+          <DocumentoPreviewButtons reservaId={atendimento.reserva.id} className="rounded-lg border p-4" />
+        )}
         <div className="flex justify-between">
           <Button type="button" variant="outline" onClick={onBack}>Voltar</Button>
           <Button type="button" onClick={onReset}>Concluir atendimento</Button>
@@ -164,6 +168,9 @@ export function StepEmissao({
         Gera o PDF consolidado (anexos + termo + assinatura), arquiva, envia à Marinha e ao
         cliente, e disponibiliza a GRU.
       </p>
+      {atendimento.reserva && (
+        <DocumentoPreviewButtons reservaId={atendimento.reserva.id} className="rounded-lg border p-4" />
+      )}
       <div className="flex justify-between">
         <Button type="button" variant="outline" onClick={onBack}>
           Voltar

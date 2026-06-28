@@ -13,7 +13,10 @@ import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
 import com.lowagie.text.Rectangle;
 import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfContentByte;
 import com.lowagie.text.pdf.PdfCopy;
+import com.lowagie.text.pdf.PdfGState;
+import com.lowagie.text.pdf.PdfPageEventHelper;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfReader;
@@ -21,10 +24,13 @@ import com.lowagie.text.pdf.PdfWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.EnumSet;
+import java.util.Set;
 
 /**
  * Geração de documentos em PDF (OpenPDF) para a emissão do balcão.
@@ -118,6 +124,44 @@ public class DocumentoPdfService {
     /** Imagem anexada ao fim do PDF (documento de identidade, comprovante, selfie). */
     public record AnexoImagem(String titulo, byte[] bytes) {}
 
+    /**
+     * Seções renderizadas pelo PDF consolidado, controláveis por destino
+     * (Marinha vs Cliente). {@code ANEXOS_CLIENTE} e {@code COMPROVANTE_GRU} são
+     * resolvidos fora (no orquestrador), por dependerem de storage.
+     */
+    public enum Secao { RESIDENCIA, SAUDE, INSTRUTOR, TERMO }
+
+    /** Conjunto com todas as seções internas (comportamento legado: inclui tudo). */
+    public static final Set<Secao> TODAS = EnumSet.allOf(Secao.class);
+
+    /**
+     * Carimba "RASCUNHO" na diagonal de cada página — usado nas prévias, antes de
+     * a documentação estar completa para envio.
+     */
+    private static final class RascunhoWatermark extends PdfPageEventHelper {
+        @Override
+        public void onEndPage(PdfWriter writer, Document document) {
+            PdfContentByte cb = writer.getDirectContentUnder();
+            PdfGState gs = new PdfGState();
+            gs.setFillOpacity(0.10f);
+            cb.saveState();
+            cb.setGState(gs);
+            try {
+                BaseFont bf = BaseFont.createFont(BaseFont.HELVETICA_BOLD, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
+                cb.beginText();
+                cb.setFontAndSize(bf, 90);
+                cb.setColorFill(Color.RED);
+                Rectangle size = document.getPageSize();
+                cb.showTextAligned(Element.ALIGN_CENTER, "RASCUNHO",
+                        size.getWidth() / 2, size.getHeight() / 2, 45);
+                cb.endText();
+            } catch (Exception e) {
+                log.debug("watermark RASCUNHO não aplicada: {}", e.getMessage());
+            }
+            cb.restoreState();
+        }
+    }
+
     /** Anexa as páginas de outro PDF (ex.: comprovante da GRU) ao fim do documento. */
     public DocumentoPdf anexarPdf(DocumentoPdf base, byte[] anexoPdf) {
         if (anexoPdf == null || anexoPdf.length == 0) {
@@ -169,23 +213,39 @@ public class DocumentoPdfService {
 
     public DocumentoPdf gerarDocumentoConsolidado(DadosDocumento d, byte[] assinaturaPng,
             java.util.List<AnexoImagem> anexos) {
+        return gerarDocumentoConsolidado(d, assinaturaPng, anexos, TODAS, false);
+    }
+
+    /**
+     * @param secoes   quais seções internas (1-C/5-C/5-B/Termo) renderizar — permite
+     *                 recortes por destino (ex.: Marinha sem o Termo de Responsabilidade)
+     * @param rascunho carimba "RASCUNHO" na diagonal (prévia antes da emissão definitiva)
+     */
+    public DocumentoPdf gerarDocumentoConsolidado(DadosDocumento d, byte[] assinaturaPng,
+            java.util.List<AnexoImagem> anexos, Set<Secao> secoes, boolean rascunho) {
+        Set<Secao> sec = (secoes == null) ? TODAS : secoes;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         Document doc = new Document(PageSize.A4, 56, 56, 54, 54);
         try {
-            PdfWriter.getInstance(doc, baos);
+            PdfWriter writer = PdfWriter.getInstance(doc, baos);
+            if (rascunho) {
+                writer.setPageEvent(new RascunhoWatermark());
+            }
             doc.open();
             Fonts f = new Fonts();
 
             boolean ema = "EMA".equalsIgnoreCase(d.via());
             boolean first = true;
 
-            if (ema && d.incluirResidencia()) {
+            if (ema && d.incluirResidencia() && sec.contains(Secao.RESIDENCIA)) {
                 first = section(doc, first);
                 writeAnexo1C(doc, f, d, assinaturaPng);
             }
-            if (ema) {
+            if (ema && sec.contains(Secao.SAUDE)) {
                 first = section(doc, first);
                 writeAnexo5C(doc, f, d, assinaturaPng);
+            }
+            if (ema && sec.contains(Secao.INSTRUTOR)) {
                 // 5-B em inglês p/ estrangeiro (substitui o PT); senão, em português
                 if (d.incluirIngles()) {
                     first = section(doc, first);
@@ -199,9 +259,11 @@ public class DocumentoPdfService {
                     writeAnexo5B2(doc, f, d, assinaturaPng);
                 }
             }
-            first = section(doc, first);
-            writeTermo(doc, f, d.razaoSocialLoja(), d.cnpjLoja(), d.nomeCliente(),
-                    d.cpfCliente(), d.local(), d.dataCurta(), assinaturaPng);
+            if (sec.contains(Secao.TERMO)) {
+                first = section(doc, first);
+                writeTermo(doc, f, d.razaoSocialLoja(), d.cnpjLoja(), d.nomeCliente(),
+                        d.cpfCliente(), d.local(), d.dataCurta(), assinaturaPng);
+            }
 
             if (anexos != null) {
                 for (AnexoImagem a : anexos) {
@@ -211,6 +273,11 @@ public class DocumentoPdfService {
                     first = section(doc, first);
                     writeImagemAnexo(doc, f, a.titulo(), a.bytes());
                 }
+            }
+
+            // Nenhuma seção selecionada p/ este destino → evita "document has no pages".
+            if (first) {
+                doc.add(new Paragraph("(Sem seções selecionadas para este destino.)", f.sans));
             }
 
             doc.close();

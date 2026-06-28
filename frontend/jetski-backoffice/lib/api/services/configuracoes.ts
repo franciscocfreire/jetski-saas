@@ -2,6 +2,7 @@ import { apiClient, getTenantId } from '../client'
 import type {
   ComissaoConfig,
   ComissaoConfigRequest,
+  DocumentoConfig,
   TenantGeralConfig,
   TenantGeralConfigRequest,
 } from '../types'
@@ -41,6 +42,17 @@ export const configuracoesService = {
 
   async updateTenantConfig(request: TenantGeralConfigRequest): Promise<TenantGeralConfig> {
     const { data } = await apiClient.put<TenantGeralConfig>(`${getBasePath()}/geral`, request)
+    return data
+  },
+
+  /** Parametrização de emissão: o que vai para Marinha vs Cliente. */
+  async getDocumentoConfig(): Promise<DocumentoConfig> {
+    const { data } = await apiClient.get<DocumentoConfig>(`${getBasePath()}/documento`)
+    return data
+  },
+
+  async updateDocumentoConfig(request: DocumentoConfig): Promise<DocumentoConfig> {
+    const { data } = await apiClient.put<DocumentoConfig>(`${getBasePath()}/documento`, request)
     return data
   },
 }

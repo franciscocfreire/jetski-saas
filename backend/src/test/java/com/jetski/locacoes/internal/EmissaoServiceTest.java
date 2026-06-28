@@ -30,6 +30,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -87,7 +88,7 @@ class EmissaoServiceTest {
         when(storage.getObject(anyString())).thenReturn("png".getBytes());
         when(storage.generatePresignedDownloadUrl(anyString(), anyInt()))
             .thenReturn(PresignedUrl.builder().url("http://download/doc.pdf").build());
-        when(pdfService.gerarDocumentoConsolidado(any(), any(), any()))
+        when(pdfService.gerarDocumentoConsolidado(any(), any(), any(), any(), anyBoolean()))
             .thenReturn(new DocumentoPdfService.DocumentoPdf("%PDF-fake".getBytes(), "abc123hash"));
         when(docRepo.save(any(DocumentoEmitido.class))).thenAnswer(i -> i.getArgument(0));
     }
@@ -103,7 +104,8 @@ class EmissaoServiceTest {
         assertThat(r.isEnviadoCliente()).isTrue();
         assertThat(r.getGruNumero()).isEqualTo("GRU-1");
 
-        verify(storage).putObject(anyString(), any(), eq("application/pdf"));
+        // Dois PDFs arquivados: visão do cliente (canônico) + recorte da Marinha.
+        verify(storage, times(2)).putObject(anyString(), any(), eq("application/pdf"));
         verify(docRepo).save(any(DocumentoEmitido.class));
         verify(reservaRepo).save(any(Reserva.class)); // documento_emitido_em
         verify(email, times(2)).sendEmailComAnexo(anyString(), anyString(), anyString(), anyString(), any(), anyString());

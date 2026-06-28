@@ -6,6 +6,7 @@ import com.jetski.tenant.api.dto.ComissaoConfigRequest;
 import com.jetski.tenant.api.dto.TenantGeralConfigRequest;
 import com.jetski.tenant.api.dto.TenantGeralConfigResponse;
 import com.jetski.tenant.domain.ComissaoConfig;
+import com.jetski.tenant.domain.DocumentoConfig;
 import com.jetski.tenant.domain.Tenant;
 import com.jetski.shared.security.SecretCipher;
 import com.jetski.tenant.internal.repository.TenantRepository;
@@ -146,5 +147,28 @@ public class TenantConfigService {
                 tenantId, config.percentualPadrao(), config.percentualAbaixoBase(), config.bonusAtivo());
 
         return config;
+    }
+
+    /** Parametrização de emissão (o que vai para Marinha vs Cliente). */
+    @Transactional(readOnly = true)
+    public DocumentoConfig getDocumentoConfig(UUID tenantId) {
+        Tenant tenant = tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new NotFoundException("Tenant não encontrado: " + tenantId));
+        DocumentoConfig cfg = tenant.getDocumentoConfig();
+        return (cfg != null ? cfg : DocumentoConfig.padrao()).comDefaults();
+    }
+
+    @Transactional
+    public DocumentoConfig updateDocumentoConfig(UUID tenantId, DocumentoConfig request) {
+        Tenant tenant = tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new NotFoundException("Tenant não encontrado: " + tenantId));
+        if (request == null) {
+            throw new BusinessException("Configuração de documentos ausente");
+        }
+        DocumentoConfig cfg = request.comDefaults();
+        tenant.setDocumentoConfig(cfg);
+        tenantRepository.save(tenant);
+        log.info("DocumentoConfig atualizada para o tenant {}", tenantId);
+        return cfg;
     }
 }

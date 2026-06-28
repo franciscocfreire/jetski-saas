@@ -90,4 +90,16 @@ export const reservasService = {
     )
     return data
   },
+
+  /**
+   * Prévia (sem enviar nem persistir) do PDF que um destino receberá, respeitando
+   * a parametrização do tenant. Carimba RASCUNHO enquanto houver pendências.
+   */
+  async previewDocumento(id: string, destino: 'MARINHA' | 'CLIENTE'): Promise<Blob> {
+    const res = await apiClient.get(`${getBasePath()}/${id}/emitir-documentos/preview`, {
+      params: { destino },
+      responseType: 'blob',
+    })
+    return res.data as Blob
+  },
 }

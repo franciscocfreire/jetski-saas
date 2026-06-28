@@ -5,6 +5,7 @@ import com.jetski.tenant.api.dto.ComissaoConfigResponse;
 import com.jetski.tenant.api.dto.TenantGeralConfigRequest;
 import com.jetski.tenant.api.dto.TenantGeralConfigResponse;
 import com.jetski.tenant.domain.ComissaoConfig;
+import com.jetski.tenant.domain.DocumentoConfig;
 import com.jetski.tenant.internal.TenantConfigService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -101,6 +102,30 @@ public class TenantConfigController {
             @Valid @RequestBody TenantGeralConfigRequest request) {
         log.info("PUT /v1/tenants/{}/config/geral", tenantId);
         return ResponseEntity.ok(tenantConfigService.updateGeralConfig(tenantId, request));
+    }
+
+    @GetMapping("/documento")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Obter parametrização de emissão de documentos",
+        description = "Retorna o que vai em cada destino (Marinha vs Cliente) na emissão."
+    )
+    public ResponseEntity<DocumentoConfig> getDocumentoConfig(@PathVariable UUID tenantId) {
+        log.info("GET /v1/tenants/{}/config/documento", tenantId);
+        return ResponseEntity.ok(tenantConfigService.getDocumentoConfig(tenantId));
+    }
+
+    @PutMapping("/documento")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Atualizar parametrização de emissão de documentos",
+        description = "Define, por seção, o que é enviado à Marinha e ao cliente. Apenas ADMIN_TENANT e GERENTE."
+    )
+    public ResponseEntity<DocumentoConfig> updateDocumentoConfig(
+            @PathVariable UUID tenantId,
+            @RequestBody DocumentoConfig request) {
+        log.info("PUT /v1/tenants/{}/config/documento", tenantId);
+        return ResponseEntity.ok(tenantConfigService.updateDocumentoConfig(tenantId, request));
     }
 
     /**

@@ -3,7 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configuracoesService } from '@/lib/api/services'
-import type { ComissaoConfigRequest, TenantGeralConfigRequest } from '@/lib/api/types'
+import type {
+  ComissaoConfigRequest,
+  DocumentoConfig,
+  DocumentoConfigDestino,
+  TenantGeralConfigRequest,
+} from '@/lib/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,7 +16,7 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail } from 'lucide-react'
+import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail, FileText } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function ConfiguracoesPage() {
@@ -90,6 +95,34 @@ export default function ConfiguracoesPage() {
       smtpStarttls,
       ...(smtpPassword ? { smtpPassword } : {}),
     })
+
+  // Parametrização da emissão: o que vai para Marinha vs Cliente (por seção).
+  const [docCfg, setDocCfg] = useState<DocumentoConfig | null>(null)
+  const { data: docConfig } = useQuery({
+    queryKey: ['documento-config'],
+    queryFn: () => configuracoesService.getDocumentoConfig(),
+  })
+  useEffect(() => {
+    if (docConfig) setDocCfg(docConfig)
+  }, [docConfig])
+
+  const updateDoc = useMutation({
+    mutationFn: (req: DocumentoConfig) => configuracoesService.updateDocumentoConfig(req),
+    onSuccess: (saved) => {
+      queryClient.invalidateQueries({ queryKey: ['documento-config'] })
+      setDocCfg(saved)
+      toast({ title: 'Configuração de documentos salva', description: 'Recorte por destino atualizado.' })
+    },
+    onError: (e: Error) =>
+      toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' }),
+  })
+
+  const toggleDoc = (destino: 'marinha' | 'cliente', secao: keyof DocumentoConfigDestino) =>
+    setDocCfg((prev) =>
+      prev
+        ? { ...prev, [destino]: { ...prev[destino], [secao]: !prev[destino][secao] } }
+        : prev
+    )
 
   // Populate form when config loads
   useEffect(() => {
@@ -245,6 +278,10 @@ export default function ConfiguracoesPage() {
           <TabsTrigger value="empresa" className="gap-2">
             <Building2 className="h-4 w-4" />
             Empresa &amp; E-mail
+          </TabsTrigger>
+          <TabsTrigger value="documentos" className="gap-2">
+            <FileText className="h-4 w-4" />
+            Documentos
           </TabsTrigger>
         </TabsList>
 
@@ -547,6 +584,91 @@ export default function ConfiguracoesPage() {
                     O contador nunca reseta.
                   </AlertDescription>
                 </Alert>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Documentos: o que vai em cada destino (Marinha vs Cliente) na emissão */}
+        <TabsContent value="documentos" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Emissão — o que vai para cada destino
+              </CardTitle>
+              <CardDescription>
+                Marque as seções enviadas à Marinha (Capitania) e ao cliente. Por padrão, o
+                <strong> Termo de Responsabilidade pelo uso da moto aquática</strong> vai ao cliente, mas
+                não à Marinha (é um instrumento privado entre loja e cliente).
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!docCfg ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-muted-foreground">
+                          <th className="py-2 pr-4 font-medium">Seção</th>
+                          <th className="px-3 py-2 text-center font-medium">Marinha</th>
+                          <th className="px-3 py-2 text-center font-medium">Cliente</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(
+                          [
+                            ['residencia', 'Anexo 1-C — Declaração de residência'],
+                            ['saude', 'Anexo 5-C — Autodeclaração de saúde'],
+                            ['instrutor', 'Anexo 5-B — Atestado de demonstração (instrutor)'],
+                            ['termo', 'Termo de Responsabilidade (uso da moto aquática)'],
+                            ['anexosCliente', 'Anexos do cliente (identidade, comprovante, selfie)'],
+                            ['comprovanteGru', 'Comprovante de pagamento da GRU'],
+                          ] as [keyof DocumentoConfigDestino, string][]
+                        ).map(([secao, label]) => (
+                          <tr key={secao} className="border-b last:border-0">
+                            <td className="py-3 pr-4">{label}</td>
+                            <td className="px-3 py-3 text-center">
+                              <Switch
+                                checked={docCfg.marinha[secao]}
+                                onCheckedChange={() => toggleDoc('marinha', secao)}
+                              />
+                            </td>
+                            <td className="px-3 py-3 text-center">
+                              <Switch
+                                checked={docCfg.cliente[secao]}
+                                onCheckedChange={() => toggleDoc('cliente', secao)}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      As seções 1-C/5-C/5-B só aparecem em habilitações via <strong>EMA</strong> (escola).
+                      Use a <strong>Prévia Marinha/Cliente</strong> na reserva para conferir o resultado.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="flex justify-end">
+                    <Button onClick={() => docCfg && updateDoc.mutate(docCfg)} disabled={updateDoc.isPending}>
+                      {updateDoc.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="mr-2 h-4 w-4" />
+                      )}
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>

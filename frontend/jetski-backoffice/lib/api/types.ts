@@ -1209,6 +1209,22 @@ export interface TenantGeralConfigRequest {
   smtpStarttls?: boolean
 }
 
+/** Seções do documento que podem ir (ou não) a um destino na emissão. */
+export interface DocumentoConfigDestino {
+  residencia: boolean
+  saude: boolean
+  instrutor: boolean
+  termo: boolean
+  anexosCliente: boolean
+  comprovanteGru: boolean
+}
+
+/** Parametrização de emissão: o que vai para Marinha vs Cliente. */
+export interface DocumentoConfig {
+  marinha: DocumentoConfigDestino
+  cliente: DocumentoConfigDestino
+}
+
 // ==========================================
 // Presença de Vendedores Module (Diárias)
 // ==========================================

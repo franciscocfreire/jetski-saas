@@ -38,6 +38,7 @@ import { habilitacaoService, aceiteService, reservasService } from '@/lib/api/se
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import { PixQrCode } from '@/components/pix-qrcode'
 import { waHref } from '@/components/whatsapp-link'
+import { DocumentoPreviewButtons } from '@/components/documento-preview-buttons'
 import type { Reserva } from '@/lib/api/types'
 
 /** Glifo da marca WhatsApp (lucide não traz ícones de marca). */
@@ -428,6 +429,7 @@ export function ReservaDetailSheet({
             label="Documentos emitidos"
             hint={reserva.documentoEmitidoEm ? formatDateTime(reserva.documentoEmitidoEm) : 'pendente'}
           />
+          <DocumentoPreviewButtons reservaId={reserva.id} className="pt-2" />
         </div>
 
         {/* Documentação EMA — entregáveis da escola (sem repetir GRU/comprovante, que vivem no Estágio) */}
