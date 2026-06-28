@@ -71,6 +71,7 @@ function etapasDe(
   obrig?: DocumentoObrigatoriosMarinha
 ): Etapa[] {
   const ema = hab?.via === 'EMA'
+  const emitido = !!r.documentoEmitidoEm
   const req = (b?: boolean) => b !== false // null/undefined = exigido (padrão estrito)
   const etapas: Etapa[] = [
     { chave: 'termos', label: 'Termos', ok: !!aceite, hint: aceite ? 'assinados' : 'pendentes' },
@@ -98,6 +99,29 @@ function etapasDe(
         hint: hab?.gruComprovanteDisponivel ? 'anexado' : 'a anexar',
       }
     )
+    // Gate real da Marinha: habilitação resolvida + todos os obrigatórios (espelha
+    // o pendenciasDocumentacao do backend). documentoEmitidoEm é só "documentos
+    // gerados" — a Marinha só é notificada quando o gate está completo.
+    const marinhaGateOk =
+      !!hab?.gruPago &&
+      (!req(obrig?.identidade) || identidadeOk) &&
+      (!req(obrig?.saude) || !!hab?.anexoSaude) &&
+      (!req(obrig?.regras) || !!hab?.anexoRegras) &&
+      (!req(obrig?.residencia) || !!hab?.anexoResidencia) &&
+      (!req(obrig?.instrutor) || !!hab?.instrutorId) &&
+      dadosOk
+    etapas.push({
+      chave: 'emissao',
+      label: 'Emissão (Marinha)',
+      ok: marinhaGateOk && emitido,
+      hint: marinhaGateOk
+        ? emitido
+          ? 'enviada à Marinha'
+          : 'pronta p/ emitir'
+        : emitido
+          ? 'gerada; Marinha aguarda pendências'
+          : 'a emitir',
+    })
   } else {
     etapas.push({
       chave: 'cha',
@@ -105,13 +129,14 @@ function etapasDe(
       ok: !!hab?.resolvida,
       hint: hab?.chaNumero ? `nº ${hab.chaNumero}` : 'informar CHA',
     })
+    // CHA não tem envio à Marinha — "Emissão" aqui é só a geração do comprovante.
+    etapas.push({
+      chave: 'emissao',
+      label: 'Emissão',
+      ok: emitido,
+      hint: emitido ? 'emitida' : 'a emitir',
+    })
   }
-  etapas.push({
-    chave: 'emissao',
-    label: 'Emissão (Marinha)',
-    ok: !!r.documentoEmitidoEm,
-    hint: r.documentoEmitidoEm ? 'emitidos' : 'a emitir',
-  })
   return etapas
 }
 
