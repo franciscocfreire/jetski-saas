@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { FileUpload } from '@/components/file-upload'
 import { AddressForm, type Address } from '@/components/address-form'
 import { clientesService, habilitacaoService } from '@/lib/api/services'
+import type { Cliente } from '@/lib/api/types'
 import type { Atendimento } from '../types'
 
 /** Endereço salvo do cliente (enderecoJson) → Address, para reaproveitar. */
@@ -35,8 +36,13 @@ export function StepDocumentos({
 }: {
   atendimento: Atendimento
   onBack: () => void
-  onDone: (patch: { endereco?: Address; temComprovanteResidencia: boolean }) => void
+  onDone: (patch: {
+    endereco?: Address
+    temComprovanteResidencia: boolean
+    cliente?: Cliente
+  }) => void
 }) {
+  const qc = useQueryClient()
   const c = atendimento.cliente!
   const [temComprovante, setTemComprovante] = useState(atendimento.temComprovanteResidencia)
   // Reaproveita o endereço já salvo do cliente (enderecoJson) quando voltar numa próxima vez.
@@ -73,7 +79,9 @@ export function StepDocumentos({
 
   const salvarDados = useMutation({
     mutationFn: async () => {
-      await clientesService.update(c.id, {
+      // Guarda o cliente atualizado p/ devolver ao fluxo (senão, ao voltar, o
+      // formulário reinicializa do cliente antigo e parece "não ter salvo").
+      const atualizado = await clientesService.update(c.id, {
         nome: c.nome,
         rg: rg || undefined,
         orgaoEmissor: orgaoEmissor || undefined,
@@ -96,8 +104,13 @@ export function StepDocumentos({
           .registrar(atendimento.reserva.id, { via: 'EMA', anexoResidencia: true })
           .catch(() => null)
       }
+      return atualizado
     },
-    onSuccess: () => onDone({ endereco, temComprovanteResidencia: temComprovante }),
+    onSuccess: (cliente) => {
+      // Recarrega as fotos do cliente (recém-enviadas) ao reabrir o passo.
+      qc.invalidateQueries({ queryKey: ['cliente-anexos', c.id] })
+      onDone({ endereco, temComprovanteResidencia: temComprovante, cliente })
+    },
     onError: () => toast.error('Falha ao salvar os dados do cliente.'),
   })
 
