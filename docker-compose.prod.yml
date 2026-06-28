@@ -108,6 +108,9 @@ services:
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
 
+      # Chave-mestra p/ cifrar segredos em repouso (senha SMTP do tenant).
+      JETSKI_SECRET_KEY: ${JETSKI_SECRET_KEY:-}
+
       JETSKI_FRONTEND_URL: ${PUBLIC_URL}
       JETSKI_EXTERNAL_URL: ${PUBLIC_URL}
       JETSKI_ALLOWED_ORIGINS: ${PUBLIC_URL}

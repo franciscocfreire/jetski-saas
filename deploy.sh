@@ -39,6 +39,12 @@ set -a; . ./.env; set +a
 : "${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}"
 : "${PUBLIC_URL:?defina PUBLIC_URL no .env}"
 
+# Criptografia de segredos (senha SMTP por tenant): recomendado, não obrigatório.
+if [ -z "${JETSKI_SECRET_KEY:-}" ]; then
+  warn "JETSKI_SECRET_KEY não definida — segredos (senha SMTP do tenant) ficam em TEXTO PURO no banco."
+  warn "  Recomendado: gere com 'openssl rand -base64 32' e defina no .env (UMA vez; não mude depois)."
+fi
+
 # 1. Atualiza o código
 if [ "${NO_PULL:-0}" != "1" ]; then
   log "git pull..."
