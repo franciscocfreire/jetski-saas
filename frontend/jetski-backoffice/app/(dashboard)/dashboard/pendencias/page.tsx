@@ -41,20 +41,21 @@ const fmtData = (iso: string) =>
 /** Um estágio do atendimento, na mesma ordem do drawer (Estágio). */
 type Etapa = { chave: string; label: string; ok: boolean; hint?: string }
 
-/** Detalhe do que falta na habilitação EMA (vai no tooltip do chip). */
-function faltaHabilitacao(hab: Habilitacao | null | undefined): string {
-  if (!hab) return 'não registrada'
-  if (hab.resolvida) return hab.via === 'EMA' ? 'GRU paga' : 'CHA informada'
-  if (hab.via === 'EMA') {
-    const falta: string[] = []
-    if (!hab.gruPago) falta.push('GRU')
-    if (!hab.anexoSaude) falta.push('5-C')
-    if (!hab.anexoRegras) falta.push('regras')
-    if (!hab.anexoResidencia) falta.push('residência')
-    if (!hab.instrutorId) falta.push('instrutor')
-    return falta.length ? `falta: ${falta.join(', ')}` : 'pendente'
-  }
-  return 'pendente'
+/** Situação da GRU (EMA) para o tooltip do chip "GRU paga". */
+function hintGru(hab: Habilitacao | null | undefined): string {
+  if (hab?.gruPago) return hab.gruNumero ? `paga · nº ${hab.gruNumero}` : 'paga'
+  if (hab?.gruPixCopiaECola || hab?.gruBoletoDisponivel) return 'gerada — aguardando pagamento'
+  return 'gerar e pagar a GRU'
+}
+
+/** Dados pessoais (anexos NORMAM-212) — necessários só para emitir os documentos. */
+function faltaDadosPessoais(c: Reserva['cliente']): string {
+  const falta: string[] = []
+  if (!c?.rg) falta.push('RG')
+  if (!c?.orgaoEmissor) falta.push('órgão emissor')
+  if (!c?.nacionalidade) falta.push('nacionalidade')
+  if (!c?.naturalidade) falta.push('naturalidade')
+  return falta.length ? `falta: ${falta.join(', ')}` : 'completos'
 }
 
 function etapasDe(
@@ -63,12 +64,37 @@ function etapasDe(
   aceite: { aceitoEm?: string } | null | undefined
 ): Etapa[] {
   const ema = hab?.via === 'EMA'
-  const habLabel = ema ? 'GRU' : hab?.via === 'CHA' ? 'CHA' : 'Habilitação'
-  return [
+  const etapas: Etapa[] = [
     { chave: 'termos', label: 'Termos', ok: !!aceite, hint: aceite ? 'assinados' : 'pendentes' },
-    { chave: 'hab', label: habLabel, ok: !!hab?.resolvida, hint: faltaHabilitacao(hab) },
-    { chave: 'docs', label: 'Documentos', ok: !!r.documentoEmitidoEm, hint: r.documentoEmitidoEm ? 'emitidos' : 'a emitir' },
   ]
+  if (ema) {
+    const c = r.cliente
+    const dadosOk = !!(c?.rg && c?.orgaoEmissor && c?.nacionalidade && c?.naturalidade)
+    etapas.push(
+      { chave: 'dados', label: 'Dados pessoais', ok: dadosOk, hint: faltaDadosPessoais(c) },
+      { chave: 'gru', label: 'GRU paga', ok: !!hab?.gruPago, hint: hintGru(hab) },
+      {
+        chave: 'comprovante',
+        label: 'Comprovante GRU',
+        ok: !!hab?.gruComprovanteDisponivel,
+        hint: hab?.gruComprovanteDisponivel ? 'anexado' : 'a anexar',
+      }
+    )
+  } else {
+    etapas.push({
+      chave: 'cha',
+      label: 'CHA',
+      ok: !!hab?.resolvida,
+      hint: hab?.chaNumero ? `nº ${hab.chaNumero}` : 'informar CHA',
+    })
+  }
+  etapas.push({
+    chave: 'emissao',
+    label: 'Emissão (Marinha)',
+    ok: !!r.documentoEmitidoEm,
+    hint: r.documentoEmitidoEm ? 'emitidos' : 'a emitir',
+  })
+  return etapas
 }
 
 function ChipEtapa({ etapa, proxima }: { etapa: Etapa; proxima: boolean }) {
@@ -241,6 +267,9 @@ export default function PendenciasPage() {
                     <div className="flex items-center gap-2">
                       <p className="truncate font-medium">{r.cliente?.nome || 'Cliente não informado'}</p>
                       <span className="truncate text-sm text-muted-foreground">· {r.modelo?.nome}</span>
+                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                        #{r.id.slice(0, 8)}
+                      </span>
                     </div>
                     {/* Trilha de etapas — o que falta salta em âmbar; a próxima ação ganha um anel. */}
                     <div className="flex flex-wrap items-center gap-1.5">

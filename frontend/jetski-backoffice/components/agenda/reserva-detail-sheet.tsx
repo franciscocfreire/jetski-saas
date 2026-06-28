@@ -36,7 +36,18 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { habilitacaoService, aceiteService, reservasService } from '@/lib/api/services'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
+import { PixQrCode } from '@/components/pix-qrcode'
+import { waHref } from '@/components/whatsapp-link'
 import type { Reserva } from '@/lib/api/types'
+
+/** Glifo da marca WhatsApp (lucide não traz ícones de marca). */
+function WhatsAppGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.945C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.04zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.017-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.247-.694.247-1.289.173-1.413z" />
+    </svg>
+  )
+}
 
 /** Duração (horas) implícita nas datas previstas. */
 function horasDe(r: Reserva): number {
@@ -250,7 +261,12 @@ export function ReservaDetailSheet({
     <Sheet open={open} onOpenChange={fecharComGuarda}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>{reserva.cliente?.nome || 'Reserva'}</SheetTitle>
+          <SheetTitle className="flex items-center gap-2">
+            {reserva.cliente?.nome || 'Reserva'}
+            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-normal text-muted-foreground">
+              #{reserva.id.slice(0, 8)}
+            </span>
+          </SheetTitle>
           <SheetDescription>
             {reserva.modelo?.nome} · {formatDate(reserva.dataInicio)} às {hora}
           </SheetDescription>
@@ -414,26 +430,29 @@ export function ReservaDetailSheet({
           />
         </div>
 
-        {/* Checklist detalhado dos pré-requisitos (EMA) — visibilidade do que foi entregue */}
+        {/* Documentação EMA — entregáveis da escola (sem repetir GRU/comprovante, que vivem no Estágio) */}
         {ema && hab && (
           <>
             <Separator className="my-4" />
             <div className="space-y-2">
-              <h4 className="text-sm font-medium">Pré-requisitos (EMA)</h4>
+              <h4 className="text-sm font-medium">Documentação EMA</h4>
               <Etapa ok={!!hab.videoaulaEm} label="Videoaula assistida" />
               <Etapa ok={!!hab.anexoSaude} label="Autodeclaração de saúde (5-C)" />
               <Etapa ok={!!hab.anexoRegras} label="Anexo de regras de navegação" />
               <Etapa ok={!!hab.anexoResidencia} label="Comprovante/Declaração de residência" />
               <Etapa ok={!!hab.instrutorId} label="Instrutor (atestado de demonstração)" />
-              <Etapa ok={!!reserva.cliente?.rg} label="RG (dados pessoais NORMAM)" />
+            </div>
+
+            <Separator className="my-4" />
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">Dados pessoais (NORMAM-212)</h4>
+              <p className="text-xs text-muted-foreground">
+                Necessários para emitir os documentos (não bloqueiam a reserva).
+              </p>
+              <Etapa ok={!!reserva.cliente?.rg} label="RG" />
               <Etapa ok={!!reserva.cliente?.orgaoEmissor} label="Órgão emissor" />
               <Etapa ok={!!reserva.cliente?.nacionalidade} label="Nacionalidade" />
               <Etapa ok={!!reserva.cliente?.naturalidade} label="Naturalidade" />
-              <Etapa
-                ok={!!hab.gruPago}
-                label="GRU paga"
-                hint={hab.gruNumero ? `nº ${hab.gruNumero}` : ''}
-              />
             </div>
           </>
         )}
@@ -530,13 +549,17 @@ export function ReservaDetailSheet({
               {temPix && (
                 <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/40">
                   <div className="flex items-center gap-2 text-sm font-medium">
-                    <QrCode className="h-4 w-4" /> PIX copia-e-cola
+                    <QrCode className="h-4 w-4" /> PIX da GRU
                   </div>
                   {hab?.gruPixExpiracao && (
                     <p className="text-xs text-muted-foreground">
                       vence {new Date(hab.gruPixExpiracao).toLocaleString('pt-BR')}
                     </p>
                   )}
+                  {/* QR renderizado do copia-e-cola — persiste ao reabrir o atendimento */}
+                  <div className="flex justify-center py-1">
+                    <PixQrCode payload={hab?.gruPixCopiaECola} />
+                  </div>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 truncate rounded bg-background px-2 py-1 text-xs">
                       {hab?.gruPixCopiaECola}
@@ -545,6 +568,7 @@ export function ReservaDetailSheet({
                       type="button"
                       size="sm"
                       variant="outline"
+                      title="Copiar PIX"
                       onClick={() => {
                         navigator.clipboard.writeText(hab!.gruPixCopiaECola!)
                         toast.success('PIX copiado.')
@@ -552,6 +576,28 @@ export function ReservaDetailSheet({
                     >
                       <Copy className="h-3.5 w-3.5" />
                     </Button>
+                    {(() => {
+                      const href = waHref(
+                        reserva.cliente?.telefone,
+                        `Olá${reserva.cliente?.nome ? `, ${reserva.cliente.nome.split(' ')[0]}` : ''}! Segue o PIX da GRU${
+                          hab?.gruValor != null ? ` (${formatCurrency(hab.gruValor)})` : ''
+                        } para pagamento:\n\n${hab?.gruPixCopiaECola}`
+                      )
+                      return href ? (
+                        <Button
+                          asChild
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          title="Enviar PIX por WhatsApp"
+                          className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                        >
+                          <a href={href} target="_blank" rel="noreferrer">
+                            <WhatsAppGlyph className="h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                      ) : null
+                    })()}
                   </div>
                 </div>
               )}
