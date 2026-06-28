@@ -109,6 +109,9 @@ springdoc:
 
 # Custom application properties
 jetski:
+  # Chave-mestra p/ cifrar segredos em repouso (ex.: senha SMTP do tenant).
+  # Vazia = sem criptografia (texto puro). Defina JETSKI_SECRET_KEY em produção.
+  secret-key: ${JETSKI_SECRET_KEY:}
   tenant:
     header-name: X-Tenant-Id
     default-tenant-id: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11

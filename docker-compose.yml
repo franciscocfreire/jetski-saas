@@ -205,6 +205,9 @@ services:
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
 
+      # Chave-mestra p/ cifrar segredos em repouso (senha SMTP do tenant).
+      JETSKI_SECRET_KEY: ${JETSKI_SECRET_KEY:-}
+
       # Frontend URL (for email links)
       JETSKI_FRONTEND_URL: ${JETSKI_FRONTEND_URL:-http://localhost:3001}
 
