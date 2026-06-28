@@ -12,9 +12,14 @@ export function formatCurrency(value: number): string {
   }).format(value)
 }
 
+// App single-region (Brasil): fixa o fuso para não exibir em UTC (ex.: SSR no
+// container roda em UTC → horários 3h adiantados).
+const TZ = 'America/Sao_Paulo'
+
 export function formatDate(date: string | Date): string {
   return new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
+    timeZone: TZ,
   }).format(new Date(date))
 }
 
@@ -22,6 +27,7 @@ export function formatDateTime(date: string | Date): string {
   return new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
     timeStyle: 'short',
+    timeZone: TZ,
   }).format(new Date(date))
 }
 

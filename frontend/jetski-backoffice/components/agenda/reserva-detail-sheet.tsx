@@ -34,7 +34,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { habilitacaoService, aceiteService, reservasService } from '@/lib/api/services'
+import { habilitacaoService, aceiteService, reservasService, clientesService } from '@/lib/api/services'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import { PixQrCode } from '@/components/pix-qrcode'
 import { waHref } from '@/components/whatsapp-link'
@@ -164,6 +164,13 @@ export function ReservaDetailSheet({
     queryFn: () => aceiteService.get(reservaId!),
     enabled: open && !!reservaId,
   })
+  // Anexos do cliente — para checar o documento de identidade (RG/CNH).
+  const { data: anexosTipos } = useQuery({
+    queryKey: ['cliente-anexos-tipos', reserva?.clienteId],
+    queryFn: () => clientesService.listarAnexos(reserva!.clienteId),
+    enabled: open && !!reserva?.clienteId,
+  })
+  const identidadeOk = (anexosTipos ?? []).some((a) => a.tipo === 'IDENTIDADE')
 
   const invalidar = () => qc.invalidateQueries({ queryKey: ['habilitacao', reservaId] })
 
@@ -438,6 +445,7 @@ export function ReservaDetailSheet({
             <Separator className="my-4" />
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Documentação EMA</h4>
+              <Etapa ok={identidadeOk} label="Documento de identidade (RG/CNH)" />
               <Etapa ok={!!hab.videoaulaEm} label="Videoaula assistida" />
               <Etapa ok={!!hab.anexoSaude} label="Autodeclaração de saúde (5-C)" />
               <Etapa ok={!!hab.anexoRegras} label="Anexo de regras de navegação" />

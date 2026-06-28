@@ -12,13 +12,19 @@ import {
   jetskisService,
   habilitacaoService,
   aceiteService,
+  configuracoesService,
 } from '@/lib/api/services'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ReservaDetailSheet } from '@/components/agenda/reserva-detail-sheet'
 import { cn } from '@/lib/utils'
-import type { Reserva, ReservaStatus, Habilitacao } from '@/lib/api/types'
+import type {
+  Reserva,
+  ReservaStatus,
+  Habilitacao,
+  DocumentoObrigatoriosMarinha,
+} from '@/lib/api/types'
 
 
 const statusBadge: Record<ReservaStatus, 'success' | 'warning' | 'secondary'> = {
@@ -32,6 +38,7 @@ const statusBadge: Record<ReservaStatus, 'success' | 'warning' | 'secondary'> = 
 
 const fmtData = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
@@ -59,17 +66,30 @@ function faltaDadosPessoais(c: Reserva['cliente']): string {
 function etapasDe(
   r: Reserva,
   hab: Habilitacao | null | undefined,
-  aceite: { aceitoEm?: string } | null | undefined
+  aceite: { aceitoEm?: string } | null | undefined,
+  identidadeOk: boolean,
+  obrig?: DocumentoObrigatoriosMarinha
 ): Etapa[] {
   const ema = hab?.via === 'EMA'
+  const req = (b?: boolean) => b !== false // null/undefined = exigido (padrão estrito)
   const etapas: Etapa[] = [
     { chave: 'termos', label: 'Termos', ok: !!aceite, hint: aceite ? 'assinados' : 'pendentes' },
   ]
   if (ema) {
     const c = r.cliente
-    const dadosOk = !!(c?.nacionalidade && c?.naturalidade)
+    const reqNac = req(obrig?.nacionalidade)
+    const reqNat = req(obrig?.naturalidade)
+    const dadosOk = (!reqNac || !!c?.nacionalidade) && (!reqNat || !!c?.naturalidade)
+    etapas.push({ chave: 'dados', label: 'Dados pessoais', ok: dadosOk, hint: faltaDadosPessoais(c) })
+    if (req(obrig?.identidade)) {
+      etapas.push({
+        chave: 'identidade',
+        label: 'Identidade (RG/CNH)',
+        ok: identidadeOk,
+        hint: identidadeOk ? 'anexada' : 'anexar foto do documento',
+      })
+    }
     etapas.push(
-      { chave: 'dados', label: 'Dados pessoais', ok: dadosOk, hint: faltaDadosPessoais(c) },
       { chave: 'gru', label: 'GRU paga', ok: !!hab?.gruPago, hint: hintGru(hab) },
       {
         chave: 'comprovante',
@@ -194,6 +214,22 @@ export default function PendenciasPage() {
       staleTime: 30_000,
     })),
   })
+  // Anexos do cliente (p/ checar o documento de identidade) — por reserva.
+  const anexoQueries = useQueries({
+    queries: base.map((r) => ({
+      queryKey: ['cliente-anexos-tipos', r.clienteId],
+      queryFn: () => clientesService.listarAnexos(r.clienteId),
+      enabled: !!currentTenant,
+      staleTime: 30_000,
+    })),
+  })
+  // Parametrização do que é obrigatório para a Marinha (mesma config da emissão).
+  const { data: docCfg } = useQuery({
+    queryKey: ['documento-config'],
+    queryFn: () => configuracoesService.getDocumentoConfig(),
+    enabled: !!currentTenant,
+  })
+  const obrig = docCfg?.obrigatoriosMarinha
 
   const termo = q.trim().toLowerCase()
   const linhas = base
@@ -201,7 +237,9 @@ export default function PendenciasPage() {
       reserva: r,
       hab: habQueries[i]?.data,
       aceite: aceiteQueries[i]?.data,
-      carregando: habQueries[i]?.isLoading || aceiteQueries[i]?.isLoading,
+      identidadeOk: (anexoQueries[i]?.data ?? []).some((a) => a.tipo === 'IDENTIDADE'),
+      carregando:
+        habQueries[i]?.isLoading || aceiteQueries[i]?.isLoading || anexoQueries[i]?.isLoading,
     }))
     .filter(({ reserva }) => !termo || (reserva.cliente?.nome ?? '').toLowerCase().includes(termo))
 
@@ -247,8 +285,8 @@ export default function PendenciasPage() {
         </div>
       ) : (
         <div className="divide-y rounded-xl border">
-          {linhas.map(({ reserva: r, hab, aceite, carregando }) => {
-            const etapas = etapasDe(r, hab, aceite)
+          {linhas.map(({ reserva: r, hab, aceite, identidadeOk, carregando }) => {
+            const etapas = etapasDe(r, hab, aceite, identidadeOk, obrig)
             const faltam = etapas.filter((e) => !e.ok).length
             const proximaIdx = etapas.findIndex((e) => !e.ok)
             return (
