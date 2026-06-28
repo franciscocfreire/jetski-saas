@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { DocumentoPreviewButtons } from '@/components/documento-preview-buttons'
 import { reservasService, documentosService } from '@/lib/api/services'
+import { abrirPdfBlob } from '@/lib/pdf'
 import type { Atendimento } from '../types'
 import type { ResultadoEmissao } from '@/lib/api/types'
 
@@ -25,17 +26,7 @@ export function StepEmissao({
   async function abrirPdf(documentoId: string) {
     try {
       setBaixando(true)
-      const { blob, filename } = await documentosService.download(documentoId)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.target = '_blank'
-      a.rel = 'noopener noreferrer'
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      await abrirPdfBlob(async () => (await documentosService.download(documentoId)).blob, 'documento.pdf')
     } catch (e) {
       console.error('[emissao] download falhou', e)
       toast.error('Não foi possível abrir o PDF.')

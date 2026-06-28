@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { FileUpload } from '@/components/file-upload'
 import { PixQrCode } from '@/components/pix-qrcode'
 import { habilitacaoService, clientesService } from '@/lib/api/services'
+import { abrirPdfBlob } from '@/lib/pdf'
 import type { Atendimento } from '../types'
 import type { HabilitacaoGruResponse } from '@/lib/api/types'
 
@@ -129,25 +130,24 @@ export function StepHabilitacao({
     onError: () => toast.error('Falha ao registrar o comprovante.'),
   })
 
-  const gerarBoleto = useMutation({
-    mutationFn: async () => {
+  // Abre a aba no clique (abrirPdfBlob) p/ o boleto funcionar no iOS Safari.
+  const [boletoBusy, setBoletoBusy] = useState(false)
+  const gerarBoleto = () => {
+    setBoletoBusy(true)
+    abrirPdfBlob(async () => {
       const r = await habilitacaoService.gerarBoleto(atendimento.reserva!.id)
-      if (!r.sucesso) return r
-      const blob = await habilitacaoService.baixarBoleto(atendimento.reserva!.id)
-      window.open(URL.createObjectURL(blob), '_blank')
-      return r
-    },
-    onSuccess: (r) => {
-      if (r.sucesso) {
-        if (r.gruNumero) setGruNumero(r.gruNumero)
-        if (r.gruValor != null) setGruValor(String(r.gruValor))
-        toast.success(r.reaproveitada ? 'Boleto reaproveitado.' : 'Boleto (PDF) gerado.')
-      } else {
+      if (!r.sucesso) {
         toast.warning('Não foi possível gerar o boleto automaticamente.')
+        throw new Error('boleto não gerado')
       }
-    },
-    onError: () => toast.error('Falha ao gerar o boleto.'),
-  })
+      if (r.gruNumero) setGruNumero(r.gruNumero)
+      if (r.gruValor != null) setGruValor(String(r.gruValor))
+      toast.success(r.reaproveitada ? 'Boleto reaproveitado.' : 'Boleto (PDF) gerado.')
+      return habilitacaoService.baixarBoleto(atendimento.reserva!.id)
+    }, 'boleto.pdf')
+      .catch(() => {})
+      .finally(() => setBoletoBusy(false))
+  }
 
   const avancar = useMutation({
     mutationFn: async () => {
@@ -230,8 +230,8 @@ export function StepHabilitacao({
               <Button type="button" size="sm" variant="secondary" disabled={gerarGru.isPending} onClick={() => gerarGru.mutate()}>
                 {gerarGru.isPending ? 'Gerando…' : 'Gerar PIX'}
               </Button>
-              <Button type="button" size="sm" variant="outline" disabled={gerarBoleto.isPending} onClick={() => gerarBoleto.mutate()}>
-                {gerarBoleto.isPending ? 'Gerando…' : 'Gerar boleto (PDF)'}
+              <Button type="button" size="sm" variant="outline" disabled={boletoBusy} onClick={gerarBoleto}>
+                {boletoBusy ? 'Gerando…' : 'Gerar boleto (PDF)'}
               </Button>
             </div>
           </div>

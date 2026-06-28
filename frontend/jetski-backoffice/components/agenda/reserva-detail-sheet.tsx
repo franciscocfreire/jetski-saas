@@ -38,6 +38,7 @@ import { habilitacaoService, aceiteService, reservasService, clientesService } f
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import { PixQrCode } from '@/components/pix-qrcode'
 import { waHref } from '@/components/whatsapp-link'
+import { abrirPdfBlob } from '@/lib/pdf'
 import { DocumentoPreviewButtons } from '@/components/documento-preview-buttons'
 import type { Reserva } from '@/lib/api/types'
 
@@ -186,29 +187,31 @@ export function ReservaDetailSheet({
     onError: () => toast.error('Falha ao gerar o PIX.'),
   })
 
-  const gerarBoleto = useMutation({
-    mutationFn: async () => {
-      const r = await habilitacaoService.gerarBoleto(reservaId!)
-      if (r.sucesso) {
-        const blob = await habilitacaoService.baixarBoleto(reservaId!)
-        window.open(URL.createObjectURL(blob), '_blank')
-      }
-      return r
-    },
-    onSuccess: (r) => {
-      invalidar()
-      toast[r.sucesso ? 'success' : 'warning'](
-        r.sucesso ? 'Boleto gerado.' : 'Não foi possível gerar o boleto automaticamente.'
-      )
-    },
-    onError: () => toast.error('Falha ao gerar o boleto.'),
-  })
+  // Abertura de PDF: a aba é aberta no clique (abrirPdfBlob) p/ funcionar no iOS.
+  const [pdfBusy, setPdfBusy] = useState<'gerarBoleto' | 'baixarBoleto' | 'comprovante' | null>(null)
 
-  const baixarBoleto = useMutation({
-    mutationFn: () => habilitacaoService.baixarBoleto(reservaId!),
-    onSuccess: (blob) => window.open(URL.createObjectURL(blob), '_blank'),
-    onError: () => toast.error('Falha ao baixar o boleto.'),
-  })
+  const gerarBoleto = () => {
+    setPdfBusy('gerarBoleto')
+    abrirPdfBlob(async () => {
+      const r = await habilitacaoService.gerarBoleto(reservaId!)
+      invalidar()
+      if (!r.sucesso) {
+        toast.warning('Não foi possível gerar o boleto automaticamente.')
+        throw new Error('boleto não gerado')
+      }
+      toast.success('Boleto gerado.')
+      return habilitacaoService.baixarBoleto(reservaId!)
+    }, 'boleto.pdf')
+      .catch(() => {})
+      .finally(() => setPdfBusy(null))
+  }
+
+  const baixarBoleto = () => {
+    setPdfBusy('baixarBoleto')
+    abrirPdfBlob(() => habilitacaoService.baixarBoleto(reservaId!), 'boleto.pdf')
+      .catch(() => toast.error('Falha ao baixar o boleto.'))
+      .finally(() => setPdfBusy(null))
+  }
 
   const verificarPagamento = useMutation({
     mutationFn: () => habilitacaoService.verificarPagamento(reservaId!),
@@ -222,11 +225,12 @@ export function ReservaDetailSheet({
     onError: () => toast.error('Falha ao verificar o pagamento.'),
   })
 
-  const baixarComprovante = useMutation({
-    mutationFn: () => habilitacaoService.baixarComprovante(reservaId!),
-    onSuccess: (blob) => window.open(URL.createObjectURL(blob), '_blank'),
-    onError: () => toast.error('Falha ao baixar o comprovante.'),
-  })
+  const baixarComprovante = () => {
+    setPdfBusy('comprovante')
+    abrirPdfBlob(() => habilitacaoService.baixarComprovante(reservaId!), 'comprovante.pdf')
+      .catch(() => toast.error('Falha ao baixar o comprovante.'))
+      .finally(() => setPdfBusy(null))
+  }
 
   const enviarComprovante = useMutation({
     mutationFn: () => habilitacaoService.registrarComprovante(reservaId!, compFile!),
@@ -617,11 +621,11 @@ export function ReservaDetailSheet({
                   type="button"
                   variant="outline"
                   className="w-full"
-                  disabled={baixarBoleto.isPending}
-                  onClick={() => baixarBoleto.mutate()}
+                  disabled={pdfBusy === 'baixarBoleto'}
+                  onClick={baixarBoleto}
                 >
                   <FileDown className="mr-2 h-4 w-4" />
-                  {baixarBoleto.isPending ? 'Abrindo…' : 'Baixar boleto (PDF)'}
+                  {pdfBusy === 'baixarBoleto' ? 'Abrindo…' : 'Baixar boleto (PDF)'}
                 </Button>
               )}
 
@@ -646,10 +650,10 @@ export function ReservaDetailSheet({
                     size="sm"
                     variant="outline"
                     className="flex-1"
-                    disabled={gerarBoleto.isPending}
-                    onClick={() => gerarBoleto.mutate()}
+                    disabled={pdfBusy === 'gerarBoleto'}
+                    onClick={gerarBoleto}
                   >
-                    {gerarBoleto.isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                    {pdfBusy === 'gerarBoleto' && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
                     Gerar boleto
                   </Button>
                 )}
@@ -665,11 +669,11 @@ export function ReservaDetailSheet({
               type="button"
               variant="outline"
               className="w-full"
-              disabled={baixarComprovante.isPending}
-              onClick={() => baixarComprovante.mutate()}
+              disabled={pdfBusy === 'comprovante'}
+              onClick={baixarComprovante}
             >
               <Receipt className="mr-2 h-4 w-4" />
-              {baixarComprovante.isPending ? 'Abrindo…' : 'Baixar comprovante (PDF)'}
+              {pdfBusy === 'comprovante' ? 'Abrindo…' : 'Baixar comprovante (PDF)'}
             </Button>
           </>
         )}

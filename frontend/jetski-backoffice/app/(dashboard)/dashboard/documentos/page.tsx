@@ -7,6 +7,7 @@ import { FileText, FileDown, Search, Loader2, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { documentosService, clientesService } from '@/lib/api/services'
+import { abrirPdfBlob } from '@/lib/pdf'
 import type { Cliente } from '@/lib/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -59,19 +60,8 @@ function DocumentosConteudo() {
   async function baixar(id: string) {
     try {
       setBaixandoId(id)
-      const { blob, filename } = await documentosService.download(id)
-      const url = URL.createObjectURL(blob)
-      // abre em nova aba; o navegador renderiza o PDF inline (Content-Type)
-      const a = document.createElement('a')
-      a.href = url
-      a.target = '_blank'
-      a.rel = 'noopener noreferrer'
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      // revoga depois de um tempo para a aba conseguir carregar
-      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      // Abre a aba no clique (iOS Safari) e renderiza o PDF inline.
+      await abrirPdfBlob(async () => (await documentosService.download(id)).blob, 'documento.pdf')
     } catch (e) {
       console.error('[documentos] download falhou', e)
       alert('Não foi possível baixar o documento.')
