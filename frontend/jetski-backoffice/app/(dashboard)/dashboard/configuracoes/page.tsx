@@ -7,6 +7,7 @@ import type {
   ComissaoConfigRequest,
   DocumentoConfig,
   DocumentoConfigDestino,
+  DocumentoObrigatoriosMarinha,
   TenantGeralConfigRequest,
 } from '@/lib/api/types'
 import { Button } from '@/components/ui/button'
@@ -121,6 +122,19 @@ export default function ConfiguracoesPage() {
     setDocCfg((prev) =>
       prev
         ? { ...prev, [destino]: { ...prev[destino], [secao]: !prev[destino][secao] } }
+        : prev
+    )
+
+  const toggleObrig = (item: keyof DocumentoObrigatoriosMarinha) =>
+    setDocCfg((prev) =>
+      prev
+        ? {
+            ...prev,
+            obrigatoriosMarinha: {
+              ...prev.obrigatoriosMarinha,
+              [item]: !prev.obrigatoriosMarinha[item],
+            },
+          }
         : prev
     )
 
@@ -657,6 +671,36 @@ export default function ConfiguracoesPage() {
                       Use a <strong>Prévia Marinha/Cliente</strong> na reserva para conferir o resultado.
                     </AlertDescription>
                   </Alert>
+
+                  {/* Obrigatórios para liberar o e-mail à Marinha */}
+                  <div className="space-y-3 rounded-lg border p-4">
+                    <div>
+                      <h4 className="text-sm font-medium">Obrigatório para envio à Marinha</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Itens exigidos (EMA) para liberar o e-mail à Capitania. Faltando algum, a reserva
+                        fica pendente e a Marinha não é notificada — até completar e reenviar.
+                      </p>
+                    </div>
+                    {(
+                      [
+                        ['identidade', 'Documento de identidade (RG/CNH) anexado'],
+                        ['saude', 'Autodeclaração de saúde (5-C)'],
+                        ['regras', 'Anexo de regras de navegação'],
+                        ['residencia', 'Comprovante/Declaração de residência'],
+                        ['instrutor', 'Instrutor (atestado de demonstração)'],
+                        ['nacionalidade', 'Nacionalidade preenchida'],
+                        ['naturalidade', 'Naturalidade preenchida'],
+                      ] as [keyof DocumentoObrigatoriosMarinha, string][]
+                    ).map(([item, label]) => (
+                      <label key={item} className="flex items-center justify-between gap-3 text-sm">
+                        <span>{label}</span>
+                        <Switch
+                          checked={docCfg.obrigatoriosMarinha[item]}
+                          onCheckedChange={() => toggleObrig(item)}
+                        />
+                      </label>
+                    ))}
+                  </div>
 
                   <div className="flex justify-end">
                     <Button onClick={() => docCfg && updateDoc.mutate(docCfg)} disabled={updateDoc.isPending}>

@@ -54,6 +54,7 @@ import static org.mockito.Mockito.when;
 class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired private ClienteService clienteService;
+    @Autowired private com.jetski.locacoes.internal.ClienteAnexoService clienteAnexoService;
     @Autowired private HabilitacaoService habilitacaoService;
     @Autowired private AceiteService aceiteService;
     @Autowired private EmissaoService emissaoService;
@@ -117,6 +118,11 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
             .build());
         assertThat(cliente.getOrigem()).isEqualTo(Cliente.Origem.BALCAO);
         assertThat(cliente.getStatusConta()).isEqualTo(Cliente.StatusConta.PRE_CONTA);
+
+        // Documento de identidade (RG/CNH) — obrigatório à Marinha por padrão.
+        clienteAnexoService.salvar(cliente.getId(),
+            com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE,
+            "data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(pngValido()));
 
         // 2) Reserva para o cliente (pré-requisito da habilitação/aceite/emissão)
         UUID reservaId = UUID.randomUUID();

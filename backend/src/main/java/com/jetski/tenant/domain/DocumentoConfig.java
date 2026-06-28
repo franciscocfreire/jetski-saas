@@ -4,9 +4,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Parametriza, por tenant, quais seções do documento consolidado vão para cada
- * destino na emissão (Marinha vs Cliente). Armazenado como JSONB em
- * {@code tenant.documento_config}.
+ * Parametriza, por tenant, a emissão dos documentos:
+ * <ul>
+ *   <li>{@code marinha}/{@code cliente}: quais seções vão em cada destino do PDF;</li>
+ *   <li>{@code obrigatoriosMarinha}: o que é exigido para liberar o e-mail à Marinha.</li>
+ * </ul>
+ * Armazenado como JSONB em {@code tenant.documento_config}.
  *
  * <p>Seções: 1-C (residência), 5-C (saúde), 5-B (instrutor/demonstração),
  * Termo de Responsabilidade (uso da MA), anexos do cliente (identidade/
@@ -18,7 +21,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record DocumentoConfig(
         @JsonProperty("marinha") Destino marinha,
-        @JsonProperty("cliente") Destino cliente
+        @JsonProperty("cliente") Destino cliente,
+        @JsonProperty("obrigatoriosMarinha") ObrigatoriosMarinha obrigatoriosMarinha
 ) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -43,12 +47,42 @@ public record DocumentoConfig(
         public boolean comprovanteGruOn() { return inc(comprovanteGru); }
     }
 
+    /**
+     * Itens exigidos para liberar o e-mail à Marinha (EMA). Cada flag liga/desliga
+     * a verificação correspondente em {@code pendenciasDocumentacao}. Null = exigido
+     * (mantém o gate estrito por padrão).
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record ObrigatoriosMarinha(
+            @JsonProperty("identidade") Boolean identidade,
+            @JsonProperty("saude") Boolean saude,
+            @JsonProperty("regras") Boolean regras,
+            @JsonProperty("residencia") Boolean residencia,
+            @JsonProperty("instrutor") Boolean instrutor,
+            @JsonProperty("nacionalidade") Boolean nacionalidade,
+            @JsonProperty("naturalidade") Boolean naturalidade
+    ) {
+        private boolean req(Boolean b) {
+            return b == null || b;
+        }
+
+        public boolean identidadeReq() { return req(identidade); }
+        public boolean saudeReq() { return req(saude); }
+        public boolean regrasReq() { return req(regras); }
+        public boolean residenciaReq() { return req(residencia); }
+        public boolean instrutorReq() { return req(instrutor); }
+        public boolean nacionalidadeReq() { return req(nacionalidade); }
+        public boolean naturalidadeReq() { return req(naturalidade); }
+    }
+
     public static DocumentoConfig padrao() {
         return new DocumentoConfig(
                 // Marinha: documentação NORMAM completa, sem o Termo de Responsabilidade.
                 new Destino(true, true, true, false, true, true),
                 // Cliente: tudo, inclusive o Termo.
-                new Destino(true, true, true, true, true, true));
+                new Destino(true, true, true, true, true, true),
+                // Obrigatórios à Marinha: tudo exigido (inclui o documento de identidade).
+                new ObrigatoriosMarinha(true, true, true, true, true, true, true));
     }
 
     /** Nunca devolve null — campos/destinos ausentes caem no padrão. */
@@ -56,6 +90,7 @@ public record DocumentoConfig(
         DocumentoConfig p = padrao();
         return new DocumentoConfig(
                 marinha != null ? marinha : p.marinha(),
-                cliente != null ? cliente : p.cliente());
+                cliente != null ? cliente : p.cliente(),
+                obrigatoriosMarinha != null ? obrigatoriosMarinha : p.obrigatoriosMarinha());
     }
 }

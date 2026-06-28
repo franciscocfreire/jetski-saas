@@ -1219,10 +1219,22 @@ export interface DocumentoConfigDestino {
   comprovanteGru: boolean
 }
 
-/** Parametrização de emissão: o que vai para Marinha vs Cliente. */
+/** Itens exigidos para liberar o e-mail à Marinha (EMA). */
+export interface DocumentoObrigatoriosMarinha {
+  identidade: boolean
+  saude: boolean
+  regras: boolean
+  residencia: boolean
+  instrutor: boolean
+  nacionalidade: boolean
+  naturalidade: boolean
+}
+
+/** Parametrização de emissão: o que vai para Marinha vs Cliente + obrigatórios. */
 export interface DocumentoConfig {
   marinha: DocumentoConfigDestino
   cliente: DocumentoConfigDestino
+  obrigatoriosMarinha: DocumentoObrigatoriosMarinha
 }
 
 // ==========================================

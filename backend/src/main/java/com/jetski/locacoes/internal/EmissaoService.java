@@ -132,7 +132,8 @@ public class EmissaoService {
             .build());
 
         // Documentação completa? Só com tudo cumprido a Marinha pode receber o e-mail.
-        java.util.List<String> pendencias = pendenciasDocumentacao(hab, cliente);
+        java.util.List<String> pendencias = pendenciasDocumentacao(hab, cliente,
+            cfg.obrigatoriosMarinha(), identidadePresente(cliente.getId()));
         boolean docCompleta = pendencias.isEmpty();
 
         // Finaliza o atendimento: RASCUNHO/PENDENTE/CONFIRMADA → CONFIRMADA (completo)
@@ -177,23 +178,38 @@ public class EmissaoService {
             .build();
     }
 
-    /** Itens exigidos p/ liberar a Marinha (habilitação resolvida + termos + anexos NORMAM). */
-    private java.util.List<String> pendenciasDocumentacao(ReservaHabilitacao hab, Cliente cliente) {
+    /**
+     * Itens exigidos p/ liberar a Marinha. A habilitação resolvida (CHA/GRU) é
+     * sempre exigida; os demais itens (EMA) são parametrizados por tenant em
+     * {@link DocumentoConfig.ObrigatoriosMarinha}.
+     */
+    private java.util.List<String> pendenciasDocumentacao(ReservaHabilitacao hab, Cliente cliente,
+            DocumentoConfig.ObrigatoriosMarinha obr, boolean identidadePresente) {
         java.util.List<String> p = new java.util.ArrayList<>();
         if (!Boolean.TRUE.equals(hab.getResolvida())) {
             p.add(hab.getVia() == ReservaHabilitacao.Via.CHA ? "CHA não informada" : "GRU não paga");
         }
         if (hab.getVia() == ReservaHabilitacao.Via.EMA) {
-            if (!Boolean.TRUE.equals(hab.getAnexoSaude())) p.add("Autodeclaração de saúde (5-C)");
-            if (!Boolean.TRUE.equals(hab.getAnexoRegras())) p.add("Anexo de regras");
-            if (!Boolean.TRUE.equals(hab.getAnexoResidencia())) p.add("Comprovante/Declaração de residência");
-            if (hab.getInstrutorId() == null) p.add("Instrutor");
-            // Dados pessoais NORMAM exigidos para emitir (não para a reserva). RG e
-            // órgão emissor são opcionais; nacionalidade e naturalidade, obrigatórios.
-            if (vazio(cliente.getNacionalidade())) p.add("Nacionalidade");
-            if (vazio(cliente.getNaturalidade())) p.add("Naturalidade");
+            if (obr.identidadeReq() && !identidadePresente) p.add("Documento de identidade (RG/CNH)");
+            if (obr.saudeReq() && !Boolean.TRUE.equals(hab.getAnexoSaude())) p.add("Autodeclaração de saúde (5-C)");
+            if (obr.regrasReq() && !Boolean.TRUE.equals(hab.getAnexoRegras())) p.add("Anexo de regras");
+            if (obr.residenciaReq() && !Boolean.TRUE.equals(hab.getAnexoResidencia())) p.add("Comprovante/Declaração de residência");
+            if (obr.instrutorReq() && hab.getInstrutorId() == null) p.add("Instrutor");
+            if (obr.nacionalidadeReq() && vazio(cliente.getNacionalidade())) p.add("Nacionalidade");
+            if (obr.naturalidadeReq() && vazio(cliente.getNaturalidade())) p.add("Naturalidade");
         }
         return p;
+    }
+
+    /** Há anexo de documento de identidade (RG/CNH) do cliente? */
+    private boolean identidadePresente(UUID clienteId) {
+        try {
+            return clienteAnexoService.buscar(clienteId,
+                com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE).isPresent();
+        } catch (Exception e) {
+            log.warn("Falha ao checar anexo de identidade do cliente {}: {}", clienteId, e.getMessage());
+            return false;
+        }
     }
 
     private static boolean vazio(String s) {
@@ -269,7 +285,8 @@ public class EmissaoService {
         DocumentoConfig cfg = configDocumento(tenant);
         DocumentoConfig.Destino destinoCfg = (destino == Destino.MARINHA) ? cfg.marinha() : cfg.cliente();
 
-        boolean rascunho = !pendenciasDocumentacao(hab, cliente).isEmpty();
+        boolean rascunho = !pendenciasDocumentacao(hab, cliente,
+            cfg.obrigatoriosMarinha(), identidadePresente(cliente.getId())).isEmpty();
         return gerarParaDestino(dados, assinatura, cliente.getId(), hab, destinoCfg, rascunho).conteudo();
     }
 
