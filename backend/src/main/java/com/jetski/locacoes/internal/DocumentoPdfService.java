@@ -605,6 +605,8 @@ public class DocumentoPdfService {
                 + "possibilitando a emissão de uma habilitação temporária (CHA-MTA-E), a qual permitirá a sua "
                 + "condução dentro de uma área restrita.");
 
+        linhaGru(doc, f, d, "GRU (taxa CHA-MTA-E) nº", "Valor:");
+
         Paragraph campoLabel = new Paragraph("Campo de preenchimento do EAMA:", f.sansBold);
         campoLabel.setSpacingBefore(4f);
         campoLabel.setSpacingAfter(8f);
@@ -654,6 +656,26 @@ public class DocumentoPdfService {
         doc.add(p);
     }
 
+    /**
+     * Linha de referência da GRU (taxa do CHA-MTA-E) — exibida no atestado 5-B-1
+     * para que o cliente tenha o número da GRU no documento. Só renderiza quando há número.
+     */
+    private void linhaGru(Document doc, Fonts f, DadosDocumento d, String label, String valorLabel)
+            throws DocumentException {
+        if (d.gruNumero() == null || d.gruNumero().isBlank()) {
+            return;
+        }
+        Paragraph p = new Paragraph();
+        p.add(new Chunk(label + " ", f.sansBold));
+        p.add(new Chunk(d.gruNumero(), f.sansBold));
+        if (d.gruValor() != null && !d.gruValor().isBlank()) {
+            p.add(new Chunk("   —   " + valorLabel + " R$ " + d.gruValor(), f.sans));
+        }
+        p.setSpacingBefore(6f);
+        p.setSpacingAfter(6f);
+        doc.add(p);
+    }
+
     private static final String[] RULES_5B_EN = {
             "I will operate the PWC only within the area limited to CHA-MTA-E renters;",
             "I will operate the PWC only in the period between sunrise and sunset;",
@@ -682,6 +704,7 @@ public class DocumentoPdfService {
                 + "intended to certify that the renter was given the minimum necessary familiarization with this type of "
                 + "watercraft, allowing for the issuance of a temporary license (CHA-MTA-E), which will permit the PWC "
                 + "operation within a restricted area.");
+        linhaGru(doc, f, d, "GRU (CHA-MTA-E fee) no", "Amount:");
         Paragraph lbl = new Paragraph("To be completed by the rental company (EAMA):", f.sansBold);
         lbl.setSpacingAfter(8f);
         doc.add(lbl);

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FileUpload } from '@/components/file-upload'
+import { PixQrCode } from '@/components/pix-qrcode'
 import { habilitacaoService, clientesService } from '@/lib/api/services'
 import type { Atendimento } from '../types'
 import type { HabilitacaoGruResponse } from '@/lib/api/types'
@@ -250,13 +251,16 @@ export function StepHabilitacao({
                 )}
                 {pix.reaproveitada && <span className="text-muted-foreground">(GRU já existente)</span>}
               </div>
-              {pix.pixQrPngBase64 && (
+              {/* PNG oficial na geração; ao retomar (sem PNG), renderiza do copia-e-cola */}
+              {pix.pixQrPngBase64 ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={`data:image/png;base64,${pix.pixQrPngBase64}`}
                   alt="QR Code PIX"
                   className="h-44 w-44 rounded bg-white p-1"
                 />
+              ) : (
+                <PixQrCode payload={pix.pixCopiaECola} size={176} />
               )}
               <div className="flex items-center gap-2">
                 <Input readOnly value={pix.pixCopiaECola} className="font-mono text-xs" />
