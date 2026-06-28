@@ -110,6 +110,7 @@ services:
 
       # Chave-mestra p/ cifrar segredos em repouso (senha SMTP do tenant).
       JETSKI_SECRET_KEY: ${JETSKI_SECRET_KEY:-}
+      JETSKI_SECRET_KEY_PREVIOUS: ${JETSKI_SECRET_KEY_PREVIOUS:-}
 
       JETSKI_FRONTEND_URL: ${PUBLIC_URL}
       JETSKI_EXTERNAL_URL: ${PUBLIC_URL}

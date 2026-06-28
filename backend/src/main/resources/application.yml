@@ -112,6 +112,9 @@ jetski:
   # Chave-mestra p/ cifrar segredos em repouso (ex.: senha SMTP do tenant).
   # Vazia = sem criptografia (texto puro). Defina JETSKI_SECRET_KEY em produção.
   secret-key: ${JETSKI_SECRET_KEY:}
+  # Chave anterior (só decifra) durante a janela de rotação. Defina = chave antiga
+  # ao trocar a SECRET_KEY; remova depois que tudo for re-cifrado.
+  secret-key-previous: ${JETSKI_SECRET_KEY_PREVIOUS:}
   tenant:
     header-name: X-Tenant-Id
     default-tenant-id: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11

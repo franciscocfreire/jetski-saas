@@ -21,6 +21,13 @@ import java.util.Base64;
  * (dev) o cipher é no-op (guarda em texto puro) — então em produção basta definir
  * {@code JETSKI_SECRET_KEY} para ligar a criptografia.
  *
+ * <p><b>Rotação (keyring):</b> cifra sempre com a chave ATUAL; ao decifrar, tenta
+ * a atual e, se falhar (GCM autentica), tenta a ANTERIOR
+ * ({@code jetski.secret-key-previous} / {@code JETSKI_SECRET_KEY_PREVIOUS}). Para
+ * rotacionar: defina PREVIOUS = chave antiga e SECRET_KEY = nova; novos saves já
+ * usam a nova e os antigos continuam decifráveis. Depois de re-salvar/migrar tudo,
+ * remova a PREVIOUS.
+ *
  * <p>Formato: {@code enc:v1:base64(iv|ciphertext+tag)}. Valores sem o prefixo são
  * tratados como legado/texto puro e retornados como estão (migração transparente).
  */
@@ -31,11 +38,15 @@ public class SecretCipher {
     private static final int IV_LEN = 12;     // GCM IV recomendado: 96 bits
     private static final int TAG_BITS = 128;
 
-    private final SecretKey key;
+    private final SecretKey key;          // atual: cifra e decifra
+    private final SecretKey previousKey;  // anterior: só decifra (janela de rotação)
     private final SecureRandom random = new SecureRandom();
 
-    public SecretCipher(@Value("${jetski.secret-key:}") String secret) {
-        this.key = (secret == null || secret.isBlank()) ? null : deriveKey(secret);
+    public SecretCipher(
+            @Value("${jetski.secret-key:}") String secret,
+            @Value("${jetski.secret-key-previous:}") String previous) {
+        this.key = toKey(secret);
+        this.previousKey = toKey(previous);
     }
 
     /** True se há chave configurada (criptografia ativa). */
@@ -63,24 +74,41 @@ public class SecretCipher {
         }
     }
 
-    /** Decifra. Valor sem prefixo (legado/texto puro) é retornado como está. */
+    /**
+     * Decifra. Valor sem prefixo (legado/texto puro) é retornado como está. Tenta a
+     * chave atual e, na janela de rotação, a anterior.
+     */
     public String decrypt(String stored) {
-        if (stored == null || !stored.startsWith(PREFIX) || key == null) {
+        if (stored == null || !stored.startsWith(PREFIX)) {
             return stored;
         }
-        try {
-            byte[] all = Base64.getDecoder().decode(stored.substring(PREFIX.length()));
-            byte[] iv = Arrays.copyOfRange(all, 0, IV_LEN);
-            byte[] ct = Arrays.copyOfRange(all, IV_LEN, all.length);
-            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
-            c.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(TAG_BITS, iv));
-            return new String(c.doFinal(ct), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new IllegalStateException("Falha ao decifrar segredo", e);
+        if (key == null && previousKey == null) {
+            return stored; // sem chave → não há como decifrar (no-op de dev)
         }
+        byte[] all = Base64.getDecoder().decode(stored.substring(PREFIX.length()));
+        for (SecretKey k : new SecretKey[]{key, previousKey}) {
+            if (k == null) continue;
+            try {
+                return decryptWith(k, all);
+            } catch (Exception ignored) {
+                // chave não confere (GCM falhou) → tenta a próxima
+            }
+        }
+        throw new IllegalStateException("Falha ao decifrar segredo (chave incorreta ou rotacionada?)");
     }
 
-    private static SecretKey deriveKey(String secret) {
+    private static String decryptWith(SecretKey k, byte[] all) throws Exception {
+        byte[] iv = Arrays.copyOfRange(all, 0, IV_LEN);
+        byte[] ct = Arrays.copyOfRange(all, IV_LEN, all.length);
+        Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+        c.init(Cipher.DECRYPT_MODE, k, new GCMParameterSpec(TAG_BITS, iv));
+        return new String(c.doFinal(ct), StandardCharsets.UTF_8);
+    }
+
+    private static SecretKey toKey(String secret) {
+        if (secret == null || secret.isBlank()) {
+            return null;
+        }
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256")
                 .digest(secret.getBytes(StandardCharsets.UTF_8));
