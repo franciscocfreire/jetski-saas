@@ -31,7 +31,9 @@ public record DocumentoConfig(
             @JsonProperty("saude") Boolean saude,
             @JsonProperty("instrutor") Boolean instrutor,
             @JsonProperty("termo") Boolean termo,
-            @JsonProperty("anexosCliente") Boolean anexosCliente,
+            @JsonProperty("anexoIdentidade") Boolean anexoIdentidade,
+            @JsonProperty("anexoComprovante") Boolean anexoComprovante,
+            @JsonProperty("anexoSelfie") Boolean anexoSelfie,
             @JsonProperty("comprovanteGru") Boolean comprovanteGru
     ) {
         /** Trata null como "incluir" (campo novo num JSON antigo não some da emissão). */
@@ -43,7 +45,9 @@ public record DocumentoConfig(
         public boolean saudeOn() { return inc(saude); }
         public boolean instrutorOn() { return inc(instrutor); }
         public boolean termoOn() { return inc(termo); }
-        public boolean anexosClienteOn() { return inc(anexosCliente); }
+        public boolean anexoIdentidadeOn() { return inc(anexoIdentidade); }
+        public boolean anexoComprovanteOn() { return inc(anexoComprovante); }
+        public boolean anexoSelfieOn() { return inc(anexoSelfie); }
         public boolean comprovanteGruOn() { return inc(comprovanteGru); }
     }
 
@@ -55,6 +59,7 @@ public record DocumentoConfig(
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ObrigatoriosMarinha(
             @JsonProperty("identidade") Boolean identidade,
+            @JsonProperty("selfie") Boolean selfie,
             @JsonProperty("saude") Boolean saude,
             @JsonProperty("regras") Boolean regras,
             @JsonProperty("residencia") Boolean residencia,
@@ -67,6 +72,7 @@ public record DocumentoConfig(
         }
 
         public boolean identidadeReq() { return req(identidade); }
+        public boolean selfieReq() { return req(selfie); }
         public boolean saudeReq() { return req(saude); }
         public boolean regrasReq() { return req(regras); }
         public boolean residenciaReq() { return req(residencia); }
@@ -78,11 +84,12 @@ public record DocumentoConfig(
     public static DocumentoConfig padrao() {
         return new DocumentoConfig(
                 // Marinha: documentação NORMAM completa, sem o Termo de Responsabilidade.
-                new Destino(true, true, true, false, true, true),
+                // (residência, saúde, instrutor, termo, identidade, comprovante, selfie, GRU)
+                new Destino(true, true, true, false, true, true, true, true),
                 // Cliente: tudo, inclusive o Termo.
-                new Destino(true, true, true, true, true, true),
-                // Obrigatórios à Marinha: tudo exigido (inclui o documento de identidade).
-                new ObrigatoriosMarinha(true, true, true, true, true, true, true));
+                new Destino(true, true, true, true, true, true, true, true),
+                // Obrigatórios à Marinha: tudo exigido (identidade, selfie + demais).
+                new ObrigatoriosMarinha(true, true, true, true, true, true, true, true));
     }
 
     /** Nunca devolve null — campos/destinos ausentes caem no padrão. */

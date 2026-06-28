@@ -171,6 +171,7 @@ export function ReservaDetailSheet({
     enabled: open && !!reserva?.clienteId,
   })
   const identidadeOk = (anexosTipos ?? []).some((a) => a.tipo === 'IDENTIDADE')
+  const selfieOk = (anexosTipos ?? []).some((a) => a.tipo === 'SELFIE')
 
   const invalidar = () => qc.invalidateQueries({ queryKey: ['habilitacao', reservaId] })
 
@@ -446,6 +447,7 @@ export function ReservaDetailSheet({
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Documentação EMA</h4>
               <Etapa ok={identidadeOk} label="Documento de identidade (RG/CNH)" />
+              <Etapa ok={selfieOk} label="Selfie / foto do cliente" />
               <Etapa ok={!!hab.videoaulaEm} label="Videoaula assistida" />
               <Etapa ok={!!hab.anexoSaude} label="Autodeclaração de saúde (5-C)" />
               <Etapa ok={!!hab.anexoRegras} label="Anexo de regras de navegação" />

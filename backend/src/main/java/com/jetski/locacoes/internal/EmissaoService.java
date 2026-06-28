@@ -132,8 +132,7 @@ public class EmissaoService {
             .build());
 
         // Documentação completa? Só com tudo cumprido a Marinha pode receber o e-mail.
-        java.util.List<String> pendencias = pendenciasDocumentacao(hab, cliente,
-            cfg.obrigatoriosMarinha(), identidadePresente(cliente.getId()));
+        java.util.List<String> pendencias = pendenciasDocumentacao(hab, cliente, cfg.obrigatoriosMarinha());
         boolean docCompleta = pendencias.isEmpty();
 
         // Finaliza o atendimento: RASCUNHO/PENDENTE/CONFIRMADA → CONFIRMADA (completo)
@@ -184,13 +183,16 @@ public class EmissaoService {
      * {@link DocumentoConfig.ObrigatoriosMarinha}.
      */
     private java.util.List<String> pendenciasDocumentacao(ReservaHabilitacao hab, Cliente cliente,
-            DocumentoConfig.ObrigatoriosMarinha obr, boolean identidadePresente) {
+            DocumentoConfig.ObrigatoriosMarinha obr) {
         java.util.List<String> p = new java.util.ArrayList<>();
         if (!Boolean.TRUE.equals(hab.getResolvida())) {
             p.add(hab.getVia() == ReservaHabilitacao.Via.CHA ? "CHA não informada" : "GRU não paga");
         }
         if (hab.getVia() == ReservaHabilitacao.Via.EMA) {
-            if (obr.identidadeReq() && !identidadePresente) p.add("Documento de identidade (RG/CNH)");
+            if (obr.identidadeReq() && !anexoPresente(cliente.getId(),
+                    com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE)) p.add("Documento de identidade (RG/CNH)");
+            if (obr.selfieReq() && !anexoPresente(cliente.getId(),
+                    com.jetski.locacoes.domain.ClienteAnexo.Tipo.SELFIE)) p.add("Selfie/foto do cliente");
             if (obr.saudeReq() && !Boolean.TRUE.equals(hab.getAnexoSaude())) p.add("Autodeclaração de saúde (5-C)");
             if (obr.regrasReq() && !Boolean.TRUE.equals(hab.getAnexoRegras())) p.add("Anexo de regras");
             if (obr.residenciaReq() && !Boolean.TRUE.equals(hab.getAnexoResidencia())) p.add("Comprovante/Declaração de residência");
@@ -201,13 +203,12 @@ public class EmissaoService {
         return p;
     }
 
-    /** Há anexo de documento de identidade (RG/CNH) do cliente? */
-    private boolean identidadePresente(UUID clienteId) {
+    /** Há anexo do tipo informado para o cliente? */
+    private boolean anexoPresente(UUID clienteId, com.jetski.locacoes.domain.ClienteAnexo.Tipo tipo) {
         try {
-            return clienteAnexoService.buscar(clienteId,
-                com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE).isPresent();
+            return clienteAnexoService.buscar(clienteId, tipo).isPresent();
         } catch (Exception e) {
-            log.warn("Falha ao checar anexo de identidade do cliente {}: {}", clienteId, e.getMessage());
+            log.warn("Falha ao checar anexo {} do cliente {}: {}", tipo, clienteId, e.getMessage());
             return false;
         }
     }
@@ -242,8 +243,7 @@ public class EmissaoService {
         if (cfg.instrutorOn()) secoes.add(DocumentoPdfService.Secao.INSTRUTOR);
         if (cfg.termoOn()) secoes.add(DocumentoPdfService.Secao.TERMO);
 
-        java.util.List<DocumentoPdfService.AnexoImagem> anexos =
-            cfg.anexosClienteOn() ? anexosDoCliente(clienteId) : java.util.List.of();
+        java.util.List<DocumentoPdfService.AnexoImagem> anexos = anexosDoCliente(clienteId, cfg);
 
         DocumentoPdfService.DocumentoPdf pdf =
             documentoPdfService.gerarDocumentoConsolidado(dados, assinatura, anexos, secoes, rascunho);
@@ -285,8 +285,7 @@ public class EmissaoService {
         DocumentoConfig cfg = configDocumento(tenant);
         DocumentoConfig.Destino destinoCfg = (destino == Destino.MARINHA) ? cfg.marinha() : cfg.cliente();
 
-        boolean rascunho = !pendenciasDocumentacao(hab, cliente,
-            cfg.obrigatoriosMarinha(), identidadePresente(cliente.getId())).isEmpty();
+        boolean rascunho = !pendenciasDocumentacao(hab, cliente, cfg.obrigatoriosMarinha()).isEmpty();
         return gerarParaDestino(dados, assinatura, cliente.getId(), hab, destinoCfg, rascunho).conteudo();
     }
 
@@ -336,12 +335,20 @@ public class EmissaoService {
         return String.format("%d de %s de %d", hoje.getDayOfMonth(), MESES[hoje.getMonthValue() - 1], hoje.getYear());
     }
 
-    /** Lê os anexos do cliente (identidade, comprovante, selfie) p/ anexar ao PDF. */
-    private java.util.List<DocumentoPdfService.AnexoImagem> anexosDoCliente(UUID clienteId) {
+    /**
+     * Lê os anexos do cliente p/ anexar ao PDF, filtrando por tipo conforme o
+     * destino (identidade/comprovante/selfie configuráveis em separado). O anexo
+     * de CHA acompanha o de identidade (ambos documentos pessoais do condutor).
+     */
+    private java.util.List<DocumentoPdfService.AnexoImagem> anexosDoCliente(
+            UUID clienteId, DocumentoConfig.Destino cfg) {
         var lista = new java.util.ArrayList<>(clienteAnexoService.listar(clienteId));
         lista.sort(java.util.Comparator.comparingInt(a -> a.getTipo().ordinal()));
         var out = new java.util.ArrayList<DocumentoPdfService.AnexoImagem>();
         for (com.jetski.locacoes.domain.ClienteAnexo a : lista) {
+            if (!incluiAnexo(a.getTipo(), cfg)) {
+                continue;
+            }
             try {
                 out.add(new DocumentoPdfService.AnexoImagem(
                     tituloAnexo(a.getTipo()), clienteAnexoService.lerImagem(a)));
@@ -350,6 +357,15 @@ public class EmissaoService {
             }
         }
         return out;
+    }
+
+    private static boolean incluiAnexo(com.jetski.locacoes.domain.ClienteAnexo.Tipo t,
+            DocumentoConfig.Destino cfg) {
+        return switch (t) {
+            case IDENTIDADE, CHA -> cfg.anexoIdentidadeOn();
+            case COMPROVANTE_RESIDENCIA -> cfg.anexoComprovanteOn();
+            case SELFIE -> cfg.anexoSelfieOn();
+        };
     }
 
     private static String tituloAnexo(com.jetski.locacoes.domain.ClienteAnexo.Tipo t) {

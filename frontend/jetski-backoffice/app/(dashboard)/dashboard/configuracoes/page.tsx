@@ -640,7 +640,9 @@ export default function ConfiguracoesPage() {
                             ['saude', 'Anexo 5-C — Autodeclaração de saúde'],
                             ['instrutor', 'Anexo 5-B — Atestado de demonstração (instrutor)'],
                             ['termo', 'Termo de Responsabilidade (uso da moto aquática)'],
-                            ['anexosCliente', 'Anexos do cliente (identidade, comprovante, selfie)'],
+                            ['anexoIdentidade', 'Documento de identidade (RG/CNH)'],
+                            ['anexoComprovante', 'Comprovante de residência'],
+                            ['anexoSelfie', 'Selfie / foto do cliente'],
                             ['comprovanteGru', 'Comprovante de pagamento da GRU'],
                           ] as [keyof DocumentoConfigDestino, string][]
                         ).map(([secao, label]) => (
@@ -684,6 +686,7 @@ export default function ConfiguracoesPage() {
                     {(
                       [
                         ['identidade', 'Documento de identidade (RG/CNH) anexado'],
+                        ['selfie', 'Selfie / foto do cliente anexada'],
                         ['saude', 'Autodeclaração de saúde (5-C)'],
                         ['regras', 'Anexo de regras de navegação'],
                         ['residencia', 'Comprovante/Declaração de residência'],

@@ -119,10 +119,12 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
         assertThat(cliente.getOrigem()).isEqualTo(Cliente.Origem.BALCAO);
         assertThat(cliente.getStatusConta()).isEqualTo(Cliente.StatusConta.PRE_CONTA);
 
-        // Documento de identidade (RG/CNH) — obrigatório à Marinha por padrão.
+        // Anexos obrigatórios à Marinha por padrão (identidade + selfie).
+        String pngDataUrl = "data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(pngValido());
         clienteAnexoService.salvar(cliente.getId(),
-            com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE,
-            "data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(pngValido()));
+            com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE, pngDataUrl);
+        clienteAnexoService.salvar(cliente.getId(),
+            com.jetski.locacoes.domain.ClienteAnexo.Tipo.SELFIE, pngDataUrl);
 
         // 2) Reserva para o cliente (pré-requisito da habilitação/aceite/emissão)
         UUID reservaId = UUID.randomUUID();

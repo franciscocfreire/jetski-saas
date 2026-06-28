@@ -1215,13 +1215,16 @@ export interface DocumentoConfigDestino {
   saude: boolean
   instrutor: boolean
   termo: boolean
-  anexosCliente: boolean
+  anexoIdentidade: boolean
+  anexoComprovante: boolean
+  anexoSelfie: boolean
   comprovanteGru: boolean
 }
 
 /** Itens exigidos para liberar o e-mail à Marinha (EMA). */
 export interface DocumentoObrigatoriosMarinha {
   identidade: boolean
+  selfie: boolean
   saude: boolean
   regras: boolean
   residencia: boolean

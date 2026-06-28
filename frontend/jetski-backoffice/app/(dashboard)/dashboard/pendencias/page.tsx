@@ -68,6 +68,7 @@ function etapasDe(
   hab: Habilitacao | null | undefined,
   aceite: { aceitoEm?: string } | null | undefined,
   identidadeOk: boolean,
+  selfieOk: boolean,
   obrig?: DocumentoObrigatoriosMarinha
 ): Etapa[] {
   const ema = hab?.via === 'EMA'
@@ -90,6 +91,14 @@ function etapasDe(
         hint: identidadeOk ? 'anexada' : 'anexar foto do documento',
       })
     }
+    if (req(obrig?.selfie)) {
+      etapas.push({
+        chave: 'selfie',
+        label: 'Selfie',
+        ok: selfieOk,
+        hint: selfieOk ? 'anexada' : 'anexar foto do cliente',
+      })
+    }
     etapas.push(
       { chave: 'gru', label: 'GRU paga', ok: !!hab?.gruPago, hint: hintGru(hab) },
       {
@@ -105,6 +114,7 @@ function etapasDe(
     const marinhaGateOk =
       !!hab?.gruPago &&
       (!req(obrig?.identidade) || identidadeOk) &&
+      (!req(obrig?.selfie) || selfieOk) &&
       (!req(obrig?.saude) || !!hab?.anexoSaude) &&
       (!req(obrig?.regras) || !!hab?.anexoRegras) &&
       (!req(obrig?.residencia) || !!hab?.anexoResidencia) &&
@@ -263,6 +273,7 @@ export default function PendenciasPage() {
       hab: habQueries[i]?.data,
       aceite: aceiteQueries[i]?.data,
       identidadeOk: (anexoQueries[i]?.data ?? []).some((a) => a.tipo === 'IDENTIDADE'),
+      selfieOk: (anexoQueries[i]?.data ?? []).some((a) => a.tipo === 'SELFIE'),
       carregando:
         habQueries[i]?.isLoading || aceiteQueries[i]?.isLoading || anexoQueries[i]?.isLoading,
     }))
@@ -310,8 +321,8 @@ export default function PendenciasPage() {
         </div>
       ) : (
         <div className="divide-y rounded-xl border">
-          {linhas.map(({ reserva: r, hab, aceite, identidadeOk, carregando }) => {
-            const etapas = etapasDe(r, hab, aceite, identidadeOk, obrig)
+          {linhas.map(({ reserva: r, hab, aceite, identidadeOk, selfieOk, carregando }) => {
+            const etapas = etapasDe(r, hab, aceite, identidadeOk, selfieOk, obrig)
             const faltam = etapas.filter((e) => !e.ok).length
             const proximaIdx = etapas.findIndex((e) => !e.ok)
             return (

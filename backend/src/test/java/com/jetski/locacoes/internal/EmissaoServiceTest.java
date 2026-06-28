@@ -92,8 +92,8 @@ class EmissaoServiceTest {
         when(pdfService.gerarDocumentoConsolidado(any(), any(), any(), any(), anyBoolean()))
             .thenReturn(new DocumentoPdfService.DocumentoPdf("%PDF-fake".getBytes(), "abc123hash"));
         when(docRepo.save(any(DocumentoEmitido.class))).thenAnswer(i -> i.getArgument(0));
-        // Documento de identidade presente (obrigatório à Marinha por padrão).
-        when(anexoService.buscar(eq(clienteId), eq(com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE)))
+        // Anexos obrigatórios à Marinha presentes (identidade + selfie, por padrão).
+        when(anexoService.buscar(eq(clienteId), any(com.jetski.locacoes.domain.ClienteAnexo.Tipo.class)))
             .thenReturn(Optional.of(mock(com.jetski.locacoes.domain.ClienteAnexo.class)));
     }
 
