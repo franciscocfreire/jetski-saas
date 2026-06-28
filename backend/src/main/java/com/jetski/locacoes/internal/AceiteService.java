@@ -70,6 +70,15 @@ public class AceiteService {
 
         ReservaAceite saved = repository.save(aceite);
         log.info("Aceite registrado: reservaId={}, metodo={}, s3Key={}", reservaId, metodo, s3Key);
+
+        // Termos assinados → a reserva deixa de ser rascunho e passa a valer (entra na
+        // fila/agenda, pode embarcar). A emissão dos documentos NORMAM (que exige a GRU
+        // paga) é um passo posterior — pode acontecer agora ou depois.
+        if (reserva.getStatus() == Reserva.ReservaStatus.RASCUNHO) {
+            reserva.setStatus(Reserva.ReservaStatus.PENDENTE);
+            reservaRepository.save(reserva);
+            log.info("Reserva {} confirmada pelos termos: RASCUNHO → PENDENTE", reservaId);
+        }
         return saved;
     }
 

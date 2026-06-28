@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useQuery, useQueries } from '@tanstack/react-query'
-import { Check, ChevronRight, ClipboardList, Circle, Search } from 'lucide-react'
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { Check, ChevronRight, ClipboardList, Circle, Search, Ban, Loader2 } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import {
   reservasService,
@@ -13,6 +14,7 @@ import {
   aceiteService,
 } from '@/lib/api/services'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ReservaDetailSheet } from '@/components/agenda/reserva-detail-sheet'
 import { cn } from '@/lib/utils'
@@ -93,9 +95,22 @@ function ChipEtapa({ etapa, proxima }: { etapa: Etapa; proxima: boolean }) {
 
 export default function PendenciasPage() {
   const { currentTenant } = useTenantStore()
+  const qc = useQueryClient()
   const [q, setQ] = useState('')
   const [detail, setDetail] = useState<Reserva | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+
+  const cancelar = useMutation({
+    mutationFn: (id: string) => reservasService.cancelar(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reservas', currentTenant?.id] })
+      toast.success('Reserva cancelada — saiu da fila e das pendências.')
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ?? 'Falha ao cancelar.')
+    },
+  })
 
   const { data: reservas, isLoading } = useQuery({
     queryKey: ['reservas', currentTenant?.id],
@@ -213,31 +228,32 @@ export default function PendenciasPage() {
             const faltam = etapas.filter((e) => !e.ok).length
             const proximaIdx = etapas.findIndex((e) => !e.ok)
             return (
-              <button
+              <div
                 key={r.id}
-                onClick={() => abrir(r)}
-                className="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-accent/50"
+                className="flex w-full items-center gap-3 px-4 py-3 hover:bg-accent/50"
               >
-                <div className="w-14 shrink-0 text-sm tabular-nums text-muted-foreground">
-                  {fmtData(r.dataInicio)}
-                </div>
+                <button onClick={() => abrir(r)} className="flex min-w-0 flex-1 items-center gap-4 text-left">
+                  <div className="w-14 shrink-0 text-sm tabular-nums text-muted-foreground">
+                    {fmtData(r.dataInicio)}
+                  </div>
 
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate font-medium">{r.cliente?.nome || 'Cliente não informado'}</p>
-                    <span className="truncate text-sm text-muted-foreground">· {r.modelo?.nome}</span>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-medium">{r.cliente?.nome || 'Cliente não informado'}</p>
+                      <span className="truncate text-sm text-muted-foreground">· {r.modelo?.nome}</span>
+                    </div>
+                    {/* Trilha de etapas — o que falta salta em âmbar; a próxima ação ganha um anel. */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {carregando && !hab && !aceite ? (
+                        <span className="text-xs text-muted-foreground">Carregando etapas…</span>
+                      ) : (
+                        etapas.map((e, i) => (
+                          <ChipEtapa key={e.chave} etapa={e} proxima={i === proximaIdx} />
+                        ))
+                      )}
+                    </div>
                   </div>
-                  {/* Trilha de etapas — o que falta salta em âmbar; a próxima ação ganha um anel. */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {carregando && !hab && !aceite ? (
-                      <span className="text-xs text-muted-foreground">Carregando etapas…</span>
-                    ) : (
-                      etapas.map((e, i) => (
-                        <ChipEtapa key={e.chave} etapa={e} proxima={i === proximaIdx} />
-                      ))
-                    )}
-                  </div>
-                </div>
+                </button>
 
                 <div className="flex shrink-0 items-center gap-2">
                   <Badge variant={r.cliente?.origem === 'PORTAL' ? 'default' : 'secondary'}>
@@ -254,9 +270,26 @@ export default function PendenciasPage() {
                     </span>
                   )}
                   <Badge variant={statusBadge[r.status]}>{r.status}</Badge>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"
+                    title="Cancelar reserva"
+                    disabled={cancelar.isPending && cancelar.variables === r.id}
+                    onClick={() => {
+                      if (window.confirm(`Cancelar a reserva de ${r.cliente?.nome ?? 'cliente'}? Sai da fila e das pendências.`))
+                        cancelar.mutate(r.id)
+                    }}
+                  >
+                    {cancelar.isPending && cancelar.variables === r.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Ban className="h-4 w-4" />
+                    )}
+                  </Button>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </div>
-              </button>
+              </div>
             )
           })}
         </div>

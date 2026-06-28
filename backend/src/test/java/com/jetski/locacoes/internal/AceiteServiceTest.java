@@ -80,4 +80,30 @@ class AceiteServiceTest {
             service.registrar(reservaId, ReservaAceite.Metodo.SIGNATURE_PAD, null, "1.2.3.4", "JUnit"))
             .isInstanceOf(BusinessException.class);
     }
+
+    @Test
+    @DisplayName("aceite em reserva RASCUNHO → confirma (RASCUNHO → PENDENTE)")
+    void aceiteConfirmaRascunho() {
+        Reserva rascunho = Reserva.builder().id(reservaId).tenantId(tenant)
+            .status(Reserva.ReservaStatus.RASCUNHO).build();
+        when(reservaRepo.findById(reservaId)).thenReturn(Optional.of(rascunho));
+
+        service.registrar(reservaId, ReservaAceite.Metodo.PAPEL, null, "1.2.3.4", "JUnit");
+
+        assertThat(rascunho.getStatus()).isEqualTo(Reserva.ReservaStatus.PENDENTE);
+        verify(reservaRepo).save(rascunho);
+    }
+
+    @Test
+    @DisplayName("aceite em reserva não-rascunho → não mexe no status")
+    void aceiteNaoRebaixa() {
+        Reserva confirmada = Reserva.builder().id(reservaId).tenantId(tenant)
+            .status(Reserva.ReservaStatus.CONFIRMADA).build();
+        when(reservaRepo.findById(reservaId)).thenReturn(Optional.of(confirmada));
+
+        service.registrar(reservaId, ReservaAceite.Metodo.PAPEL, null, "1.2.3.4", "JUnit");
+
+        assertThat(confirmada.getStatus()).isEqualTo(Reserva.ReservaStatus.CONFIRMADA);
+        verify(reservaRepo, never()).save(any(Reserva.class));
+    }
 }

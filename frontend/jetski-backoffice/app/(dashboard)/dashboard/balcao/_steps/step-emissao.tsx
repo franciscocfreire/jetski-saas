@@ -20,7 +20,6 @@ export function StepEmissao({
 }) {
   const [resultado, setResultado] = useState<ResultadoEmissao | null>(null)
   const [baixando, setBaixando] = useState(false)
-  const bloqueado = !atendimento.habilitacaoResolvida || !atendimento.aceiteFeito
 
   async function abrirPdf(documentoId: string) {
     try {
@@ -124,31 +123,52 @@ export function StepEmissao({
     )
   }
 
+  // Sem termos assinados não chega aqui no fluxo; guarda mesmo assim.
+  if (!atendimento.aceiteFeito) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/30">
+          <AlertTriangle className="mt-0.5 h-4 w-4" /> Assine os termos antes de concluir.
+        </div>
+        <Button type="button" variant="outline" onClick={onBack}>Voltar</Button>
+      </div>
+    )
+  }
+
+  // Termos OK + GRU NÃO paga → a reserva já vale (está na fila); a emissão fica para depois.
+  if (!atendimento.habilitacaoResolvida) {
+    return (
+      <div className="space-y-5">
+        <div className="space-y-1 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:bg-amber-950/30">
+          <p className="flex items-center gap-2 font-medium">
+            <Ship className="h-4 w-4" /> Reserva confirmada — entrou na fila de espera
+          </p>
+          <p>
+            A <strong>GRU ainda não está paga</strong>, então os documentos NÃO podem ser emitidos
+            agora. A reserva já vale e pode embarcar normalmente. Pague a GRU (PIX/boleto ou
+            comprovante) e <strong>emita os documentos depois</strong> em Pendências → Retomar.
+          </p>
+        </div>
+        <div className="flex justify-between">
+          <Button type="button" variant="outline" onClick={onBack}>Voltar</Button>
+          <Button type="button" onClick={onReset}>Concluir atendimento</Button>
+        </div>
+      </div>
+    )
+  }
+
+  // GRU paga + termos → pode emitir agora.
   return (
     <div className="space-y-5">
-      {bloqueado && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/30">
-          <AlertTriangle className="mt-0.5 h-4 w-4" />
-          <div>
-            Para emitir é necessário:
-            <ul className="ml-4 list-disc">
-              <li className={atendimento.habilitacaoResolvida ? 'line-through' : ''}>habilitação resolvida</li>
-              <li className={atendimento.aceiteFeito ? 'line-through' : ''}>termos assinados</li>
-            </ul>
-          </div>
-        </div>
-      )}
-
       <p className="text-sm text-muted-foreground">
         Gera o PDF consolidado (anexos + termo + assinatura), arquiva, envia à Marinha e ao
         cliente, e disponibiliza a GRU.
       </p>
-
       <div className="flex justify-between">
         <Button type="button" variant="outline" onClick={onBack}>
           Voltar
         </Button>
-        <Button type="button" disabled={bloqueado || emitir.isPending} onClick={() => emitir.mutate()}>
+        <Button type="button" disabled={emitir.isPending} onClick={() => emitir.mutate()}>
           {emitir.isPending ? 'Emitindo…' : 'Emitir documentos'}
         </Button>
       </div>

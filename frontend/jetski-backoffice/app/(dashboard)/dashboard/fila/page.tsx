@@ -160,7 +160,9 @@ export default function FilaPage() {
     }
 
     const naFila = reservas
-      .filter((r) => !!r.documentoEmitidoEm && (r.status === 'PENDENTE' || r.status === 'CONFIRMADA'))
+      // Embarcável após os Termos: PENDENTE/CONFIRMADA (a emissão dos docs/GRU pode
+      // ser feita depois — não trava o embarque). CANCELADA/terminais saem daqui.
+      .filter((r) => r.status === 'PENDENTE' || r.status === 'CONFIRMADA')
       .map((r) => ({ ...r, cliente: cMap.get(r.clienteId) }))
       .sort((a, b) => a.dataInicio.localeCompare(b.dataInicio))
 
