@@ -1180,6 +1180,35 @@ export interface ComissaoConfigRequest {
   bonusValor?: number | null
 }
 
+// Dados gerais/e-mail da empresa (tenant)
+export interface TenantGeralConfig {
+  slug?: string
+  cnpj?: string
+  razaoSocial?: string
+  cidade?: string
+  marinhaEmail?: string
+  emailRemetente?: string
+  smtpHost?: string
+  smtpPort?: number
+  smtpUsername?: string
+  smtpFrom?: string
+  smtpStarttls?: boolean
+  smtpConfigurado?: boolean
+}
+
+export interface TenantGeralConfigRequest {
+  razaoSocial?: string
+  cidade?: string
+  marinhaEmail?: string
+  emailRemetente?: string
+  smtpHost?: string
+  smtpPort?: number
+  smtpUsername?: string
+  smtpPassword?: string
+  smtpFrom?: string
+  smtpStarttls?: boolean
+}
+
 // ==========================================
 // Presença de Vendedores Module (Diárias)
 // ==========================================

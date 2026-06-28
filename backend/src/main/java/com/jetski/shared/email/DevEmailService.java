@@ -66,6 +66,12 @@ public class DevEmailService implements EmailService {
     @Autowired(required = false)
     private JavaMailSender mailSender;
 
+    /** SMTP próprio do tenant (envio real pela conta da empresa) + factory. */
+    @Autowired(required = false)
+    private TenantSmtpResolver tenantSmtpResolver;
+    @Autowired(required = false)
+    private SmtpSenderFactory senderFactory;
+
     /**
      * Last email data - stored for E2E testing purposes.
      * Allows automated tests to retrieve activation tokens without email access.
@@ -211,10 +217,28 @@ public class DevEmailService implements EmailService {
 
     private void maybeSendViaSmtp(String to, String subject, String htmlBody,
                                   String attachmentName, byte[] attachment, String attachmentContentType) {
+        boolean comAnexo = attachment != null && attachment.length > 0;
+
+        // Tenant com SMTP próprio → envio real pela conta da empresa ("from" da loja).
+        var perTenant = (tenantSmtpResolver != null && senderFactory != null)
+            ? tenantSmtpResolver.forCurrentTenant() : java.util.Optional.<TenantSmtpResolver.SmtpSettings>empty();
+        if (perTenant.isPresent()) {
+            var s = perTenant.get();
+            try {
+                String nome = (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : fromName;
+                senderFactory.send(senderFactory.build(s), s.from(), nome, to, subject, htmlBody,
+                    attachmentName, comAnexo ? attachment : null, attachmentContentType);
+                log.info("📨 Email enviado pelo SMTP do tenant: to={}, from={}", to, s.from());
+            } catch (Exception e) {
+                log.warn("Falha (ignorada) ao enviar pelo SMTP do tenant: to={}, error={}", to, e.getMessage());
+            }
+            return;
+        }
+
+        // Senão, comportamento dev padrão: Mailpit (se habilitado).
         if (!devSmtpEnabled || mailSender == null) {
             return;
         }
-        boolean comAnexo = attachment != null && attachment.length > 0;
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, comAnexo, "UTF-8");

@@ -120,6 +120,24 @@ public class Tenant {
     @Column(name = "marinha_email", length = 255)
     private String marinhaEmail;
 
+    /** E-mail remetente/responder-para da loja (identidade da empresa nos envios). */
+    @Column(name = "email_remetente", length = 255)
+    private String emailRemetente;
+
+    // SMTP próprio da loja (envio "from" real da empresa). Senha é segredo (write-only na API).
+    @Column(name = "smtp_host", length = 255)
+    private String smtpHost;
+    @Column(name = "smtp_port")
+    private Integer smtpPort;
+    @Column(name = "smtp_username", length = 255)
+    private String smtpUsername;
+    @Column(name = "smtp_password", length = 255)
+    private String smtpPassword;
+    @Column(name = "smtp_from", length = 255)
+    private String smtpFrom;
+    @Column(name = "smtp_starttls")
+    private Boolean smtpStarttls;
+
     /** Chave PIX da loja (sinal/total manual + dados nos termos). */
     @Column(name = "pix_chave", length = 140)
     private String pixChave;

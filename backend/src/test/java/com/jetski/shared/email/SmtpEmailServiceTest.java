@@ -29,7 +29,10 @@ class SmtpEmailServiceTest {
         MimeMessage realMessage = new JavaMailSenderImpl().createMimeMessage();
         when(mailSender.createMimeMessage()).thenReturn(realMessage);
 
-        SmtpEmailService service = new SmtpEmailService(mailSender);
+        // Sem SMTP de tenant → usa o mailSender global via o factory real.
+        TenantSmtpResolver smtpResolver = mock(TenantSmtpResolver.class);
+        when(smtpResolver.forCurrentTenant()).thenReturn(java.util.Optional.empty());
+        SmtpEmailService service = new SmtpEmailService(mailSender, smtpResolver, new SmtpSenderFactory());
         ReflectionTestUtils.setField(service, "fromEmail", "noreply@pegaojet.com.br");
         ReflectionTestUtils.setField(service, "fromName", "Pega o Jet");
 

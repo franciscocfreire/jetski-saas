@@ -2,6 +2,8 @@ package com.jetski.tenant.api;
 
 import com.jetski.tenant.api.dto.ComissaoConfigRequest;
 import com.jetski.tenant.api.dto.ComissaoConfigResponse;
+import com.jetski.tenant.api.dto.TenantGeralConfigRequest;
+import com.jetski.tenant.api.dto.TenantGeralConfigResponse;
 import com.jetski.tenant.domain.ComissaoConfig;
 import com.jetski.tenant.internal.TenantConfigService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -77,6 +79,28 @@ public class TenantConfigController {
 
         ComissaoConfig config = tenantConfigService.updateComissaoConfig(tenantId, request);
         return ResponseEntity.ok(toResponse(config));
+    }
+
+    @GetMapping("/geral")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Obter dados gerais/e-mail da empresa")
+    public ResponseEntity<TenantGeralConfigResponse> getGeralConfig(@PathVariable UUID tenantId) {
+        log.info("GET /v1/tenants/{}/config/geral", tenantId);
+        return ResponseEntity.ok(tenantConfigService.getGeralConfig(tenantId));
+    }
+
+    @PutMapping("/geral")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Atualizar dados gerais/e-mail da empresa",
+        description = "Atualiza razão social, cidade, e-mail da Marinha (destino dos documentos) " +
+                      "e e-mail remetente. Apenas ADMIN_TENANT e GERENTE."
+    )
+    public ResponseEntity<TenantGeralConfigResponse> updateGeralConfig(
+            @PathVariable UUID tenantId,
+            @Valid @RequestBody TenantGeralConfigRequest request) {
+        log.info("PUT /v1/tenants/{}/config/geral", tenantId);
+        return ResponseEntity.ok(tenantConfigService.updateGeralConfig(tenantId, request));
     }
 
     /**

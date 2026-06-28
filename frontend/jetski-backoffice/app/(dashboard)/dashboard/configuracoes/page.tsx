@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configuracoesService } from '@/lib/api/services'
-import type { ComissaoConfig, ComissaoConfigRequest } from '@/lib/api/types'
+import type { ComissaoConfigRequest, TenantGeralConfigRequest } from '@/lib/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Settings, Percent, Gift, Save, AlertCircle } from 'lucide-react'
+import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function ConfiguracoesPage() {
@@ -31,6 +31,65 @@ export default function ConfiguracoesPage() {
     queryKey: ['comissao-config'],
     queryFn: () => configuracoesService.getComissaoConfig(),
   })
+
+  // Dados gerais / e-mail da empresa
+  const [razaoSocial, setRazaoSocial] = useState('')
+  const [cidade, setCidade] = useState('')
+  const [marinhaEmail, setMarinhaEmail] = useState('')
+  const [emailRemetente, setEmailRemetente] = useState('')
+  // SMTP por tenant
+  const [smtpHost, setSmtpHost] = useState('')
+  const [smtpPort, setSmtpPort] = useState('587')
+  const [smtpUsername, setSmtpUsername] = useState('')
+  const [smtpPassword, setSmtpPassword] = useState('')
+  const [smtpFrom, setSmtpFrom] = useState('')
+  const [smtpStarttls, setSmtpStarttls] = useState(true)
+  const [smtpConfigurado, setSmtpConfigurado] = useState(false)
+
+  const { data: geral } = useQuery({
+    queryKey: ['tenant-geral-config'],
+    queryFn: () => configuracoesService.getTenantConfig(),
+  })
+  useEffect(() => {
+    if (geral) {
+      setRazaoSocial(geral.razaoSocial ?? '')
+      setCidade(geral.cidade ?? '')
+      setMarinhaEmail(geral.marinhaEmail ?? '')
+      setEmailRemetente(geral.emailRemetente ?? '')
+      setSmtpHost(geral.smtpHost ?? '')
+      setSmtpPort(geral.smtpPort?.toString() ?? '587')
+      setSmtpUsername(geral.smtpUsername ?? '')
+      setSmtpFrom(geral.smtpFrom ?? '')
+      setSmtpStarttls(geral.smtpStarttls ?? true)
+      setSmtpConfigurado(!!geral.smtpConfigurado)
+      setSmtpPassword('') // senha nunca volta — write-only
+    }
+  }, [geral])
+
+  const updateGeral = useMutation({
+    mutationFn: (req: TenantGeralConfigRequest) => configuracoesService.updateTenantConfig(req),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tenant-geral-config'] })
+      setSmtpPassword('')
+      toast({ title: 'Dados da empresa salvos', description: 'E-mail e SMTP atualizados.' })
+    },
+    onError: (e: Error) =>
+      toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' }),
+  })
+
+  const salvarGeral = () =>
+    updateGeral.mutate({
+      razaoSocial,
+      cidade,
+      marinhaEmail,
+      emailRemetente,
+      smtpHost,
+      smtpPort: smtpPort ? Number(smtpPort) : undefined,
+      smtpUsername,
+      smtpFrom,
+      smtpStarttls,
+      ...(smtpPassword ? { smtpPassword } : {}),
+    })
 
   // Populate form when config loads
   useEffect(() => {
@@ -183,7 +242,163 @@ export default function ConfiguracoesPage() {
             <Percent className="h-4 w-4" />
             Comissões e Bônus
           </TabsTrigger>
+          <TabsTrigger value="empresa" className="gap-2">
+            <Building2 className="h-4 w-4" />
+            Empresa &amp; E-mail
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="empresa" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                E-mail da empresa
+              </CardTitle>
+              <CardDescription>
+                Destino dos documentos NORMAM-212 (Capitania/Marinha) e identidade de remetente — por
+                empresa.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="razaoSocial">Razão social</Label>
+                  <Input
+                    id="razaoSocial"
+                    value={razaoSocial}
+                    onChange={(e) => setRazaoSocial(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cidade">Cidade</Label>
+                  <Input id="cidade" value={cidade} onChange={(e) => setCidade(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="marinhaEmail">E-mail da Marinha (Capitania)</Label>
+                  <Input
+                    id="marinhaEmail"
+                    type="email"
+                    placeholder="capitania@marinha.mil.br"
+                    value={marinhaEmail}
+                    onChange={(e) => setMarinhaEmail(e.target.value)}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Recebe o PDF consolidado quando a documentação está completa.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="emailRemetente">E-mail remetente (responder-para)</Label>
+                  <Input
+                    id="emailRemetente"
+                    type="email"
+                    placeholder="contato@suaempresa.com.br"
+                    value={emailRemetente}
+                    onChange={(e) => setEmailRemetente(e.target.value)}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    E-mail da empresa usado como remetente/responder-para nos envios.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* SMTP por tenant */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Servidor de e-mail (SMTP) próprio
+              </CardTitle>
+              <CardDescription>
+                Envie com o e-mail real da sua empresa. Configure o SMTP (ex.: Gmail:
+                smtp.gmail.com, porta 587, com uma <strong>senha de app</strong>). Sem isso, os
+                e-mails saem pelo remetente padrão da plataforma.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="smtpHost">Host SMTP</Label>
+                  <Input
+                    id="smtpHost"
+                    placeholder="smtp.gmail.com"
+                    value={smtpHost}
+                    onChange={(e) => setSmtpHost(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="smtpPort">Porta</Label>
+                  <Input
+                    id="smtpPort"
+                    type="number"
+                    placeholder="587"
+                    value={smtpPort}
+                    onChange={(e) => setSmtpPort(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="smtpUsername">Usuário (conta SMTP)</Label>
+                  <Input
+                    id="smtpUsername"
+                    placeholder="suaempresa@gmail.com"
+                    value={smtpUsername}
+                    onChange={(e) => setSmtpUsername(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="smtpPassword">
+                    Senha / senha de app {smtpConfigurado && '(já configurada)'}
+                  </Label>
+                  <Input
+                    id="smtpPassword"
+                    type="password"
+                    placeholder={smtpConfigurado ? '•••••••• (deixe em branco p/ manter)' : 'senha de app'}
+                    value={smtpPassword}
+                    onChange={(e) => setSmtpPassword(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="smtpFrom">From (remetente exibido)</Label>
+                  <Input
+                    id="smtpFrom"
+                    type="email"
+                    placeholder="(padrão: a conta SMTP)"
+                    value={smtpFrom}
+                    onChange={(e) => setSmtpFrom(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-between pt-6">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="smtpStarttls">STARTTLS</Label>
+                    <p className="text-sm text-muted-foreground">Recomendado (porta 587)</p>
+                  </div>
+                  <Switch id="smtpStarttls" checked={smtpStarttls} onCheckedChange={setSmtpStarttls} />
+                </div>
+              </div>
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  A senha é gravada de forma <strong>write-only</strong> (nunca é exibida de volta).
+                  Para Gmail, gere uma <strong>Senha de app</strong> em
+                  myaccount.google.com/apppasswords (requer verificação em duas etapas).
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end">
+            <Button onClick={salvarGeral} disabled={updateGeral.isPending}>
+              {updateGeral.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-2 h-4 w-4" />
+              )}
+              Salvar dados da empresa
+            </Button>
+          </div>
+        </TabsContent>
 
         <TabsContent value="comissoes" className="space-y-6">
           {/* Commission Percentages */}

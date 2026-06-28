@@ -213,8 +213,15 @@ ALTER TABLE public.cliente
     ADD COLUMN IF NOT EXISTS status_conta varchar(20) NOT NULL DEFAULT 'SEM_LOGIN';
 
 ALTER TABLE public.tenant
-    ADD COLUMN IF NOT EXISTS marinha_email varchar(255),
-    ADD COLUMN IF NOT EXISTS pix_chave     varchar(140);
+    ADD COLUMN IF NOT EXISTS marinha_email   varchar(255),
+    ADD COLUMN IF NOT EXISTS email_remetente varchar(255),
+    ADD COLUMN IF NOT EXISTS pix_chave       varchar(140),
+    ADD COLUMN IF NOT EXISTS smtp_host       varchar(255),
+    ADD COLUMN IF NOT EXISTS smtp_port       integer,
+    ADD COLUMN IF NOT EXISTS smtp_username   varchar(255),
+    ADD COLUMN IF NOT EXISTS smtp_password   varchar(255),
+    ADD COLUMN IF NOT EXISTS smtp_from       varchar(255),
+    ADD COLUMN IF NOT EXISTS smtp_starttls   boolean DEFAULT true;
 
 CREATE TABLE IF NOT EXISTS public.reserva_comprovante (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,

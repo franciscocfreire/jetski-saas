@@ -5,11 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
-
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
 
 /**
  * Production email service - sends real emails via SMTP.
@@ -33,6 +29,8 @@ import jakarta.mail.internet.MimeMessage;
 public class SmtpEmailService implements EmailService {
 
     private final JavaMailSender mailSender;
+    private final TenantSmtpResolver tenantSmtpResolver;
+    private final SmtpSenderFactory senderFactory;
 
     @Value("${jetski.email.from:noreply@pegaojet.com.br}")
     private String fromEmail;
@@ -62,25 +60,11 @@ public class SmtpEmailService implements EmailService {
     public void sendEmailComAnexo(String to, String subject, String htmlBody,
                                   String attachmentName, byte[] attachment, String attachmentContentType) {
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
-            helper.setFrom(fromEmail, fromName);
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(htmlBody, true);
-            helper.addAttachment(attachmentName,
-                new org.springframework.core.io.ByteArrayResource(attachment), attachmentContentType);
-
-            mailSender.send(message);
+            dispatch(to, subject, htmlBody, attachmentName, attachment, attachmentContentType);
             log.info("Email com anexo enviado: to={}, subject={}, anexo={} ({} bytes)",
                 to, subject, attachmentName, attachment == null ? 0 : attachment.length);
-
-        } catch (MessagingException e) {
-            log.error("Failed to send email with attachment: to={}, subject={}", to, subject, e);
-            throw new RuntimeException("Failed to send email with attachment", e);
         } catch (Exception e) {
-            log.error("Unexpected error sending email with attachment: to={}, subject={}", to, subject, e);
+            log.error("Failed to send email with attachment: to={}, subject={}", to, subject, e);
             throw new RuntimeException("Failed to send email with attachment", e);
         }
     }
@@ -88,22 +72,30 @@ public class SmtpEmailService implements EmailService {
     @Override
     public void sendEmail(String to, String subject, String htmlBody) {
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
-            helper.setFrom(fromEmail, fromName);
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(htmlBody, true); // true = HTML
-
-            mailSender.send(message);
+            dispatch(to, subject, htmlBody, null, null, null);
             log.info("Email sent successfully: to={}, subject={}", to, subject);
-
         } catch (Exception e) {
             // Best-effort: uma falha de email NÃO deve interromper o fluxo de negócio
             // (signup/ativação/aprovação). Apenas registra o erro para diagnóstico.
             log.error("Failed to send email (ignored, best-effort): to={}, subject={}, error={}",
                 to, subject, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Envia usando o SMTP próprio do tenant (se configurado) — "from" real da empresa —
+     * ou o SMTP global da plataforma como fallback.
+     */
+    private void dispatch(String to, String subject, String html,
+                          String attName, byte[] att, String attType) throws Exception {
+        var perTenant = tenantSmtpResolver.forCurrentTenant();
+        if (perTenant.isPresent()) {
+            var s = perTenant.get();
+            String nome = (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : fromName;
+            senderFactory.send(senderFactory.build(s), s.from(), nome, to, subject, html, attName, att, attType);
+            log.debug("E-mail enviado pelo SMTP do tenant (from={})", s.from());
+        } else {
+            senderFactory.send(mailSender, fromEmail, fromName, to, subject, html, attName, att, attType);
         }
     }
 
