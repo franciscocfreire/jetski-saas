@@ -115,6 +115,11 @@ export function StepDocumentos({
   })
 
   function avancar() {
+    // Dados NORMAM obrigatórios para avançar (e para o envio à Marinha).
+    if (!nacionalidade.trim() || !naturalidade.trim()) {
+      toast.warning('Preencha nacionalidade e naturalidade (anexos NORMAM-212).')
+      return
+    }
     if (!temComprovante && (!endereco?.cep || !endereco?.logradouro)) {
       toast.warning('Sem comprovante: informe o endereço para a Declaração 1-C.')
       return
@@ -161,11 +166,15 @@ export function StepDocumentos({
             <Input value={orgaoEmissor} onChange={(e) => setOrgaoEmissor(e.target.value)} placeholder="SSP/RJ" />
           </div>
           <div>
-            <Label className="text-xs">Nacionalidade</Label>
+            <Label className="text-xs">
+              Nacionalidade <span className="text-red-500">*</span>
+            </Label>
             <Input value={nacionalidade} onChange={(e) => setNacionalidade(e.target.value)} />
           </div>
           <div>
-            <Label className="text-xs">Naturalidade</Label>
+            <Label className="text-xs">
+              Naturalidade <span className="text-red-500">*</span>
+            </Label>
             <Input value={naturalidade} onChange={(e) => setNaturalidade(e.target.value)} placeholder="Cidade/UF" />
           </div>
         </div>

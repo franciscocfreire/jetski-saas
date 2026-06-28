@@ -188,9 +188,8 @@ public class EmissaoService {
             if (!Boolean.TRUE.equals(hab.getAnexoRegras())) p.add("Anexo de regras");
             if (!Boolean.TRUE.equals(hab.getAnexoResidencia())) p.add("Comprovante/Declaração de residência");
             if (hab.getInstrutorId() == null) p.add("Instrutor");
-            // Dados pessoais (anexos NORMAM-212): exigidos para emitir, não para a reserva.
-            if (vazio(cliente.getRg())) p.add("RG");
-            if (vazio(cliente.getOrgaoEmissor())) p.add("Órgão emissor");
+            // Dados pessoais NORMAM exigidos para emitir (não para a reserva). RG e
+            // órgão emissor são opcionais; nacionalidade e naturalidade, obrigatórios.
             if (vazio(cliente.getNacionalidade())) p.add("Nacionalidade");
             if (vazio(cliente.getNaturalidade())) p.add("Naturalidade");
         }

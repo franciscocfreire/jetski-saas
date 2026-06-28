@@ -51,8 +51,6 @@ function hintGru(hab: Habilitacao | null | undefined): string {
 /** Dados pessoais (anexos NORMAM-212) — necessários só para emitir os documentos. */
 function faltaDadosPessoais(c: Reserva['cliente']): string {
   const falta: string[] = []
-  if (!c?.rg) falta.push('RG')
-  if (!c?.orgaoEmissor) falta.push('órgão emissor')
   if (!c?.nacionalidade) falta.push('nacionalidade')
   if (!c?.naturalidade) falta.push('naturalidade')
   return falta.length ? `falta: ${falta.join(', ')}` : 'completos'
@@ -69,7 +67,7 @@ function etapasDe(
   ]
   if (ema) {
     const c = r.cliente
-    const dadosOk = !!(c?.rg && c?.orgaoEmissor && c?.nacionalidade && c?.naturalidade)
+    const dadosOk = !!(c?.nacionalidade && c?.naturalidade)
     etapas.push(
       { chave: 'dados', label: 'Dados pessoais', ok: dadosOk, hint: faltaDadosPessoais(c) },
       { chave: 'gru', label: 'GRU paga', ok: !!hab?.gruPago, hint: hintGru(hab) },

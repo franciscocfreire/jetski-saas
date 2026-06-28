@@ -451,8 +451,6 @@ export function ReservaDetailSheet({
               <p className="text-xs text-muted-foreground">
                 Necessários para emitir os documentos (não bloqueiam a reserva).
               </p>
-              <Etapa ok={!!reserva.cliente?.rg} label="RG" />
-              <Etapa ok={!!reserva.cliente?.orgaoEmissor} label="Órgão emissor" />
               <Etapa ok={!!reserva.cliente?.nacionalidade} label="Nacionalidade" />
               <Etapa ok={!!reserva.cliente?.naturalidade} label="Naturalidade" />
             </div>
