@@ -39,10 +39,16 @@ set -a; . ./.env; set +a
 : "${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}"
 : "${PUBLIC_URL:?defina PUBLIC_URL no .env}"
 
-# Criptografia de segredos (senha SMTP por tenant): recomendado, não obrigatório.
+# Criptografia de segredos (senha SMTP por tenant): se não houver chave, gera uma
+# e grava no .env (uma única vez). NUNCA sobrescreve uma chave já existente —
+# trocar a chave torna os segredos já cifrados indecifráveis.
 if [ -z "${JETSKI_SECRET_KEY:-}" ]; then
-  warn "JETSKI_SECRET_KEY não definida — segredos (senha SMTP do tenant) ficam em TEXTO PURO no banco."
-  warn "  Recomendado: gere com 'openssl rand -base64 32' e defina no .env (UMA vez; não mude depois)."
+  log "JETSKI_SECRET_KEY ausente — gerando chave-mestra de criptografia e gravando no .env..."
+  JETSKI_SECRET_KEY="$(openssl rand -base64 32)"
+  export JETSKI_SECRET_KEY
+  printf '\n# Chave-mestra de criptografia de segredos (gerada pelo deploy; NÃO altere).\nJETSKI_SECRET_KEY=%s\n' \
+    "$JETSKI_SECRET_KEY" >> .env
+  warn "Chave gerada e salva no .env. Faça um BACKUP seguro dela (perdê-la = perder os segredos cifrados)."
 fi
 
 # 1. Atualiza o código
