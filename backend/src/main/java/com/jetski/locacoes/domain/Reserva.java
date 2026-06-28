@@ -247,7 +247,9 @@ public class Reserva {
      * - Must be active
      */
     public boolean canCancel() {
-        return ativo && (status == ReservaStatus.PENDENTE || status == ReservaStatus.CONFIRMADA);
+        return ativo && (status == ReservaStatus.RASCUNHO
+            || status == ReservaStatus.PENDENTE
+            || status == ReservaStatus.CONFIRMADA);
     }
 
     /**

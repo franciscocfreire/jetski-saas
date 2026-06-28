@@ -50,6 +50,12 @@ export const reservasService = {
     return data
   },
 
+  /** Cancela a reserva (soft-cancel → CANCELADA). Permite RASCUNHO/PENDENTE/CONFIRMADA. */
+  async cancelar(id: string): Promise<Reserva> {
+    const { data } = await apiClient.delete<Reserva>(`${getBasePath()}/${id}`)
+    return data
+  },
+
   async alocarJetski(id: string, jetskiId: string): Promise<Reserva> {
     const { data } = await apiClient.post<Reserva>(`${getBasePath()}/${id}/alocar-jetski`, {
       jetskiId,

@@ -19,6 +19,7 @@ import {
   Save,
   Upload,
   X,
+  Ban,
 } from 'lucide-react'
 import { FileUpload } from '@/components/file-upload'
 import {
@@ -119,6 +120,19 @@ export function ReservaDetailSheet({
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(msg ?? 'Falha ao salvar a reserva.')
+    },
+  })
+
+  const cancelar = useMutation({
+    mutationFn: () => reservasService.cancelar(reservaId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reservas'] })
+      toast.success('Reserva cancelada.')
+      onOpenChange(false)
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ?? 'Falha ao cancelar a reserva.')
     },
   })
 
@@ -262,6 +276,25 @@ export function ReservaDetailSheet({
           >
             <PlayCircle className="mr-2 h-4 w-4" />
             Retomar atendimento
+          </Button>
+        )}
+
+        {editavel && (
+          <Button
+            variant="outline"
+            className="mt-2 w-full border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950/40"
+            disabled={cancelar.isPending}
+            onClick={() => {
+              if (window.confirm(`Cancelar a reserva de ${reserva.cliente?.nome ?? 'cliente'}? Esta ação não pode ser desfeita.`))
+                cancelar.mutate()
+            }}
+          >
+            {cancelar.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Ban className="mr-2 h-4 w-4" />
+            )}
+            Cancelar reserva
           </Button>
         )}
 

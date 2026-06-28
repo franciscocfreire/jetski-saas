@@ -1,9 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { FileClock, PlayCircle, Plus, Search } from 'lucide-react'
+import { toast } from 'sonner'
+import { FileClock, PlayCircle, Plus, Search, Ban, Loader2 } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { reservasService, clientesService, modelosService } from '@/lib/api/services'
 import { Badge } from '@/components/ui/badge'
@@ -27,7 +28,20 @@ const fmtData = (iso: string) =>
 export default function AtendimentosPage() {
   const { currentTenant } = useTenantStore()
   const router = useRouter()
+  const qc = useQueryClient()
   const [q, setQ] = useState('')
+
+  const cancelar = useMutation({
+    mutationFn: (id: string) => reservasService.cancelar(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reservas', currentTenant?.id] })
+      toast.success('Atendimento cancelado.')
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ?? 'Falha ao cancelar.')
+    },
+  })
 
   const { data: reservas, isLoading } = useQuery({
     queryKey: ['reservas', currentTenant?.id],
@@ -101,23 +115,41 @@ export default function AtendimentosPage() {
       ) : (
         <div className="divide-y rounded-xl border">
           {rascunhos.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => retomar(r)}
-              className="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-accent/50"
-            >
-              <div className="w-14 shrink-0 text-sm tabular-nums text-muted-foreground">
-                {fmtData(r.createdAt ?? r.dataInicio)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{r.cliente?.nome || 'Cliente não informado'}</p>
-                <p className="truncate text-sm text-muted-foreground">{r.modelo?.nome}</p>
-              </div>
+            <div key={r.id} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-accent/50">
+              <button
+                onClick={() => retomar(r)}
+                className="flex min-w-0 flex-1 items-center gap-4 text-left"
+              >
+                <div className="w-14 shrink-0 text-sm tabular-nums text-muted-foreground">
+                  {fmtData(r.createdAt ?? r.dataInicio)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{r.cliente?.nome || 'Cliente não informado'}</p>
+                  <p className="truncate text-sm text-muted-foreground">{r.modelo?.nome}</p>
+                </div>
+              </button>
               <Badge variant="secondary">Rascunho</Badge>
-              <span className="flex shrink-0 items-center gap-1 text-sm text-primary">
-                <PlayCircle className="h-4 w-4" /> Retomar
-              </span>
-            </button>
+              <Button size="sm" variant="ghost" onClick={() => retomar(r)}>
+                <PlayCircle className="mr-1 h-4 w-4" /> Retomar
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"
+                disabled={cancelar.isPending && cancelar.variables === r.id}
+                onClick={() => {
+                  if (window.confirm(`Cancelar o atendimento de ${r.cliente?.nome ?? 'cliente'}?`))
+                    cancelar.mutate(r.id)
+                }}
+              >
+                {cancelar.isPending && cancelar.variables === r.id ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <Ban className="mr-1 h-4 w-4" />
+                )}
+                Cancelar
+              </Button>
+            </div>
           ))}
         </div>
       )}
