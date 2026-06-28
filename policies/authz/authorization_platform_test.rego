@@ -62,3 +62,17 @@ test_super_admin_god_mode_normal_action if {
 test_admin_tenant_allowed_normal_action if {
 	authorization.allow with input as admin_tenant("modelo:list")
 }
+
+# Re-cifragem de segredos (rotação de chave): só super admin.
+# POST /v1/platform/secrets/reencrypt → action "platform:reencrypt".
+test_admin_tenant_denied_platform_reencrypt if {
+	not authorization.allow with input as admin_tenant("platform:reencrypt")
+}
+
+test_operador_denied_platform_reencrypt if {
+	not authorization.allow with input as operador("platform:reencrypt")
+}
+
+test_super_admin_allowed_platform_reencrypt if {
+	authorization.allow with input as super_admin("platform:reencrypt")
+}

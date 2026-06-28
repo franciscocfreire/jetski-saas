@@ -71,6 +71,19 @@ class ActionExtractorTest {
         }
 
         @Test
+        @DisplayName("POST /v1/platform/secrets/reencrypt → platform:reencrypt (só super admin via OPA)")
+        void shouldExtractPlatformReencryptAction() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setMethod("POST");
+            request.setContextPath("/api");
+            request.setRequestURI("/api/v1/platform/secrets/reencrypt");
+
+            String action = actionExtractor.extractAction(request);
+
+            assertThat(action).isEqualTo("platform:reencrypt");
+        }
+
+        @Test
         @DisplayName("PUT /v1/locacoes/{id} → locacao:update")
         void shouldExtractUpdateAction() {
             MockHttpServletRequest request = new MockHttpServletRequest();
