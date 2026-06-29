@@ -79,6 +79,20 @@ public class ClienteController {
             .body(bytes);
     }
 
+    @org.springframework.web.bind.annotation.DeleteMapping("/{id}/anexos/{tipo}")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Apagar um anexo do cliente (identidade, comprovante, selfie)")
+    public ResponseEntity<Void> deletarAnexo(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @PathVariable String tipo
+    ) {
+        validateTenantContext(tenantId);
+        var t = com.jetski.locacoes.domain.ClienteAnexo.Tipo.valueOf(tipo.toUpperCase());
+        anexoService.deletar(id, t);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/{id}/anexos")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
     @Operation(summary = "Listar anexos presentes do cliente")

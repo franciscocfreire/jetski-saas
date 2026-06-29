@@ -67,4 +67,9 @@ export const clientesService = {
     })
     return res.data as Blob
   },
+
+  /** Apaga um anexo do cliente (foto/documento). */
+  async deletarAnexo(clienteId: string, tipo: string): Promise<void> {
+    await apiClient.delete(`${getBasePath()}/${clienteId}/anexos/${tipo}`)
+  },
 }

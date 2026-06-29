@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import Link from 'next/link'
 import {
   CalendarClock,
@@ -9,10 +10,12 @@ import {
   FileText,
   IdCard,
   Image as ImageIcon,
+  Loader2,
   Mail,
   MapPin,
   Phone,
   Ship,
+  Trash2,
   User,
 } from 'lucide-react'
 import {
@@ -134,6 +137,19 @@ export function ClienteDetailSheet({
     }
   }, [anexos])
 
+  const qc = useQueryClient()
+  const apagarAnexo = useMutation({
+    mutationFn: (tipo: string) => clientesService.deletarAnexo(clienteId!, tipo),
+    onSuccess: () => {
+      // Recarrega aqui e nos lugares que checam presença (drawer/pendências).
+      qc.invalidateQueries({ queryKey: ['cliente-anexos-full', clienteId] })
+      qc.invalidateQueries({ queryKey: ['cliente-anexos-tipos', clienteId] })
+      qc.invalidateQueries({ queryKey: ['cliente-anexos', clienteId] })
+      toast.success('Anexo apagado.')
+    },
+    onError: () => toast.error('Falha ao apagar o anexo.'),
+  })
+
   // Histórico de passeios (locações reais do cliente).
   const { data: locacoes, isLoading: locacoesLoading } = useQuery({
     queryKey: ['locacoes-cliente', clienteId],
@@ -226,17 +242,36 @@ export function ClienteDetailSheet({
             <div className="grid grid-cols-2 gap-3">
               {ANEXOS.map(({ tipo, label }) => {
                 const url = anexos?.[tipo]
+                const apagando = apagarAnexo.isPending && apagarAnexo.variables === tipo
                 return (
                   <div key={tipo} className="space-y-1">
                     {url ? (
-                      <a href={url} target="_blank" rel="noreferrer" className="block">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={url}
-                          alt={label}
-                          className="aspect-[4/3] w-full rounded-md border object-cover transition hover:opacity-90"
-                        />
-                      </a>
+                      <div className="group relative">
+                        <a href={url} target="_blank" rel="noreferrer" className="block">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt={label}
+                            className="aspect-[4/3] w-full rounded-md border object-cover transition hover:opacity-90"
+                          />
+                        </a>
+                        <button
+                          type="button"
+                          title="Apagar anexo"
+                          disabled={apagando}
+                          onClick={() => {
+                            if (window.confirm(`Apagar "${label}" deste cliente? Esta ação não pode ser desfeita.`))
+                              apagarAnexo.mutate(tipo)
+                          }}
+                          className="absolute right-1 top-1 rounded-md bg-black/55 p-1 text-white opacity-0 transition hover:bg-red-600 focus:opacity-100 group-hover:opacity-100"
+                        >
+                          {apagando ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
                     ) : (
                       <div className="flex aspect-[4/3] w-full items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">
                         não enviado

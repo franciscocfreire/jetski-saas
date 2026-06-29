@@ -53,6 +53,21 @@ public class ClienteAnexoService {
         return repository.findByClienteIdAndTipo(clienteId, tipo);
     }
 
+    /** Remove o anexo (registro + objeto no storage). No-op se não existir. */
+    @Transactional
+    public void deletar(UUID clienteId, ClienteAnexo.Tipo tipo) {
+        repository.findByClienteIdAndTipo(clienteId, tipo).ifPresent(anexo -> {
+            try {
+                storageService.deleteFile(anexo.getS3Key());
+            } catch (Exception e) {
+                log.warn("Anexo {} do cliente {}: falha ao remover do storage ({}): {}",
+                    tipo, clienteId, anexo.getS3Key(), e.getMessage());
+            }
+            repository.delete(anexo);
+            log.info("Anexo {} do cliente {} removido", tipo, clienteId);
+        });
+    }
+
     @Transactional(readOnly = true)
     public byte[] lerImagem(ClienteAnexo anexo) {
         return storageService.getObject(anexo.getS3Key());
