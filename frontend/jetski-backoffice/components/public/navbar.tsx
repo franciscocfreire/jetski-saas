@@ -119,7 +119,7 @@ export function Navbar() {
           <div className="pt-6 border-t border-white/10 space-y-3">
             <Button
               variant="outline"
-              className="w-full border-white/20 text-white hover:bg-white/10 rounded-none"
+              className="w-full bg-transparent border-white/30 text-white hover:bg-white/10 hover:text-white rounded-none"
               asChild
             >
               <Link href="/login">Acesso Empresa</Link>
