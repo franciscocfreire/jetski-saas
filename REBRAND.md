@@ -41,10 +41,12 @@ As origens CORS hardcoded em `SecurityConfig.java` foram trocadas para `meujet`.
 Se ainda precisar atender `jetsave.com.br` durante o cutover, reabilitar
 temporariamente essa origem (ou usar `JETSKI_ALLOWED_ORIGINS` no `.env` com os dois).
 
-## Pendências de marca a decidir (não alteradas)
-- `app/(auth)/login/page.tsx`: e-mail de suporte `suporte@pegaojet.com.br`.
-- `app/(auth)/signup/page.tsx`: exemplo de subdomínio `{slug}.pegaojet.com.br`.
-  Ambos apontam para o domínio **dev**; em produção (meujet) o ideal é torná-los
-  dinâmicos (via env) ou trocar para `meujet.com.br`.
+## Pendências de marca — resolvidas
+- `app/(auth)/login/page.tsx`: e-mail de suporte → `suporte@meujet.com.br` (marca).
+- `app/(auth)/signup/page.tsx`: exemplo de subdomínio agora derivado do **host atual**
+  (`window.location.hostname`): dev mostra `…pegaojet.com.br`, prod `…meujet.com.br`,
+  com fallback `meujet.com.br`. Lembrar de criar/monitorar a caixa `suporte@meujet.com.br`.
+
+## Pendência opcional (não alterada)
 - `spring.application.name = pegaojet-api` (`application-{dev,prod}.yml`): rótulo de
   observabilidade. Mantido para não fragmentar métricas/dashboards; renomear é opcional.

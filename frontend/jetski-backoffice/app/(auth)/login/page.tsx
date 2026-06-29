@@ -118,7 +118,7 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-muted-foreground">
             Precisa de ajuda?{' '}
-            <a href="mailto:suporte@pegaojet.com.br" className="text-primary hover:underline font-medium">
+            <a href="mailto:suporte@meujet.com.br" className="text-primary hover:underline font-medium">
               Fale conosco
             </a>
           </p>

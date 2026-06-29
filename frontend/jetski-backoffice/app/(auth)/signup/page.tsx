@@ -37,6 +37,16 @@ export default function SignupPage() {
     adminNome: '',
   })
 
+  // Domínio base mostrado no exemplo de subdomínio — derivado do host atual
+  // (dev: pegaojet.com.br · prod: meujet.com.br). Default estável p/ não quebrar SSR.
+  const [baseDominio, setBaseDominio] = useState('meujet.com.br')
+  useEffect(() => {
+    const host = window.location.hostname.replace(/^www\./, '')
+    if (host && !host.includes('localhost') && host.split('.').length >= 2) {
+      setBaseDominio(host)
+    }
+  }, [])
+
   // Auto-generate slug from company name
   useEffect(() => {
     if (formData.razaoSocial && !formData.slug) {
@@ -245,7 +255,7 @@ export default function SignupPage() {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Seu sistema: <span className="font-medium">{formData.slug || 'identificador'}</span>.pegaojet.com.br
+                  Seu sistema: <span className="font-medium">{formData.slug || 'identificador'}</span>.{baseDominio}
                 </p>
                 {slugAvailable === false && (
                   <p className="text-xs text-red-600">
