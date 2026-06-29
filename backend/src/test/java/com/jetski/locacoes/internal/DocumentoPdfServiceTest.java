@@ -125,6 +125,20 @@ class DocumentoPdfServiceTest {
     }
 
     @Test
+    @DisplayName("Anexo de imagem (selfie/RG foto) também recebe o carimbo 'Anexo do cliente: <tipo>'")
+    void anexoImagemCarimbado() throws Exception {
+        DocumentoPdfService.DocumentoPdf pdf = service.gerarDocumentoConsolidado(
+                dados("CHA", false), null,
+                java.util.List.of(new DocumentoPdfService.AnexoImagem("Foto do Cliente", assinaturaMockPng("foto"))));
+
+        try (org.apache.pdfbox.pdmodel.PDDocument d =
+                 org.apache.pdfbox.pdmodel.PDDocument.load(pdf.conteudo())) {
+            String txt = new org.apache.pdfbox.text.PDFTextStripper().getText(d);
+            assertThat(txt).contains("Anexo do cliente: Foto do Cliente");
+        }
+    }
+
+    @Test
     @DisplayName("Anexo com bytes ilegíveis (nem imagem nem PDF) é ignorado sem derrubar a geração")
     void anexoIlegivelIgnorado() {
         DocumentoPdfService.DocumentoPdf pdf = service.gerarDocumentoConsolidado(

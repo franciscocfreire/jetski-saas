@@ -325,19 +325,23 @@ public class DocumentoPdfService {
                         anexosPdf.add(a);
                         continue;
                     }
-                    section(doc, first);
-                    first = false;
+                    // Imagem (selfie/RG foto) → PDF de 1 página (título no topo); carimbada
+                    // e mesclada ao final, como os anexos PDF, p/ receber o mesmo rodapé.
                     try {
-                        writeImagemAnexo(doc, f, a.titulo(), a.bytes());
+                        byte[] imgPdf = imagemParaPdf(a.bytes(), a.titulo()).conteudo();
+                        anexosPdf.add(new AnexoImagem(a.titulo(), imgPdf));
                     } catch (Exception e) {
                         log.warn("Anexo '{}' ignorado (imagem ilegível): {}", a.titulo(), e.getMessage());
                     }
                 }
             }
 
-            // Sem páginas geradas e sem anexos em PDF → evita "document has no pages".
-            if (first && anexosPdf.isEmpty()) {
-                doc.add(new Paragraph("(Sem seções selecionadas para este destino.)", f.sans));
+            // Base sem nenhuma seção interna → garante ≥1 página antes de fechar
+            // (os anexos são mesclados depois, separadamente).
+            if (first) {
+                doc.add(new Paragraph(anexosPdf.isEmpty()
+                    ? "(Sem seções selecionadas para este destino.)"
+                    : "(Documentação nos anexos a seguir.)", f.sans));
             }
 
             doc.close();
