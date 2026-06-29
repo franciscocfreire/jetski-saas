@@ -165,6 +165,7 @@ public class SecurityConfig {
                 new AntPathRequestMatcher("/v1/storage/local/**"),          // Local storage endpoints (simulated presigned URLs)
                 new AntPathRequestMatcher("/v1/signup/**"),                 // Self-service tenant signup (public)
                 new AntPathRequestMatcher("/v1/public/**"),                 // Public marketplace API (no auth)
+                new AntPathRequestMatcher("/v1/pdf/**"),                    // Abertura de PDF por token de uso único
                 new AntPathRequestMatcher("/v1/test/**")                    // E2E test utilities (local/test profile only)
             ))
 

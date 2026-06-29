@@ -1,4 +1,25 @@
 /**
+ * Abre um PDF por uma URL pública temporária (uso único) — a forma mais confiável
+ * no iOS Safari, que renderiza PDFs de URLs https nativamente (mas não blob: em aba
+ * nova). `mintUrl` faz a chamada autenticada que gera o PDF no servidor e devolve
+ * a URL ({url}); a aba é aberta sincronicamente (preserva o gesto do clique).
+ */
+export async function abrirPdfPorLink(mintUrl: () => Promise<{ url: string }>): Promise<void> {
+  const win = window.open('', '_blank')
+  try {
+    const { url } = await mintUrl()
+    if (win && !win.closed) {
+      win.location.href = url
+    } else {
+      window.location.href = url // popup bloqueado → abre na mesma aba
+    }
+  } catch (e) {
+    win?.close()
+    throw e
+  }
+}
+
+/**
  * Abre um PDF (obtido via fetch autenticado → Blob) de forma compatível com iOS.
  *
  * iOS Safari só permite `window.open` dentro do gesto do clique; depois de um

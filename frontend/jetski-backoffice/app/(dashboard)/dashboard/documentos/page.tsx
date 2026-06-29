@@ -7,7 +7,7 @@ import { FileText, FileDown, Search, Loader2, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { documentosService, clientesService } from '@/lib/api/services'
-import { abrirPdfBlob } from '@/lib/pdf'
+import { abrirPdfPorLink } from '@/lib/pdf'
 import type { Cliente } from '@/lib/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -60,8 +60,8 @@ function DocumentosConteudo() {
   async function baixar(id: string) {
     try {
       setBaixandoId(id)
-      // Abre a aba no clique (iOS Safari) e renderiza o PDF inline.
-      await abrirPdfBlob(async () => (await documentosService.download(id)).blob, 'documento.pdf')
+      // Abre a aba no clique e aponta p/ uma URL https real (iOS renderiza PDF nativo).
+      await abrirPdfPorLink(() => documentosService.downloadLink(id))
     } catch (e) {
       console.error('[documentos] download falhou', e)
       alert('Não foi possível baixar o documento.')

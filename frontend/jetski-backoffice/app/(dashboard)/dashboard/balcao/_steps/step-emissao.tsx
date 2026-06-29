@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { DocumentoPreviewButtons } from '@/components/documento-preview-buttons'
 import { reservasService, documentosService } from '@/lib/api/services'
-import { abrirPdfBlob } from '@/lib/pdf'
+import { abrirPdfPorLink } from '@/lib/pdf'
 import type { Atendimento } from '../types'
 import type { ResultadoEmissao } from '@/lib/api/types'
 
@@ -26,7 +26,7 @@ export function StepEmissao({
   async function abrirPdf(documentoId: string) {
     try {
       setBaixando(true)
-      await abrirPdfBlob(async () => (await documentosService.download(documentoId)).blob, 'documento.pdf')
+      await abrirPdfPorLink(() => documentosService.downloadLink(documentoId))
     } catch (e) {
       console.error('[emissao] download falhou', e)
       toast.error('Não foi possível abrir o PDF.')

@@ -1,7 +1,9 @@
 package com.jetski.locacoes.api;
 
 import com.jetski.locacoes.internal.EmissaoService;
+import com.jetski.locacoes.internal.PdfLinkService;
 import com.jetski.shared.security.TenantContext;
+import java.util.Map;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import java.util.UUID;
 public class EmissaoController {
 
     private final EmissaoService emissaoService;
+    private final PdfLinkService pdfLinkService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
@@ -63,6 +66,23 @@ public class EmissaoController {
             .contentType(MediaType.APPLICATION_PDF)
             .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + nome + "\"")
             .body(pdf);
+    }
+
+    @GetMapping("/preview-link")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Link temporário da prévia (abre por URL, compatível com iOS)",
+        description = "Gera a prévia e devolve uma URL pública de uso único (/v1/pdf/<token>) "
+                    + "para abrir o PDF — o iOS Safari não renderiza blob: em aba nova."
+    )
+    public ResponseEntity<Map<String, String>> previewLink(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @RequestParam(defaultValue = "CLIENTE") EmissaoService.Destino destino
+    ) {
+        validateTenantContext(tenantId);
+        String url = pdfLinkService.criarLink(emissaoService.preview(id, destino));
+        return ResponseEntity.ok(Map.of("url", url));
     }
 
     private void validateTenantContext(UUID tenantId) {

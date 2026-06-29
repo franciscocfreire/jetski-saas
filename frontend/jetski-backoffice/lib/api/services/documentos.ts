@@ -31,4 +31,10 @@ export const documentosService = {
     const { data } = await apiClient.post(`${getBasePath()}/${id}/reenviar`)
     return data
   },
+
+  /** Link temporário (uso único) p/ abrir o documento por URL — compatível com iOS. */
+  async downloadLink(id: string): Promise<{ url: string }> {
+    const { data } = await apiClient.get<{ url: string }>(`${getBasePath()}/${id}/download-link`)
+    return data
+  },
 }

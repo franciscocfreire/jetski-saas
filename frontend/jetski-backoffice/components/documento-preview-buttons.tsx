@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Anchor, Eye, Loader2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { reservasService } from '@/lib/api/services'
-import { abrirPdfBlob } from '@/lib/pdf'
+import { abrirPdfPorLink } from '@/lib/pdf'
 
 type Destino = 'MARINHA' | 'CLIENTE'
 
@@ -29,10 +29,7 @@ export function DocumentoPreviewButtons({
   async function abrir(destino: Destino) {
     try {
       setCarregando(destino)
-      await abrirPdfBlob(
-        () => reservasService.previewDocumento(reservaId, destino),
-        `previa-${destino.toLowerCase()}.pdf`
-      )
+      await abrirPdfPorLink(() => reservasService.previewDocumentoLink(reservaId, destino))
     } catch (e) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(msg ?? 'Não foi possível gerar a prévia.')

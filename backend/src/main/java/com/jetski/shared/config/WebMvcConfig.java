@@ -27,6 +27,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
             .addPathPatterns("/**")  // Aplica a todos os endpoints (context-path /api já está no request)
             .excludePathPatterns(
                 "/v1/auth-test/public",  // Endpoint público
+                "/v1/pdf/**",            // Abertura de PDF por token (uso único, público)
                 "/actuator/**",          // Actuator (health, metrics)
                 "/swagger-ui/**",        // Swagger UI
                 "/v3/api-docs/**"        // OpenAPI docs

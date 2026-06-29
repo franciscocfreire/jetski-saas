@@ -102,4 +102,13 @@ export const reservasService = {
     })
     return res.data as Blob
   },
+
+  /** Link temporário (uso único) p/ abrir a prévia por URL — compatível com iOS. */
+  async previewDocumentoLink(id: string, destino: 'MARINHA' | 'CLIENTE'): Promise<{ url: string }> {
+    const { data } = await apiClient.get<{ url: string }>(
+      `${getBasePath()}/${id}/emitir-documentos/preview-link`,
+      { params: { destino } }
+    )
+    return data
+  },
 }

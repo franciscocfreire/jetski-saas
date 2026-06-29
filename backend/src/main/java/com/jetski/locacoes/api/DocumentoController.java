@@ -3,7 +3,10 @@ package com.jetski.locacoes.api;
 import com.jetski.locacoes.api.dto.DocumentoConsultaResponse;
 import com.jetski.locacoes.internal.DocumentoConsultaService;
 import com.jetski.locacoes.internal.EmissaoService;
+import com.jetski.locacoes.internal.PdfLinkService;
 import com.jetski.shared.security.TenantContext;
+
+import java.util.Map;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +34,7 @@ public class DocumentoController {
 
     private final DocumentoConsultaService service;
     private final EmissaoService emissaoService;
+    private final PdfLinkService pdfLinkService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
@@ -57,6 +61,19 @@ public class DocumentoController {
             .contentType(MediaType.APPLICATION_PDF)
             .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + arq.filename() + "\"")
             .body(arq.conteudo());
+    }
+
+    @GetMapping("/{id}/download-link")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
+    @Operation(summary = "Link temporário do documento emitido (abre por URL, compatível com iOS)")
+    public ResponseEntity<Map<String, String>> downloadLink(
+        @PathVariable UUID tenantId, @PathVariable UUID id
+    ) {
+        if (!tenantId.equals(TenantContext.getTenantId())) {
+            throw new IllegalArgumentException("Tenant ID mismatch");
+        }
+        String url = pdfLinkService.criarLink(service.baixar(id).conteudo());
+        return ResponseEntity.ok(Map.of("url", url));
     }
 
     @PostMapping("/{id}/reenviar")
