@@ -139,6 +139,20 @@ class DocumentoPdfServiceTest {
     }
 
     @Test
+    @DisplayName("carimbarRodape estampa o texto em todas as páginas (ex.: comprovante da GRU)")
+    void carimboRodapeComprovante() throws Exception {
+        byte[] base = service.gerarTermoResponsabilidade(
+                new DocumentoPdfService.DadosTermo("X", "1", "Y", "2", "Z", "16/06/2026"), null).conteudo();
+        byte[] carimbado = service.carimbarRodape(base, "Comprovante de pagamento da GRU");
+
+        try (org.apache.pdfbox.pdmodel.PDDocument d =
+                 org.apache.pdfbox.pdmodel.PDDocument.load(carimbado)) {
+            String txt = new org.apache.pdfbox.text.PDFTextStripper().getText(d);
+            assertThat(txt).contains("Comprovante de pagamento da GRU");
+        }
+    }
+
+    @Test
     @DisplayName("Anexo com bytes ilegíveis (nem imagem nem PDF) é ignorado sem derrubar a geração")
     void anexoIlegivelIgnorado() {
         DocumentoPdfService.DocumentoPdf pdf = service.gerarDocumentoConsolidado(

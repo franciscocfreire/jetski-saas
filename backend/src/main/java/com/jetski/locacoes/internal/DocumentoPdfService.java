@@ -169,23 +169,27 @@ public class DocumentoPdfService {
             && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F';
     }
 
-    /**
-     * Carimba, no rodapé de TODAS as páginas de um anexo em PDF, o tipo do anexo
-     * (ex.: "Anexo do cliente: Documento de Identidade"). Identifica a origem das
-     * páginas enviadas pelo cliente. Em caso de falha, devolve o PDF original.
-     */
+    /** Carimbo de rodapé de anexo do cliente (ex.: "Anexo do cliente: Documento de Identidade"). */
     private byte[] carimbarRodapeAnexo(byte[] anexoPdf, String titulo) {
+        return carimbarRodape(anexoPdf, "Anexo do cliente: " + (titulo == null ? "documento" : titulo));
+    }
+
+    /**
+     * Carimba o texto informado no rodapé de TODAS as páginas de um PDF — identifica
+     * a origem/tipo do conteúdo (anexos do cliente, comprovante da GRU). Em caso de
+     * falha, devolve o PDF original.
+     */
+    public byte[] carimbarRodape(byte[] pdf, String texto) {
         try {
-            PdfReader reader = new PdfReader(anexoPdf);
+            PdfReader reader = new PdfReader(pdf);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             PdfStamper stamper = new PdfStamper(reader, out);
             BaseFont bf = BaseFont.createFont(BaseFont.HELVETICA_BOLD, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
-            String texto = "Anexo do cliente: " + (titulo == null ? "documento" : titulo);
             int n = reader.getNumberOfPages();
             for (int i = 1; i <= n; i++) {
                 Rectangle size = reader.getPageSizeWithRotation(i);
                 PdfContentByte cb = stamper.getOverContent(i);
-                // Faixa clara para o texto destacar sobre o conteúdo do anexo.
+                // Faixa clara para o texto destacar sobre o conteúdo da página.
                 cb.saveState();
                 cb.setColorFill(new Color(255, 255, 255));
                 PdfGState gs = new PdfGState();
@@ -204,8 +208,8 @@ public class DocumentoPdfService {
             reader.close();
             return out.toByteArray();
         } catch (Exception e) {
-            log.warn("Falha ao carimbar rodapé do anexo '{}': {}", titulo, e.getMessage());
-            return anexoPdf;
+            log.warn("Falha ao carimbar rodapé ('{}'): {}", texto, e.getMessage());
+            return pdf;
         }
     }
 

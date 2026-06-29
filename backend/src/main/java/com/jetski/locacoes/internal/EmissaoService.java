@@ -250,8 +250,10 @@ public class EmissaoService {
 
         if (cfg.comprovanteGruOn() && hab != null && hab.getGruComprovanteS3Key() != null) {
             try {
-                pdf = documentoPdfService.anexarPdf(pdf,
-                    storageService.getObject(hab.getGruComprovanteS3Key()));
+                byte[] comprovante = documentoPdfService.carimbarRodape(
+                    storageService.getObject(hab.getGruComprovanteS3Key()),
+                    "Comprovante de pagamento da GRU");
+                pdf = documentoPdfService.anexarPdf(pdf, comprovante);
             } catch (Exception e) {
                 log.warn("Comprovante da GRU não anexado ao PDF: {}", e.getMessage());
             }
