@@ -108,6 +108,23 @@ class DocumentoPdfServiceTest {
     }
 
     @Test
+    @DisplayName("Anexo PDF recebe carimbo 'Anexo do cliente: <tipo>' em todas as páginas")
+    void anexoPdfCarimbado() throws Exception {
+        // Documento de 2 páginas (consolidado CHA + comprovante-like) usado como anexo.
+        byte[] anexoPdf = service.gerarTermoResponsabilidade(
+                new DocumentoPdfService.DadosTermo("X", "1", "Y", "2", "Z", "16/06/2026"), null).conteudo();
+        DocumentoPdfService.DocumentoPdf pdf = service.gerarDocumentoConsolidado(
+                dados("CHA", false), null,
+                java.util.List.of(new DocumentoPdfService.AnexoImagem("Documento de Identidade", anexoPdf)));
+
+        try (org.apache.pdfbox.pdmodel.PDDocument d =
+                 org.apache.pdfbox.pdmodel.PDDocument.load(pdf.conteudo())) {
+            String txt = new org.apache.pdfbox.text.PDFTextStripper().getText(d);
+            assertThat(txt).contains("Anexo do cliente: Documento de Identidade");
+        }
+    }
+
+    @Test
     @DisplayName("Anexo com bytes ilegíveis (nem imagem nem PDF) é ignorado sem derrubar a geração")
     void anexoIlegivelIgnorado() {
         DocumentoPdfService.DocumentoPdf pdf = service.gerarDocumentoConsolidado(

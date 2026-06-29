@@ -20,6 +20,7 @@ import com.lowagie.text.pdf.PdfPageEventHelper;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.PdfStamper;
 import com.lowagie.text.pdf.PdfWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -168,6 +169,46 @@ public class DocumentoPdfService {
             && b[0] == '%' && b[1] == 'P' && b[2] == 'D' && b[3] == 'F';
     }
 
+    /**
+     * Carimba, no rodapé de TODAS as páginas de um anexo em PDF, o tipo do anexo
+     * (ex.: "Anexo do cliente: Documento de Identidade"). Identifica a origem das
+     * páginas enviadas pelo cliente. Em caso de falha, devolve o PDF original.
+     */
+    private byte[] carimbarRodapeAnexo(byte[] anexoPdf, String titulo) {
+        try {
+            PdfReader reader = new PdfReader(anexoPdf);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            PdfStamper stamper = new PdfStamper(reader, out);
+            BaseFont bf = BaseFont.createFont(BaseFont.HELVETICA_BOLD, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
+            String texto = "Anexo do cliente: " + (titulo == null ? "documento" : titulo);
+            int n = reader.getNumberOfPages();
+            for (int i = 1; i <= n; i++) {
+                Rectangle size = reader.getPageSizeWithRotation(i);
+                PdfContentByte cb = stamper.getOverContent(i);
+                // Faixa clara para o texto destacar sobre o conteúdo do anexo.
+                cb.saveState();
+                cb.setColorFill(new Color(255, 255, 255));
+                PdfGState gs = new PdfGState();
+                gs.setFillOpacity(0.75f);
+                cb.setGState(gs);
+                cb.rectangle(0, 6, size.getWidth(), 16);
+                cb.fill();
+                cb.restoreState();
+                cb.beginText();
+                cb.setFontAndSize(bf, 8);
+                cb.setColorFill(new Color(180, 30, 30));
+                cb.showTextAligned(Element.ALIGN_CENTER, texto, size.getWidth() / 2, 10, 0);
+                cb.endText();
+            }
+            stamper.close();
+            reader.close();
+            return out.toByteArray();
+        } catch (Exception e) {
+            log.warn("Falha ao carimbar rodapé do anexo '{}': {}", titulo, e.getMessage());
+            return anexoPdf;
+        }
+    }
+
     /** Anexa as páginas de outro PDF (ex.: comprovante da GRU) ao fim do documento. */
     public DocumentoPdf anexarPdf(DocumentoPdf base, byte[] anexoPdf) {
         if (anexoPdf == null || anexoPdf.length == 0) {
@@ -274,14 +315,14 @@ public class DocumentoPdfService {
             // Anexos do cliente: imagens vão embutidas; PDFs (ex.: identidade enviada
             // como PDF) são mesclados como páginas DEPOIS de fechar o documento, pois
             // não são imagens (Image.getInstance falharia e derrubaria a geração).
-            java.util.List<byte[]> anexosPdf = new java.util.ArrayList<>();
+            java.util.List<AnexoImagem> anexosPdf = new java.util.ArrayList<>();
             if (anexos != null) {
                 for (AnexoImagem a : anexos) {
                     if (a == null || a.bytes() == null || a.bytes().length == 0) {
                         continue;
                     }
                     if (isPdf(a.bytes())) {
-                        anexosPdf.add(a.bytes());
+                        anexosPdf.add(a);
                         continue;
                     }
                     section(doc, first);
@@ -301,9 +342,13 @@ public class DocumentoPdfService {
 
             doc.close();
             byte[] bytes = baos.toByteArray();
-            // Mescla os anexos em PDF ao final (cada um pode ter várias páginas).
-            for (byte[] anexoPdf : anexosPdf) {
-                bytes = anexarPdf(new DocumentoPdf(bytes, ""), anexoPdf).conteudo();
+            // Mescla os anexos em PDF ao final, carimbando em todas as páginas o tipo do
+            // anexo (ex.: "Anexo do cliente: Documento de Identidade") — assim páginas
+            // vindas de um upload do cliente ficam identificadas (não se confundem com
+            // os documentos oficiais, mesmo que o cliente tenha enviado um doc inteiro).
+            for (AnexoImagem a : anexosPdf) {
+                byte[] carimbado = carimbarRodapeAnexo(a.bytes(), a.titulo());
+                bytes = anexarPdf(new DocumentoPdf(bytes, ""), carimbado).conteudo();
             }
             log.info("PDF consolidado gerado: {} bytes (via={}, anexosPdf={})",
                     bytes.length, d.via(), anexosPdf.size());
