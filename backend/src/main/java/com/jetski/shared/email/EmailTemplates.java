@@ -13,13 +13,13 @@ public final class EmailTemplates {
     }
 
     /** Assunto do email de convite/ativação. */
-    public static final String INVITATION_SUBJECT = "Você foi convidado para o Pega o Jet";
+    public static final String INVITATION_SUBJECT = "Você foi convidado para o MeuJet";
 
     /** Assunto do email de redefinição de senha. */
-    public static final String PASSWORD_RESET_SUBJECT = "Pega o Jet - Redefinição de senha";
+    public static final String PASSWORD_RESET_SUBJECT = "MeuJet - Redefinição de senha";
 
     /** Assunto do email de notificação de nova empresa (super admin). */
-    public static final String NEW_TENANT_SUBJECT = "Pega o Jet - Nova empresa aguardando aprovação";
+    public static final String NEW_TENANT_SUBJECT = "MeuJet - Nova empresa aguardando aprovação";
 
     public static String newTenantNotificationHtml(String razaoSocial, String slug) {
         return String.format("""
@@ -32,7 +32,7 @@ public final class EmailTemplates {
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
                     <h2 style="color: #0ea5e9;">Nova empresa aguardando aprovação</h2>
 
-                    <p>Uma nova empresa se cadastrou no <strong>Pega o Jet</strong> e está aguardando
+                    <p>Uma nova empresa se cadastrou no <strong>MeuJet</strong> e está aguardando
                        liberação:</p>
 
                     <div style="background-color: #f0f9ff; padding: 15px; margin: 20px 0; border-left: 4px solid #0ea5e9;">
@@ -45,7 +45,7 @@ public final class EmailTemplates {
                     <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
 
                     <p style="color: #999; font-size: 12px;">
-                        Pega o Jet — notificação automática de plataforma
+                        MeuJet — notificação automática de plataforma
                     </p>
                 </div>
             </body>
@@ -66,7 +66,7 @@ public final class EmailTemplates {
 
                     <p>Olá <strong>%s</strong>,</p>
 
-                    <p>Você foi convidado para se juntar ao <strong>Pega o Jet</strong>!</p>
+                    <p>Você foi convidado para se juntar ao <strong>MeuJet</strong>!</p>
 
                     <p>Para ativar sua conta, você precisará do link de ativação e da senha temporária abaixo:</p>
 
@@ -103,7 +103,7 @@ public final class EmailTemplates {
 
                     <p style="color: #999; font-size: 12px;">
                         Atenciosamente,<br>
-                        Equipe Pega o Jet
+                        Equipe MeuJet
                     </p>
                 </div>
             </body>
@@ -124,7 +124,7 @@ public final class EmailTemplates {
 
                     <p>Olá <strong>%s</strong>,</p>
 
-                    <p>Recebemos uma solicitação para redefinir sua senha no <strong>Pega o Jet</strong>.</p>
+                    <p>Recebemos uma solicitação para redefinir sua senha no <strong>MeuJet</strong>.</p>
 
                     <p style="text-align: center; margin: 30px 0;">
                         <a href="%s"
@@ -144,7 +144,7 @@ public final class EmailTemplates {
 
                     <p style="color: #999; font-size: 12px;">
                         Atenciosamente,<br>
-                        Equipe Pega o Jet
+                        Equipe MeuJet
                     </p>
                 </div>
             </body>

@@ -21,7 +21,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Pega o Jet | Aluguel de Jetskis e Lanchas",
+  title: "MeuJet | Aluguel de Jetskis e Lanchas",
   description: "Marketplace de aluguel de jetskis e lanchas. Compare preços, reserve online e viva experiências náuticas exclusivas.",
   icons: {
     icon: "/favicon.ico",

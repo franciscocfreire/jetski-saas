@@ -76,7 +76,7 @@ export function ReservationForm({ offering, onClose }: ReservationFormProps) {
         ? 'Meia diária'
         : 'Diária completa'
 
-    const message = `🚤 *NOVA RESERVA - Pega o Jet*
+    const message = `🚤 *NOVA RESERVA - MeuJet*
 
 📋 *Embarcação:* ${offering.modelo}
 📍 *Local:* ${offering.localizacao}

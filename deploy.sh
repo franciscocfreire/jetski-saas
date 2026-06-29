@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# Deploy de PRODUÇÃO — NÃO destrutivo (Pega o Jet)
+# Deploy de PRODUÇÃO — NÃO destrutivo (MeuJet)
 #
 # Fluxo (idempotente):
 #   1. git pull (a menos que NO_PULL=1)

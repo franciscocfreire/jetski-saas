@@ -8,7 +8,7 @@
     "host": "${SMTP_HOST:mailpit}",
     "port": "${SMTP_PORT:1025}",
     "from": "${SMTP_FROM:noreply@pegaojet.com.br}",
-    "fromDisplayName": "Pega o Jet",
+    "fromDisplayName": "MeuJet",
     "auth": "${SMTP_AUTH:false}",
     "user": "${SMTP_USER:}",
     "password": "${SMTP_PASSWORD:}",

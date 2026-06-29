@@ -58,7 +58,7 @@ services:
       SMTP_STARTTLS: "true"
       SMTP_USER: ${GMAIL_USER:-}
       SMTP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
-      SMTP_FROM: ${GMAIL_USER:-noreply@jetsave.com.br}
+      SMTP_FROM: ${GMAIL_USER:-noreply@meujet.com.br}
     ports: !override
       - "127.0.0.1:8080:8080"
     mem_limit: 1200m

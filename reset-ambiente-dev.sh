@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ###############################################################################
-# Reset Completo do Ambiente DEV (Docker Compose) - Pega o Jet
+# Reset Completo do Ambiente DEV (Docker Compose) - MeuJet
 # (PostgreSQL porta 5432 + Keycloak porta 8080)
 #
 # Uso:
@@ -46,7 +46,7 @@ PUBLIC_URL="${1:-${PUBLIC_URL:-$DEFAULT_PUBLIC_URL}}"
 export PUBLIC_URL
 
 echo -e "${BLUE}========================================"
-echo "  RESET AMBIENTE DEV (Docker) - Pega o Jet"
+echo "  RESET AMBIENTE DEV (Docker) - MeuJet"
 echo -e "========================================${NC}"
 echo ""
 echo "Configuracoes:"

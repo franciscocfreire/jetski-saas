@@ -46,7 +46,7 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* Pega o Jet - Identidade Visual */
+/* MeuJet - Identidade Visual */
 /* Primary: Azul Oceano (#0ea5e9 / sky-500) */
 /* Accent: Laranja Energético (#f97316 / orange-500) */
 
@@ -138,7 +138,7 @@
   }
 }
 
-/* Custom gradient backgrounds for Pega o Jet */
+/* Custom gradient backgrounds for MeuJet */
 .bg-ocean-gradient {
   background: linear-gradient(135deg,
     oklch(0.685 0.169 237.323) 0%,

@@ -1,6 +1,6 @@
 # Super Admin (Platform Admin) — Como cadastrar
 
-Guia operacional para criar/gerenciar o **super admin de plataforma** do Pega o Jet.
+Guia operacional para criar/gerenciar o **super admin de plataforma** do MeuJet.
 
 ## O que é o super admin
 

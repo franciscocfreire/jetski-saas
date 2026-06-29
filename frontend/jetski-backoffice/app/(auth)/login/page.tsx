@@ -18,7 +18,7 @@ export default function LoginPage() {
           <div className="mb-8">
             <Waves className="h-24 w-24 mx-auto mb-4 animate-pulse" />
             <h1 className="text-5xl font-bold tracking-tight">
-              Pega o Jet
+              MeuJet
             </h1>
             <p className="mt-4 text-xl text-white/80">
               Gestão completa para sua frota de jet skis
@@ -62,7 +62,7 @@ export default function LoginPage() {
               <Waves className="h-8 w-8 text-primary-foreground" />
             </div>
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-primary">
-              Pega o Jet
+              MeuJet
             </h1>
           </div>
 

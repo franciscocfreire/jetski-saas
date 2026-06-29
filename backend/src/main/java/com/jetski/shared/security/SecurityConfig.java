@@ -270,8 +270,8 @@ public class SecurityConfig {
             "https://*.jetski.com.br",    // Web app (produção)
             "https://pegaojet.com.br",    // Cloudflare tunnel (produção)
             "https://*.pegaojet.com.br",  // Cloudflare tunnel subdomains (produção)
-            "https://jetsave.com.br",     // Cloudflare tunnel (produção)
-            "https://*.jetsave.com.br"    // Cloudflare tunnel subdomains (produção)
+            "https://meujet.com.br",     // Cloudflare tunnel (produção)
+            "https://*.meujet.com.br"    // Cloudflare tunnel subdomains (produção)
         ));
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));

@@ -59,7 +59,7 @@ public class DevEmailService implements EmailService {
     @Value("${jetski.email.from:noreply@pegaojet.com.br}")
     private String fromEmail;
 
-    @Value("${jetski.email.from-name:Pega o Jet}")
+    @Value("${jetski.email.from-name:MeuJet}")
     private String fromName;
 
     /** Opcional: presente quando spring.mail.host está configurado (Mailpit em dev). */
@@ -262,7 +262,7 @@ public class DevEmailService implements EmailService {
         return String.format("""
             Olá %s,
 
-            Você foi convidado para se juntar ao Pega o Jet!
+            Você foi convidado para se juntar ao MeuJet!
 
             Para ativar sua conta, você precisará do link de ativação e da senha temporária abaixo:
 
@@ -279,7 +279,7 @@ public class DevEmailService implements EmailService {
             Se você não esperava este convite, ignore este email.
 
             Atenciosamente,
-            Equipe Pega o Jet
+            Equipe MeuJet
 
             ---
             [DEV MODE] Este email NÃO foi enviado. Apenas logado.
@@ -301,7 +301,7 @@ public class DevEmailService implements EmailService {
         return String.format("""
             Olá %s,
 
-            Recebemos uma solicitação para redefinir sua senha no Pega o Jet.
+            Recebemos uma solicitação para redefinir sua senha no MeuJet.
 
             Clique no link abaixo para criar uma nova senha:
 
@@ -313,7 +313,7 @@ public class DevEmailService implements EmailService {
             Sua senha atual permanecerá inalterada.
 
             Atenciosamente,
-            Equipe Pega o Jet
+            Equipe MeuJet
 
             ---
             [DEV MODE] Este email NÃO foi enviado. Apenas logado.

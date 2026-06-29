@@ -215,7 +215,7 @@ export function AppSidebar() {
                   </div>
                   <div className="flex flex-col gap-0.5 leading-none">
                     <span className="font-semibold">
-                      {currentTenant?.razaoSocial || 'Pega o Jet'}
+                      {currentTenant?.razaoSocial || 'MeuJet'}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {currentTenant?.slug || 'Selecione um tenant'}

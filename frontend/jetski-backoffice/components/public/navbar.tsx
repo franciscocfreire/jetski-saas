@@ -44,7 +44,7 @@ export function Navbar() {
           </div>
           <div className="flex flex-col">
             <span className="text-lg font-display font-medium text-white tracking-wide">
-              Pega o Jet
+              MeuJet
             </span>
           </div>
         </Link>

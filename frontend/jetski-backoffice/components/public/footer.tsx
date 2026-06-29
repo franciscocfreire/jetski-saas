@@ -15,7 +15,7 @@ export function Footer() {
               </div>
               <div className="flex flex-col">
                 <span className="text-lg font-display font-medium text-white tracking-wide">
-                  Pega o Jet
+                  MeuJet
                 </span>
               </div>
             </Link>
@@ -133,7 +133,7 @@ export function Footer() {
       <div className="border-t border-white/[0.05]">
         <div className="container py-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-xs text-white/30">
-            &copy; {new Date().getFullYear()} Pega o Jet. Todos os direitos reservados.
+            &copy; {new Date().getFullYear()} MeuJet. Todos os direitos reservados.
           </p>
           <div className="flex gap-6 text-xs text-white/30">
             <Link href="#" className="hover:text-gold transition-colors duration-300">

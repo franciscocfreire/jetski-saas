@@ -123,7 +123,7 @@ jetski:
     base-url: ${JETSKI_OPA_BASE_URL:http://localhost:8181}
   email:
     from: ${GMAIL_USER:noreply@pegaojet.com.br}
-    from-name: Pega o Jet
+    from-name: MeuJet
     # Quando true, o DevEmailService também envia via SMTP (Mailpit) além de logar.
     dev-smtp-enabled: ${EMAIL_DEV_SMTP_ENABLED:false}
   frontend:

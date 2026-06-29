@@ -142,7 +142,7 @@ export default function SignupPage() {
         <div className="text-center text-white max-w-lg">
           <Waves className="h-20 w-20 mx-auto mb-6" />
           <h1 className="text-4xl font-bold tracking-tight mb-4">
-            Pega o Jet
+            MeuJet
           </h1>
           <p className="text-xl text-white/90 mb-8">
             A plataforma completa para gestão de locadoras de jet skis
@@ -185,7 +185,7 @@ export default function SignupPage() {
               <Waves className="h-7 w-7 text-primary-foreground" />
             </div>
             <h1 className="mt-3 text-2xl font-bold tracking-tight text-primary">
-              Pega o Jet
+              MeuJet
             </h1>
           </div>
 

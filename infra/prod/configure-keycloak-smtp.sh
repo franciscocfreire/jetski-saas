@@ -37,7 +37,7 @@ r["smtpServer"] = {
     "host": "smtp.gmail.com",
     "port": "587",
     "from": user,
-    "fromDisplayName": "Pega o Jet",
+    "fromDisplayName": "MeuJet",
     "auth": "true",
     "user": user,
     "password": pwd,
