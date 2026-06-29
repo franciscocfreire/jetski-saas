@@ -29,6 +29,10 @@ const VAZIO: Atendimento = {
   aceiteFeito: false,
 }
 
+// Persistência do progresso do wizard (sobrevive a F5 / recarregamento da aba —
+// ex.: iOS recarrega a página ao voltar do boleto). Por aba (sessionStorage).
+const STORAGE_KEY = 'balcao:wizard:v1'
+
 export default function BalcaoPage() {
   return (
     <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Carregando…</div>}>
@@ -51,6 +55,41 @@ function BalcaoWizard() {
   useEffect(() => {
     setMaxStep((m) => Math.max(m, step))
   }, [step])
+
+  // Restaura o progresso salvo na aba (a menos que esteja retomando via ?reserva=).
+  const [hidratado, setHidratado] = useState(false)
+  useEffect(() => {
+    if (reservaId) {
+      setHidratado(true)
+      return
+    }
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY)
+      if (raw) {
+        const s = JSON.parse(raw) as { at?: Atendimento; step?: number; maxStep?: number }
+        if (s.at?.cliente) {
+          setAt(s.at)
+          if (typeof s.step === 'number') setStep(s.step)
+          setMaxStep(Math.max(s.maxStep ?? 0, s.step ?? 0))
+        }
+      }
+    } catch {
+      /* sessionStorage indisponível/corrompido → começa do zero */
+    }
+    setHidratado(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Salva o progresso a cada mudança (depois de hidratar, p/ não sobrescrever com vazio).
+  useEffect(() => {
+    if (!hidratado) return
+    try {
+      if (at.cliente) sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ at, step, maxStep }))
+      else sessionStorage.removeItem(STORAGE_KEY)
+    } catch {
+      /* ignora falhas de storage */
+    }
+  }, [hidratado, at, step, maxStep])
 
   // Retomada: carrega uma reserva existente e pula para o passo pendente.
   useEffect(() => {
@@ -95,6 +134,11 @@ function BalcaoWizard() {
     setAt(VAZIO)
     setStep(0)
     setMaxStep(0)
+    try {
+      sessionStorage.removeItem(STORAGE_KEY)
+    } catch {
+      /* ignora */
+    }
     if (reservaId) router.replace('/dashboard/balcao')
   }
 
