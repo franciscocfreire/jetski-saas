@@ -152,17 +152,17 @@ function BalcaoWizard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <Store className="h-7 w-7 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Balcão — Atendimento assistido</h1>
+          <Store className="h-7 w-7 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold sm:text-2xl">Balcão — Atendimento assistido</h1>
             <p className="text-sm text-muted-foreground">
               Cadastro, documentos, pagamento, habilitação, termos e emissão.
             </p>
           </div>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={reset}>
+        <Button type="button" variant="outline" size="sm" onClick={reset} className="w-full sm:w-auto">
           <RotateCcw size={14} className="mr-1" /> Novo atendimento
         </Button>
       </div>

@@ -127,7 +127,7 @@ export default function DashboardLayout({
         <AppSidebar />
         <SidebarInset>
           <Header />
-          <main className="flex flex-1 flex-col overflow-auto p-6">
+          <main className="flex flex-1 flex-col overflow-auto p-4 sm:p-6">
             {tenantBlocked ? <TenantStatusGate tenant={currentTenant!} /> : children}
           </main>
         </SidebarInset>

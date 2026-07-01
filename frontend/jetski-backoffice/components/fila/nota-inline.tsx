@@ -26,19 +26,19 @@ export function NotaInline({ reservaId, nota }: { reservaId: string; nota?: stri
 
   if (editando) {
     return (
-      <span className="inline-flex items-center gap-1">
+      <span className="flex w-full flex-wrap items-center gap-1">
         <Input
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
           placeholder="Ex.: prefere jet 03, leva criança"
-          className="h-7 w-56 text-xs"
+          className="h-8 w-full max-w-56 text-xs sm:h-7"
           autoFocus
         />
         <Button
           type="button"
           size="icon"
           variant="ghost"
-          className="h-7 w-7"
+          className="h-9 w-9 sm:h-7 sm:w-7"
           disabled={salvar.isPending}
           onClick={() => salvar.mutate()}
         >
@@ -48,7 +48,7 @@ export function NotaInline({ reservaId, nota }: { reservaId: string; nota?: stri
           type="button"
           size="icon"
           variant="ghost"
-          className="h-7 w-7"
+          className="h-9 w-9 sm:h-7 sm:w-7"
           onClick={() => {
             setTexto(nota ?? '')
             setEditando(false)

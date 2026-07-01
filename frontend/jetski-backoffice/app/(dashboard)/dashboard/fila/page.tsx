@@ -493,7 +493,7 @@ export default function FilaPage() {
                           esperaLonga && !ehProxima && 'bg-red-50/40 dark:bg-red-950/20'
                         )}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                           <div className="w-6 shrink-0 text-center text-sm font-semibold tabular-nums text-muted-foreground">
                             {p.ordem + 1}
                           </div>
@@ -599,7 +599,7 @@ export default function FilaPage() {
                             </a>
                           )}
                           {grupo ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <Button
                                 type="button"
                                 variant="ghost"

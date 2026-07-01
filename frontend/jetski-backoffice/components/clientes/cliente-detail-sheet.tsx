@@ -263,7 +263,7 @@ export function ClienteDetailSheet({
                             if (window.confirm(`Apagar "${label}" deste cliente? Esta ação não pode ser desfeita.`))
                               apagarAnexo.mutate(tipo)
                           }}
-                          className="absolute right-1 top-1 rounded-md bg-black/55 p-1 text-white opacity-0 transition hover:bg-red-600 focus:opacity-100 group-hover:opacity-100"
+                          className="absolute right-1 top-1 rounded-md bg-black/55 p-1.5 text-white opacity-100 transition hover:bg-red-600 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                         >
                           {apagando ? (
                             <Loader2 className="h-4 w-4 animate-spin" />

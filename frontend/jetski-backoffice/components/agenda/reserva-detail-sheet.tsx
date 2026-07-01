@@ -574,8 +574,8 @@ export function ReservaDetailSheet({
                   <div className="flex justify-center py-1">
                     <PixQrCode payload={hab?.gruPixCopiaECola} />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 truncate rounded bg-background px-2 py-1 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code className="w-full min-w-0 truncate rounded bg-background px-2 py-1 text-xs sm:flex-1">
                       {hab?.gruPixCopiaECola}
                     </code>
                     <Button

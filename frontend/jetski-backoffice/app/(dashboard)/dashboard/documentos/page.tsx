@@ -145,15 +145,15 @@ function DocumentosConteudo() {
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Cliente</TableHead>
               <TableHead>Emitido em</TableHead>
-              <TableHead>Reserva</TableHead>
-              <TableHead>Hash</TableHead>
-              <TableHead className="w-[220px]">Documento</TableHead>
+              <TableHead className="hidden sm:table-cell">Reserva</TableHead>
+              <TableHead className="hidden sm:table-cell">Hash</TableHead>
+              <TableHead className="w-auto sm:w-[220px]">Documento</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -174,12 +174,12 @@ function DocumentosConteudo() {
                 <TableRow key={d.id}>
                   <TableCell className="font-medium">{d.clienteNome ?? '-'}</TableCell>
                   <TableCell>{fmt(d.emitidoEm)}</TableCell>
-                  <TableCell className="font-mono text-xs">{d.reservaId.slice(0, 8)}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
+                  <TableCell className="hidden font-mono text-xs sm:table-cell">{d.reservaId.slice(0, 8)}</TableCell>
+                  <TableCell className="hidden font-mono text-xs text-muted-foreground sm:table-cell">
                     {d.hashSha256 ? d.hashSha256.slice(0, 10) + '…' : '-'}
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row">
                       <Button
                         type="button"
                         variant="outline"

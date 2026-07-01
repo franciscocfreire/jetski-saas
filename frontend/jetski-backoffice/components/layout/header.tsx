@@ -22,7 +22,7 @@ export function Header({ title }: HeaderProps) {
       <SidebarTrigger className="-ml-1" />
       <Separator orientation="vertical" className="mr-2 h-4" />
 
-      {title && <h1 className="text-lg font-semibold">{title}</h1>}
+      {title && <h1 className="min-w-0 truncate text-base font-semibold sm:text-lg">{title}</h1>}
 
       <div className="ml-auto flex items-center gap-4">
         <div className="relative hidden md:block">
@@ -39,7 +39,7 @@ export function Header({ title }: HeaderProps) {
             variant="ghost"
             size="icon"
             className={cn(
-              "relative",
+              "relative h-10 w-10 sm:h-9 sm:w-9",
               hasExpired && "text-destructive"
             )}
           >

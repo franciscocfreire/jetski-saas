@@ -121,7 +121,7 @@ export default function AgendaPage() {
           <Button variant="outline" size="icon" onClick={() => (view === 'dia' ? stepDay(-1) : stepMonth(-1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h2 className="text-lg font-semibold capitalize min-w-[14rem] text-center">
+          <h2 className="flex-1 truncate text-center text-base font-semibold capitalize sm:min-w-[14rem] sm:flex-none sm:text-lg">
             {view === 'dia' ? dayLabel : monthName}
           </h2>
           <Button variant="outline" size="icon" onClick={() => (view === 'dia' ? stepDay(1) : stepMonth(1))}>
@@ -244,15 +244,15 @@ function MonthView({
   }
 
   return (
-    <div className="rounded-lg border">
-      <div className="grid grid-cols-7 border-b">
+    <div className="overflow-x-auto rounded-lg border">
+      <div className="grid min-w-[560px] grid-cols-7 border-b">
         {weekDays.map((d) => (
           <div key={d} className="p-3 text-center text-sm font-medium text-muted-foreground">
             {d}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7">
+      <div className="grid min-w-[560px] grid-cols-7">
         {cells.map((day, i) => {
           const list = day ? forDay(day) : []
           return (

@@ -227,14 +227,14 @@ export default function ClientesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Clientes</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">Clientes</h1>
           <p className="text-muted-foreground">
             Clique em um cliente para ver fotos, comprovantes e histórico de passeios
           </p>
         </div>
-        <Button onClick={handleNew}>
+        <Button onClick={handleNew} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           Novo Cliente
         </Button>
@@ -252,14 +252,14 @@ export default function ClientesPage() {
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead>Email</TableHead>
+              <TableHead className="hidden sm:table-cell">Email</TableHead>
               <TableHead>Telefone</TableHead>
-              <TableHead>CPF</TableHead>
+              <TableHead className="hidden sm:table-cell">CPF</TableHead>
               <TableHead>Conta</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
@@ -269,9 +269,9 @@ export default function ClientesPage() {
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                  <TableCell className="hidden sm:table-cell"><Skeleton className="h-4 w-40" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                  <TableCell className="hidden sm:table-cell"><Skeleton className="h-4 w-28" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-8 w-8" /></TableCell>
                 </TableRow>
@@ -293,7 +293,7 @@ export default function ClientesPage() {
                   onClick={() => abrirDetalhe(cliente)}
                 >
                   <TableCell className="font-medium">{cliente.nome}</TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {cliente.email ? (
                       <div className="flex items-center gap-2">
                         <Mail className="h-4 w-4 text-muted-foreground" />
@@ -317,7 +317,7 @@ export default function ClientesPage() {
                       '-'
                     )}
                   </TableCell>
-                  <TableCell>{cliente.documento || cliente.cpf || '-'}</TableCell>
+                  <TableCell className="hidden sm:table-cell">{cliente.documento || cliente.cpf || '-'}</TableCell>
                   <TableCell>
                     {cliente.statusConta ? (
                       <Badge variant={CONTA_BADGE[cliente.statusConta].variant}>

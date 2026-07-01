@@ -328,17 +328,17 @@ export default function PendenciasPage() {
             return (
               <div
                 key={r.id}
-                className="flex w-full items-center gap-3 px-4 py-3 hover:bg-accent/50"
+                className="flex w-full flex-col gap-2 px-4 py-3 hover:bg-accent/50 sm:flex-row sm:items-center sm:gap-3"
               >
                 <button onClick={() => abrir(r)} className="flex min-w-0 flex-1 items-center gap-4 text-left">
-                  <div className="w-14 shrink-0 text-sm tabular-nums text-muted-foreground">
+                  <div className="w-auto shrink-0 text-sm tabular-nums text-muted-foreground sm:w-14">
                     {fmtData(r.dataInicio)}
                   </div>
 
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <p className="truncate font-medium">{r.cliente?.nome || 'Cliente não informado'}</p>
-                      <span className="truncate text-sm text-muted-foreground">· {r.modelo?.nome}</span>
+                      <span className="hidden truncate text-sm text-muted-foreground sm:inline">· {r.modelo?.nome}</span>
                       <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
                         #{r.id.slice(0, 8)}
                       </span>
@@ -356,7 +356,7 @@ export default function PendenciasPage() {
                   </div>
                 </button>
 
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex w-full items-center justify-end gap-2 sm:w-auto sm:shrink-0">
                   <Badge variant={r.cliente?.origem === 'PORTAL' ? 'default' : 'secondary'}>
                     {r.cliente?.origem === 'PORTAL' ? 'Online' : 'Balcão'}
                   </Badge>
