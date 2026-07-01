@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Upload, X, FileCheck, Camera } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { corrigirOrientacao } from '@/lib/image-orientation'
 
 export type UploadedFile = {
   file: File
@@ -48,8 +49,10 @@ export function FileUpload({
   // Libera a câmera ao desmontar / trocar de stream.
   useEffect(() => () => stream?.getTracks().forEach((t) => t.stop()), [stream])
 
-  function pick(file: File) {
+  async function pick(fileOriginal: File) {
     setLoading(true)
+    // Corrige a orientação EXIF (foto de celular vem "deitada") antes de ler.
+    const file = await corrigirOrientacao(fileOriginal).catch(() => fileOriginal)
     const reader = new FileReader()
     reader.onload = () => {
       const uf = { file, dataUrl: String(reader.result) }
