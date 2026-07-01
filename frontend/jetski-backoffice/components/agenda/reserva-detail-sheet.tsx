@@ -508,10 +508,10 @@ export function ReservaDetailSheet({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="w-full"
+                  className="h-auto w-full whitespace-normal py-2"
                   onClick={() => setCompModo(true)}
                 >
-                  <Upload className="mr-2 h-4 w-4" />
+                  <Upload className="mr-2 h-4 w-4 shrink-0" />
                   Anexar comprovante (pago por outro meio)
                 </Button>
               ) : (
