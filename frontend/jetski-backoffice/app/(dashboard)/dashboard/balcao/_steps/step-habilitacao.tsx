@@ -338,7 +338,13 @@ export function StepHabilitacao({
                   </Button>
                 )}
                 {!modoComprovante && (
-                  <Button type="button" variant="outline" size="sm" onClick={() => setModoComprovante(true)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-auto w-full whitespace-normal py-2 text-center sm:w-auto"
+                    onClick={() => setModoComprovante(true)}
+                  >
                     Paguei por outro meio / a verificação não funcionou
                   </Button>
                 )}
