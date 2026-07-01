@@ -301,7 +301,7 @@ export default function FilaPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <div className="flex items-center gap-2 rounded-lg border px-3 py-2">
+          <div className="flex w-full items-center gap-2 rounded-lg border px-3 py-2 sm:w-auto">
             <Timer className="h-4 w-4 text-muted-foreground" />
             <Label htmlFor="turn" className="text-xs text-muted-foreground">
               Embarque/desembarque
@@ -317,7 +317,7 @@ export default function FilaPage() {
             />
             <span className="text-xs text-muted-foreground">min</span>
           </div>
-          <div className="flex items-center gap-2 rounded-lg border px-3 py-2">
+          <div className="flex w-full items-center gap-2 rounded-lg border px-3 py-2 sm:w-auto">
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
             <Label htmlFor="lim" className="text-xs text-muted-foreground">
               Espera longa &gt;
@@ -593,7 +593,7 @@ export default function FilaPage() {
                               rel="noreferrer"
                               onClick={() => marcarChamado(p.reservaIds)}
                             >
-                              <Button type="button" size="sm" variant="outline">
+                              <Button type="button" size="sm" variant="outline" className="h-9 sm:h-8">
                                 <BellRing className="mr-1 h-3.5 w-3.5" /> Chamar
                               </Button>
                             </a>
@@ -626,7 +626,7 @@ export default function FilaPage() {
                               </Button>
                             </div>
                           ) : (
-                            <Button type="button" size="sm" onClick={() => embarcar(p.reservaIds[0])}>
+                            <Button type="button" size="sm" className="h-9 sm:h-8" onClick={() => embarcar(p.reservaIds[0])}>
                               <Anchor className="mr-1 h-4 w-4" /> Embarcar
                             </Button>
                           )}

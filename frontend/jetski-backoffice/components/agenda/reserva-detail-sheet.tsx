@@ -583,6 +583,7 @@ export function ReservaDetailSheet({
                       size="sm"
                       variant="outline"
                       title="Copiar PIX"
+                      className="h-10 w-10 sm:h-8 sm:w-8"
                       onClick={() => {
                         navigator.clipboard.writeText(hab!.gruPixCopiaECola!)
                         toast.success('PIX copiado.')
@@ -604,7 +605,7 @@ export function ReservaDetailSheet({
                           size="sm"
                           variant="outline"
                           title="Enviar PIX por WhatsApp"
-                          className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                          className="h-10 w-10 text-emerald-600 hover:text-emerald-700 sm:h-8 sm:w-8 dark:text-emerald-400"
                         >
                           <a href={href} target="_blank" rel="noreferrer">
                             <WhatsAppGlyph className="h-3.5 w-3.5" />

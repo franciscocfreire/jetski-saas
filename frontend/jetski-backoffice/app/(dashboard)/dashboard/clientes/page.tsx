@@ -311,6 +311,7 @@ export default function ClientesPage() {
                         <WhatsAppLink
                           phone={cliente.telefone || cliente.whatsapp}
                           nome={cliente.nome}
+                          className="min-h-[40px] min-w-[40px] justify-center p-2 sm:min-h-0 sm:min-w-0 sm:p-0"
                         />
                       </div>
                     ) : (

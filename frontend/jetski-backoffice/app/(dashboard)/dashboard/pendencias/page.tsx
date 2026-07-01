@@ -374,7 +374,7 @@ export default function PendenciasPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"
+                    className="h-9 w-9 text-red-600 hover:bg-red-50 hover:text-red-700 sm:h-8 sm:w-8 dark:hover:bg-red-950/40"
                     title="Cancelar reserva"
                     disabled={cancelar.isPending && cancelar.variables === r.id}
                     onClick={() => {

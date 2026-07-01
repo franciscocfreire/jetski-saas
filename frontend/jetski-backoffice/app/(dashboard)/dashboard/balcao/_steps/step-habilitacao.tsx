@@ -262,12 +262,13 @@ export function StepHabilitacao({
               ) : (
                 <PixQrCode payload={pix.pixCopiaECola} size={176} />
               )}
-              <div className="flex items-center gap-2">
-                <Input readOnly value={pix.pixCopiaECola} className="font-mono text-xs" />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input readOnly value={pix.pixCopiaECola} className="min-w-0 font-mono text-xs" />
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
+                  className="h-10 w-full sm:h-8 sm:w-auto"
                   onClick={() => {
                     navigator.clipboard.writeText(pix.pixCopiaECola!)
                     toast.success('PIX copia-e-cola copiado.')

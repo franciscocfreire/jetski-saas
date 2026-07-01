@@ -76,16 +76,16 @@ export function StepCliente({
   return (
     <div className="space-y-5">
       {clienteAtual && (
-        <div className="flex items-start gap-3 rounded-lg border bg-emerald-50 p-3 dark:bg-emerald-950/30">
+        <div className="flex flex-wrap items-start gap-3 rounded-lg border bg-emerald-50 p-3 dark:bg-emerald-950/30">
           <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
-          <div className="flex-1">
+          <div className="min-w-[8rem] flex-1">
             <p className="font-medium">{clienteAtual.nome}</p>
             <p className="text-sm text-muted-foreground">
               {clienteAtual.documento || clienteAtual.cpf || 'sem CPF'} ·{' '}
               {clienteAtual.email ?? 'sem e-mail'}
             </p>
           </div>
-          <Button type="button" onClick={() => onDone(clienteAtual)}>
+          <Button type="button" className="w-full sm:w-auto" onClick={() => onDone(clienteAtual)}>
             Continuar
           </Button>
         </div>
@@ -114,15 +114,15 @@ export function StepCliente({
       </div>
 
       {buscou && encontrado && (
-        <div className="flex items-start gap-3 rounded-lg border bg-emerald-50 p-3 dark:bg-emerald-950/30">
+        <div className="flex flex-wrap items-start gap-3 rounded-lg border bg-emerald-50 p-3 dark:bg-emerald-950/30">
           <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
-          <div className="flex-1">
+          <div className="min-w-[8rem] flex-1">
             <p className="font-medium">{encontrado.nome}</p>
             <p className="text-sm text-muted-foreground">
               {encontrado.email ?? 'sem e-mail'} · status: {encontrado.statusConta ?? '—'}
             </p>
           </div>
-          <Button type="button" onClick={() => onDone(encontrado)}>
+          <Button type="button" className="w-full sm:w-auto" onClick={() => onDone(encontrado)}>
             Usar este cliente
           </Button>
         </div>
