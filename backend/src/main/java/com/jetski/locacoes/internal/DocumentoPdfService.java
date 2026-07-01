@@ -565,7 +565,8 @@ public class DocumentoPdfService {
         PdfPCell c = new PdfPCell();
         c.setBorder(Rectangle.NO_BORDER);
         c.setHorizontalAlignment(Element.ALIGN_CENTER);
-        if (sig != null && sig.length > 0) {
+        boolean temSig = sig != null && sig.length > 0;
+        if (temSig) {
             Image img = Image.getInstance(sig);
             img.scaleToFit(170f, 56f);
             img.setAlignment(Element.ALIGN_CENTER);
@@ -573,6 +574,8 @@ public class DocumentoPdfService {
         }
         Paragraph line = new Paragraph("_______________________________", f.sans);
         line.setAlignment(Element.ALIGN_CENTER);
+        // Com assinatura, sobe a linha p/ ela assentar sobre a assinatura (senão fica flutuando acima).
+        if (temSig) line.setSpacingBefore(-16f);
         Paragraph leg = new Paragraph(legenda, f.sansSmall);
         leg.setAlignment(Element.ALIGN_CENTER);
         c.addElement(line);
@@ -630,7 +633,8 @@ public class DocumentoPdfService {
         PdfPCell c = new PdfPCell();
         c.setBorder(Rectangle.NO_BORDER);
         c.setHorizontalAlignment(Element.ALIGN_CENTER);
-        if (sig != null && sig.length > 0) {
+        boolean temSig = sig != null && sig.length > 0;
+        if (temSig) {
             Image img = Image.getInstance(sig);
             img.scaleToFit(150f, 50f);
             img.setAlignment(Element.ALIGN_CENTER);
@@ -644,6 +648,8 @@ public class DocumentoPdfService {
         }
         Paragraph line = new Paragraph("_____________________________", f.sans);
         line.setAlignment(Element.ALIGN_CENTER);
+        // Com assinatura, sobe a linha p/ ela assentar sobre a assinatura.
+        if (temSig) line.setSpacingBefore(-16f);
         Paragraph leg = new Paragraph(legenda, f.sansSmall);
         leg.setAlignment(Element.ALIGN_CENTER);
         c.addElement(line);
