@@ -246,15 +246,22 @@ export function ClienteDetailSheet({
                 return (
                   <div key={tipo} className="space-y-1">
                     {url ? (
-                      <div className="group relative">
-                        <a href={url} target="_blank" rel="noreferrer" className="block">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={url}
-                            alt={label}
-                            className="aspect-[4/3] w-full rounded-md border object-cover transition hover:opacity-90"
-                          />
-                        </a>
+                      <a href={url} target="_blank" rel="noreferrer" className="block">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt={label}
+                          className="aspect-[4/3] w-full rounded-md border object-cover transition hover:opacity-90"
+                        />
+                      </a>
+                    ) : (
+                      <div className="flex aspect-[4/3] w-full items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">
+                        não enviado
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-xs text-muted-foreground">{label}</p>
+                      {url && (
                         <button
                           type="button"
                           title="Apagar anexo"
@@ -263,21 +270,17 @@ export function ClienteDetailSheet({
                             if (window.confirm(`Apagar "${label}" deste cliente? Esta ação não pode ser desfeita.`))
                               apagarAnexo.mutate(tipo)
                           }}
-                          className="absolute right-1 top-1 rounded-md bg-black/55 p-1.5 text-white opacity-100 transition hover:bg-red-600 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                          className="flex shrink-0 items-center gap-1 rounded p-1.5 text-xs text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-950/40"
                         >
                           {apagando ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <Trash2 className="h-4 w-4" />
                           )}
+                          Apagar
                         </button>
-                      </div>
-                    ) : (
-                      <div className="flex aspect-[4/3] w-full items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">
-                        não enviado
-                      </div>
-                    )}
-                    <p className="text-xs text-muted-foreground">{label}</p>
+                      )}
+                    </div>
                   </div>
                 )
               })}
