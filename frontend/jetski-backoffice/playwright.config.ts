@@ -58,12 +58,21 @@ export default defineConfig({
 
   // Projetos/browsers
   projects: [
-    // Chrome - all tests (auth handled by fixture when needed)
+    // Chrome - todos os testes (menos o de layout mobile). Auth via fixture quando precisa.
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
       },
+      testIgnore: /mobile-layout\.spec\.ts/,
+    },
+    // Guard-rail de responsividade: viewport de celular, roda só o mobile-layout.
+    {
+      name: 'mobile',
+      use: {
+        ...devices['Pixel 5'],
+      },
+      testMatch: /mobile-layout\.spec\.ts/,
     },
   ],
 });
