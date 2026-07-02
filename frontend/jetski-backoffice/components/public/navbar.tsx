@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { Menu, X, Anchor } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { Logo } from '@/components/logo'
 
 const navLinks = [
   { href: '/', label: 'Início' },
@@ -29,24 +30,14 @@ export function Navbar() {
       className={cn(
         'fixed top-0 left-0 right-0 z-50 transition-all duration-500',
         scrolled
-          ? 'bg-black/90 backdrop-blur-xl border-b border-white/10'
+          ? 'bg-abyss/90 backdrop-blur-xl border-b border-white/10'
           : 'bg-transparent'
       )}
     >
       <nav className="container flex h-20 items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 group">
-          <div className={cn(
-            "flex h-10 w-10 items-center justify-center rounded-full transition-all duration-500",
-            scrolled ? "bg-white/10" : "bg-white/5 border border-white/10"
-          )}>
-            <Anchor className="h-5 w-5 text-gold" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-lg font-display font-medium text-white tracking-wide">
-              MeuJet
-            </span>
-          </div>
+        <Link href="/" className="flex items-center group">
+          <Logo variant="full" theme="dark" size={26} />
         </Link>
 
         {/* Desktop Navigation */}
@@ -101,7 +92,7 @@ export function Navbar() {
       {/* Mobile Menu */}
       <div
         className={cn(
-          'md:hidden absolute top-full left-0 right-0 bg-black/95 backdrop-blur-xl border-b border-white/10 transition-all duration-300',
+          'md:hidden absolute top-full left-0 right-0 bg-abyss/95 backdrop-blur-xl border-b border-white/10 transition-all duration-300',
           mobileMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
         )}
       >

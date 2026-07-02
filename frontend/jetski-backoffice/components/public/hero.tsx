@@ -1,49 +1,15 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowDown } from 'lucide-react'
 
 export function Hero() {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const [videoLoaded, setVideoLoaded] = useState(false)
-  const [videoError, setVideoError] = useState(false)
-
-  useEffect(() => {
-    // Garantir que o vídeo toque após carregamento
-    if (videoRef.current) {
-      videoRef.current.play().catch(() => {
-        // Autoplay pode ser bloqueado em alguns browsers
-        setVideoError(true)
-      })
-    }
-  }, [])
-
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-black">
-      {/* Background Video */}
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-abyss">
+      {/* Background — gradiente navy abissal (Meu Jet) */}
       <div className="absolute inset-0">
-        {/* Video Element */}
-        {!videoError && (
-          <video
-            ref={videoRef}
-            autoPlay
-            loop
-            muted
-            playsInline
-            onLoadedData={() => setVideoLoaded(true)}
-            onError={() => setVideoError(true)}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${videoLoaded ? 'opacity-100' : 'opacity-0'}`}
-          >
-            {/* Vídeos de água/oceano - Pexels free stock */}
-            <source src="https://player.vimeo.com/external/368763065.sd.mp4?s=13d7c0c2e8f6f0b4f2a4c0b7d9a7c0a6e8f1b2c3&profile_id=164&oauth2_token_id=57447761" type="video/mp4" />
-            <source src="https://cdn.pixabay.com/video/2020/05/25/40130-424930032_large.mp4" type="video/mp4" />
-          </video>
-        )}
-
-        {/* Fallback gradient - sempre visível até vídeo carregar ou em caso de erro */}
         <div
-          className={`absolute inset-0 transition-opacity duration-1000 ${videoLoaded && !videoError ? 'opacity-0' : 'opacity-100'}`}
+          className="absolute inset-0"
           style={{
             background: 'linear-gradient(135deg, #0c1929 0%, #0a1628 25%, #061220 50%, #0d1f35 75%, #0a1628 100%)'
           }}
@@ -54,7 +20,7 @@ export function Hero() {
           </div>
         </div>
 
-        {/* Dark Overlay sobre o vídeo */}
+        {/* Overlay de profundidade */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/70" />
 
         {/* Vignette effect */}

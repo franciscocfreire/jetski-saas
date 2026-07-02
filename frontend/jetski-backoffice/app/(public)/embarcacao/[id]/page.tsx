@@ -499,7 +499,7 @@ function MediaGallery({ offering }: { offering: OfferingDetail }) {
  */
 function DetailSkeleton() {
   return (
-    <div className="min-h-screen bg-black pt-20">
+    <div className="min-h-screen bg-abyss pt-20">
       <div className="container py-6">
         <div className="h-6 w-48 bg-white/10 rounded animate-pulse" />
       </div>
@@ -576,7 +576,7 @@ export default function EmbarcacaoDetailPage() {
 
   if (!offering) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-abyss flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl text-white mb-4">Embarcação não encontrada</h1>
           <Link href="/" className="text-gold hover:underline">
@@ -615,7 +615,7 @@ export default function EmbarcacaoDetailPage() {
   const priceDisplay = getPriceDisplay()
 
   return (
-    <div className="min-h-screen bg-black pt-20">
+    <div className="min-h-screen bg-abyss pt-20">
       {/* Back Button */}
       <div className="container py-6">
         <Link

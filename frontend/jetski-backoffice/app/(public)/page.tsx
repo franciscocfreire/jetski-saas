@@ -6,7 +6,7 @@ import { ArrowRight } from 'lucide-react'
 
 export default function HomePage() {
   return (
-    <div className="bg-black min-h-screen">
+    <div className="bg-abyss min-h-screen">
       {/* Hero Section */}
       <Hero />
 
@@ -59,7 +59,7 @@ export default function HomePage() {
       {/* CTA Section - For Companies */}
       <section className="relative py-32 overflow-hidden">
         {/* Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-black to-gold/10" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-gold/10" />
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:64px_64px]" />
 
         {/* Glow Effects */}

@@ -1,23 +1,17 @@
 import Link from 'next/link'
-import { Anchor, Mail, Phone, MapPin, Instagram, Facebook, Linkedin } from 'lucide-react'
+import { Mail, Phone, MapPin, Instagram, Facebook, Linkedin } from 'lucide-react'
+import { Logo } from '@/components/logo'
 
 export function Footer() {
   return (
-    <footer className="bg-black border-t border-white/[0.05]">
+    <footer className="bg-abyss border-t border-white/[0.05]">
       {/* Main Footer */}
       <div className="container py-16">
         <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <Link href="/" className="flex items-center gap-3 mb-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/5 border border-white/10">
-                <Anchor className="h-5 w-5 text-gold" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-lg font-display font-medium text-white tracking-wide">
-                  MeuJet
-                </span>
-              </div>
+            <Link href="/" className="flex items-center mb-6">
+              <Logo variant="full" theme="dark" size={26} />
             </Link>
             <p className="text-sm text-white/40 leading-relaxed max-w-xs">
               O marketplace premium de aluguel de jetskis e lanchas no Brasil.
@@ -102,11 +96,11 @@ export function Footer() {
             <ul className="space-y-4">
               <li>
                 <a
-                  href="mailto:contato@jetski.com.br"
+                  href="mailto:contato@meujet.com.br"
                   className="flex items-center gap-3 text-sm text-white/40 hover:text-gold transition-colors duration-300"
                 >
                   <Mail className="h-4 w-4" />
-                  contato@jetski.com.br
+                  contato@meujet.com.br
                 </a>
               </li>
               <li>
@@ -133,7 +127,7 @@ export function Footer() {
       <div className="border-t border-white/[0.05]">
         <div className="container py-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-xs text-white/30">
-            &copy; {new Date().getFullYear()} MeuJet. Todos os direitos reservados.
+            &copy; {new Date().getFullYear()} Meu Jet. Todos os direitos reservados.
           </p>
           <div className="flex gap-6 text-xs text-white/30">
             <Link href="#" className="hover:text-gold transition-colors duration-300">
