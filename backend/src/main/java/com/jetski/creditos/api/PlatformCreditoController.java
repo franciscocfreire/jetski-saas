@@ -1,5 +1,6 @@
 package com.jetski.creditos.api;
 
+import com.jetski.creditos.api.dto.AtualizarPrecoRequest;
 import com.jetski.creditos.api.dto.CompraResponse;
 import com.jetski.creditos.api.dto.LancamentoResponse;
 import com.jetski.creditos.api.dto.LancarCreditoRequest;
@@ -14,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -52,6 +54,20 @@ public class PlatformCreditoController {
     @Operation(summary = "Compras de créditos pendentes de aprovação (todas as empresas)")
     public List<PlatformCompraDTO> comprasPendentes() {
         return platformCreditoService.comprasPendentes();
+    }
+
+    @GetMapping("/config")
+    @Operation(summary = "Configuração de créditos da plataforma (preço unitário)")
+    public Map<String, Object> config() {
+        return Map.of("precoUnitario", platformCreditoService.precoUnitario());
+    }
+
+    @PutMapping("/config")
+    @Operation(summary = "Atualizar o preço do crédito (R$) — vale para novas solicitações")
+    public Map<String, Object> atualizarConfig(@RequestBody AtualizarPrecoRequest request) {
+        log.info("PUT /v1/platform/creditos/config preco={}", request.precoUnitario());
+        return Map.of("precoUnitario",
+            platformCreditoService.atualizarPrecoUnitario(request.precoUnitario()));
     }
 
     @PostMapping("/compras/{tenantId}/{compraId}/aprovar")

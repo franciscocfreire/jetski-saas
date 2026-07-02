@@ -74,6 +74,16 @@ public class PlatformCreditoService {
         return creditoService.rejeitarCompra(tenantId, compraId, observacao, actorOrNull());
     }
 
+    /** Preço do crédito (config global — sem escopo de tenant). */
+    public java.math.BigDecimal precoUnitario() {
+        return creditoService.precoUnitario();
+    }
+
+    @Transactional
+    public java.math.BigDecimal atualizarPrecoUnitario(java.math.BigDecimal preco) {
+        return creditoService.atualizarPrecoUnitario(preco, actorOrNull());
+    }
+
     /** Saldo de todos os tenants (iteração por tenant). */
     @Transactional
     public List<PlatformSaldoTenantDTO> saldos() {

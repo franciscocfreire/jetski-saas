@@ -38,11 +38,14 @@ const STATUS_COMPRA: Record<string, { label: string; variant: 'default' | 'secon
   REJEITADA: { label: 'Rejeitada', variant: 'destructive' },
 }
 
-/** Compra manual v1: transfere para a chave PIX fixa e informa o txid; o Meu Jet aprova. */
+const brl = (v: number) =>
+  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+/** Compra manual v1: transfere o VALOR para a chave PIX fixa e informa o txid; o Meu Jet aprova. */
 function ComprarCreditosCard() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
-  const [quantidade, setQuantidade] = useState('50')
+  const [valor, setValor] = useState('250')
   const [pixTxid, setPixTxid] = useState('')
 
   const { data: config } = useQuery({
@@ -55,7 +58,7 @@ function ComprarCreditosCard() {
   })
 
   const solicitar = useMutation({
-    mutationFn: () => creditosService.solicitarCompra(Number(quantidade), pixTxid),
+    mutationFn: () => creditosService.solicitarCompra(Number(valor), pixTxid),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['creditos-compras'] })
       setPixTxid('')
@@ -81,16 +84,26 @@ function ComprarCreditosCard() {
     }
   }
 
-  const qtdValida = Number.isInteger(Number(quantidade)) && Number(quantidade) > 0
+  const valorNum = Number(valor)
+  const valorValido = Number.isFinite(valorNum) && valorNum > 0
+  const preco = config?.precoUnitario ?? 0
+  const creditosCalculados = valorValido && preco > 0 ? Math.floor(valorNum / preco) : 0
 
   return (
     <div className="rounded-lg border p-5">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        <ShoppingCart className="h-4 w-4" /> Comprar créditos
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <ShoppingCart className="h-4 w-4" /> Comprar créditos
+        </div>
+        {preco > 0 && (
+          <span className="text-xs text-muted-foreground">
+            Preço vigente: <span className="font-semibold text-foreground">{brl(preco)}</span> por crédito
+          </span>
+        )}
       </div>
       <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
         <li>
-          Transfira via PIX para a chave{' '}
+          Transfira o valor via PIX para a chave{' '}
           <button
             type="button"
             onClick={copiarChave}
@@ -99,19 +112,20 @@ function ComprarCreditosCard() {
             {config?.pixChave || '—'} <Copy className="h-3 w-3" />
           </button>
         </li>
-        <li>Informe abaixo a quantidade e o número da transação (comprovante).</li>
+        <li>Informe abaixo o valor transferido e o número da transação (comprovante).</li>
         <li>O Meu Jet confere o pagamento e libera os créditos no seu saldo.</li>
       </ol>
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <div className="space-y-1">
-          <label className="text-xs font-medium" htmlFor="compra-qtd">Quantidade</label>
+          <label className="text-xs font-medium" htmlFor="compra-valor">Valor transferido (R$)</label>
           <Input
-            id="compra-qtd"
+            id="compra-valor"
             type="number"
-            min={1}
-            value={quantidade}
-            onChange={(e) => setQuantidade(e.target.value)}
-            className="w-28 tabular-nums"
+            min={0}
+            step="0.01"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            className="w-36 tabular-nums"
           />
         </div>
         <div className="min-w-56 flex-1 space-y-1">
@@ -126,13 +140,20 @@ function ComprarCreditosCard() {
         </div>
         <Button
           onClick={() => solicitar.mutate()}
-          disabled={solicitar.isPending || !qtdValida || !pixTxid.trim()}
+          disabled={solicitar.isPending || creditosCalculados < 1 || !pixTxid.trim()}
           className="gap-2"
         >
           {solicitar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
           Solicitar créditos
         </Button>
       </div>
+      {valorValido && preco > 0 && (
+        <p className={cn('mt-2 text-sm', creditosCalculados < 1 ? 'text-destructive' : 'text-muted-foreground')}>
+          {creditosCalculados < 1
+            ? `Valor abaixo do preço de 1 crédito (${brl(preco)}).`
+            : <>{brl(valorNum)} = <span className="font-semibold text-foreground">{creditosCalculados} créditos</span></>}
+        </p>
+      )}
 
       {compras && compras.length > 0 && (
         <div className="mt-4 divide-y rounded-lg border">
@@ -142,6 +163,9 @@ function ComprarCreditosCard() {
               <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
                 <div className="min-w-0">
                   <span className="font-medium tabular-nums">+{c.quantidade} créditos</span>
+                  {c.valorPago != null && (
+                    <span className="ml-2 text-xs text-muted-foreground tabular-nums">({brl(c.valorPago)})</span>
+                  )}
                   <span className="ml-2 font-mono text-xs text-muted-foreground">{c.pixTxid}</span>
                   {c.observacao && (
                     <span className="ml-2 text-xs text-destructive">{c.observacao}</span>

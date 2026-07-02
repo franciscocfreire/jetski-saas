@@ -1309,6 +1309,8 @@ export interface PlatformSaldoTenant {
 export interface CompraCreditos {
   id: string
   quantidade: number
+  valorPago?: number | null
+  precoUnitario?: number | null
   pixTxid: string
   status: 'PENDENTE' | 'APROVADA' | 'REJEITADA'
   observacao?: string | null
@@ -1323,8 +1325,16 @@ export interface PlatformCompraCreditos {
   slug: string
   razaoSocial: string
   quantidade: number
+  valorPago?: number | null
+  precoUnitario?: number | null
   pixTxid: string
   createdAt: string
+}
+
+/** Config de compra de créditos (chave PIX + preço vigente). */
+export interface CreditosConfig {
+  pixChave: string
+  precoUnitario: number
 }
 
 // ==========================================

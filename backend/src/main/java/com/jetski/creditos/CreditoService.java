@@ -18,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
 
@@ -158,16 +160,63 @@ public class CreditoService {
 
     // ========== Compra de créditos (PIX manual, aprovação do super admin) ==========
 
+    private static final String CONFIG_PRECO = "creditos_preco_unitario";
+
     /** Chave PIX fixa da plataforma para compra de créditos. */
     public String pixChave() {
         return pixChave;
     }
 
-    /** Registra a solicitação de compra (créditos só entram na aprovação do admin). */
+    /** Preço do crédito (R$) — configurável pelo super admin em plataforma_config. */
+    @Transactional(readOnly = true)
+    public BigDecimal precoUnitario() {
+        try {
+            Object valor = entityManager.createNativeQuery(
+                    "SELECT valor FROM plataforma_config WHERE chave = ?1")
+                .setParameter(1, CONFIG_PRECO)
+                .getSingleResult();
+            return new BigDecimal(valor.toString());
+        } catch (jakarta.persistence.NoResultException e) {
+            throw new BusinessException("Preço do crédito não configurado — contate o Meu Jet");
+        }
+    }
+
+    /** Atualiza o preço do crédito (super admin). */
     @Transactional
-    public CreditoCompra solicitarCompra(UUID tenantId, int quantidade, String pixTxid) {
+    public BigDecimal atualizarPrecoUnitario(BigDecimal preco, UUID actor) {
+        if (preco == null || preco.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Preço do crédito deve ser maior que zero");
+        }
+        BigDecimal normalizado = preco.setScale(2, RoundingMode.HALF_UP);
+        entityManager.createNativeQuery("""
+                INSERT INTO plataforma_config (chave, valor, updated_at, updated_by)
+                VALUES (?1, ?2, now(), ?3)
+                ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor,
+                    updated_at = now(), updated_by = EXCLUDED.updated_by
+                """)
+            .setParameter(1, CONFIG_PRECO)
+            .setParameter(2, normalizado.toPlainString())
+            .setParameter(3, actor)
+            .executeUpdate();
+        log.info("Preço do crédito atualizado para R$ {} por {}", normalizado, actor);
+        return normalizado;
+    }
+
+    /**
+     * Registra a solicitação de compra POR VALOR: créditos = valor / preço unitário
+     * (arredondado para baixo; snapshot do preço fica na solicitação).
+     * Os créditos só entram no saldo na aprovação do admin.
+     */
+    @Transactional
+    public CreditoCompra solicitarCompra(UUID tenantId, BigDecimal valorPago, String pixTxid) {
+        if (valorPago == null || valorPago.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Informe o valor transferido (R$)");
+        }
+        BigDecimal preco = precoUnitario();
+        int quantidade = valorPago.divide(preco, 0, RoundingMode.FLOOR).intValue();
         if (quantidade < 1) {
-            throw new BusinessException("Quantidade de créditos deve ser maior que zero");
+            throw new BusinessException(
+                "Valor abaixo do preço de 1 crédito (R$ " + preco.toPlainString() + ")");
         }
         String txid = pixTxid == null ? "" : pixTxid.trim();
         if (txid.isEmpty()) {
@@ -182,11 +231,14 @@ public class CreditoService {
         CreditoCompra compra = compraRepository.save(CreditoCompra.builder()
             .tenantId(tenantId)
             .quantidade(quantidade)
+            .valorPago(valorPago.setScale(2, RoundingMode.HALF_UP))
+            .precoUnitario(preco)
             .pixTxid(txid)
             .status(StatusCompra.PENDENTE)
             .criadoPor(actorOrNull())
             .build());
-        log.info("Compra de créditos solicitada: tenant={}, quantidade={}, txid={}", tenantId, quantidade, txid);
+        log.info("Compra de créditos solicitada: tenant={}, valor=R${}, preco=R${}, quantidade={}, txid={}",
+            tenantId, valorPago, preco, quantidade, txid);
         return compra;
     }
 

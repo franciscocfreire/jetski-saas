@@ -2,6 +2,7 @@ import { apiClient, getTenantId } from '../client'
 import type {
   CompraCreditos,
   CreditoLancamento,
+  CreditosConfig,
   PlatformCompraCreditos,
   PlatformSaldoTenant,
   SaldoCreditos,
@@ -44,17 +45,32 @@ export const creditosService = {
 
   // ===== Compra de créditos (PIX manual) =====
 
-  async getConfig(): Promise<{ pixChave: string }> {
-    const { data } = await apiClient.get<{ pixChave: string }>(
+  async getConfig(): Promise<CreditosConfig> {
+    const { data } = await apiClient.get<CreditosConfig>(
       `/v1/tenants/${getTenantId()}/creditos/config`
     )
     return data
   },
 
-  async solicitarCompra(quantidade: number, pixTxid: string): Promise<CompraCreditos> {
+  /** Compra por VALOR: créditos = valor / preço vigente (calculado no backend). */
+  async solicitarCompra(valor: number, pixTxid: string): Promise<CompraCreditos> {
     const { data } = await apiClient.post<CompraCreditos>(
       `/v1/tenants/${getTenantId()}/creditos/compras`,
-      { quantidade, pixTxid }
+      { valor, pixTxid }
+    )
+    return data
+  },
+
+  /** Super admin: preço do crédito. */
+  async getPlatformConfig(): Promise<{ precoUnitario: number }> {
+    const { data } = await apiClient.get<{ precoUnitario: number }>('/v1/platform/creditos/config')
+    return data
+  },
+
+  async atualizarPreco(precoUnitario: number): Promise<{ precoUnitario: number }> {
+    const { data } = await apiClient.put<{ precoUnitario: number }>(
+      '/v1/platform/creditos/config',
+      { precoUnitario }
     )
     return data
   },

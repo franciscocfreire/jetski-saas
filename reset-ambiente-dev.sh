@@ -359,6 +359,19 @@ ALTER TABLE public.credito_compra FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_credito_compra ON public.credito_compra;
 CREATE POLICY tenant_isolation_credito_compra ON public.credito_compra USING ((tenant_id = public.get_current_tenant_id()));
 
+-- V028: compra por valor + preço do crédito configurável (plataforma_config)
+CREATE TABLE IF NOT EXISTS public.plataforma_config (
+    chave      varchar(60) NOT NULL PRIMARY KEY,
+    valor      text NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    updated_by uuid
+);
+INSERT INTO public.plataforma_config (chave, valor) VALUES ('creditos_preco_unitario', '5.00')
+ON CONFLICT (chave) DO NOTHING;
+ALTER TABLE public.credito_compra
+    ADD COLUMN IF NOT EXISTS valor_pago     numeric(10,2),
+    ADD COLUMN IF NOT EXISTS preco_unitario numeric(10,2);
+
 -- Super admin de dev (espelha PLATFORM_ADMIN_EMAILS do compose; o seeder do backend
 -- só roda no boot — este bloco garante o acesso logo após o reset, sem restart)
 INSERT INTO public.usuario_global_roles (usuario_id, roles, unrestricted_access)

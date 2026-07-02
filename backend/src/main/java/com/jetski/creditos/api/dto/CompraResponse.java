@@ -2,6 +2,7 @@ package com.jetski.creditos.api.dto;
 
 import com.jetski.creditos.domain.CreditoCompra;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -9,6 +10,8 @@ import java.util.UUID;
 public record CompraResponse(
         UUID id,
         int quantidade,
+        BigDecimal valorPago,
+        BigDecimal precoUnitario,
         String pixTxid,
         String status,
         String observacao,
@@ -16,7 +19,7 @@ public record CompraResponse(
         Instant decididoEm
 ) {
     public static CompraResponse from(CreditoCompra c) {
-        return new CompraResponse(c.getId(), c.getQuantidade(), c.getPixTxid(),
-            c.getStatus().name(), c.getObservacao(), c.getCreatedAt(), c.getDecididoEm());
+        return new CompraResponse(c.getId(), c.getQuantidade(), c.getValorPago(), c.getPrecoUnitario(),
+            c.getPixTxid(), c.getStatus().name(), c.getObservacao(), c.getCreatedAt(), c.getDecididoEm());
     }
 }

@@ -1,7 +1,12 @@
 package com.jetski.creditos.api.dto;
 
-/** Solicitação de compra: quantidade desejada + txid do PIX já transferido. */
+import java.math.BigDecimal;
+
+/**
+ * Solicitação de compra por VALOR: créditos = valor / preço unitário vigente
+ * (arredondado para baixo). Txid = comprovante do PIX já transferido.
+ */
 public record SolicitarCompraRequest(
-        int quantidade,
+        BigDecimal valor,
         String pixTxid
 ) {}

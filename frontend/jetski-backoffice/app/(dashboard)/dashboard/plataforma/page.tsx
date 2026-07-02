@@ -240,8 +240,92 @@ export default function PlataformaPage() {
 
       <ComprasPendentesCard enabled={isPlatformAdmin} />
 
+      <PrecoCreditoCard enabled={isPlatformAdmin} />
+
       <EmissoesPorEmpresaCard enabled={isPlatformAdmin} />
     </div>
+  )
+}
+
+/** Preço do crédito de emissão — vale para novas solicitações de compra. */
+function PrecoCreditoCard({ enabled }: { enabled: boolean }) {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const [preco, setPreco] = useState('')
+
+  const { data: config } = useQuery({
+    queryKey: ['platform', 'creditos-config'],
+    queryFn: () => creditosService.getPlatformConfig(),
+    enabled,
+  })
+
+  const salvar = useMutation({
+    mutationFn: () => creditosService.atualizarPreco(Number(preco)),
+    onSuccess: (r) => {
+      queryClient.invalidateQueries({ queryKey: ['platform', 'creditos-config'] })
+      setPreco('')
+      toast({
+        title: 'Preço atualizado',
+        description: `Novo preço: ${r.precoUnitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por crédito (vale para novas solicitações).`,
+      })
+    },
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { message?: string } }; message?: string }
+      toast({
+        title: 'Erro ao atualizar preço',
+        description: err.response?.data?.message || err.message || 'Erro inesperado',
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const precoNum = Number(preco)
+  const precoValido = Number.isFinite(precoNum) && precoNum > 0
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Coins className="size-5" /> Preço do crédito de emissão
+        </CardTitle>
+        <CardDescription>
+          Valor cobrado por crédito na compra via PIX. Solicitações já registradas mantêm o
+          preço da época (snapshot) — a mudança vale só para novas compras.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-end gap-3">
+        <div className="text-sm">
+          Preço vigente:{' '}
+          <span className="text-lg font-semibold tabular-nums">
+            {config
+              ? config.precoUnitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+              : '—'}
+          </span>
+          <span className="text-muted-foreground"> / crédito</span>
+        </div>
+        <div className="flex items-end gap-2">
+          <div className="space-y-1">
+            <label className="text-xs font-medium" htmlFor="novo-preco">Novo preço (R$)</label>
+            <Input
+              id="novo-preco"
+              type="number"
+              min={0.01}
+              step="0.01"
+              value={preco}
+              onChange={(e) => setPreco(e.target.value)}
+              placeholder={config ? String(config.precoUnitario) : '5.00'}
+              className="w-32 tabular-nums"
+            />
+          </div>
+          <Button
+            onClick={() => salvar.mutate()}
+            disabled={salvar.isPending || !precoValido}
+          >
+            {salvar.isPending ? 'Salvando...' : 'Atualizar preço'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -307,6 +391,7 @@ function ComprasPendentesCard({ enabled }: { enabled: boolean }) {
           <TableHeader>
             <TableRow>
               <TableHead>Empresa</TableHead>
+              <TableHead className="text-right">Valor pago</TableHead>
               <TableHead className="text-right">Créditos</TableHead>
               <TableHead>Transação PIX</TableHead>
               <TableHead>Solicitada em</TableHead>
@@ -320,7 +405,19 @@ function ComprasPendentesCard({ enabled }: { enabled: boolean }) {
                   {c.razaoSocial}
                   <span className="ml-2 text-xs text-muted-foreground">{c.slug}</span>
                 </TableCell>
-                <TableCell className="text-right font-semibold tabular-nums">+{c.quantidade}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {c.valorPago != null
+                    ? c.valorPago.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                    : '—'}
+                </TableCell>
+                <TableCell className="text-right font-semibold tabular-nums">
+                  +{c.quantidade}
+                  {c.precoUnitario != null && (
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      (a {c.precoUnitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="font-mono text-xs">{c.pixTxid}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {new Date(c.createdAt).toLocaleString('pt-BR')}

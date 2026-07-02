@@ -64,6 +64,8 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         jdbcTemplate.update("DELETE FROM credito_lancamento WHERE tenant_id IN (?, ?)", TENANT_ACME, TENANT_MARINA);
         jdbcTemplate.execute("ALTER TABLE credito_lancamento ENABLE TRIGGER trg_credito_lancamento_append_only");
         jdbcTemplate.update("DELETE FROM credito_compra WHERE tenant_id IN (?, ?)", TENANT_ACME, TENANT_MARINA);
+        // Preço conhecido para os testes (independe da ordem de execução)
+        jdbcTemplate.update("UPDATE plataforma_config SET valor = '5.00' WHERE chave = 'creditos_preco_unitario'");
     }
 
     @AfterEach
@@ -224,7 +226,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"quantidade\": 30, \"pixTxid\": \"E12345678202607021234\"}")
+                .content("{\"valor\": 150.00, \"pixTxid\": \"E12345678202607021234\"}")
                 .with(admin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("PENDENTE"));
@@ -260,7 +262,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"quantidade\": 10, \"pixTxid\": \"E12345678202607021234\"}")
+                .content("{\"valor\": 50.00, \"pixTxid\": \"E12345678202607021234\"}")
                 .with(admin()))
             .andExpect(status().isBadRequest());
     }
@@ -271,7 +273,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"quantidade\": 10, \"pixTxid\": \"TX-REJ-1\"}")
+                .content("{\"valor\": 50.00, \"pixTxid\": \"TX-REJ-1\"}")
                 .with(admin()))
             .andExpect(status().isOk());
         String compraId = jdbcTemplate.queryForObject(
@@ -295,6 +297,51 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.status").value("REJEITADA"));
 
         assertThat(creditoService.saldo(TENANT_ACME)).isZero();
+    }
+
+    @Test
+    @DisplayName("Preço configurável: PUT muda o preço e novas compras usam o valor novo")
+    void testPrecoConfiguravel() throws Exception {
+        // preço seed = 5.00 → R$ 150 = 30 créditos (validado no fluxo completo)
+        mockMvc.perform(put("/v1/platform/creditos/config")
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"precoUnitario\": 10.00}")
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.precoUnitario").value(10.00));
+
+        // R$ 155 a R$ 10/crédito → 15 créditos (arredonda para baixo)
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"valor\": 155.00, \"pixTxid\": \"TX-PRECO-1\"}")
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quantidade").value(15))
+            .andExpect(jsonPath("$.precoUnitario").value(10.00));
+
+        // Valor abaixo de 1 crédito → 400
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"valor\": 9.99, \"pixTxid\": \"TX-PRECO-2\"}")
+                .with(admin()))
+            .andExpect(status().isBadRequest());
+
+        // Preço inválido → 400; restaura o preço seed para os demais testes
+        mockMvc.perform(put("/v1/platform/creditos/config")
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"precoUnitario\": 0}")
+                .with(admin()))
+            .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/v1/platform/creditos/config")
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"precoUnitario\": 5.00}")
+                .with(admin()))
+            .andExpect(status().isOk());
     }
 
     @Test

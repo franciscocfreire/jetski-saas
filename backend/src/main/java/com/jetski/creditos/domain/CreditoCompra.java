@@ -37,6 +37,14 @@ public class CreditoCompra {
     @Column(name = "pix_txid", nullable = false, length = 80, updatable = false)
     private String pixTxid;
 
+    /** Valor transferido (R$) informado pelo tenant. */
+    @Column(name = "valor_pago", precision = 10, scale = 2, updatable = false)
+    private java.math.BigDecimal valorPago;
+
+    /** Preço do crédito no momento da solicitação (snapshot). */
+    @Column(name = "preco_unitario", precision = 10, scale = 2, updatable = false)
+    private java.math.BigDecimal precoUnitario;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private StatusCompra status;

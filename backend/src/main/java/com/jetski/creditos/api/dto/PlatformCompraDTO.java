@@ -2,6 +2,7 @@ package com.jetski.creditos.api.dto;
 
 import com.jetski.creditos.domain.CreditoCompra;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -12,11 +13,13 @@ public record PlatformCompraDTO(
         String slug,
         String razaoSocial,
         int quantidade,
+        BigDecimal valorPago,
+        BigDecimal precoUnitario,
         String pixTxid,
         Instant createdAt
 ) {
     public static PlatformCompraDTO from(CreditoCompra c, String slug, String razaoSocial) {
         return new PlatformCompraDTO(c.getId(), c.getTenantId(), slug, razaoSocial,
-            c.getQuantidade(), c.getPixTxid(), c.getCreatedAt());
+            c.getQuantidade(), c.getValorPago(), c.getPrecoUnitario(), c.getPixTxid(), c.getCreatedAt());
     }
 }
