@@ -813,13 +813,47 @@ export default function ConfiguracoesPage() {
                     </div>
                   )}
 
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Confirmação por código (OTP) no aceite chega na próxima fase — será configurável por
-                      canal (e-mail/WhatsApp).
-                    </AlertDescription>
-                  </Alert>
+                  <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium">Confirmação por código (OTP) no aceite</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Antes de assinar, o cliente confirma um código enviado ao seu canal (vincula a
+                        assinatura à posse do e-mail/telefone). Adiciona uma etapa ao atendimento.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={assCfg.otp.ativo}
+                      onCheckedChange={(v) => setAssCfg({ ...assCfg, otp: { ...assCfg.otp, ativo: v } })}
+                    />
+                  </div>
+
+                  {assCfg.otp.ativo && (
+                    <div className="space-y-2">
+                      <Label>Canal do código</Label>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant={assCfg.otp.canal === 'EMAIL' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setAssCfg({ ...assCfg, otp: { ...assCfg.otp, canal: 'EMAIL' } })}
+                        >
+                          E-mail
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={assCfg.otp.canal === 'WHATSAPP' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setAssCfg({ ...assCfg, otp: { ...assCfg.otp, canal: 'WHATSAPP' } })}
+                        >
+                          WhatsApp
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        E-mail: enviado direto ao cliente (canal mais forte). WhatsApp: gera um link para o
+                        operador enviar o código (sem custo, requer o operador enviar).
+                      </p>
+                    </div>
+                  )}
 
                   <Button onClick={() => updateAss.mutate(assCfg)} disabled={updateAss.isPending} className="gap-2">
                     {updateAss.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
