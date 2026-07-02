@@ -1,9 +1,21 @@
 import type { Metadata } from "next";
+import { Geist, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { ChromeHeader, ChromeFooter } from "@/components/Chrome";
 
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+});
+
 export const metadata: Metadata = {
-  title: "JetRiders — Protótipo (Portal + Backoffice)",
+  title: "Meu Jet — Portal do Cliente (protótipo)",
   description: "Protótipo clicável: portal do cliente e backoffice (staff).",
 };
 
@@ -14,7 +26,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body>
+      <body className={`${geistSans.variable} ${playfair.variable}`}>
         <div className="prototype-banner no-print py-1 text-center text-[11px] font-semibold text-amber-900">
           PROTÓTIPO — dados fictícios, sem backend · para validação com
           stakeholders

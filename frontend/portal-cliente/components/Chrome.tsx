@@ -16,7 +16,7 @@ export function ChromeFooter() {
   const staff = path?.startsWith("/staff");
   return (
     <footer className="no-print mx-auto flex max-w-6xl flex-col items-center gap-2 px-4 py-10 text-center text-xs text-slate-400">
-      <div>JetRiders · Protótipo v1 (mock) · NORMAM-212/DPC compliant flow</div>
+      <div>powered by Meu Jet · Protótipo v1 (mock) · NORMAM-212/DPC compliant flow</div>
       <div className="flex items-center gap-2">
         <Link
           href="/"

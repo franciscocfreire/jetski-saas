@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Anchor, CalendarCheck, User, Globe } from "lucide-react";
+import { CalendarCheck, User, Globe } from "lucide-react";
+import { Logo } from "./Logo";
 import { useStore } from "@/lib/store";
 import { Button } from "./ui";
 
@@ -13,13 +14,8 @@ export function Header() {
   return (
     <header className="no-print sticky top-0 z-30 border-b border-slate-200 bg-white/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-ink-900">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-600 text-white">
-            <Anchor size={18} />
-          </span>
-          <span className="hidden sm:block">
-            Jet<span className="text-brand-600">Riders</span>
-          </span>
+        <Link href="/" className="flex items-center">
+          <Logo theme="light" size={22} />
         </Link>
 
         <nav className="ml-2 hidden items-center gap-1 text-sm md:flex">
