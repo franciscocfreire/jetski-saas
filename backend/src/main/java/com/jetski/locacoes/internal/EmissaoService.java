@@ -58,6 +58,7 @@ public class EmissaoService {
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final com.jetski.shared.assinatura.CarimboTempoService carimboTempoService;
+    private final PadesSignatureService padesSignatureService;
 
     @Value
     @Builder
@@ -119,6 +120,11 @@ public class EmissaoService {
         if (cfgAss.paginaAuditoriaOn()) {
             pdfCliente = comAuditoria(pdfCliente, cliente, aceite, hab, cfgAss);
             if (pdfMarinha != null) pdfMarinha = comAuditoria(pdfMarinha, cliente, aceite, hab, cfgAss);
+        }
+        // Assinatura digital PAdES (por último — deve ser a operação final sobre o PDF).
+        if (cfgAss.padesOn()) {
+            pdfCliente = comAssinaturaDigital(pdfCliente, cfgAss);
+            if (pdfMarinha != null) pdfMarinha = comAssinaturaDigital(pdfMarinha, cfgAss);
         }
 
         // Canônico p/ download/consulta = visão do cliente (completa). Marinha à parte.
@@ -242,6 +248,30 @@ public class EmissaoService {
             return documentoPdfService.anexarPdf(pdf, pagina);
         } catch (Exception e) {
             log.warn("Página de auditoria não anexada (segue sem): {}", e.getMessage());
+            return pdf;
+        }
+    }
+
+    private static String sha256Hex(byte[] data) {
+        try {
+            byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(data);
+            StringBuilder sb = new StringBuilder(h.length * 2);
+            for (byte b : h) sb.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
+            return sb.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /** Assina o PDF em PAdES (tamper-evident). Falha → segue com o PDF não assinado. */
+    private DocumentoPdfService.DocumentoPdf comAssinaturaDigital(
+            DocumentoPdfService.DocumentoPdf pdf, com.jetski.tenant.domain.AssinaturaConfig cfg) {
+        try {
+            byte[] assinado = padesSignatureService.assinar(
+                pdf.conteudo(), cfg.carimboOn() ? cfg.tsaUrlOrDefault() : null);
+            return new DocumentoPdfService.DocumentoPdf(assinado, sha256Hex(assinado));
+        } catch (Exception e) {
+            log.warn("PDF não assinado digitalmente (segue sem): {}", e.getMessage());
             return pdf;
         }
     }

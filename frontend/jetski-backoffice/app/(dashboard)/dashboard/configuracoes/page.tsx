@@ -855,6 +855,23 @@ export default function ConfiguracoesPage() {
                     </div>
                   )}
 
+                  <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium">Assinatura digital do PDF (PAdES)</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Assina criptograficamente o PDF emitido → documento <strong>à prova de
+                        adulteração</strong> (qualquer alteração é detectada no próprio arquivo, verificável
+                        no Adobe Reader). Sem custo e sem mudar nada para o cliente. Usa um certificado
+                        auto-assinado da plataforma (o Adobe indica a identidade como &quot;não
+                        verificada&quot;, mas a integridade é garantida).
+                      </p>
+                    </div>
+                    <Switch
+                      checked={assCfg.pades.ativo}
+                      onCheckedChange={(v) => setAssCfg({ ...assCfg, pades: { ...assCfg.pades, ativo: v } })}
+                    />
+                  </div>
+
                   <Button onClick={() => updateAss.mutate(assCfg)} disabled={updateAss.isPending} className="gap-2">
                     {updateAss.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     Salvar configuração de assinatura

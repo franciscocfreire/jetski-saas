@@ -231,6 +231,16 @@ ALTER TABLE public.reserva_aceite
     ADD COLUMN IF NOT EXISTS otp_canal   varchar(20),
     ADD COLUMN IF NOT EXISTS otp_destino varchar(160);
 
+-- Certificado auto-assinado da plataforma p/ assinatura PAdES (Fase C2)
+CREATE TABLE IF NOT EXISTS public.assinatura_certificado (
+    id          uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    subject     varchar(255) NOT NULL,
+    cert_pem    text NOT NULL,
+    key_pem_enc text NOT NULL,
+    algoritmo   varchar(40) NOT NULL DEFAULT 'SHA256withRSA',
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS public.reserva_comprovante (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     tenant_id uuid NOT NULL,

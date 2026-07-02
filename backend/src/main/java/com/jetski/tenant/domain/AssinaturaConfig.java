@@ -15,7 +15,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public record AssinaturaConfig(
         @JsonProperty("paginaAuditoria") Boolean paginaAuditoria,
         @JsonProperty("carimboTempo") CarimboTempo carimboTempo,
-        @JsonProperty("otp") Otp otp
+        @JsonProperty("otp") Otp otp,
+        @JsonProperty("pades") Pades pades
 ) {
 
     /** Carimbo de tempo. tsaUrl vazio → usa âncora própria (HMAC), sem custo. */
@@ -32,6 +33,10 @@ public record AssinaturaConfig(
             @JsonProperty("canal") String canal
     ) {}
 
+    /** Assinatura digital PAdES do PDF emitido (tamper-evident). Fase C2. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Pades(@JsonProperty("ativo") Boolean ativo) {}
+
     /** TSA gratuita padrão (RFC 3161, sem fé pública ICP-Brasil). */
     public static final String TSA_GRATUITA = "https://freetsa.org/tsr";
 
@@ -39,7 +44,8 @@ public record AssinaturaConfig(
         return new AssinaturaConfig(
                 true, // página de auditoria ligada
                 new CarimboTempo(true, TSA_GRATUITA),
-                new Otp(false, "EMAIL"));
+                new Otp(false, "EMAIL"),
+                new Pades(false)); // PAdES opt-in (cert auto-assinado)
     }
 
     /** Nunca devolve null — campos ausentes caem no padrão. */
@@ -48,7 +54,8 @@ public record AssinaturaConfig(
         return new AssinaturaConfig(
                 paginaAuditoria != null ? paginaAuditoria : p.paginaAuditoria(),
                 carimboTempo != null ? carimboTempo : p.carimboTempo(),
-                otp != null ? otp : p.otp());
+                otp != null ? otp : p.otp(),
+                pades != null ? pades : p.pades());
     }
 
     public boolean paginaAuditoriaOn() {
@@ -57,6 +64,10 @@ public record AssinaturaConfig(
 
     public boolean carimboOn() {
         return carimboTempo == null || carimboTempo.ativo() == null || carimboTempo.ativo();
+    }
+
+    public boolean padesOn() {
+        return pades != null && Boolean.TRUE.equals(pades.ativo());
     }
 
     public String tsaUrlOrDefault() {
