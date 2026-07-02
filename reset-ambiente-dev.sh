@@ -337,6 +337,28 @@ WHERE NOT EXISTS (
     SELECT 1 FROM public.credito_lancamento c WHERE c.tenant_id = t.id AND c.tipo = 'ADESAO'
 );
 
+-- V027: compras de créditos via PIX (aprovação manual do super admin)
+CREATE TABLE IF NOT EXISTS public.credito_compra (
+    id            uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id     uuid NOT NULL REFERENCES public.tenant(id) ON DELETE RESTRICT,
+    quantidade    integer NOT NULL CHECK (quantidade > 0),
+    pix_txid      varchar(80) NOT NULL,
+    status        varchar(20) NOT NULL DEFAULT 'PENDENTE' CHECK (status IN ('PENDENTE', 'APROVADA', 'REJEITADA')),
+    criado_por    uuid,
+    decidido_por  uuid,
+    decidido_em   timestamptz,
+    observacao    varchar(200),
+    lancamento_id uuid,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    updated_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_credito_compra_txid ON public.credito_compra (tenant_id, pix_txid);
+CREATE INDEX IF NOT EXISTS idx_credito_compra_tenant_status ON public.credito_compra (tenant_id, status);
+ALTER TABLE public.credito_compra ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.credito_compra FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_credito_compra ON public.credito_compra;
+CREATE POLICY tenant_isolation_credito_compra ON public.credito_compra USING ((tenant_id = public.get_current_tenant_id()));
+
 -- Super admin de dev (espelha PLATFORM_ADMIN_EMAILS do compose; o seeder do backend
 -- só roda no boot — este bloco garante o acesso logo após o reset, sem restart)
 INSERT INTO public.usuario_global_roles (usuario_id, roles, unrestricted_access)

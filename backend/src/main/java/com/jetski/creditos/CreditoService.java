@@ -1,7 +1,10 @@
 package com.jetski.creditos;
 
+import com.jetski.creditos.domain.CreditoCompra;
+import com.jetski.creditos.domain.CreditoCompraRepository;
 import com.jetski.creditos.domain.CreditoLancamento;
 import com.jetski.creditos.domain.CreditoLancamentoRepository;
+import com.jetski.creditos.domain.StatusCompra;
 import com.jetski.creditos.domain.TipoLancamento;
 import com.jetski.creditos.domain.event.CreditoLancadoEvent;
 import com.jetski.shared.exception.BusinessException;
@@ -34,11 +37,15 @@ public class CreditoService {
         "Créditos de emissão esgotados. Fale com o Meu Jet para adquirir mais créditos.";
 
     private final CreditoLancamentoRepository repository;
+    private final CreditoCompraRepository compraRepository;
     private final EntityManager entityManager;
     private final ApplicationEventPublisher eventPublisher;
 
     @Value("${jetski.creditos.adesao:20}")
     private int creditosAdesao;
+
+    @Value("${jetski.creditos.pix-chave:}")
+    private String pixChave;
 
     @Transactional(readOnly = true)
     public int saldo(UUID tenantId) {
@@ -59,11 +66,12 @@ public class CreditoService {
     /**
      * Debita 1 crédito pelo documento emitido à Marinha. Deve rodar DENTRO da
      * transação da emissão: se a emissão falhar depois, o débito reverte junto.
+     * O motivo grava a reserva para o extrato ser autoexplicativo.
      *
      * @throws BusinessException se o saldo for insuficiente (bloqueia a emissão)
      */
     @Transactional(propagation = Propagation.MANDATORY)
-    public void debitarEmissaoDocumento(UUID tenantId, UUID documentoId) {
+    public void debitarEmissaoDocumento(UUID tenantId, UUID documentoId, UUID reservaId) {
         lockTenant(tenantId);
         int saldoAtual = repository.saldo(tenantId);
         if (saldoAtual < 1) {
@@ -75,10 +83,11 @@ public class CreditoService {
             .quantidade(-1)
             .saldoApos(saldoAtual - 1)
             .referenciaId(documentoId)
+            .motivo(reservaId != null ? "Reserva " + reservaId.toString().substring(0, 8) : null)
             .criadoPor(actorOrNull())
             .build());
-        log.info("Crédito debitado: tenant={}, documento={}, saldo {} -> {}",
-            tenantId, documentoId, saldoAtual, saldoAtual - 1);
+        log.info("Crédito debitado: tenant={}, documento={}, reserva={}, saldo {} -> {}",
+            tenantId, documentoId, reservaId, saldoAtual, saldoAtual - 1);
     }
 
     /** Grant de adesão (idempotente pelo unique parcial — 1 ADESAO por tenant). */
@@ -145,6 +154,89 @@ public class CreditoService {
     public List<CreditoLancamento> extrato(UUID tenantId, int limit) {
         return repository.findByTenantIdOrderByCreatedAtDesc(
             tenantId, PageRequest.of(0, Math.max(1, Math.min(limit, 100))));
+    }
+
+    // ========== Compra de créditos (PIX manual, aprovação do super admin) ==========
+
+    /** Chave PIX fixa da plataforma para compra de créditos. */
+    public String pixChave() {
+        return pixChave;
+    }
+
+    /** Registra a solicitação de compra (créditos só entram na aprovação do admin). */
+    @Transactional
+    public CreditoCompra solicitarCompra(UUID tenantId, int quantidade, String pixTxid) {
+        if (quantidade < 1) {
+            throw new BusinessException("Quantidade de créditos deve ser maior que zero");
+        }
+        String txid = pixTxid == null ? "" : pixTxid.trim();
+        if (txid.isEmpty()) {
+            throw new BusinessException("Informe o número da transação PIX (comprovante)");
+        }
+        if (txid.length() > 80) {
+            throw new BusinessException("Número da transação PIX muito longo (máx. 80 caracteres)");
+        }
+        if (compraRepository.existsByTenantIdAndPixTxid(tenantId, txid)) {
+            throw new BusinessException("Esta transação PIX já foi usada em outra solicitação");
+        }
+        CreditoCompra compra = compraRepository.save(CreditoCompra.builder()
+            .tenantId(tenantId)
+            .quantidade(quantidade)
+            .pixTxid(txid)
+            .status(StatusCompra.PENDENTE)
+            .criadoPor(actorOrNull())
+            .build());
+        log.info("Compra de créditos solicitada: tenant={}, quantidade={}, txid={}", tenantId, quantidade, txid);
+        return compra;
+    }
+
+    @Transactional(readOnly = true)
+    public List<CreditoCompra> comprasDoTenant(UUID tenantId, int limit) {
+        return compraRepository.findByTenantIdOrderByCreatedAtDesc(
+            tenantId, PageRequest.of(0, Math.max(1, Math.min(limit, 50))));
+    }
+
+    @Transactional(readOnly = true)
+    public List<CreditoCompra> comprasPendentesDoTenant(UUID tenantId) {
+        return compraRepository.findByTenantIdAndStatusOrderByCreatedAtAsc(tenantId, StatusCompra.PENDENTE);
+    }
+
+    /**
+     * Aprova a compra: credita no ledger (auditado) e marca APROVADA.
+     * Chamado pela plataforma com a sessão já no tenant alvo. Idempotência por status.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public CreditoCompra aprovarCompra(UUID tenantId, UUID compraId, UUID actor) {
+        CreditoCompra compra = compraRepository.findByIdAndTenantId(compraId, tenantId)
+            .orElseThrow(() -> new BusinessException("Solicitação de compra não encontrada"));
+        if (compra.getStatus() != StatusCompra.PENDENTE) {
+            throw new BusinessException("Solicitação já foi " + compra.getStatus().name().toLowerCase());
+        }
+        CreditoLancamento lanc = lancarAjuste(tenantId, compra.getQuantidade(),
+            "Compra de créditos — PIX " + compra.getPixTxid(), actor);
+        compra.setStatus(StatusCompra.APROVADA);
+        compra.setDecididoPor(actor);
+        compra.setDecididoEm(java.time.Instant.now());
+        compra.setLancamentoId(lanc.getId());
+        return compraRepository.save(compra);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public CreditoCompra rejeitarCompra(UUID tenantId, UUID compraId, String observacao, UUID actor) {
+        CreditoCompra compra = compraRepository.findByIdAndTenantId(compraId, tenantId)
+            .orElseThrow(() -> new BusinessException("Solicitação de compra não encontrada"));
+        if (compra.getStatus() != StatusCompra.PENDENTE) {
+            throw new BusinessException("Solicitação já foi " + compra.getStatus().name().toLowerCase());
+        }
+        if (observacao == null || observacao.isBlank()) {
+            throw new BusinessException("Informe o motivo da rejeição");
+        }
+        compra.setStatus(StatusCompra.REJEITADA);
+        compra.setDecididoPor(actor);
+        compra.setDecididoEm(java.time.Instant.now());
+        compra.setObservacao(observacao.trim());
+        log.info("Compra de créditos rejeitada: tenant={}, compra={}, motivo={}", tenantId, compraId, observacao);
+        return compraRepository.save(compra);
     }
 
     /** Serializa movimentos do mesmo tenant na transação corrente. */

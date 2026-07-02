@@ -63,6 +63,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         jdbcTemplate.execute("ALTER TABLE credito_lancamento DISABLE TRIGGER trg_credito_lancamento_append_only");
         jdbcTemplate.update("DELETE FROM credito_lancamento WHERE tenant_id IN (?, ?)", TENANT_ACME, TENANT_MARINA);
         jdbcTemplate.execute("ALTER TABLE credito_lancamento ENABLE TRIGGER trg_credito_lancamento_append_only");
+        jdbcTemplate.update("DELETE FROM credito_compra WHERE tenant_id IN (?, ?)", TENANT_ACME, TENANT_MARINA);
     }
 
     @AfterEach
@@ -115,10 +116,11 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
     void testDebito() {
         creditoService.lancarAdesao(TENANT_ACME); // +20
         UUID doc1 = UUID.randomUUID();
+        UUID reservaDebito = UUID.randomUUID();
 
         // debitar exige transação do chamador (MANDATORY) — simula a emissão
         transactionTemplate.executeWithoutResult(tx ->
-            creditoService.debitarEmissaoDocumento(TENANT_ACME, doc1));
+            creditoService.debitarEmissaoDocumento(TENANT_ACME, doc1, reservaDebito));
 
         assertThat(creditoService.saldo(TENANT_ACME)).isEqualTo(19);
         Integer saldoApos = jdbcTemplate.queryForObject(
@@ -133,7 +135,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
 
         assertThatThrownBy(() ->
             transactionTemplate.executeWithoutResult(tx ->
-                creditoService.debitarEmissaoDocumento(TENANT_ACME, UUID.randomUUID())))
+                creditoService.debitarEmissaoDocumento(TENANT_ACME, UUID.randomUUID(), UUID.randomUUID())))
             .hasMessageContaining("Créditos de emissão esgotados");
     }
 
@@ -211,6 +213,104 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
                 .content("{\"quantidade\": -5, \"motivo\": \"Estorno indevido\"}")
                 .with(admin()))
             .andExpect(status().isBadRequest());
+    }
+
+    // ============================== Compra de créditos (PIX) ==============================
+
+    @Test
+    @DisplayName("Fluxo de compra: solicitar → pendente na plataforma → aprovar credita no ledger")
+    void testCompraFluxoCompleto() throws Exception {
+        // Tenant solicita informando o txid do PIX
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"quantidade\": 30, \"pixTxid\": \"E12345678202607021234\"}")
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("PENDENTE"));
+
+        // Aparece na fila do super admin
+        mockMvc.perform(get("/v1/platform/creditos/compras")
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].pixTxid").value("E12345678202607021234"))
+            .andExpect(jsonPath("$[0].quantidade").value(30));
+
+        String compraId = jdbcTemplate.queryForObject(
+            "SELECT id::text FROM credito_compra WHERE tenant_id = ? AND pix_txid = 'E12345678202607021234'",
+            String.class, TENANT_ACME);
+
+        // Aprovação credita no ledger e marca APROVADA
+        mockMvc.perform(post("/v1/platform/creditos/compras/{t}/{c}/aprovar", TENANT_ACME, compraId)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("APROVADA"));
+
+        assertThat(creditoService.saldo(TENANT_ACME)).isEqualTo(30);
+
+        // Aprovar de novo → 400 (idempotência por status)
+        mockMvc.perform(post("/v1/platform/creditos/compras/{t}/{c}/aprovar", TENANT_ACME, compraId)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .with(admin()))
+            .andExpect(status().isBadRequest());
+
+        // Mesmo txid de novo → 400
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"quantidade\": 10, \"pixTxid\": \"E12345678202607021234\"}")
+                .with(admin()))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Rejeição exige motivo e não credita")
+    void testCompraRejeitada() throws Exception {
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"quantidade\": 10, \"pixTxid\": \"TX-REJ-1\"}")
+                .with(admin()))
+            .andExpect(status().isOk());
+        String compraId = jdbcTemplate.queryForObject(
+            "SELECT id::text FROM credito_compra WHERE tenant_id = ? AND pix_txid = 'TX-REJ-1'",
+            String.class, TENANT_ACME);
+
+        // Sem motivo → 400
+        mockMvc.perform(post("/v1/platform/creditos/compras/{t}/{c}/rejeitar", TENANT_ACME, compraId)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"observacao\": \"\"}")
+                .with(admin()))
+            .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/v1/platform/creditos/compras/{t}/{c}/rejeitar", TENANT_ACME, compraId)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"observacao\": \"PIX não localizado no extrato\"}")
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("REJEITADA"));
+
+        assertThat(creditoService.saldo(TENANT_ACME)).isZero();
+    }
+
+    @Test
+    @DisplayName("Débito grava a reserva no motivo (extrato autoexplicativo)")
+    void testDebitoGravaReservaNoMotivo() {
+        creditoService.lancarAdesao(TENANT_ACME);
+        UUID doc = UUID.randomUUID();
+        UUID reserva = UUID.fromString("574ba29e-ee20-498e-8ae8-5798a1fea9f3");
+
+        transactionTemplate.executeWithoutResult(tx ->
+            creditoService.debitarEmissaoDocumento(TENANT_ACME, doc, reserva));
+
+        String motivo = jdbcTemplate.queryForObject(
+            "SELECT motivo FROM credito_lancamento WHERE tipo = 'CONSUMO' AND referencia_id = ?",
+            String.class, doc);
+        assertThat(motivo).isEqualTo("Reserva 574ba29e");
     }
 
     @Test

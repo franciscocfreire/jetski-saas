@@ -162,7 +162,7 @@ public class EmissaoService {
         // Débito síncrono na mesma transação: sem saldo, a emissão inteira reverte
         // (nem a via do cliente sai). Advisory lock por tenant impede corrida.
         if (marinhaAplicavel) {
-            creditoService.debitarEmissaoDocumento(reserva.getTenantId(), doc.getId());
+            creditoService.debitarEmissaoDocumento(reserva.getTenantId(), doc.getId(), reservaId);
         }
 
         // Documentação completa? Só com tudo cumprido a Marinha pode receber o e-mail.

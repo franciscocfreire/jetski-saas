@@ -238,8 +238,136 @@ export default function PlataformaPage() {
         </CardContent>
       </Card>
 
+      <ComprasPendentesCard enabled={isPlatformAdmin} />
+
       <EmissoesPorEmpresaCard enabled={isPlatformAdmin} />
     </div>
+  )
+}
+
+/** Fila de compras de créditos via PIX aguardando conferência do super admin. */
+function ComprasPendentesCard({ enabled }: { enabled: boolean }) {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const [rejeitando, setRejeitando] = useState<string | null>(null)
+  const [observacao, setObservacao] = useState('')
+
+  const { data: compras, isLoading } = useQuery({
+    queryKey: ['platform', 'compras-creditos'],
+    queryFn: () => creditosService.getComprasPendentes(),
+    enabled,
+  })
+
+  const onDecided = (msg: string) => {
+    queryClient.invalidateQueries({ queryKey: ['platform', 'compras-creditos'] })
+    queryClient.invalidateQueries({ queryKey: ['platform', 'creditos'] })
+    toast({ title: msg })
+    setRejeitando(null)
+    setObservacao('')
+  }
+  const onError = (e: unknown) => {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    toast({
+      title: 'Falha na operação',
+      description: err.response?.data?.message || err.message || 'Erro inesperado',
+      variant: 'destructive',
+    })
+  }
+
+  const aprovar = useMutation({
+    mutationFn: (c: { tenantId: string; id: string }) => creditosService.aprovarCompra(c.tenantId, c.id),
+    onSuccess: () => onDecided('Compra aprovada — créditos liberados'),
+    onError,
+  })
+  const rejeitar = useMutation({
+    mutationFn: (c: { tenantId: string; id: string }) =>
+      creditosService.rejeitarCompra(c.tenantId, c.id, observacao),
+    onSuccess: () => onDecided('Compra rejeitada'),
+    onError,
+  })
+
+  if (!compras || compras.length === 0) {
+    if (isLoading) return null
+    return null // sem pendências, sem card — menos ruído
+  }
+
+  return (
+    <Card className="border-warning/40">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Coins className="size-5" /> Compras de créditos aguardando conferência
+        </CardTitle>
+        <CardDescription>
+          Confira o PIX no extrato bancário pelo número da transação antes de aprovar.
+          A aprovação credita no ledger (imutável e auditado).
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Empresa</TableHead>
+              <TableHead className="text-right">Créditos</TableHead>
+              <TableHead>Transação PIX</TableHead>
+              <TableHead>Solicitada em</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {compras.map((c) => (
+              <TableRow key={c.id}>
+                <TableCell className="font-medium">
+                  {c.razaoSocial}
+                  <span className="ml-2 text-xs text-muted-foreground">{c.slug}</span>
+                </TableCell>
+                <TableCell className="text-right font-semibold tabular-nums">+{c.quantidade}</TableCell>
+                <TableCell className="font-mono text-xs">{c.pixTxid}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {new Date(c.createdAt).toLocaleString('pt-BR')}
+                </TableCell>
+                <TableCell className="text-right">
+                  {rejeitando === c.id ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <Input
+                        value={observacao}
+                        onChange={(e) => setObservacao(e.target.value)}
+                        placeholder="Motivo da rejeição"
+                        className="h-8 w-52 text-xs"
+                        maxLength={200}
+                      />
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={rejeitar.isPending || !observacao.trim()}
+                        onClick={() => rejeitar.mutate({ tenantId: c.tenantId, id: c.id })}
+                      >
+                        Confirmar
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setRejeitando(null)}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        size="sm"
+                        disabled={aprovar.isPending}
+                        onClick={() => aprovar.mutate({ tenantId: c.tenantId, id: c.id })}
+                      >
+                        <Check className="mr-1 size-4" /> Aprovar
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => { setRejeitando(c.id); setObservacao('') }}>
+                        Rejeitar
+                      </Button>
+                    </div>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   )
 }
 

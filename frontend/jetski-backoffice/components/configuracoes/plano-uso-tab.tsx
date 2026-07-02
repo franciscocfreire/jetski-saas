@@ -1,9 +1,14 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { creditosService, meteringService } from '@/lib/api/services'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Gauge, FileCheck2, Landmark, Eye, Coins } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { useToast } from '@/hooks/use-toast'
+import { Loader2, Gauge, FileCheck2, Landmark, Eye, Coins, Copy, ShoppingCart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   Bar,
@@ -25,6 +30,136 @@ const TIPO_LABEL: Record<string, string> = {
   AJUSTE: 'Lançamento Meu Jet',
   CONSUMO: 'Emissão de documento',
   ESTORNO: 'Estorno',
+}
+
+const STATUS_COMPRA: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' }> = {
+  PENDENTE: { label: 'Aguardando aprovação', variant: 'secondary' },
+  APROVADA: { label: 'Aprovada', variant: 'default' },
+  REJEITADA: { label: 'Rejeitada', variant: 'destructive' },
+}
+
+/** Compra manual v1: transfere para a chave PIX fixa e informa o txid; o Meu Jet aprova. */
+function ComprarCreditosCard() {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const [quantidade, setQuantidade] = useState('50')
+  const [pixTxid, setPixTxid] = useState('')
+
+  const { data: config } = useQuery({
+    queryKey: ['creditos-config'],
+    queryFn: () => creditosService.getConfig(),
+  })
+  const { data: compras } = useQuery({
+    queryKey: ['creditos-compras'],
+    queryFn: () => creditosService.getCompras(5),
+  })
+
+  const solicitar = useMutation({
+    mutationFn: () => creditosService.solicitarCompra(Number(quantidade), pixTxid),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creditos-compras'] })
+      setPixTxid('')
+      toast({
+        title: 'Solicitação enviada',
+        description: 'Assim que o pagamento for conferido, os créditos entram no seu saldo.',
+      })
+    },
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { message?: string } }; message?: string }
+      toast({
+        title: 'Erro ao solicitar',
+        description: err.response?.data?.message || err.message || 'Não foi possível enviar.',
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const copiarChave = async () => {
+    if (config?.pixChave) {
+      await navigator.clipboard.writeText(config.pixChave)
+      toast({ title: 'Chave PIX copiada' })
+    }
+  }
+
+  const qtdValida = Number.isInteger(Number(quantidade)) && Number(quantidade) > 0
+
+  return (
+    <div className="rounded-lg border p-5">
+      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <ShoppingCart className="h-4 w-4" /> Comprar créditos
+      </div>
+      <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+        <li>
+          Transfira via PIX para a chave{' '}
+          <button
+            type="button"
+            onClick={copiarChave}
+            className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-medium text-foreground hover:bg-accent"
+          >
+            {config?.pixChave || '—'} <Copy className="h-3 w-3" />
+          </button>
+        </li>
+        <li>Informe abaixo a quantidade e o número da transação (comprovante).</li>
+        <li>O Meu Jet confere o pagamento e libera os créditos no seu saldo.</li>
+      </ol>
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <label className="text-xs font-medium" htmlFor="compra-qtd">Quantidade</label>
+          <Input
+            id="compra-qtd"
+            type="number"
+            min={1}
+            value={quantidade}
+            onChange={(e) => setQuantidade(e.target.value)}
+            className="w-28 tabular-nums"
+          />
+        </div>
+        <div className="min-w-56 flex-1 space-y-1">
+          <label className="text-xs font-medium" htmlFor="compra-txid">Número da transação PIX</label>
+          <Input
+            id="compra-txid"
+            value={pixTxid}
+            onChange={(e) => setPixTxid(e.target.value)}
+            placeholder="Ex.: E12345678202607021234"
+            maxLength={80}
+          />
+        </div>
+        <Button
+          onClick={() => solicitar.mutate()}
+          disabled={solicitar.isPending || !qtdValida || !pixTxid.trim()}
+          className="gap-2"
+        >
+          {solicitar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
+          Solicitar créditos
+        </Button>
+      </div>
+
+      {compras && compras.length > 0 && (
+        <div className="mt-4 divide-y rounded-lg border">
+          {compras.map((c) => {
+            const st = STATUS_COMPRA[c.status] ?? { label: c.status, variant: 'secondary' as const }
+            return (
+              <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
+                <div className="min-w-0">
+                  <span className="font-medium tabular-nums">+{c.quantidade} créditos</span>
+                  <span className="ml-2 font-mono text-xs text-muted-foreground">{c.pixTxid}</span>
+                  {c.observacao && (
+                    <span className="ml-2 text-xs text-destructive">{c.observacao}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant={st.variant}>{st.label}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(c.createdAt).toLocaleDateString('pt-BR')}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function PlanoUsoTab() {
@@ -140,6 +275,8 @@ export function PlanoUsoTab() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+
+            <ComprarCreditosCard />
 
             {extrato && extrato.length > 0 && (
               <div>

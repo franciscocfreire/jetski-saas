@@ -1,8 +1,11 @@
 package com.jetski.creditos.api;
 
+import com.jetski.creditos.api.dto.CompraResponse;
 import com.jetski.creditos.api.dto.LancamentoResponse;
 import com.jetski.creditos.api.dto.LancarCreditoRequest;
+import com.jetski.creditos.api.dto.PlatformCompraDTO;
 import com.jetski.creditos.api.dto.PlatformSaldoTenantDTO;
+import com.jetski.creditos.api.dto.RejeitarCompraRequest;
 import com.jetski.creditos.internal.PlatformCreditoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,5 +46,29 @@ public class PlatformCreditoController {
         log.info("POST /v1/platform/creditos/{} quantidade={}", tenantId, request.quantidade());
         return LancamentoResponse.from(
             platformCreditoService.lancar(tenantId, request.quantidade(), request.motivo()));
+    }
+
+    @GetMapping("/compras")
+    @Operation(summary = "Compras de créditos pendentes de aprovação (todas as empresas)")
+    public List<PlatformCompraDTO> comprasPendentes() {
+        return platformCreditoService.comprasPendentes();
+    }
+
+    @PostMapping("/compras/{tenantId}/{compraId}/aprovar")
+    @Operation(summary = "Aprovar compra — credita no ledger (auditado) e marca APROVADA")
+    public CompraResponse aprovar(@PathVariable UUID tenantId, @PathVariable UUID compraId) {
+        log.info("POST /v1/platform/creditos/compras/{}/{}/aprovar", tenantId, compraId);
+        return CompraResponse.from(platformCreditoService.aprovarCompra(tenantId, compraId));
+    }
+
+    @PostMapping("/compras/{tenantId}/{compraId}/rejeitar")
+    @Operation(summary = "Rejeitar compra — motivo obrigatório")
+    public CompraResponse rejeitar(
+            @PathVariable UUID tenantId,
+            @PathVariable UUID compraId,
+            @RequestBody RejeitarCompraRequest request) {
+        log.info("POST /v1/platform/creditos/compras/{}/{}/rejeitar", tenantId, compraId);
+        return CompraResponse.from(
+            platformCreditoService.rejeitarCompra(tenantId, compraId, request.observacao()));
     }
 }

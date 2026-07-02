@@ -160,6 +160,6 @@ class EmissaoServiceTest {
         service.emitir(reservaId);
 
         verify(creditoService).verificarSaldoDisponivel(tenant);
-        verify(creditoService).debitarEmissaoDocumento(eq(tenant), any());
+        verify(creditoService).debitarEmissaoDocumento(eq(tenant), any(), eq(reservaId));
     }
 }

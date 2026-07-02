@@ -133,6 +133,8 @@ jetski:
   creditos:
     # Créditos de emissão concedidos na aprovação do tenant (adesão). 0 = desativado.
     adesao: ${JETSKI_CREDITOS_ADESAO:20}
+    # Chave PIX fixa da plataforma para compra de créditos (fluxo manual v1).
+    pix-chave: ${JETSKI_CREDITOS_PIX_CHAVE:pix@meujet.com.br}
 
 # JWT configuration for magic link tokens
 jwt:

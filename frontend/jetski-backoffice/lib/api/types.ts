@@ -1305,6 +1305,28 @@ export interface PlatformSaldoTenant {
   saldo: number
 }
 
+/** Solicitação de compra de créditos via PIX (aprovação manual). */
+export interface CompraCreditos {
+  id: string
+  quantidade: number
+  pixTxid: string
+  status: 'PENDENTE' | 'APROVADA' | 'REJEITADA'
+  observacao?: string | null
+  createdAt: string
+  decididoEm?: string | null
+}
+
+/** Compra pendente na visão do super admin. */
+export interface PlatformCompraCreditos {
+  id: string
+  tenantId: string
+  slug: string
+  razaoSocial: string
+  quantidade: number
+  pixTxid: string
+  createdAt: string
+}
+
 // ==========================================
 // Presença de Vendedores Module (Diárias)
 // ==========================================

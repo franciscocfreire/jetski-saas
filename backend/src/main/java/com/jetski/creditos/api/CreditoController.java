@@ -1,8 +1,10 @@
 package com.jetski.creditos.api;
 
 import com.jetski.creditos.CreditoService;
+import com.jetski.creditos.api.dto.CompraResponse;
 import com.jetski.creditos.api.dto.LancamentoResponse;
 import com.jetski.creditos.api.dto.SaldoResponse;
+import com.jetski.creditos.api.dto.SolicitarCompraRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -41,6 +44,35 @@ public class CreditoController {
             @RequestParam(defaultValue = "20") int limit) {
         return ResponseEntity.ok(creditoService.extrato(tenantId, limit).stream()
             .map(LancamentoResponse::from)
+            .toList());
+    }
+
+    @GetMapping("/config")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Configuração de compra (chave PIX fixa da plataforma)")
+    public ResponseEntity<Map<String, String>> config(@PathVariable UUID tenantId) {
+        return ResponseEntity.ok(Map.of("pixChave", creditoService.pixChave()));
+    }
+
+    @PostMapping("/compras")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Solicitar compra de créditos (PIX pago fora; informa o txid; aguarda aprovação)")
+    public ResponseEntity<CompraResponse> solicitarCompra(
+            @PathVariable UUID tenantId,
+            @RequestBody SolicitarCompraRequest request) {
+        log.info("POST /v1/tenants/{}/creditos/compras quantidade={}", tenantId, request.quantidade());
+        return ResponseEntity.ok(CompraResponse.from(
+            creditoService.solicitarCompra(tenantId, request.quantidade(), request.pixTxid())));
+    }
+
+    @GetMapping("/compras")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Solicitações de compra do tenant (com status)")
+    public ResponseEntity<List<CompraResponse>> compras(
+            @PathVariable UUID tenantId,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ResponseEntity.ok(creditoService.comprasDoTenant(tenantId, limit).stream()
+            .map(CompraResponse::from)
             .toList());
     }
 }
