@@ -56,6 +56,7 @@ public class EmissaoService {
     private final TenantQueryService tenantQueryService;
     private final DocumentoPdfService documentoPdfService;
     private final ClienteAnexoService clienteAnexoService;
+    private final com.jetski.creditos.CreditoService creditoService;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final com.jetski.shared.assinatura.CarimboTempoService carimboTempoService;
@@ -106,6 +107,12 @@ public class EmissaoService {
         // CHA = cliente já habilitado: não há documentação NORMAM nem envio à Marinha.
         boolean marinhaAplicavel = hab.getVia() == ReservaHabilitacao.Via.EMA;
 
+        // Créditos: só o documento com destino à Marinha consome. Fail-fast ANTES do
+        // trabalho pesado (PDF/carimbo/assinatura); o débito definitivo vem após o save.
+        if (marinhaAplicavel) {
+            creditoService.verificarSaldoDisponivel(reserva.getTenantId());
+        }
+
         // PDFs por destino: a Marinha pode receber um recorte diferente do cliente
         // (ex.: sem o Termo de Responsabilidade), conforme a parametrização do tenant.
         DocumentoPdfService.DocumentoPdf pdfCliente =
@@ -151,6 +158,12 @@ public class EmissaoService {
             .destinos(destinosJson(marinhaEmail, clienteEmail))
             .emitidoEm(Instant.now())
             .build());
+
+        // Débito síncrono na mesma transação: sem saldo, a emissão inteira reverte
+        // (nem a via do cliente sai). Advisory lock por tenant impede corrida.
+        if (marinhaAplicavel) {
+            creditoService.debitarEmissaoDocumento(reserva.getTenantId(), doc.getId());
+        }
 
         // Documentação completa? Só com tudo cumprido a Marinha pode receber o e-mail.
         java.util.List<String> pendencias = pendenciasDocumentacao(hab, cliente, cfg.obrigatoriosMarinha());

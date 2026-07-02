@@ -85,6 +85,13 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
         jdbc.update("UPDATE tenant SET assinatura_config = ?::jsonb WHERE id = ?",
             "{\"carimboTempo\":{\"ativo\":false}}", TENANT_ID);
 
+        // Créditos de emissão: a emissão via EMA debita 1 crédito (bloqueia sem saldo)
+        jdbc.update("""
+            INSERT INTO credito_lancamento (tenant_id, tipo, quantidade, saldo_apos, motivo)
+            SELECT ?, 'ADESAO', 100, 100, 'seed e2e'
+            WHERE NOT EXISTS (SELECT 1 FROM credito_lancamento WHERE tenant_id = ? AND tipo = 'ADESAO')
+            """, TENANT_ID, TENANT_ID);
+
         // Operador que executa o balcão (FK de auditoria.usuario_id)
         jdbc.update("""
             INSERT INTO usuario (id, email, nome, ativo)

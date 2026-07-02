@@ -1,0 +1,46 @@
+package com.jetski.creditos.api;
+
+import com.jetski.creditos.CreditoService;
+import com.jetski.creditos.api.dto.LancamentoResponse;
+import com.jetski.creditos.api.dto.SaldoResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Consulta de créditos de emissão do tenant.
+ */
+@RestController
+@RequestMapping("/v1/tenants/{tenantId}/creditos")
+@RequiredArgsConstructor
+@Slf4j
+@Tag(name = "Créditos", description = "Créditos de emissão do tenant")
+public class CreditoController {
+
+    private final CreditoService creditoService;
+
+    @GetMapping("/saldo")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Saldo atual de créditos de emissão")
+    public ResponseEntity<SaldoResponse> saldo(@PathVariable UUID tenantId) {
+        return ResponseEntity.ok(new SaldoResponse(creditoService.saldo(tenantId)));
+    }
+
+    @GetMapping("/extrato")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Extrato dos últimos lançamentos de créditos")
+    public ResponseEntity<List<LancamentoResponse>> extrato(
+            @PathVariable UUID tenantId,
+            @RequestParam(defaultValue = "20") int limit) {
+        return ResponseEntity.ok(creditoService.extrato(tenantId, limit).stream()
+            .map(LancamentoResponse::from)
+            .toList());
+    }
+}

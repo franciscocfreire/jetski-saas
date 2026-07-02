@@ -20,6 +20,7 @@ import com.jetski.usuarios.domain.event.MemberActivatedEvent;
 import com.jetski.usuarios.domain.event.MemberDeactivatedEvent;
 import com.jetski.usuarios.domain.event.MemberInvitedEvent;
 import com.jetski.usuarios.domain.event.MemberRolesChangedEvent;
+import com.jetski.creditos.domain.event.CreditoLancadoEvent;
 import com.jetski.tenant.domain.event.TenantStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -767,6 +768,38 @@ public class AuditEventListener {
 
         } catch (Exception e) {
             log.error("Failed to create audit entry for tenant status change: tenant={}, error={}",
+                    event.tenantId(), e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onCreditoLancado(CreditoLancadoEvent event) {
+        try {
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("tipo", event.tipo());
+            dadosNovos.put("quantidade", event.quantidade());
+            dadosNovos.put("saldoApos", event.saldoApos());
+            dadosNovos.put("motivo", event.motivo());
+            dadosNovos.put("actor", event.actor() != null ? event.actor().toString() : null);
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.actor())
+                    .acao("CREDITO_LANCADO")
+                    .entidade("CREDITO")
+                    .entidadeId(event.tenantId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: CREDITO_LANCADO tenant={}, tipo={}, quantidade={}, auditId={}",
+                    event.tenantId(), event.tipo(), event.quantidade(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit CREDITO_LANCADO: tenant={}, error={}",
                     event.tenantId(), e.getMessage(), e);
         }
     }

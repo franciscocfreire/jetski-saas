@@ -130,6 +130,9 @@ jetski:
     # Valor oficial da taxa da GRU (CHA-MTA-E). Usado para exibição no caminho de
     # BOLETO, que não passa pelo PagTesouro. O PIX sempre sobrescreve com o valor real.
     valor: ${JETSKI_GRU_VALOR:60.32}
+  creditos:
+    # Créditos de emissão concedidos na aprovação do tenant (adesão). 0 = desativado.
+    adesao: ${JETSKI_CREDITOS_ADESAO:20}
 
 # JWT configuration for magic link tokens
 jwt:

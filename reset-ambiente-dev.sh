@@ -300,6 +300,43 @@ DROP POLICY IF EXISTS tenant_isolation_emissao_uso ON public.emissao_uso;
 CREATE POLICY tenant_isolation_emissao_uso ON public.emissao_uso USING ((tenant_id = public.get_current_tenant_id()));
 UPDATE public.plano SET limites = limites || '{"emissoes_mes": -1}'::jsonb WHERE NOT (limites ? 'emissoes_mes');
 
+-- V026: créditos de emissão pré-pagos (ledger append-only)
+CREATE TABLE IF NOT EXISTS public.credito_lancamento (
+    id            uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id     uuid NOT NULL REFERENCES public.tenant(id) ON DELETE RESTRICT,
+    tipo          varchar(20) NOT NULL CHECK (tipo IN ('ADESAO', 'AJUSTE', 'CONSUMO', 'ESTORNO')),
+    quantidade    integer NOT NULL CHECK (quantidade <> 0),
+    saldo_apos    integer NOT NULL,
+    referencia_id uuid,
+    motivo        varchar(200),
+    criado_por    uuid,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_credito_adesao_unica ON public.credito_lancamento (tenant_id) WHERE tipo = 'ADESAO';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_credito_consumo_por_doc ON public.credito_lancamento (referencia_id) WHERE tipo = 'CONSUMO';
+CREATE INDEX IF NOT EXISTS idx_credito_lancamento_tenant ON public.credito_lancamento (tenant_id, created_at);
+CREATE OR REPLACE FUNCTION public.forbid_credito_lancamento_mutation()
+RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'credito_lancamento é append-only: % não é permitido', TG_OP;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_credito_lancamento_append_only ON public.credito_lancamento;
+CREATE TRIGGER trg_credito_lancamento_append_only
+    BEFORE UPDATE OR DELETE ON public.credito_lancamento
+    FOR EACH ROW EXECUTE FUNCTION public.forbid_credito_lancamento_mutation();
+ALTER TABLE public.credito_lancamento ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.credito_lancamento FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_credito_lancamento ON public.credito_lancamento;
+CREATE POLICY tenant_isolation_credito_lancamento ON public.credito_lancamento USING ((tenant_id = public.get_current_tenant_id()));
+-- Seed dev: créditos de adesão para os tenants seed (sem isso a emissão EMA bloqueia em dev)
+INSERT INTO public.credito_lancamento (tenant_id, tipo, quantidade, saldo_apos, motivo)
+SELECT t.id, 'ADESAO', 100, 100, 'Créditos de adesão (seed dev)'
+FROM public.tenant t
+WHERE NOT EXISTS (
+    SELECT 1 FROM public.credito_lancamento c WHERE c.tenant_id = t.id AND c.tipo = 'ADESAO'
+);
+
 -- F2.3: habilitação do condutor (CHA/EMA + GRU)
 CREATE TABLE IF NOT EXISTS public.reserva_habilitacao (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,

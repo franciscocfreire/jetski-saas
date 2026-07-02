@@ -1280,6 +1280,32 @@ export interface PlatformEmissaoTenant {
 }
 
 // ==========================================
+// Créditos de Emissão (pré-pago)
+// ==========================================
+
+export interface SaldoCreditos {
+  saldo: number
+}
+
+/** Linha do extrato do ledger (append-only). */
+export interface CreditoLancamento {
+  id: string
+  tipo: 'ADESAO' | 'AJUSTE' | 'CONSUMO' | 'ESTORNO'
+  quantidade: number
+  saldoApos: number
+  motivo?: string | null
+  createdAt: string
+}
+
+/** Saldo de créditos de uma empresa (visão super admin). */
+export interface PlatformSaldoTenant {
+  tenantId: string
+  slug: string
+  razaoSocial: string
+  saldo: number
+}
+
+// ==========================================
 // Presença de Vendedores Module (Diárias)
 // ==========================================
 

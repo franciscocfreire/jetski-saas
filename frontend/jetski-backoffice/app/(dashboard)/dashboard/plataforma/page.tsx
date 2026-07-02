@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ShieldCheck, Check, Ban, RotateCcw, ShieldAlert, KeyRound, Loader2, Gauge as GaugeIcon } from 'lucide-react'
-import { platformService, meteringService } from '@/lib/api/services'
+import { ShieldCheck, Check, Ban, RotateCcw, ShieldAlert, KeyRound, Loader2, Gauge as GaugeIcon, Coins } from 'lucide-react'
+import { platformService, meteringService, creditosService } from '@/lib/api/services'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import type { TenantSummary } from '@/lib/api/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   AlertDialog,
@@ -130,15 +131,18 @@ export default function PlataformaPage() {
     }
     if (t.status === 'ATIVO' || t.status === 'TRIAL') {
       return (
-        <ConfirmAction
-          trigger={<><Ban className="mr-1 size-4" /> Suspender</>}
-          variant="destructive"
-          title="Suspender empresa?"
-          description={`${t.razaoSocial} perderá o acesso até ser reativada.`}
-          confirmLabel="Suspender"
-          onConfirm={() => suspendMutation.mutate(t.id)}
-          pending={suspendMutation.isPending && suspendMutation.variables === t.id}
-        />
+        <div className="flex items-center justify-end gap-2">
+          <LancarCreditosDialog tenant={t} />
+          <ConfirmAction
+            trigger={<><Ban className="mr-1 size-4" /> Suspender</>}
+            variant="destructive"
+            title="Suspender empresa?"
+            description={`${t.razaoSocial} perderá o acesso até ser reativada.`}
+            confirmLabel="Suspender"
+            onConfirm={() => suspendMutation.mutate(t.id)}
+            pending={suspendMutation.isPending && suspendMutation.variables === t.id}
+          />
+        </div>
       )
     }
     if (t.status === 'SUSPENSO') {
@@ -239,6 +243,87 @@ export default function PlataformaPage() {
   )
 }
 
+/** Lançamento de créditos (±) para uma empresa — motivo obrigatório, vai para o ledger + auditoria. */
+function LancarCreditosDialog({ tenant }: { tenant: TenantSummary }) {
+  const queryClient = useQueryClient()
+  const { toast } = useToast()
+  const [open, setOpen] = useState(false)
+  const [quantidade, setQuantidade] = useState('50')
+  const [motivo, setMotivo] = useState('')
+
+  const mutation = useMutation({
+    mutationFn: () => creditosService.lancarCreditos(tenant.id, Number(quantidade), motivo),
+    onSuccess: (l) => {
+      queryClient.invalidateQueries({ queryKey: ['platform', 'creditos'] })
+      toast({
+        title: 'Créditos lançados',
+        description: `${tenant.razaoSocial}: ${l.quantidade > 0 ? '+' : ''}${l.quantidade} créditos (saldo ${l.saldoApos}).`,
+      })
+      setOpen(false)
+      setMotivo('')
+    },
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { message?: string } }; message?: string }
+      toast({
+        title: 'Erro ao lançar créditos',
+        description: err.response?.data?.message || err.message || 'Não foi possível lançar.',
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const quantidadeValida = Number.isInteger(Number(quantidade)) && Number(quantidade) !== 0
+
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <Coins className="mr-1 size-4" /> Créditos
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Lançar créditos — {tenant.razaoSocial}</AlertDialogTitle>
+          <AlertDialogDescription>
+            Positivo credita, negativo estorna. O lançamento é imutável (ledger) e auditado.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="qtd-creditos">Quantidade</label>
+            <Input
+              id="qtd-creditos"
+              type="number"
+              value={quantidade}
+              onChange={(e) => setQuantidade(e.target.value)}
+              className="tabular-nums"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="motivo-creditos">Motivo (obrigatório)</label>
+            <Input
+              id="motivo-creditos"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              placeholder="Ex.: Compra de pacote de 50 emissões"
+              maxLength={200}
+            />
+          </div>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || !quantidadeValida || !motivo.trim()}
+          >
+            {mutation.isPending ? 'Lançando...' : 'Lançar créditos'}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
 /** Metering cross-tenant: emissões por empresa na competência selecionada. */
 function EmissoesPorEmpresaCard({ enabled }: { enabled: boolean }) {
   const [competencia, setCompetencia] = useState(() => {
@@ -257,6 +342,12 @@ function EmissoesPorEmpresaCard({ enabled }: { enabled: boolean }) {
     queryFn: () => meteringService.getPlatformEmissoes(competencia),
     enabled,
   })
+  const { data: saldos } = useQuery({
+    queryKey: ['platform', 'creditos'],
+    queryFn: () => creditosService.getPlatformSaldos(),
+    enabled,
+  })
+  const saldoPorTenant = new Map((saldos ?? []).map((s) => [s.tenantId, s.saldo]))
 
   return (
     <Card>
@@ -295,21 +386,36 @@ function EmissoesPorEmpresaCard({ enabled }: { enabled: boolean }) {
                 <TableHead className="text-right">GRUs</TableHead>
                 <TableHead className="text-right">Prévias</TableHead>
                 <TableHead className="text-right">Total cobrável</TableHead>
+                <TableHead className="text-right">Saldo de créditos</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {emissoes.map((e) => (
-                <TableRow key={e.tenantId}>
-                  <TableCell className="font-medium">
-                    {e.razaoSocial}
-                    <span className="ml-2 text-xs text-muted-foreground">{e.slug}</span>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{e.documento}</TableCell>
-                  <TableCell className="text-right tabular-nums">{e.gru}</TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">{e.previa}</TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">{e.total}</TableCell>
-                </TableRow>
-              ))}
+              {emissoes.map((e) => {
+                const saldo = saldoPorTenant.get(e.tenantId)
+                return (
+                  <TableRow key={e.tenantId}>
+                    <TableCell className="font-medium">
+                      {e.razaoSocial}
+                      <span className="ml-2 text-xs text-muted-foreground">{e.slug}</span>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{e.documento}</TableCell>
+                    <TableCell className="text-right tabular-nums">{e.gru}</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">{e.previa}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{e.total}</TableCell>
+                    <TableCell
+                      className={
+                        saldo !== undefined && saldo === 0
+                          ? 'text-right font-semibold tabular-nums text-destructive'
+                          : saldo !== undefined && saldo < 5
+                            ? 'text-right font-semibold tabular-nums text-warning'
+                            : 'text-right font-semibold tabular-nums'
+                      }
+                    >
+                      {saldo ?? '—'}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         )}

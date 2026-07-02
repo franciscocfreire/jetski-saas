@@ -61,10 +61,13 @@ class EmissaoServiceTest {
     private final com.jetski.shared.assinatura.CarimboTempoService carimboService =
         mock(com.jetski.shared.assinatura.CarimboTempoService.class);
     private final PadesSignatureService padesService = mock(PadesSignatureService.class);
+    private final com.jetski.creditos.CreditoService creditoService =
+        mock(com.jetski.creditos.CreditoService.class);
 
     private final EmissaoService service = new EmissaoService(
         reservaRepo, clienteRepo, instrutorRepo, habRepo, aceiteRepo, docRepo, storage, email,
-        tenantQuery, pdfService, anexoService, events, new ObjectMapper(), carimboService, padesService);
+        tenantQuery, pdfService, anexoService, creditoService, events, new ObjectMapper(),
+        carimboService, padesService);
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID reservaId = UUID.randomUUID();
@@ -134,5 +137,29 @@ class EmissaoServiceTest {
         when(aceiteRepo.findFirstByReservaIdOrderByAceitoEmDesc(reservaId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.emitir(reservaId)).isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("Sem créditos: bloqueia ANTES do trabalho pesado — nada é gerado nem salvo")
+    void bloqueiaSemCreditos() {
+        org.mockito.Mockito.doThrow(new BusinessException("Créditos de emissão esgotados."))
+            .when(creditoService).verificarSaldoDisponivel(tenant);
+
+        assertThatThrownBy(() -> service.emitir(reservaId))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("Créditos");
+
+        verify(pdfService, org.mockito.Mockito.never())
+            .gerarDocumentoConsolidado(any(), any(), any(), any(), nullable(String.class));
+        verify(docRepo, org.mockito.Mockito.never()).save(any(DocumentoEmitido.class));
+    }
+
+    @Test
+    @DisplayName("Emissão via EMA debita 1 crédito com o id do documento")
+    void debitaCreditoNaEmissao() {
+        service.emitir(reservaId);
+
+        verify(creditoService).verificarSaldoDisponivel(tenant);
+        verify(creditoService).debitarEmissaoDocumento(eq(tenant), any());
     }
 }
