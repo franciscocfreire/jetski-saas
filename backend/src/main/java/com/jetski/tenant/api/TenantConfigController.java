@@ -4,6 +4,7 @@ import com.jetski.tenant.api.dto.ComissaoConfigRequest;
 import com.jetski.tenant.api.dto.ComissaoConfigResponse;
 import com.jetski.tenant.api.dto.TenantGeralConfigRequest;
 import com.jetski.tenant.api.dto.TenantGeralConfigResponse;
+import com.jetski.tenant.domain.AssinaturaConfig;
 import com.jetski.tenant.domain.ComissaoConfig;
 import com.jetski.tenant.domain.DocumentoConfig;
 import com.jetski.tenant.internal.TenantConfigService;
@@ -126,6 +127,24 @@ public class TenantConfigController {
             @RequestBody DocumentoConfig request) {
         log.info("PUT /v1/tenants/{}/config/documento", tenantId);
         return ResponseEntity.ok(tenantConfigService.updateDocumentoConfig(tenantId, request));
+    }
+
+    @GetMapping("/assinatura")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Obter configuração de assinatura (auditoria + carimbo de tempo)")
+    public ResponseEntity<AssinaturaConfig> getAssinaturaConfig(@PathVariable UUID tenantId) {
+        log.info("GET /v1/tenants/{}/config/assinatura", tenantId);
+        return ResponseEntity.ok(tenantConfigService.getAssinaturaConfig(tenantId));
+    }
+
+    @PutMapping("/assinatura")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Atualizar configuração de assinatura. Apenas ADMIN_TENANT e GERENTE.")
+    public ResponseEntity<AssinaturaConfig> updateAssinaturaConfig(
+            @PathVariable UUID tenantId,
+            @RequestBody AssinaturaConfig request) {
+        log.info("PUT /v1/tenants/{}/config/assinatura", tenantId);
+        return ResponseEntity.ok(tenantConfigService.updateAssinaturaConfig(tenantId, request));
     }
 
     /**

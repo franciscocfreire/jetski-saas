@@ -57,6 +57,7 @@ public class EmissaoService {
     private final ClienteAnexoService clienteAnexoService;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    private final com.jetski.shared.assinatura.CarimboTempoService carimboTempoService;
 
     @Value
     @Builder
@@ -110,6 +111,15 @@ public class EmissaoService {
         DocumentoPdfService.DocumentoPdf pdfMarinha = marinhaAplicavel
             ? gerarParaDestino(dados, assinatura, cliente.getId(), hab, cfg.marinha(), false)
             : null;
+
+        // Reforço jurídico (Fase A): trilha de auditoria + carimbo de tempo por documento.
+        com.jetski.tenant.domain.AssinaturaConfig cfgAss =
+            (tenant.getAssinaturaConfig() != null ? tenant.getAssinaturaConfig()
+                                                  : com.jetski.tenant.domain.AssinaturaConfig.padrao()).comDefaults();
+        if (cfgAss.paginaAuditoriaOn()) {
+            pdfCliente = comAuditoria(pdfCliente, cliente, aceite, hab, cfgAss);
+            if (pdfMarinha != null) pdfMarinha = comAuditoria(pdfMarinha, cliente, aceite, hab, cfgAss);
+        }
 
         // Canônico p/ download/consulta = visão do cliente (completa). Marinha à parte.
         String key = String.format("%s/reserva/%s/documento.pdf", reserva.getTenantId(), reservaId);
@@ -201,6 +211,34 @@ public class EmissaoService {
             if (obr.naturalidadeReq() && vazio(cliente.getNaturalidade())) p.add("Naturalidade");
         }
         return p;
+    }
+
+    private static final java.time.format.DateTimeFormatter AUD_FMT =
+        java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+            .withZone(java.time.ZoneId.of("America/Sao_Paulo"));
+
+    /** Anexa a página de trilha de auditoria (com carimbo de tempo) ao documento. */
+    private DocumentoPdfService.DocumentoPdf comAuditoria(
+            DocumentoPdfService.DocumentoPdf pdf, Cliente cliente, ReservaAceite aceite,
+            ReservaHabilitacao hab, com.jetski.tenant.domain.AssinaturaConfig cfg) {
+        try {
+            var carimbo = carimboTempoService.carimbar(pdf.conteudo(), cfg.carimboOn(), cfg.tsaUrlOrDefault());
+            String aceitoEm = aceite.getAceitoEm() != null ? AUD_FMT.format(aceite.getAceitoEm()) : "—";
+            String carimboData = carimbo.getData() != null ? AUD_FMT.format(carimbo.getData()) : "—";
+            DocumentoPdfService.DadosAuditoria aud = new DocumentoPdfService.DadosAuditoria(
+                cliente.getNome(), cliente.getDocumento(), cliente.getEmail(), cliente.getTelefone(),
+                aceitoEm, aceite.getIp(), aceite.getUserAgent(),
+                aceite.getOperadorId() != null ? aceite.getOperadorId().toString() : "—",
+                aceite.getOrigem(), aceite.getMetodo() != null ? aceite.getMetodo().name() : "—",
+                Boolean.TRUE.equals(hab.getAnexoRegras()), hab.getVideoaulaEm() != null,
+                pdf.sha256(),
+                carimbo.getFonte(), carimbo.getAutoridade(), carimboData, carimbo.getSerial());
+            byte[] pagina = documentoPdfService.paginaAuditoria(aud).conteudo();
+            return documentoPdfService.anexarPdf(pdf, pagina);
+        } catch (Exception e) {
+            log.warn("Página de auditoria não anexada (segue sem): {}", e.getMessage());
+            return pdf;
+        }
     }
 
     /** Há anexo do tipo informado para o cliente? */

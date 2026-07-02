@@ -58,10 +58,12 @@ class EmissaoServiceTest {
     private final DocumentoPdfService pdfService = mock(DocumentoPdfService.class);
     private final ClienteAnexoService anexoService = mock(ClienteAnexoService.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+    private final com.jetski.shared.assinatura.CarimboTempoService carimboService =
+        mock(com.jetski.shared.assinatura.CarimboTempoService.class);
 
     private final EmissaoService service = new EmissaoService(
         reservaRepo, clienteRepo, instrutorRepo, habRepo, aceiteRepo, docRepo, storage, email,
-        tenantQuery, pdfService, anexoService, events, new ObjectMapper());
+        tenantQuery, pdfService, anexoService, events, new ObjectMapper(), carimboService);
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID reservaId = UUID.randomUUID();

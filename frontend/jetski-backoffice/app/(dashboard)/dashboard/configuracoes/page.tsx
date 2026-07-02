@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configuracoesService } from '@/lib/api/services'
 import type {
+  AssinaturaConfig,
   ComissaoConfigRequest,
   DocumentoConfig,
   DocumentoConfigDestino,
@@ -17,7 +18,7 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail, FileText } from 'lucide-react'
+import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail, FileText, ShieldCheck } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function ConfiguracoesPage() {
@@ -137,6 +138,27 @@ export default function ConfiguracoesPage() {
           }
         : prev
     )
+
+  // Reforço jurídico da assinatura: página de auditoria + carimbo de tempo.
+  const [assCfg, setAssCfg] = useState<AssinaturaConfig | null>(null)
+  const { data: assConfig } = useQuery({
+    queryKey: ['assinatura-config'],
+    queryFn: () => configuracoesService.getAssinaturaConfig(),
+  })
+  useEffect(() => {
+    if (assConfig) setAssCfg(assConfig)
+  }, [assConfig])
+
+  const updateAss = useMutation({
+    mutationFn: (req: AssinaturaConfig) => configuracoesService.updateAssinaturaConfig(req),
+    onSuccess: (saved) => {
+      queryClient.invalidateQueries({ queryKey: ['assinatura-config'] })
+      setAssCfg(saved)
+      toast({ title: 'Configuração de assinatura salva', description: 'Reforço jurídico atualizado.' })
+    },
+    onError: (e: Error) =>
+      toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' }),
+  })
 
   // Populate form when config loads
   useEffect(() => {
@@ -296,6 +318,10 @@ export default function ConfiguracoesPage() {
           <TabsTrigger value="documentos" className="gap-2">
             <FileText className="h-4 w-4" />
             Documentos
+          </TabsTrigger>
+          <TabsTrigger value="assinatura" className="gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            Assinatura
           </TabsTrigger>
         </TabsList>
 
@@ -716,6 +742,90 @@ export default function ConfiguracoesPage() {
                     </Button>
                   </div>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="assinatura" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5" />
+                Reforço jurídico da assinatura
+              </CardTitle>
+              <CardDescription>
+                Fortalece o valor probatório da assinatura eletrônica (Lei nº 14.063/2020; MP 2.200-2/2001)
+                sem custo e sem fricção para o cliente.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {!assCfg ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium">Página de trilha de auditoria</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Anexa ao PDF uma página com as evidências do aceite (identificação, data/hora, IP,
+                        dispositivo, consentimentos, hash) e a base legal.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={assCfg.paginaAuditoria}
+                      onCheckedChange={(v) => setAssCfg({ ...assCfg, paginaAuditoria: v })}
+                    />
+                  </div>
+
+                  <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium">Carimbo de tempo</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Carimba o hash do documento numa autoridade RFC 3161 gratuita (prova de anterioridade
+                        e integridade). Se indisponível, usa uma âncora interna. Sem custo.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={assCfg.carimboTempo.ativo}
+                      onCheckedChange={(v) =>
+                        setAssCfg({ ...assCfg, carimboTempo: { ...assCfg.carimboTempo, ativo: v } })
+                      }
+                    />
+                  </div>
+
+                  {assCfg.carimboTempo.ativo && (
+                    <div className="space-y-2">
+                      <Label htmlFor="tsaUrl">URL da TSA (RFC 3161)</Label>
+                      <Input
+                        id="tsaUrl"
+                        value={assCfg.carimboTempo.tsaUrl ?? ''}
+                        placeholder="https://freetsa.org/tsr"
+                        onChange={(e) =>
+                          setAssCfg({ ...assCfg, carimboTempo: { ...assCfg.carimboTempo, tsaUrl: e.target.value } })
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Padrão: freetsa.org (gratuita, sem fé pública ICP-Brasil). Deixe em branco para usar o padrão.
+                      </p>
+                    </div>
+                  )}
+
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Confirmação por código (OTP) no aceite chega na próxima fase — será configurável por
+                      canal (e-mail/WhatsApp).
+                    </AlertDescription>
+                  </Alert>
+
+                  <Button onClick={() => updateAss.mutate(assCfg)} disabled={updateAss.isPending} className="gap-2">
+                    {updateAss.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    Salvar configuração de assinatura
+                  </Button>
+                </>
               )}
             </CardContent>
           </Card>

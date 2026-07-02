@@ -1240,6 +1240,13 @@ export interface DocumentoConfig {
   obrigatoriosMarinha: DocumentoObrigatoriosMarinha
 }
 
+// Reforço jurídico da assinatura eletrônica (página de auditoria + carimbo de tempo).
+export interface AssinaturaConfig {
+  paginaAuditoria: boolean
+  carimboTempo: { ativo: boolean; tsaUrl?: string | null }
+  otp: { ativo: boolean; canal: 'EMAIL' | 'WHATSAPP' }
+}
+
 // ==========================================
 // Presença de Vendedores Module (Diárias)
 // ==========================================

@@ -5,6 +5,7 @@ import com.jetski.shared.exception.NotFoundException;
 import com.jetski.tenant.api.dto.ComissaoConfigRequest;
 import com.jetski.tenant.api.dto.TenantGeralConfigRequest;
 import com.jetski.tenant.api.dto.TenantGeralConfigResponse;
+import com.jetski.tenant.domain.AssinaturaConfig;
 import com.jetski.tenant.domain.ComissaoConfig;
 import com.jetski.tenant.domain.DocumentoConfig;
 import com.jetski.tenant.domain.Tenant;
@@ -169,6 +170,29 @@ public class TenantConfigService {
         tenant.setDocumentoConfig(cfg);
         tenantRepository.save(tenant);
         log.info("DocumentoConfig atualizada para o tenant {}", tenantId);
+        return cfg;
+    }
+
+    /** Reforço jurídico da assinatura (página de auditoria + carimbo de tempo). */
+    @Transactional(readOnly = true)
+    public AssinaturaConfig getAssinaturaConfig(UUID tenantId) {
+        Tenant tenant = tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new NotFoundException("Tenant não encontrado: " + tenantId));
+        AssinaturaConfig cfg = tenant.getAssinaturaConfig();
+        return (cfg != null ? cfg : AssinaturaConfig.padrao()).comDefaults();
+    }
+
+    @Transactional
+    public AssinaturaConfig updateAssinaturaConfig(UUID tenantId, AssinaturaConfig request) {
+        Tenant tenant = tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new NotFoundException("Tenant não encontrado: " + tenantId));
+        if (request == null) {
+            throw new BusinessException("Configuração de assinatura ausente");
+        }
+        AssinaturaConfig cfg = request.comDefaults();
+        tenant.setAssinaturaConfig(cfg);
+        tenantRepository.save(tenant);
+        log.info("AssinaturaConfig atualizada para o tenant {}", tenantId);
         return cfg;
     }
 }

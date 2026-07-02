@@ -278,6 +278,13 @@
             <version>2.0.31</version>
         </dependency>
 
+        <!-- BouncyCastle PKIX/TSP: carimbo de tempo RFC 3161 (assinatura eletrônica) -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>1.76</version>
+        </dependency>
+
         <!-- Apache POI for Excel generation -->
         <dependency>
             <groupId>org.apache.poi</groupId>

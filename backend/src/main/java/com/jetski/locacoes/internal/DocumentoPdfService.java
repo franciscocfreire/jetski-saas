@@ -86,6 +86,16 @@ public class DocumentoPdfService {
     /** Resultado: bytes do PDF + hash SHA-256 (hex). */
     public record DocumentoPdf(byte[] conteudo, String sha256) {}
 
+    /** Evidências para a página de trilha de auditoria da assinatura eletrônica. */
+    public record DadosAuditoria(
+            String nome, String cpf, String email, String telefone,
+            String aceitoEm, String ip, String dispositivo, String operador,
+            String origem, String metodo,
+            boolean cienciaRegras, boolean videoaula,
+            String docHash,
+            String carimboFonte, String carimboAutoridade, String carimboData, String carimboSerial
+    ) {}
+
     private static final String[] CLAUSULAS = {
             "A moto aquática me é entregue em perfeitas condições de funcionamento e conservação.",
             "Durante o período de utilização, sou responsável pela guarda, conservação e correta operação do equipamento.",
@@ -364,6 +374,95 @@ public class DocumentoPdfService {
         } catch (DocumentException | IOException e) {
             throw new IllegalStateException("Falha ao gerar o PDF consolidado", e);
         }
+    }
+
+    /**
+     * Página de trilha de auditoria da assinatura eletrônica (1 página), anexada ao
+     * documento na emissão: consolida as evidências do aceite + hash + carimbo de
+     * tempo + base legal. Reforça a prova de autoria, integridade e anterioridade.
+     */
+    public DocumentoPdf paginaAuditoria(DadosAuditoria a) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        Document doc = new Document(PageSize.A4, 56, 56, 54, 54);
+        try {
+            PdfWriter.getInstance(doc, baos);
+            doc.open();
+            Fonts f = new Fonts();
+
+            Paragraph tit = new Paragraph("TRILHA DE AUDITORIA — ASSINATURA ELETRÔNICA", f.sansTitle);
+            tit.setAlignment(Element.ALIGN_CENTER);
+            tit.setSpacingAfter(4f);
+            doc.add(tit);
+            Paragraph sub = new Paragraph(
+                "Evidências do aceite eletrônico deste documento (Lei nº 14.063/2020; MP 2.200-2/2001).",
+                f.sansSmall);
+            sub.setAlignment(Element.ALIGN_CENTER);
+            sub.setSpacingAfter(14f);
+            doc.add(sub);
+
+            secaoAud(doc, f, "Signatário");
+            linhasAud(doc, f,
+                new String[]{"Nome", "CPF", "E-mail", "Telefone"},
+                new String[]{nz(a.nome()), nz(a.cpf()), nz(a.email()), nz(a.telefone())});
+
+            secaoAud(doc, f, "Evidências do aceite");
+            linhasAud(doc, f,
+                new String[]{"Data/hora", "IP", "Dispositivo", "Operador", "Origem", "Método"},
+                new String[]{nz(a.aceitoEm()), nz(a.ip()), nz(a.dispositivo()),
+                             nz(a.operador()), nz(a.origem()), nz(a.metodo())});
+
+            secaoAud(doc, f, "Consentimentos registrados");
+            linhasAud(doc, f,
+                new String[]{"Ciência das regras (NORMAM-212)", "Videoaula de orientação"},
+                new String[]{a.cienciaRegras() ? "Sim, declarado" : "—",
+                             a.videoaula() ? "Sim, assistida" : "—"});
+
+            secaoAud(doc, f, "Integridade e carimbo de tempo");
+            linhasAud(doc, f,
+                new String[]{"Hash SHA-256 do documento", "Carimbo de tempo", "Autoridade",
+                             "Data do carimbo", "Referência do carimbo"},
+                new String[]{nz(a.docHash()),
+                             "TSA".equals(a.carimboFonte()) ? "Carimbo RFC 3161 (TSA)"
+                                                           : "Âncora interna (registro da plataforma)",
+                             nz(a.carimboAutoridade()), nz(a.carimboData()), nz(a.carimboSerial())});
+
+            space(doc, 10);
+            notaSans(doc, f, "Este documento foi aceito eletronicamente pelo signatário identificado acima. "
+                + "As evidências (identificação, data/hora, IP, dispositivo e hash) compõem a assinatura "
+                + "eletrônica simples nos termos da Lei nº 14.063/2020 e da MP 2.200-2/2001. A integridade "
+                + "pode ser verificada recalculando-se o hash SHA-256 do documento e conferindo-o com o "
+                + "carimbo de tempo acima.");
+
+            footerSans(doc, f, "Trilha de auditoria");
+            doc.close();
+            byte[] bytes = baos.toByteArray();
+            return new DocumentoPdf(bytes, sha256Hex(bytes));
+        } catch (DocumentException e) {
+            throw new IllegalStateException("Falha ao gerar a página de auditoria", e);
+        }
+    }
+
+    private void secaoAud(Document doc, Fonts f, String titulo) throws DocumentException {
+        Paragraph p = new Paragraph(titulo, f.sansBold);
+        p.setSpacingBefore(10f);
+        p.setSpacingAfter(4f);
+        doc.add(p);
+    }
+
+    private void linhasAud(Document doc, Fonts f, String[] labels, String[] valores) throws DocumentException {
+        PdfPTable t = new PdfPTable(new float[]{1.1f, 2.4f});
+        t.setWidthPercentage(100);
+        for (int i = 0; i < labels.length; i++) {
+            PdfPCell l = new PdfPCell(new Phrase(labels[i], f.sansSmall));
+            l.setBorder(Rectangle.NO_BORDER);
+            l.setPaddingBottom(3f);
+            PdfPCell v = new PdfPCell(new Phrase(nz(valores[i]), f.sans));
+            v.setBorder(Rectangle.NO_BORDER);
+            v.setPaddingBottom(3f);
+            t.addCell(l);
+            t.addCell(v);
+        }
+        doc.add(t);
     }
 
     /** Termo isolado (compat com o spike F0.1). */

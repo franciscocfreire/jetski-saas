@@ -80,6 +80,10 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
             VALUES (?, 'e2e-balcao', 'Jet Save E2E LTDA', '11.222.333/0001-44', 'Angra dos Reis', 'capitania-e2e@example.com')
             ON CONFLICT (id) DO NOTHING
             """, TENANT_ID);
+        // Página de auditoria ligada, mas carimbo TSA desligado (usa âncora interna,
+        // sem chamada de rede — mantém o teste rápido e determinístico).
+        jdbc.update("UPDATE tenant SET assinatura_config = ?::jsonb WHERE id = ?",
+            "{\"carimboTempo\":{\"ativo\":false}}", TENANT_ID);
 
         // Operador que executa o balcão (FK de auditoria.usuario_id)
         jdbc.update("""

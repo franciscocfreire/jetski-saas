@@ -182,6 +182,13 @@ public class Tenant {
     @Column(name = "documento_config", columnDefinition = "jsonb")
     private DocumentoConfig documentoConfig;
 
+    // ========== CONFIGURAÇÃO DE ASSINATURA (reforço jurídico) ==========
+
+    /** Página de auditoria + carimbo de tempo na emissão. Ver {@link AssinaturaConfig}. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "assinatura_config", columnDefinition = "jsonb")
+    private AssinaturaConfig assinaturaConfig;
+
     @PrePersist
     protected void onCreate() {
         createdAt = Instant.now();

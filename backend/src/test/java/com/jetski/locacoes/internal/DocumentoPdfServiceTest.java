@@ -84,6 +84,24 @@ class DocumentoPdfServiceTest {
     }
 
     @Test
+    @DisplayName("Página de trilha de auditoria renderiza com evidências + base legal")
+    void paginaAuditoria() throws Exception {
+        var aud = new DocumentoPdfService.DadosAuditoria(
+                "Roberto Lima", "987.654.321-00", "roberto@example.com", "(24) 99999-0000",
+                "16/06/2026 14:32:05", "191.0.0.10", "Mozilla/5.0 (iPhone)", "op-123",
+                "BALCAO", "SIGNATURE_PAD", true, true,
+                "a".repeat(64), "TSA", "https://freetsa.org/tsr", "16/06/2026 14:32:07", "ABCD1234EF567890");
+        DocumentoPdfService.DocumentoPdf pdf = service.paginaAuditoria(aud);
+
+        assertThat(new String(pdf.conteudo(), 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
+        assertThat(new PdfReader(pdf.conteudo()).getNumberOfPages()).isEqualTo(1);
+
+        Path out = Paths.get("target", "pagina-auditoria.pdf");
+        Files.createDirectories(out.getParent());
+        Files.write(out, pdf.conteudo());
+    }
+
+    @Test
     @DisplayName("Consolidado CHA gera 1 página (apenas o Termo)")
     void consolidadoCha() throws Exception {
         DocumentoPdfService.DocumentoPdf pdf =

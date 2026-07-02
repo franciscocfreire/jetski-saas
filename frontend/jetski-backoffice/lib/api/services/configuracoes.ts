@@ -1,5 +1,6 @@
 import { apiClient, getTenantId } from '../client'
 import type {
+  AssinaturaConfig,
   ComissaoConfig,
   ComissaoConfigRequest,
   DocumentoConfig,
@@ -53,6 +54,17 @@ export const configuracoesService = {
 
   async updateDocumentoConfig(request: DocumentoConfig): Promise<DocumentoConfig> {
     const { data } = await apiClient.put<DocumentoConfig>(`${getBasePath()}/documento`, request)
+    return data
+  },
+
+  /** Reforço jurídico da assinatura (página de auditoria + carimbo de tempo). */
+  async getAssinaturaConfig(): Promise<AssinaturaConfig> {
+    const { data } = await apiClient.get<AssinaturaConfig>(`${getBasePath()}/assinatura`)
+    return data
+  },
+
+  async updateAssinaturaConfig(request: AssinaturaConfig): Promise<AssinaturaConfig> {
+    const { data } = await apiClient.put<AssinaturaConfig>(`${getBasePath()}/assinatura`, request)
     return data
   },
 }

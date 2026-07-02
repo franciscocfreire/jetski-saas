@@ -222,7 +222,8 @@ ALTER TABLE public.tenant
     ADD COLUMN IF NOT EXISTS smtp_password   varchar(255),
     ADD COLUMN IF NOT EXISTS smtp_from       varchar(255),
     ADD COLUMN IF NOT EXISTS smtp_starttls   boolean DEFAULT true,
-    ADD COLUMN IF NOT EXISTS documento_config jsonb;
+    ADD COLUMN IF NOT EXISTS documento_config jsonb,
+    ADD COLUMN IF NOT EXISTS assinatura_config jsonb;
 
 CREATE TABLE IF NOT EXISTS public.reserva_comprovante (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
