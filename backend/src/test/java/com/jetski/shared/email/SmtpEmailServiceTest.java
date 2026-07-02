@@ -34,7 +34,7 @@ class SmtpEmailServiceTest {
         when(smtpResolver.forCurrentTenant()).thenReturn(java.util.Optional.empty());
         SmtpEmailService service = new SmtpEmailService(mailSender, smtpResolver, new SmtpSenderFactory());
         ReflectionTestUtils.setField(service, "fromEmail", "noreply@pegaojet.com.br");
-        ReflectionTestUtils.setField(service, "fromName", "MeuJet");
+        ReflectionTestUtils.setField(service, "fromName", "Meu Jet");
 
         byte[] pdf = "%PDF-1.4 documento".getBytes(StandardCharsets.US_ASCII);
         service.sendEmailComAnexo("cliente@example.com", "Seus documentos",

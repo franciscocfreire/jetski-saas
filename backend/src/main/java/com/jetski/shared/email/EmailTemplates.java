@@ -5,6 +5,10 @@ package com.jetski.shared.email;
  * e por {@link DevEmailService} (dev, enviando ao Mailpit) — garantindo que o email
  * inspecionado em dev é idêntico ao que o cliente recebe em produção.
  *
+ * <p>Identidade visual "Meu Jet" náutico premium (ver BRAND.md): navy #1E4266 como
+ * cor de marca/CTA, areia #F8F4EA para painéis, dourado #C9A24B apenas como acento
+ * de borda (nunca texto pequeno sobre fundo claro).
+ *
  * @author Jetski Team
  */
 public final class EmailTemplates {
@@ -13,13 +17,22 @@ public final class EmailTemplates {
     }
 
     /** Assunto do email de convite/ativação. */
-    public static final String INVITATION_SUBJECT = "Você foi convidado para o MeuJet";
+    public static final String INVITATION_SUBJECT = "Você foi convidado para o Meu Jet";
 
     /** Assunto do email de redefinição de senha. */
-    public static final String PASSWORD_RESET_SUBJECT = "MeuJet - Redefinição de senha";
+    public static final String PASSWORD_RESET_SUBJECT = "Meu Jet - Redefinição de senha";
 
     /** Assunto do email de notificação de nova empresa (super admin). */
-    public static final String NEW_TENANT_SUBJECT = "MeuJet - Nova empresa aguardando aprovação";
+    public static final String NEW_TENANT_SUBJECT = "Meu Jet - Nova empresa aguardando aprovação";
+
+    /** Cabeçalho de marca compartilhado: wordmark em texto (imagens são bloqueadas por clientes de email). */
+    private static final String BRAND_HEADER = """
+                    <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 20px;
+                              letter-spacing: 5px; color: #12263F; margin: 0 0 4px 0;">
+                        MEU&nbsp;JET
+                    </p>
+                    <div style="height: 2px; width: 64px; background-color: #C9A24B; margin: 0 0 24px 0;"></div>
+            """;
 
     public static String newTenantNotificationHtml(String razaoSocial, String slug) {
         return String.format("""
@@ -28,29 +41,30 @@ public final class EmailTemplates {
             <head>
                 <meta charset="UTF-8">
             </head>
-            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #FCFAF6;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #0ea5e9;">Nova empresa aguardando aprovação</h2>
+            %s
+                    <h2 style="color: #1E4266;">Nova empresa aguardando aprovação</h2>
 
-                    <p>Uma nova empresa se cadastrou no <strong>MeuJet</strong> e está aguardando
+                    <p>Uma nova empresa se cadastrou no <strong>Meu Jet</strong> e está aguardando
                        liberação:</p>
 
-                    <div style="background-color: #f0f9ff; padding: 15px; margin: 20px 0; border-left: 4px solid #0ea5e9;">
+                    <div style="background-color: #F8F4EA; padding: 15px; margin: 20px 0; border-left: 4px solid #C9A24B;">
                         <p style="margin: 5px 0;"><strong>Empresa:</strong> %s</p>
                         <p style="margin: 5px 0;"><strong>Identificador:</strong> %s</p>
                     </div>
 
                     <p>Acesse o painel de administração para aprovar ou bloquear esta empresa.</p>
 
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                    <hr style="border: none; border-top: 1px solid #E3D9C2; margin: 30px 0;">
 
                     <p style="color: #999; font-size: 12px;">
-                        MeuJet — notificação automática de plataforma
+                        Meu Jet — notificação automática de plataforma
                     </p>
                 </div>
             </body>
             </html>
-            """, razaoSocial, slug);
+            """, BRAND_HEADER, razaoSocial, slug);
     }
 
     public static String invitationHtml(String name, String activationLink, String temporaryPassword) {
@@ -60,33 +74,34 @@ public final class EmailTemplates {
             <head>
                 <meta charset="UTF-8">
             </head>
-            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #FCFAF6;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #0ea5e9;">Você foi convidado!</h2>
+            %s
+                    <h2 style="color: #1E4266;">Você foi convidado!</h2>
 
                     <p>Olá <strong>%s</strong>,</p>
 
-                    <p>Você foi convidado para se juntar ao <strong>MeuJet</strong>!</p>
+                    <p>Você foi convidado para se juntar ao <strong>Meu Jet</strong>!</p>
 
                     <p>Para ativar sua conta, você precisará do link de ativação e da senha temporária abaixo:</p>
 
-                    <div style="background-color: #f0f9ff; padding: 15px; margin: 20px 0; border-left: 4px solid #0ea5e9;">
+                    <div style="background-color: #F8F4EA; padding: 15px; margin: 20px 0; border-left: 4px solid #C9A24B;">
                         <p style="margin: 5px 0;"><strong>Senha temporária:</strong></p>
-                        <p style="font-family: 'Courier New', monospace; font-size: 16px; color: #0ea5e9; margin: 5px 0;">
+                        <p style="font-family: 'Courier New', monospace; font-size: 16px; color: #1E4266; margin: 5px 0;">
                             %s
                         </p>
                     </div>
 
                     <p style="text-align: center; margin: 30px 0;">
                         <a href="%s"
-                           style="background-color: #0ea5e9; color: white; padding: 12px 24px;
+                           style="background-color: #1E4266; color: white; padding: 12px 24px;
                                   text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold;">
                             Ativar Conta
                         </a>
                     </p>
 
-                    <div style="background-color: #fff7ed; border-left: 4px solid #f97316; padding: 15px; margin: 20px 0;">
-                        <p style="margin: 5px 0; font-weight: bold; color: #c2410c;">IMPORTANTE:</p>
+                    <div style="background-color: #FBF7EE; border-left: 4px solid #B78934; padding: 15px; margin: 20px 0;">
+                        <p style="margin: 5px 0; font-weight: bold; color: #7A5A10;">IMPORTANTE:</p>
                         <ul style="margin: 10px 0; padding-left: 20px;">
                             <li>Este link é válido por 48 horas</li>
                             <li>Use o link E a senha temporária para ativar sua conta</li>
@@ -99,16 +114,16 @@ public final class EmailTemplates {
                         Se você não esperava este convite, ignore este email.
                     </p>
 
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                    <hr style="border: none; border-top: 1px solid #E3D9C2; margin: 30px 0;">
 
                     <p style="color: #999; font-size: 12px;">
                         Atenciosamente,<br>
-                        Equipe MeuJet
+                        Equipe Meu Jet
                     </p>
                 </div>
             </body>
             </html>
-            """, name, temporaryPassword, activationLink);
+            """, BRAND_HEADER, name, temporaryPassword, activationLink);
     }
 
     public static String passwordResetHtml(String name, String resetLink) {
@@ -118,17 +133,18 @@ public final class EmailTemplates {
             <head>
                 <meta charset="UTF-8">
             </head>
-            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #FCFAF6;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #0ea5e9;">Redefinição de Senha</h2>
+            %s
+                    <h2 style="color: #1E4266;">Redefinição de Senha</h2>
 
                     <p>Olá <strong>%s</strong>,</p>
 
-                    <p>Recebemos uma solicitação para redefinir sua senha no <strong>MeuJet</strong>.</p>
+                    <p>Recebemos uma solicitação para redefinir sua senha no <strong>Meu Jet</strong>.</p>
 
                     <p style="text-align: center; margin: 30px 0;">
                         <a href="%s"
-                           style="background-color: #0ea5e9; color: white; padding: 12px 24px;
+                           style="background-color: #1E4266; color: white; padding: 12px 24px;
                                   text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold;">
                             Redefinir Senha
                         </a>
@@ -140,15 +156,15 @@ public final class EmailTemplates {
                         Sua senha atual permanecerá inalterada.
                     </p>
 
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                    <hr style="border: none; border-top: 1px solid #E3D9C2; margin: 30px 0;">
 
                     <p style="color: #999; font-size: 12px;">
                         Atenciosamente,<br>
-                        Equipe MeuJet
+                        Equipe Meu Jet
                     </p>
                 </div>
             </body>
             </html>
-            """, name, resetLink);
+            """, BRAND_HEADER, name, resetLink);
     }
 }

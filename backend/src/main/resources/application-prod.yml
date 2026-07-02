@@ -124,7 +124,7 @@ jetski:
     base-url: ${JETSKI_OPA_BASE_URL:http://opa:8181}
   email:
     from: ${GMAIL_USER:noreply@meujet.com.br}
-    from-name: MeuJet
+    from-name: Meu Jet
   frontend:
     url: ${JETSKI_FRONTEND_URL:https://meujet.com.br}
 

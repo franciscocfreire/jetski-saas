@@ -35,7 +35,7 @@ public class SmtpEmailService implements EmailService {
     @Value("${jetski.email.from:noreply@pegaojet.com.br}")
     private String fromEmail;
 
-    @Value("${jetski.email.from-name:MeuJet}")
+    @Value("${jetski.email.from-name:Meu Jet}")
     private String fromName;
 
     @Override
