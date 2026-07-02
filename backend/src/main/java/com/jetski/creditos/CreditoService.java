@@ -203,21 +203,22 @@ public class CreditoService {
     }
 
     /**
-     * Registra a solicitação de compra POR VALOR: créditos = valor / preço unitário
-     * (arredondado para baixo; snapshot do preço fica na solicitação).
-     * Os créditos só entram no saldo na aprovação do admin.
+     * Registra a solicitação de compra POR QUANTIDADE: o tenant escolhe quantas
+     * emissões quer e o valor a transferir = quantidade × preço vigente
+     * (exato, sem arredondamento — facilita a conferência no extrato bancário).
+     * Snapshot do preço fica na solicitação; os créditos só entram na aprovação.
      */
     @Transactional
-    public CreditoCompra solicitarCompra(UUID tenantId, BigDecimal valorPago, String pixTxid) {
-        if (valorPago == null || valorPago.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException("Informe o valor transferido (R$)");
+    public CreditoCompra solicitarCompra(UUID tenantId, int quantidade, String pixTxid) {
+        if (quantidade < 1) {
+            throw new BusinessException("Informe a quantidade de emissões desejada");
+        }
+        if (quantidade > 100_000) {
+            throw new BusinessException("Quantidade acima do limite por solicitação (100.000)");
         }
         BigDecimal preco = precoUnitario();
-        int quantidade = valorPago.divide(preco, 0, RoundingMode.FLOOR).intValue();
-        if (quantidade < 1) {
-            throw new BusinessException(
-                "Valor abaixo do preço de 1 crédito (R$ " + preco.toPlainString() + ")");
-        }
+        BigDecimal valorEsperado = preco.multiply(BigDecimal.valueOf(quantidade))
+            .setScale(2, RoundingMode.HALF_UP);
         String txid = pixTxid == null ? "" : pixTxid.trim();
         if (txid.isEmpty()) {
             throw new BusinessException("Informe o número da transação PIX (comprovante)");
@@ -231,14 +232,14 @@ public class CreditoService {
         CreditoCompra compra = compraRepository.save(CreditoCompra.builder()
             .tenantId(tenantId)
             .quantidade(quantidade)
-            .valorPago(valorPago.setScale(2, RoundingMode.HALF_UP))
+            .valorPago(valorEsperado)
             .precoUnitario(preco)
             .pixTxid(txid)
             .status(StatusCompra.PENDENTE)
             .criadoPor(actorOrNull())
             .build());
-        log.info("Compra de créditos solicitada: tenant={}, valor=R${}, preco=R${}, quantidade={}, txid={}",
-            tenantId, valorPago, preco, quantidade, txid);
+        log.info("Compra de créditos solicitada: tenant={}, quantidade={}, valor=R${}, preco=R${}, txid={}",
+            tenantId, quantidade, valorEsperado, preco, txid);
         return compra;
     }
 

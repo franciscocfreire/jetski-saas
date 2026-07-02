@@ -226,7 +226,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"valor\": 150.00, \"pixTxid\": \"E12345678202607021234\"}")
+                .content("{\"quantidade\": 30, \"pixTxid\": \"E12345678202607021234\"}")
                 .with(admin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("PENDENTE"));
@@ -262,7 +262,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"valor\": 50.00, \"pixTxid\": \"E12345678202607021234\"}")
+                .content("{\"quantidade\": 10, \"pixTxid\": \"E12345678202607021234\"}")
                 .with(admin()))
             .andExpect(status().isBadRequest());
     }
@@ -273,7 +273,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"valor\": 50.00, \"pixTxid\": \"TX-REJ-1\"}")
+                .content("{\"quantidade\": 10, \"pixTxid\": \"TX-REJ-1\"}")
                 .with(admin()))
             .andExpect(status().isOk());
         String compraId = jdbcTemplate.queryForObject(
@@ -311,21 +311,22 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.precoUnitario").value(10.00));
 
-        // R$ 155 a R$ 10/crédito → 15 créditos (arredonda para baixo)
+        // 15 créditos a R$ 10 → valor esperado R$ 150,00 (snapshot do preço)
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"valor\": 155.00, \"pixTxid\": \"TX-PRECO-1\"}")
+                .content("{\"quantidade\": 15, \"pixTxid\": \"TX-PRECO-1\"}")
                 .with(admin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.quantidade").value(15))
+            .andExpect(jsonPath("$.valorPago").value(150.00))
             .andExpect(jsonPath("$.precoUnitario").value(10.00));
 
-        // Valor abaixo de 1 crédito → 400
+        // Quantidade inválida → 400
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"valor\": 9.99, \"pixTxid\": \"TX-PRECO-2\"}")
+                .content("{\"quantidade\": 0, \"pixTxid\": \"TX-PRECO-2\"}")
                 .with(admin()))
             .andExpect(status().isBadRequest());
 

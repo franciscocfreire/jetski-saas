@@ -41,11 +41,11 @@ const STATUS_COMPRA: Record<string, { label: string; variant: 'default' | 'secon
 const brl = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-/** Compra manual v1: transfere o VALOR para a chave PIX fixa e informa o txid; o Meu Jet aprova. */
+/** Compra manual v1: escolhe a QUANTIDADE, vê o valor, transfere via PIX e informa o txid. */
 function ComprarCreditosCard() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
-  const [valor, setValor] = useState('250')
+  const [quantidade, setQuantidade] = useState('50')
   const [pixTxid, setPixTxid] = useState('')
 
   const { data: config } = useQuery({
@@ -58,7 +58,7 @@ function ComprarCreditosCard() {
   })
 
   const solicitar = useMutation({
-    mutationFn: () => creditosService.solicitarCompra(Number(valor), pixTxid),
+    mutationFn: () => creditosService.solicitarCompra(Number(quantidade), pixTxid),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['creditos-compras'] })
       setPixTxid('')
@@ -84,10 +84,10 @@ function ComprarCreditosCard() {
     }
   }
 
-  const valorNum = Number(valor)
-  const valorValido = Number.isFinite(valorNum) && valorNum > 0
+  const qtdNum = Number(quantidade)
+  const qtdValida = Number.isInteger(qtdNum) && qtdNum > 0
   const preco = config?.precoUnitario ?? 0
-  const creditosCalculados = valorValido && preco > 0 ? Math.floor(valorNum / preco) : 0
+  const valorAPagar = qtdValida && preco > 0 ? qtdNum * preco : 0
 
   return (
     <div className="rounded-lg border p-5">
@@ -102,6 +102,7 @@ function ComprarCreditosCard() {
         )}
       </div>
       <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+        <li>Escolha quantas emissões quer comprar e veja o valor a transferir.</li>
         <li>
           Transfira o valor via PIX para a chave{' '}
           <button
@@ -112,19 +113,18 @@ function ComprarCreditosCard() {
             {config?.pixChave || '—'} <Copy className="h-3 w-3" />
           </button>
         </li>
-        <li>Informe abaixo o valor transferido e o número da transação (comprovante).</li>
-        <li>O Meu Jet confere o pagamento e libera os créditos no seu saldo.</li>
+        <li>Informe o número da transação (comprovante) — o Meu Jet confere e libera os créditos.</li>
       </ol>
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <div className="space-y-1">
-          <label className="text-xs font-medium" htmlFor="compra-valor">Valor transferido (R$)</label>
+          <label className="text-xs font-medium" htmlFor="compra-qtd">Quantidade de emissões</label>
           <Input
-            id="compra-valor"
+            id="compra-qtd"
             type="number"
-            min={0}
-            step="0.01"
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
+            min={1}
+            step="1"
+            value={quantidade}
+            onChange={(e) => setQuantidade(e.target.value)}
             className="w-36 tabular-nums"
           />
         </div>
@@ -140,18 +140,18 @@ function ComprarCreditosCard() {
         </div>
         <Button
           onClick={() => solicitar.mutate()}
-          disabled={solicitar.isPending || creditosCalculados < 1 || !pixTxid.trim()}
+          disabled={solicitar.isPending || !qtdValida || !pixTxid.trim()}
           className="gap-2"
         >
           {solicitar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
           Solicitar créditos
         </Button>
       </div>
-      {valorValido && preco > 0 && (
-        <p className={cn('mt-2 text-sm', creditosCalculados < 1 ? 'text-destructive' : 'text-muted-foreground')}>
-          {creditosCalculados < 1
-            ? `Valor abaixo do preço de 1 crédito (${brl(preco)}).`
-            : <>{brl(valorNum)} = <span className="font-semibold text-foreground">{creditosCalculados} créditos</span></>}
+      {qtdValida && preco > 0 && (
+        <p className="mt-3 rounded-md bg-muted px-3 py-2 text-sm">
+          Valor a transferir:{' '}
+          <span className="text-base font-semibold tabular-nums">{brl(valorAPagar)}</span>
+          <span className="text-muted-foreground"> ({qtdNum} × {brl(preco)})</span>
         </p>
       )}
 

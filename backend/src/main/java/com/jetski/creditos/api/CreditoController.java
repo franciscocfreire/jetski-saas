@@ -58,13 +58,13 @@ public class CreditoController {
 
     @PostMapping("/compras")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
-    @Operation(summary = "Solicitar compra por VALOR (créditos = valor / preço vigente; aguarda aprovação)")
+    @Operation(summary = "Solicitar compra por QUANTIDADE (valor = qtd × preço vigente; aguarda aprovação)")
     public ResponseEntity<CompraResponse> solicitarCompra(
             @PathVariable UUID tenantId,
             @RequestBody SolicitarCompraRequest request) {
-        log.info("POST /v1/tenants/{}/creditos/compras valor={}", tenantId, request.valor());
+        log.info("POST /v1/tenants/{}/creditos/compras quantidade={}", tenantId, request.quantidade());
         return ResponseEntity.ok(CompraResponse.from(
-            creditoService.solicitarCompra(tenantId, request.valor(), request.pixTxid())));
+            creditoService.solicitarCompra(tenantId, request.quantidade(), request.pixTxid())));
     }
 
     @GetMapping("/compras")
