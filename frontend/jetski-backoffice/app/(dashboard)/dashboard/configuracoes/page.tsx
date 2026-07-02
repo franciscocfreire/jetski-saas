@@ -19,9 +19,10 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail, FileText, ShieldCheck, Palette } from 'lucide-react'
+import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail, FileText, ShieldCheck, Palette, Gauge } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Logo } from '@/components/logo'
+import { PlanoUsoTab } from '@/components/configuracoes/plano-uso-tab'
 
 export default function ConfiguracoesPage() {
   const { toast } = useToast()
@@ -369,6 +370,10 @@ export default function ConfiguracoesPage() {
           <TabsTrigger value="marca" className="gap-2">
             <Palette className="h-4 w-4" />
             Marca
+          </TabsTrigger>
+          <TabsTrigger value="plano" className="gap-2">
+            <Gauge className="h-4 w-4" />
+            Plano e Uso
           </TabsTrigger>
         </TabsList>
 
@@ -1121,6 +1126,10 @@ export default function ConfiguracoesPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="plano" className="space-y-6">
+          <PlanoUsoTab />
         </TabsContent>
       </Tabs>
 

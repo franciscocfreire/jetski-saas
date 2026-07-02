@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ShieldCheck, Check, Ban, RotateCcw, ShieldAlert, KeyRound, Loader2 } from 'lucide-react'
-import { platformService } from '@/lib/api/services'
+import { ShieldCheck, Check, Ban, RotateCcw, ShieldAlert, KeyRound, Loader2, Gauge as GaugeIcon } from 'lucide-react'
+import { platformService, meteringService } from '@/lib/api/services'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import type { TenantSummary } from '@/lib/api/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -233,7 +233,88 @@ export default function PlataformaPage() {
           )}
         </CardContent>
       </Card>
+
+      <EmissoesPorEmpresaCard enabled={isPlatformAdmin} />
     </div>
+  )
+}
+
+/** Metering cross-tenant: emissões por empresa na competência selecionada. */
+function EmissoesPorEmpresaCard({ enabled }: { enabled: boolean }) {
+  const [competencia, setCompetencia] = useState(() => {
+    const hoje = new Date()
+    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`
+  })
+
+  const competencias = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date()
+    d.setMonth(d.getMonth() - i)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+
+  const { data: emissoes, isLoading } = useQuery({
+    queryKey: ['platform', 'emissoes', competencia],
+    queryFn: () => meteringService.getPlatformEmissoes(competencia),
+    enabled,
+  })
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <GaugeIcon className="size-5" /> Emissões por empresa
+            </CardTitle>
+            <CardDescription>
+              Consumo mensal (documentos e GRUs — base da cobrança futura). Razão alta de
+              prévias com poucas emissões merece atenção.
+            </CardDescription>
+          </div>
+          <select
+            className="h-9 rounded-md border bg-background px-2 text-sm"
+            value={competencia}
+            onChange={(e) => setCompetencia(e.target.value)}
+            aria-label="Competência"
+          >
+            {competencias.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading || !emissoes ? (
+          <Skeleton className="h-32 w-full" />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Empresa</TableHead>
+                <TableHead className="text-right">Documentos</TableHead>
+                <TableHead className="text-right">GRUs</TableHead>
+                <TableHead className="text-right">Prévias</TableHead>
+                <TableHead className="text-right">Total cobrável</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {emissoes.map((e) => (
+                <TableRow key={e.tenantId}>
+                  <TableCell className="font-medium">
+                    {e.razaoSocial}
+                    <span className="ml-2 text-xs text-muted-foreground">{e.slug}</span>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{e.documento}</TableCell>
+                  <TableCell className="text-right tabular-nums">{e.gru}</TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">{e.previa}</TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">{e.total}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 

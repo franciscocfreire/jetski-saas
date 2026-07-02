@@ -282,6 +282,24 @@ ALTER TABLE public.cliente_identity_provider FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_cliente_identity_provider ON public.cliente_identity_provider;
 CREATE POLICY tenant_isolation_cliente_identity_provider ON public.cliente_identity_provider USING ((tenant_id = public.get_current_tenant_id()));
 
+-- V025: metering de emissões por tenant (DOCUMENTO/GRU/PREVIA — base p/ cobrança futura)
+CREATE TABLE IF NOT EXISTS public.emissao_uso (
+    id            uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id     uuid NOT NULL REFERENCES public.tenant(id) ON DELETE CASCADE,
+    tipo          varchar(20) NOT NULL CHECK (tipo IN ('DOCUMENTO', 'GRU', 'PREVIA')),
+    referencia_id uuid NOT NULL,
+    destinos      varchar(60),
+    ocorrido_em   timestamptz NOT NULL,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_emissao_uso_ref ON public.emissao_uso (tipo, referencia_id, ocorrido_em);
+CREATE INDEX IF NOT EXISTS idx_emissao_uso_tenant_data ON public.emissao_uso (tenant_id, ocorrido_em);
+ALTER TABLE public.emissao_uso ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.emissao_uso FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_emissao_uso ON public.emissao_uso;
+CREATE POLICY tenant_isolation_emissao_uso ON public.emissao_uso USING ((tenant_id = public.get_current_tenant_id()));
+UPDATE public.plano SET limites = limites || '{"emissoes_mes": -1}'::jsonb WHERE NOT (limites ? 'emissoes_mes');
+
 -- F2.3: habilitação do condutor (CHA/EMA + GRU)
 CREATE TABLE IF NOT EXISTS public.reserva_habilitacao (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,

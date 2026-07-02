@@ -146,11 +146,22 @@ public class DocumentoPdfService {
     /** Conjunto com todas as seções internas (comportamento legado: inclui tudo). */
     public static final Set<Secao> TODAS = EnumSet.allOf(Secao.class);
 
+    /** Texto do carimbo de prévia com pendências. */
+    public static final String MARCA_RASCUNHO = "RASCUNHO";
+    /** Texto do carimbo de prévia completa — anti-furo: prévia nunca sai limpa. */
+    public static final String MARCA_PREVIA = "PRÉVIA - SEM VALIDADE";
+
     /**
-     * Carimba "RASCUNHO" na diagonal de cada página — usado nas prévias, antes de
-     * a documentação estar completa para envio.
+     * Carimba o texto na diagonal de cada página — usado em toda prévia
+     * (o documento sem carimbo só existe via emissão, que é contabilizada).
      */
     private static final class RascunhoWatermark extends PdfPageEventHelper {
+        private final String texto;
+
+        RascunhoWatermark(String texto) {
+            this.texto = texto;
+        }
+
         @Override
         public void onEndPage(PdfWriter writer, Document document) {
             PdfContentByte cb = writer.getDirectContentUnder();
@@ -161,14 +172,14 @@ public class DocumentoPdfService {
             try {
                 BaseFont bf = BaseFont.createFont(BaseFont.HELVETICA_BOLD, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
                 cb.beginText();
-                cb.setFontAndSize(bf, 90);
+                cb.setFontAndSize(bf, texto.length() <= 10 ? 90 : 44);
                 cb.setColorFill(Color.RED);
                 Rectangle size = document.getPageSize();
-                cb.showTextAligned(Element.ALIGN_CENTER, "RASCUNHO",
+                cb.showTextAligned(Element.ALIGN_CENTER, texto,
                         size.getWidth() / 2, size.getHeight() / 2, 45);
                 cb.endText();
             } catch (Exception e) {
-                log.debug("watermark RASCUNHO não aplicada: {}", e.getMessage());
+                log.debug("watermark '{}' não aplicada: {}", texto, e.getMessage());
             }
             cb.restoreState();
         }
@@ -275,23 +286,24 @@ public class DocumentoPdfService {
 
     public DocumentoPdf gerarDocumentoConsolidado(DadosDocumento d, byte[] assinaturaPng,
             java.util.List<AnexoImagem> anexos) {
-        return gerarDocumentoConsolidado(d, assinaturaPng, anexos, TODAS, false);
+        return gerarDocumentoConsolidado(d, assinaturaPng, anexos, TODAS, null);
     }
 
     /**
-     * @param secoes   quais seções internas (1-C/5-C/5-B/Termo) renderizar — permite
-     *                 recortes por destino (ex.: Marinha sem o Termo de Responsabilidade)
-     * @param rascunho carimba "RASCUNHO" na diagonal (prévia antes da emissão definitiva)
+     * @param secoes     quais seções internas (1-C/5-C/5-B/Termo) renderizar — permite
+     *                   recortes por destino (ex.: Marinha sem o Termo de Responsabilidade)
+     * @param marcaDagua texto carimbado na diagonal ({@link #MARCA_RASCUNHO} ou
+     *                   {@link #MARCA_PREVIA}); null = sem carimbo (emissão definitiva)
      */
     public DocumentoPdf gerarDocumentoConsolidado(DadosDocumento d, byte[] assinaturaPng,
-            java.util.List<AnexoImagem> anexos, Set<Secao> secoes, boolean rascunho) {
+            java.util.List<AnexoImagem> anexos, Set<Secao> secoes, String marcaDagua) {
         Set<Secao> sec = (secoes == null) ? TODAS : secoes;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         Document doc = new Document(PageSize.A4, 56, 56, 54, 54);
         try {
             PdfWriter writer = PdfWriter.getInstance(doc, baos);
-            if (rascunho) {
-                writer.setPageEvent(new RascunhoWatermark());
+            if (marcaDagua != null && !marcaDagua.isBlank()) {
+                writer.setPageEvent(new RascunhoWatermark(marcaDagua));
             }
             doc.open();
             Fonts f = new Fonts();

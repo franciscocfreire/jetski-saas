@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jetski.locacoes.domain.Cliente;
 import com.jetski.locacoes.domain.Reserva;
 import com.jetski.locacoes.domain.ReservaHabilitacao;
+import com.jetski.locacoes.event.GruEmitidaEvent;
 import com.jetski.locacoes.internal.gru.GruBoletoResultado;
 import com.jetski.locacoes.internal.gru.GruClient;
 import com.jetski.locacoes.internal.gru.GruContribuinte;
@@ -23,6 +24,7 @@ import com.jetski.tenant.domain.Tenant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +56,7 @@ public class GruService {
     private final DocumentoPdfService documentoPdfService;
     private final EmailService emailService;
     private final TenantQueryService tenantQueryService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Valor oficial da taxa da GRU (CHA-MTA-E). Usado como exibição no caminho de
@@ -115,6 +118,9 @@ public class GruService {
             hab.setGruIdSessao(r.idSessao());
             hab.setGruGeradaEm(Instant.now());
             ReservaHabilitacao salvo = habilitacaoRepository.save(hab);
+            // Metering: geração real na Marinha (reaproveitada/falha não contam)
+            eventPublisher.publishEvent(new GruEmitidaEvent(
+                salvo.getTenantId(), reservaId, salvo.getId(), "PIX", salvo.getGruGeradaEm()));
             return new GruGeracao(true, salvo, r.pixQrPngBase64(), false, null, null);
         } catch (GruException e) {
             log.warn("Falha ao gerar GRU para reserva {}: {} - {}",
@@ -178,6 +184,9 @@ public class GruService {
                 }
             }
             ReservaHabilitacao salvo = habilitacaoRepository.save(hab);
+            // Metering: geração real na Marinha (reaproveitada/falha não contam)
+            eventPublisher.publishEvent(new GruEmitidaEvent(
+                salvo.getTenantId(), reservaId, salvo.getId(), "BOLETO", salvo.getGruGeradaEm()));
 
             return new BoletoGeracao(true, salvo, false, null, null);
         } catch (GruException e) {

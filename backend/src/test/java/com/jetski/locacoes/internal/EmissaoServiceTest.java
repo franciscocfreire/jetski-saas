@@ -30,7 +30,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -92,7 +92,7 @@ class EmissaoServiceTest {
         when(storage.getObject(anyString())).thenReturn("png".getBytes());
         when(storage.generatePresignedDownloadUrl(anyString(), anyInt()))
             .thenReturn(PresignedUrl.builder().url("http://download/doc.pdf").build());
-        when(pdfService.gerarDocumentoConsolidado(any(), any(), any(), any(), anyBoolean()))
+        when(pdfService.gerarDocumentoConsolidado(any(), any(), any(), any(), nullable(String.class)))
             .thenReturn(new DocumentoPdfService.DocumentoPdf("%PDF-fake".getBytes(), "abc123hash"));
         when(docRepo.save(any(DocumentoEmitido.class))).thenAnswer(i -> i.getArgument(0));
         // Anexos obrigatórios à Marinha presentes (identidade + selfie, por padrão).

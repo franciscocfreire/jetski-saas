@@ -12,6 +12,7 @@ import com.jetski.locacoes.internal.repository.DocumentoEmitidoRepository;
 import com.jetski.locacoes.internal.repository.ReservaAceiteRepository;
 import com.jetski.locacoes.internal.repository.ReservaHabilitacaoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
+import com.jetski.locacoes.event.DocumentoPreviewGeradoEvent;
 import com.jetski.reservas.domain.event.DocumentosEmitidosEvent;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
@@ -108,9 +109,9 @@ public class EmissaoService {
         // PDFs por destino: a Marinha pode receber um recorte diferente do cliente
         // (ex.: sem o Termo de Responsabilidade), conforme a parametrização do tenant.
         DocumentoPdfService.DocumentoPdf pdfCliente =
-            gerarParaDestino(dados, assinatura, cliente.getId(), hab, cfg.cliente(), false);
+            gerarParaDestino(dados, assinatura, cliente.getId(), hab, cfg.cliente(), null);
         DocumentoPdfService.DocumentoPdf pdfMarinha = marinhaAplicavel
-            ? gerarParaDestino(dados, assinatura, cliente.getId(), hab, cfg.marinha(), false)
+            ? gerarParaDestino(dados, assinatura, cliente.getId(), hab, cfg.marinha(), null)
             : null;
 
         // Reforço jurídico (Fase A): trilha de auditoria + carimbo de tempo por documento.
@@ -312,7 +313,7 @@ public class EmissaoService {
      */
     private DocumentoPdfService.DocumentoPdf gerarParaDestino(
             DocumentoPdfService.DadosDocumento dados, byte[] assinatura, UUID clienteId,
-            ReservaHabilitacao hab, DocumentoConfig.Destino cfg, boolean rascunho) {
+            ReservaHabilitacao hab, DocumentoConfig.Destino cfg, String marcaDagua) {
         java.util.Set<DocumentoPdfService.Secao> secoes =
             java.util.EnumSet.noneOf(DocumentoPdfService.Secao.class);
         if (cfg.residenciaOn()) secoes.add(DocumentoPdfService.Secao.RESIDENCIA);
@@ -323,7 +324,7 @@ public class EmissaoService {
         java.util.List<DocumentoPdfService.AnexoImagem> anexos = anexosDoCliente(clienteId, cfg);
 
         DocumentoPdfService.DocumentoPdf pdf =
-            documentoPdfService.gerarDocumentoConsolidado(dados, assinatura, anexos, secoes, rascunho);
+            documentoPdfService.gerarDocumentoConsolidado(dados, assinatura, anexos, secoes, marcaDagua);
 
         if (cfg.comprovanteGruOn() && hab != null && hab.getGruComprovanteS3Key() != null) {
             try {
@@ -364,8 +365,17 @@ public class EmissaoService {
         DocumentoConfig cfg = configDocumento(tenant);
         DocumentoConfig.Destino destinoCfg = (destino == Destino.MARINHA) ? cfg.marinha() : cfg.cliente();
 
-        boolean rascunho = !pendenciasDocumentacao(hab, cliente, cfg.obrigatoriosMarinha()).isEmpty();
-        return gerarParaDestino(dados, assinatura, cliente.getId(), hab, destinoCfg, rascunho).conteudo();
+        // Anti-furo: prévia NUNCA sai limpa — o documento sem carimbo só existe via
+        // emissão (contabilizada). Com pendências carimba RASCUNHO; completo, PRÉVIA.
+        String marcaDagua = !pendenciasDocumentacao(hab, cliente, cfg.obrigatoriosMarinha()).isEmpty()
+            ? DocumentoPdfService.MARCA_RASCUNHO
+            : DocumentoPdfService.MARCA_PREVIA;
+        byte[] pdf = gerarParaDestino(dados, assinatura, cliente.getId(), hab, destinoCfg, marcaDagua).conteudo();
+
+        // Metering: prévias contam como sinal antifraude (não cobrável)
+        eventPublisher.publishEvent(new DocumentoPreviewGeradoEvent(
+            reserva.getTenantId(), reservaId, destino.name(), java.time.Instant.now()));
+        return pdf;
     }
 
     private DocumentoPdfService.DadosDocumento montarDados(Reserva reserva, Cliente cliente,

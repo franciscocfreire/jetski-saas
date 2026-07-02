@@ -45,6 +45,7 @@ class GruServiceTest {
     @Mock DocumentoPdfService documentoPdfService;
     @Mock com.jetski.shared.email.EmailService emailService;
     @Mock com.jetski.tenant.TenantQueryService tenantQueryService;
+    @Mock org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     GruService service;
 
@@ -56,7 +57,7 @@ class GruServiceTest {
     void setUp() {
         service = new GruService(habilitacaoRepository, reservaRepository,
             clienteRepository, gruClient, new ObjectMapper(), storageService, comprovantePdfService,
-            documentoPdfService, emailService, tenantQueryService);
+            documentoPdfService, emailService, tenantQueryService, eventPublisher);
     }
 
     private void stubReservaECliente() {
@@ -129,6 +130,53 @@ class GruServiceTest {
         assertThat(g.reaproveitada()).isTrue();
         verify(gruClient, never()).gerar(any());
         verify(habilitacaoRepository, never()).save(any());
+    }
+
+    @Test
+    void geracaoFrescaPublicaEventoDeMetering() {
+        stubReservaECliente();
+        when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.empty());
+        when(gruClient.gerar(any(GruContribuinte.class))).thenReturn(new GruResultado(
+            "1", BigDecimal.ONE, "CHA", "PIX", "QR", Instant.now().plus(1, ChronoUnit.HOURS), "9", "s"));
+        when(habilitacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        service.gerarGru(reservaId);
+
+        ArgumentCaptor<Object> cap = ArgumentCaptor.forClass(Object.class);
+        verify(eventPublisher).publishEvent(cap.capture());
+        assertThat(cap.getValue()).isInstanceOf(com.jetski.locacoes.event.GruEmitidaEvent.class);
+        com.jetski.locacoes.event.GruEmitidaEvent ev = (com.jetski.locacoes.event.GruEmitidaEvent) cap.getValue();
+        assertThat(ev.tenantId()).isEqualTo(tenantId);
+        assertThat(ev.meio()).isEqualTo("PIX");
+        assertThat(ev.geradaEm()).isNotNull();
+    }
+
+    @Test
+    void reaproveitamentoNaoPublicaEventoDeMetering() {
+        stubReservaECliente();
+        ReservaHabilitacao existente = ReservaHabilitacao.builder()
+            .reservaId(reservaId).tenantId(tenantId).via(ReservaHabilitacao.Via.EMA)
+            .gruNumero("123").gruPixCopiaECola("PIX")
+            .gruPixExpiracao(Instant.now().plus(2, ChronoUnit.HOURS))
+            .build();
+        when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.of(existente));
+
+        service.gerarGru(reservaId);
+
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void falhaDaMarinhaNaoPublicaEventoDeMetering() {
+        stubReservaECliente();
+        when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.empty());
+        when(gruClient.gerar(any())).thenThrow(new GruException(
+            GruException.Codigo.MARINHA_INDISPONIVEL, "fora do ar"));
+
+        GruService.GruGeracao g = service.gerarGru(reservaId);
+
+        assertThat(g.sucesso()).isFalse();
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test

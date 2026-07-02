@@ -1256,6 +1256,30 @@ export interface Branding {
 }
 
 // ==========================================
+// Metering de Emissões (base da cobrança futura)
+// ==========================================
+
+/** Uso mensal do tenant. total = documento + gru (prévia não é cobrável). */
+export interface EmissaoMensal {
+  competencia: string // "YYYY-MM"
+  documento: number
+  gru: number
+  previa: number
+  total: number
+}
+
+/** Uso de emissões de uma empresa na competência (visão super admin). */
+export interface PlatformEmissaoTenant {
+  tenantId: string
+  slug: string
+  razaoSocial: string
+  documento: number
+  gru: number
+  previa: number
+  total: number
+}
+
+// ==========================================
 // Presença de Vendedores Module (Diárias)
 // ==========================================
 
