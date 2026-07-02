@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configuracoesService } from '@/lib/api/services'
 import type {
   AssinaturaConfig,
+  Branding,
   ComissaoConfigRequest,
   DocumentoConfig,
   DocumentoConfigDestino,
@@ -18,8 +19,9 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail, FileText, ShieldCheck } from 'lucide-react'
+import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail, FileText, ShieldCheck, Palette } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Logo } from '@/components/logo'
 
 export default function ConfiguracoesPage() {
   const { toast } = useToast()
@@ -158,6 +160,47 @@ export default function ConfiguracoesPage() {
     },
     onError: (e: Error) =>
       toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' }),
+  })
+
+  // Branding white-label: cores + logo do tenant (nulos ⇒ padrão Meu Jet).
+  const [brandCfg, setBrandCfg] = useState<Branding | null>(null)
+  const { data: brandConfig } = useQuery({
+    queryKey: ['branding-config'],
+    queryFn: () => configuracoesService.getBrandingConfig(),
+  })
+  useEffect(() => {
+    if (brandConfig) setBrandCfg(brandConfig)
+  }, [brandConfig])
+
+  const brandingOnSuccess = (title: string) => (saved: Branding) => {
+    queryClient.invalidateQueries({ queryKey: ['branding-config'] })
+    setBrandCfg(saved)
+    toast({ title, description: 'A identidade do tenant foi atualizada.' })
+  }
+  const brandingOnError = (e: unknown) => {
+    const err = e as { response?: { data?: { message?: string } }; message?: string }
+    toast({
+      title: 'Erro ao salvar marca',
+      description: err.response?.data?.message || err.message || 'Não foi possível salvar.',
+      variant: 'destructive',
+    })
+  }
+
+  const updateBrand = useMutation({
+    mutationFn: (req: { corPrimaria?: string | null; corSecundaria?: string | null }) =>
+      configuracoesService.updateBrandingConfig(req),
+    onSuccess: brandingOnSuccess('Cores da marca salvas'),
+    onError: brandingOnError,
+  })
+  const uploadLogo = useMutation({
+    mutationFn: (file: File) => configuracoesService.uploadBrandingLogo(file),
+    onSuccess: brandingOnSuccess('Logo enviado'),
+    onError: brandingOnError,
+  })
+  const removeLogo = useMutation({
+    mutationFn: () => configuracoesService.deleteBrandingLogo(),
+    onSuccess: brandingOnSuccess('Logo removido'),
+    onError: brandingOnError,
   })
 
   // Populate form when config loads
@@ -322,6 +365,10 @@ export default function ConfiguracoesPage() {
           <TabsTrigger value="assinatura" className="gap-2">
             <ShieldCheck className="h-4 w-4" />
             Assinatura
+          </TabsTrigger>
+          <TabsTrigger value="marca" className="gap-2">
+            <Palette className="h-4 w-4" />
+            Marca
           </TabsTrigger>
         </TabsList>
 
@@ -887,6 +934,189 @@ export default function ConfiguracoesPage() {
                     {updateAss.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     Salvar configuração de assinatura
                   </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="marca" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palette className="h-5 w-5" />
+                Marca da empresa (white-label)
+              </CardTitle>
+              <CardDescription>
+                Personalize a cor e o logo exibidos no sistema para a sua equipe.
+                Sem personalização, vale a identidade padrão Meu Jet.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {!brandCfg ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2 rounded-lg border p-4">
+                      <Label className="text-sm font-medium">Cor primária</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Botões e destaques. Precisa ser escura o bastante para texto branco (validado ao salvar).
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={brandCfg.corPrimaria || '#1E4266'}
+                          onChange={(e) => setBrandCfg({ ...brandCfg, corPrimaria: e.target.value.toUpperCase() })}
+                          className="h-9 w-12 cursor-pointer rounded border bg-transparent p-1"
+                          aria-label="Selecionar cor primária"
+                        />
+                        <Input
+                          value={brandCfg.corPrimaria || ''}
+                          placeholder="#1E4266 (padrão Meu Jet)"
+                          onChange={(e) => setBrandCfg({ ...brandCfg, corPrimaria: e.target.value || null })}
+                          className="font-mono uppercase"
+                          maxLength={7}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2 rounded-lg border p-4">
+                      <Label className="text-sm font-medium">Cor secundária</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Acentos e detalhes (opcional).
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={brandCfg.corSecundaria || '#C9A24B'}
+                          onChange={(e) => setBrandCfg({ ...brandCfg, corSecundaria: e.target.value.toUpperCase() })}
+                          className="h-9 w-12 cursor-pointer rounded border bg-transparent p-1"
+                          aria-label="Selecionar cor secundária"
+                        />
+                        <Input
+                          value={brandCfg.corSecundaria || ''}
+                          placeholder="#C9A24B (padrão Meu Jet)"
+                          onChange={(e) => setBrandCfg({ ...brandCfg, corSecundaria: e.target.value || null })}
+                          className="font-mono uppercase"
+                          maxLength={7}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 rounded-lg border p-4">
+                    <Label className="text-sm font-medium">Logo</Label>
+                    <p className="text-xs text-muted-foreground">
+                      PNG, JPEG ou WebP até 512 KB. Aparece na barra lateral no lugar do símbolo Meu Jet.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-4">
+                      {brandCfg.logoDataUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={brandCfg.logoDataUrl}
+                          alt="Logo do tenant"
+                          className="h-12 max-w-40 rounded border bg-white object-contain p-1"
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">Sem logo — usa o símbolo Meu Jet</span>
+                      )}
+                      <Input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="w-auto"
+                        disabled={uploadLogo.isPending}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) uploadLogo.mutate(file)
+                          e.target.value = ''
+                        }}
+                      />
+                      {brandCfg.logoDataUrl && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeLogo.mutate()}
+                          disabled={removeLogo.isPending}
+                        >
+                          Remover logo
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Preview ao vivo */}
+                  <div className="space-y-2 rounded-lg border p-4">
+                    <Label className="text-sm font-medium">Pré-visualização</Label>
+                    <div className="flex overflow-hidden rounded-lg border">
+                      <div className="w-40 shrink-0 space-y-2 bg-sidebar p-3">
+                        {brandCfg.logoDataUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={brandCfg.logoDataUrl} alt="" className="h-7 max-w-28 rounded bg-white/90 object-contain p-0.5" />
+                        ) : (
+                          <Logo variant="icon" theme="dark" size={16} />
+                        )}
+                        <div
+                          className="rounded px-2 py-1 text-xs font-medium"
+                          style={{
+                            color: brandCfg.corSecundaria || 'var(--sidebar-primary)',
+                            borderLeft: `2px solid ${brandCfg.corSecundaria || 'var(--sidebar-primary)'}`,
+                          }}
+                        >
+                          Item ativo
+                        </div>
+                        <div className="px-2 py-1 text-xs text-sidebar-foreground/60">Item de menu</div>
+                      </div>
+                      <div className="flex-1 space-y-3 bg-background p-4">
+                        <div className="text-sm font-semibold">Painel do dia</div>
+                        <div className="flex gap-2">
+                          <span
+                            className="rounded-md px-3 py-1.5 text-xs font-medium text-white"
+                            style={{ backgroundColor: brandCfg.corPrimaria || 'var(--primary)' }}
+                          >
+                            Ação primária
+                          </span>
+                          <span
+                            className="rounded-md border px-3 py-1.5 text-xs font-medium"
+                            style={{
+                              borderColor: brandCfg.corSecundaria || 'var(--gold)',
+                              color: brandCfg.corPrimaria || 'var(--primary)',
+                            }}
+                          >
+                            Ação secundária
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() =>
+                        updateBrand.mutate({
+                          corPrimaria: brandCfg.corPrimaria || null,
+                          corSecundaria: brandCfg.corSecundaria || null,
+                        })
+                      }
+                      disabled={updateBrand.isPending}
+                      className="gap-2"
+                    >
+                      {updateBrand.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Salvar cores da marca
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      disabled={updateBrand.isPending}
+                      onClick={() => {
+                        setBrandCfg({ ...brandCfg, corPrimaria: null, corSecundaria: null })
+                        updateBrand.mutate({ corPrimaria: null, corSecundaria: null })
+                      }}
+                    >
+                      Restaurar padrão Meu Jet
+                    </Button>
+                  </div>
                 </>
               )}
             </CardContent>

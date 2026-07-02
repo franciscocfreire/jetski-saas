@@ -7,6 +7,7 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { Header } from '@/components/layout/header'
 import { RentalNotificationProvider } from '@/components/providers/rental-notification-provider'
+import { TenantThemeProvider } from '@/components/providers/tenant-theme-provider'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { setAuthToken, setTenantId } from '@/lib/api/client'
 import { userTenantsService, platformService } from '@/lib/api/services'
@@ -123,15 +124,17 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <RentalNotificationProvider>
-        <AppSidebar />
-        <SidebarInset>
-          <Header />
-          <main className="flex flex-1 flex-col overflow-auto p-4 sm:p-6">
-            {tenantBlocked ? <TenantStatusGate tenant={currentTenant!} /> : children}
-          </main>
-        </SidebarInset>
-      </RentalNotificationProvider>
+      <TenantThemeProvider>
+        <RentalNotificationProvider>
+          <AppSidebar />
+          <SidebarInset>
+            <Header />
+            <main className="flex flex-1 flex-col overflow-auto p-4 sm:p-6">
+              {tenantBlocked ? <TenantStatusGate tenant={currentTenant!} /> : children}
+            </main>
+          </SidebarInset>
+        </RentalNotificationProvider>
+      </TenantThemeProvider>
     </SidebarProvider>
   )
 }

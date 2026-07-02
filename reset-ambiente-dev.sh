@@ -554,7 +554,8 @@ UPDATE tenant SET
     exibir_no_marketplace = true,
     prioridade_marketplace = 50,
     marinha_email = 'capitania.dev@example.com',
-    pix_chave = '65455888000100'
+    pix_chave = '65455888000100',
+    branding = '{"cor_primaria": "#0066CC", "cor_secundaria": "#C9A24B"}'::jsonb
 WHERE slug = 'acme';
 
 -- Marcar modelos como visiveis no marketplace

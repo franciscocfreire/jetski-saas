@@ -28,6 +28,8 @@ export type Loja = {
   cnpj: string;
   pixChave: string;
   rating: number;
+  /** White-label do tenant (espelha tenant.branding do backend); ausente ⇒ padrão Meu Jet */
+  branding?: { corPrimaria: string; corSecundaria?: string };
 };
 
 export const LOJAS: Loja[] = [
@@ -39,6 +41,7 @@ export const LOJAS: Loja[] = [
     cnpj: "65.455.888/0001-00",
     pixChave: "65455888000100",
     rating: 4.8,
+    branding: { corPrimaria: "#1E4266", corSecundaria: "#C9A24B" },
   },
   {
     id: "loja-maresia",
@@ -48,6 +51,7 @@ export const LOJAS: Loja[] = [
     cnpj: "12.345.678/0001-99",
     pixChave: "contato@maresiajet.com.br",
     rating: 4.6,
+    branding: { corPrimaria: "#0E7490" },
   },
 ];
 

@@ -51,6 +51,8 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Logo } from '@/components/logo'
 import { useTenantStore } from '@/lib/store/tenant-store'
+import { useQuery } from '@tanstack/react-query'
+import { configuracoesService } from '@/lib/api/services'
 
 const mainNavItems = [
   {
@@ -189,6 +191,15 @@ export function AppSidebar() {
   const pathname = usePathname()
   const { currentTenant, tenants, setCurrentTenant, accessType } = useTenantStore()
 
+  // Logo white-label do tenant (mesma query do TenantThemeProvider — deduplicada)
+  const { data: branding } = useQuery({
+    queryKey: ['branding-config'],
+    queryFn: () => configuracoesService.getBrandingConfig(),
+    enabled: !!currentTenant,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+
   const handleSignOut = () => {
     // Navegar para a página de logout que:
     // 1. Limpa o tenant do localStorage (client-side)
@@ -210,8 +221,13 @@ export function AppSidebar() {
                   size="lg"
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-accent">
-                    <Logo variant="icon" theme="dark" size={14} />
+                  <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg bg-sidebar-accent">
+                    {branding?.logoDataUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={branding.logoDataUrl} alt="" className="size-8 object-contain" />
+                    ) : (
+                      <Logo variant="icon" theme="dark" size={14} />
+                    )}
                   </div>
                   <div className="flex flex-col gap-0.5 leading-none">
                     <span className="font-semibold">

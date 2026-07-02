@@ -30,6 +30,8 @@ type BtnProps = {
   onClick?: () => void;
   disabled?: boolean;
   type?: "button" | "submit";
+  /** Permite tingir o CTA com o branding da loja (white-label) */
+  style?: React.CSSProperties;
 };
 
 export function Button({
@@ -41,6 +43,7 @@ export function Button({
   onClick,
   disabled,
   type = "button",
+  style,
 }: BtnProps) {
   const base =
     "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none";
@@ -59,12 +62,12 @@ export function Button({
   const cls = cn(base, sizes[size], variants[variant], className);
   if (href)
     return (
-      <Link href={href} className={cls}>
+      <Link href={href} className={cls} style={style}>
         {children}
       </Link>
     );
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={cls}>
+    <button type={type} onClick={onClick} disabled={disabled} className={cls} style={style}>
       {children}
     </button>
   );

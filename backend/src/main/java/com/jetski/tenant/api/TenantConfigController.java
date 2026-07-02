@@ -1,10 +1,13 @@
 package com.jetski.tenant.api;
 
+import com.jetski.tenant.api.dto.BrandingRequest;
+import com.jetski.tenant.api.dto.BrandingResponse;
 import com.jetski.tenant.api.dto.ComissaoConfigRequest;
 import com.jetski.tenant.api.dto.ComissaoConfigResponse;
 import com.jetski.tenant.api.dto.TenantGeralConfigRequest;
 import com.jetski.tenant.api.dto.TenantGeralConfigResponse;
 import com.jetski.tenant.domain.AssinaturaConfig;
+import com.jetski.tenant.domain.Branding;
 import com.jetski.tenant.domain.ComissaoConfig;
 import com.jetski.tenant.domain.DocumentoConfig;
 import com.jetski.tenant.internal.TenantConfigService;
@@ -17,7 +20,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.UUID;
 
 /**
@@ -145,6 +150,53 @@ public class TenantConfigController {
             @RequestBody AssinaturaConfig request) {
         log.info("PUT /v1/tenants/{}/config/assinatura", tenantId);
         return ResponseEntity.ok(tenantConfigService.updateAssinaturaConfig(tenantId, request));
+    }
+
+    // ========== BRANDING (white-label) ==========
+
+    @GetMapping("/branding")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Obter branding do tenant (cores + logo como data URL)")
+    public ResponseEntity<BrandingResponse> getBranding(@PathVariable UUID tenantId) {
+        log.info("GET /v1/tenants/{}/config/branding", tenantId);
+        return ResponseEntity.ok(toBrandingResponse(tenantId, tenantConfigService.getBranding(tenantId)));
+    }
+
+    @PutMapping("/branding")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Atualizar cores do branding. Nulos voltam ao padrão Meu Jet.")
+    public ResponseEntity<BrandingResponse> updateBranding(
+            @PathVariable UUID tenantId,
+            @RequestBody BrandingRequest request) {
+        log.info("PUT /v1/tenants/{}/config/branding", tenantId);
+        Branding cfg = tenantConfigService.updateBranding(tenantId,
+            new Branding(request.corPrimaria(), request.corSecundaria(), null, null));
+        return ResponseEntity.ok(toBrandingResponse(tenantId, cfg));
+    }
+
+    @PostMapping(value = "/branding/logo", consumes = "multipart/form-data")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Enviar logo do tenant (PNG/JPEG/WebP, máx. 512 KB)")
+    public ResponseEntity<BrandingResponse> uploadBrandingLogo(
+            @PathVariable UUID tenantId,
+            @RequestParam("file") MultipartFile file) throws IOException {
+        log.info("POST /v1/tenants/{}/config/branding/logo ({} bytes)", tenantId, file.getSize());
+        Branding cfg = tenantConfigService.uploadLogo(tenantId, file.getBytes(), file.getContentType());
+        return ResponseEntity.ok(toBrandingResponse(tenantId, cfg));
+    }
+
+    @DeleteMapping("/branding/logo")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Remover logo do tenant (volta ao padrão Meu Jet)")
+    public ResponseEntity<BrandingResponse> deleteBrandingLogo(@PathVariable UUID tenantId) {
+        log.info("DELETE /v1/tenants/{}/config/branding/logo", tenantId);
+        Branding cfg = tenantConfigService.removeLogo(tenantId);
+        return ResponseEntity.ok(toBrandingResponse(tenantId, cfg));
+    }
+
+    private BrandingResponse toBrandingResponse(UUID tenantId, Branding cfg) {
+        String logoDataUrl = cfg.temLogo() ? tenantConfigService.getLogoDataUrl(tenantId) : null;
+        return new BrandingResponse(cfg.corPrimaria(), cfg.corSecundaria(), logoDataUrl);
     }
 
     /**

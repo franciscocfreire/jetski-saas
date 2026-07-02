@@ -1248,6 +1248,13 @@ export interface AssinaturaConfig {
   pades: { cliente: boolean; marinha: boolean }
 }
 
+/** White-label do tenant. Nulos ⇒ identidade padrão Meu Jet. Logo vem como data URL. */
+export interface Branding {
+  corPrimaria?: string | null
+  corSecundaria?: string | null
+  logoDataUrl?: string | null
+}
+
 // ==========================================
 // Presença de Vendedores Module (Diárias)
 // ==========================================

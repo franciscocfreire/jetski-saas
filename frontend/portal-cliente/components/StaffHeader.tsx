@@ -5,6 +5,10 @@ import { usePathname } from "next/navigation";
 import { Anchor, Inbox, UserPlus, ExternalLink } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/cn";
+import { getLoja } from "@/lib/mock";
+
+/** Loja do operador no protótipo (viria da sessão no produto real). */
+const LOJA_ATUAL = getLoja("loja-jetsave");
 
 const NAV = [
   { href: "/staff", label: "Painel", icon: Anchor, exact: true },
@@ -52,10 +56,13 @@ export function StaffHeader() {
             <ExternalLink size={13} /> Portal do cliente
           </Link>
           <div className="flex items-center gap-2 rounded-xl bg-slate-800 px-3 py-1.5 text-sm">
-            <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-500 text-xs font-bold text-ink-900">
+            <span
+              className="grid h-6 w-6 place-items-center rounded-full text-xs font-bold text-white"
+              style={{ backgroundColor: LOJA_ATUAL?.branding?.corPrimaria ?? "#33689a" }}
+            >
               O
             </span>
-            <span className="hidden sm:block">Operador · Jet Save</span>
+            <span className="hidden sm:block">Operador · {LOJA_ATUAL?.nome ?? "Jet Save"}</span>
           </div>
         </div>
       </div>

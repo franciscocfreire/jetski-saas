@@ -1,6 +1,7 @@
 import { apiClient, getTenantId } from '../client'
 import type {
   AssinaturaConfig,
+  Branding,
   ComissaoConfig,
   ComissaoConfigRequest,
   DocumentoConfig,
@@ -65,6 +66,31 @@ export const configuracoesService = {
 
   async updateAssinaturaConfig(request: AssinaturaConfig): Promise<AssinaturaConfig> {
     const { data } = await apiClient.put<AssinaturaConfig>(`${getBasePath()}/assinatura`, request)
+    return data
+  },
+
+  /** Branding white-label (cores + logo como data URL). */
+  async getBrandingConfig(): Promise<Branding> {
+    const { data } = await apiClient.get<Branding>(`${getBasePath()}/branding`)
+    return data
+  },
+
+  async updateBrandingConfig(request: { corPrimaria?: string | null; corSecundaria?: string | null }): Promise<Branding> {
+    const { data } = await apiClient.put<Branding>(`${getBasePath()}/branding`, request)
+    return data
+  },
+
+  async uploadBrandingLogo(file: File): Promise<Branding> {
+    const form = new FormData()
+    form.append('file', file)
+    const { data } = await apiClient.post<Branding>(`${getBasePath()}/branding/logo`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data
+  },
+
+  async deleteBrandingLogo(): Promise<Branding> {
+    const { data } = await apiClient.delete<Branding>(`${getBasePath()}/branding/logo`)
     return data
   },
 }

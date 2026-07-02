@@ -189,6 +189,13 @@ public class Tenant {
     @Column(name = "assinatura_config", columnDefinition = "jsonb")
     private AssinaturaConfig assinaturaConfig;
 
+    // ========== BRANDING (white-label) ==========
+
+    /** Cores e logo do tenant; nulos ⇒ identidade padrão Meu Jet. Ver {@link Branding}. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "branding", columnDefinition = "jsonb")
+    private Branding branding;
+
     @PrePersist
     protected void onCreate() {
         createdAt = Instant.now();

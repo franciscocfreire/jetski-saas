@@ -12,7 +12,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-import { getModelo } from "@/lib/mock";
+import { getModelo, getLoja } from "@/lib/mock";
 import { brl } from "@/lib/cn";
 import { Button, Card, Badge, Field, inputCls } from "@/components/ui";
 
@@ -20,6 +20,7 @@ export default function ModeloPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const m = getModelo(id);
+  const loja = m ? getLoja(m.lojaId) : undefined;
 
   const [data, setData] = useState("2026-06-22");
   const [hora, setHora] = useState("10:00");
@@ -149,6 +150,7 @@ export default function ModeloPage() {
           <Button
             className="mt-4 w-full"
             size="lg"
+            style={loja?.branding ? { backgroundColor: loja.branding.corPrimaria } : undefined}
             onClick={() => router.push(`/reservar/${m.id}?data=${data}&hora=${hora}&horas=${horas}`)}
           >
             Reservar agora

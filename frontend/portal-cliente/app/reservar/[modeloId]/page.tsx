@@ -112,7 +112,7 @@ function Wizard() {
               <Info label="Duração" value={`${horas} hora(s)`} />
               <Info label="Valor estimado" value={brl(total)} />
             </div>
-            <Button className="mt-5 w-full" onClick={() => setStep(1)}>
+            <Button className="mt-5 w-full" style={loja?.branding ? { backgroundColor: loja.branding.corPrimaria } : undefined} onClick={() => setStep(1)}>
               Continuar
             </Button>
           </div>
@@ -150,7 +150,7 @@ function Wizard() {
                 />
               </Field>
             </div>
-            <Button className="mt-5 w-full" onClick={() => setStep(2)}>
+            <Button className="mt-5 w-full" style={loja?.branding ? { backgroundColor: loja.branding.corPrimaria } : undefined} onClick={() => setStep(2)}>
               Continuar
             </Button>
           </div>
