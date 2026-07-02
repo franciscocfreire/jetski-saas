@@ -92,6 +92,7 @@ public class DocumentoPdfService {
             String aceitoEm, String ip, String dispositivo, String operador,
             String origem, String metodo,
             boolean cienciaRegras, boolean videoaula,
+            String otp,
             String docHash,
             String carimboFonte, String carimboAutoridade, String carimboData, String carimboSerial
     ) {}
@@ -407,9 +408,11 @@ public class DocumentoPdfService {
 
             secaoAud(doc, f, "Evidências do aceite");
             linhasAud(doc, f,
-                new String[]{"Data/hora", "IP", "Dispositivo", "Operador", "Origem", "Método"},
+                new String[]{"Data/hora", "IP", "Dispositivo", "Operador", "Origem", "Método",
+                             "Confirmação por código (OTP)"},
                 new String[]{nz(a.aceitoEm()), nz(a.ip()), nz(a.dispositivo()),
-                             nz(a.operador()), nz(a.origem()), nz(a.metodo())});
+                             nz(a.operador()), nz(a.origem()), nz(a.metodo()),
+                             a.otp() != null && !a.otp().isBlank() ? a.otp() : "não exigida"});
 
             secaoAud(doc, f, "Consentimentos registrados");
             linhasAud(doc, f,

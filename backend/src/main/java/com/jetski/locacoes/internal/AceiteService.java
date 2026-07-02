@@ -30,6 +30,7 @@ public class AceiteService {
     private final ReservaAceiteRepository repository;
     private final ReservaRepository reservaRepository;
     private final StorageService storageService;
+    private final AceiteOtpService otpService;
 
     @Transactional(readOnly = true)
     public Optional<ReservaAceite> getUltimo(UUID reservaId) {
@@ -45,6 +46,22 @@ public class AceiteService {
         boolean temAssinatura = assinatura != null && assinatura.length > 0;
         if (metodo == ReservaAceite.Metodo.SIGNATURE_PAD && !temAssinatura) {
             throw new BusinessException("Assinatura (imagem) é obrigatória para o método SIGNATURE_PAD");
+        }
+
+        // OTP (Fase B): se o tenant exige, o código já deve ter sido verificado.
+        AceiteOtpService.OtpStatus otp = otpService.status(reservaId);
+        Boolean otpVerificado = null;
+        String otpCanal = null, otpDestino = null;
+        if (otp.ativo()) {
+            String ver = otpService.verificacaoValida(reservaId);
+            if (ver == null) {
+                throw new BusinessException(
+                    "Confirmação por código (OTP) pendente. Envie e valide o código antes de assinar.");
+            }
+            int sep = ver.indexOf('|');
+            otpVerificado = true;
+            otpCanal = sep > 0 ? ver.substring(0, sep) : ver;
+            otpDestino = sep > 0 ? ver.substring(sep + 1) : null;
         }
 
         String s3Key = null;
@@ -66,9 +83,15 @@ public class AceiteService {
             .ip(ip)
             .userAgent(userAgent)
             .origem("BALCAO")
+            .otpVerificado(otpVerificado)
+            .otpCanal(otpCanal)
+            .otpDestino(otpDestino)
             .build();
 
         ReservaAceite saved = repository.save(aceite);
+        if (otp.ativo()) {
+            otpService.consumir(reservaId);
+        }
         log.info("Aceite registrado: reservaId={}, metodo={}, s3Key={}", reservaId, metodo, s3Key);
 
         // Termos assinados → a reserva deixa de ser rascunho e passa a valer (entra na

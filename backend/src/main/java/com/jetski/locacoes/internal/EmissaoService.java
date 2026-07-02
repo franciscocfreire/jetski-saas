@@ -225,12 +225,17 @@ public class EmissaoService {
             var carimbo = carimboTempoService.carimbar(pdf.conteudo(), cfg.carimboOn(), cfg.tsaUrlOrDefault());
             String aceitoEm = aceite.getAceitoEm() != null ? AUD_FMT.format(aceite.getAceitoEm()) : "—";
             String carimboData = carimbo.getData() != null ? AUD_FMT.format(carimbo.getData()) : "—";
+            String otpTxt = Boolean.TRUE.equals(aceite.getOtpVerificado())
+                ? "Confirmado via " + (aceite.getOtpCanal() != null ? aceite.getOtpCanal() : "—")
+                    + (aceite.getOtpDestino() != null ? " (" + aceite.getOtpDestino() + ")" : "")
+                : null;
             DocumentoPdfService.DadosAuditoria aud = new DocumentoPdfService.DadosAuditoria(
                 cliente.getNome(), cliente.getDocumento(), cliente.getEmail(), cliente.getTelefone(),
                 aceitoEm, aceite.getIp(), aceite.getUserAgent(),
                 aceite.getOperadorId() != null ? aceite.getOperadorId().toString() : "—",
                 aceite.getOrigem(), aceite.getMetodo() != null ? aceite.getMetodo().name() : "—",
                 Boolean.TRUE.equals(hab.getAnexoRegras()), hab.getVideoaulaEm() != null,
+                otpTxt,
                 pdf.sha256(),
                 carimbo.getFonte(), carimbo.getAutoridade(), carimboData, carimbo.getSerial());
             byte[] pagina = documentoPdfService.paginaAuditoria(aud).conteudo();

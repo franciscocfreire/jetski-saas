@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, ShieldCheck, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SignaturePad } from '@/components/signature-pad'
 import { aceiteService, habilitacaoService } from '@/lib/api/services'
@@ -63,6 +64,44 @@ export function StepTermos({
   }, [habSalva])
 
   const jaAssinado = !!aceiteExistente && !reassinar
+
+  // OTP (Fase B): se o tenant exige, confirma o código antes de habilitar a assinatura.
+  const { data: otp } = useQuery({
+    queryKey: ['aceite-otp', atendimento.reserva?.id],
+    queryFn: () => aceiteService.otpStatus(atendimento.reserva!.id),
+    enabled: !!atendimento.reserva?.id,
+  })
+  const [otpEnviado, setOtpEnviado] = useState<string | null>(null)
+  const [otpCodigo, setOtpCodigo] = useState('')
+  const [otpOk, setOtpOk] = useState(false)
+  useEffect(() => {
+    if (otp?.verificado) setOtpOk(true)
+  }, [otp?.verificado])
+
+  const enviarOtp = useMutation({
+    mutationFn: () => aceiteService.otpEnviar(atendimento.reserva!.id),
+    onSuccess: (r) => {
+      if (r.whatsappUrl) window.open(r.whatsappUrl, '_blank')
+      setOtpEnviado(r.destinoMascarado ?? '')
+      toast.success(r.mensagem ?? 'Código enviado.')
+    },
+    onError: () => toast.error('Não foi possível enviar o código.'),
+  })
+  const verificarOtp = useMutation({
+    mutationFn: () => aceiteService.otpVerificar(atendimento.reserva!.id, otpCodigo.trim()),
+    onSuccess: (ok) => {
+      if (ok) {
+        setOtpOk(true)
+        toast.success('Código confirmado.')
+      } else {
+        toast.error('Código incorreto. Tente novamente.')
+      }
+    },
+    onError: (e: Error) => toast.error(e.message || 'Falha ao verificar o código.'),
+  })
+
+  // Bloqueia a assinatura enquanto o OTP (quando exigido) não estiver confirmado.
+  const otpPendente = !!otp?.ativo && !jaAssinado && !otpOk
 
   const concluir = useMutation({
     mutationFn: async () => {
@@ -130,6 +169,67 @@ export function StepTermos({
         </div>
       )}
 
+      {otp?.ativo && !jaAssinado && (
+        <div className="space-y-3 rounded-lg border p-4">
+          <Label className="flex items-center gap-2 text-sm font-medium">
+            <ShieldCheck className="h-4 w-4" />
+            Confirmação por código ({otp.canal === 'WHATSAPP' ? 'WhatsApp' : 'e-mail'})
+          </Label>
+          {otpOk ? (
+            <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
+              <CheckCircle2 className="h-4 w-4" /> Código confirmado.
+            </p>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                {otp.canal === 'WHATSAPP'
+                  ? 'Gere o código e envie ao cliente pelo WhatsApp; peça o código de volta.'
+                  : 'Enviamos um código ao e-mail do cliente; peça o código a ele.'}
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  disabled={enviarOtp.isPending}
+                  onClick={() => enviarOtp.mutate()}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  {enviarOtp.isPending ? 'Enviando…' : otpEnviado !== null ? 'Reenviar código' : 'Enviar código'}
+                </Button>
+                {otpEnviado !== null && (
+                  <span className="text-xs text-muted-foreground">
+                    enviado para <strong>{otpEnviado || 'o cliente'}</strong>
+                  </span>
+                )}
+              </div>
+              {otpEnviado !== null && (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="Código de 6 dígitos"
+                    value={otpCodigo}
+                    onChange={(e) => setOtpCodigo(e.target.value.replace(/\D/g, ''))}
+                    className="w-full sm:max-w-40"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    disabled={otpCodigo.length < 6 || verificarOtp.isPending}
+                    onClick={() => verificarOtp.mutate()}
+                  >
+                    {verificarOtp.isPending ? 'Verificando…' : 'Verificar'}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {jaAssinado ? (
         <div className="flex items-center justify-between rounded-lg border border-emerald-300 bg-emerald-50 p-4 dark:bg-emerald-950/30">
           <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
@@ -161,6 +261,12 @@ export function StepTermos({
         </p>
       )}
 
+      {otpPendente && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          Confirme o <strong>código enviado ao cliente</strong> para poder assinar.
+        </p>
+      )}
+
       <div className="flex justify-between">
         <Button type="button" variant="outline" onClick={onBack}>
           Voltar
@@ -176,7 +282,9 @@ export function StepTermos({
         ) : (
           <Button
             type="button"
-            disabled={!assinatura || concluir.isPending || (ema && (!cienteRegras || !videoaula))}
+            disabled={
+              !assinatura || concluir.isPending || otpPendente || (ema && (!cienteRegras || !videoaula))
+            }
             onClick={() => concluir.mutate()}
           >
             {concluir.isPending ? 'Registrando…' : 'Assinar e avançar'}

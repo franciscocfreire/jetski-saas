@@ -34,7 +34,8 @@ class AceiteServiceTest {
     private final ReservaAceiteRepository repo = mock(ReservaAceiteRepository.class);
     private final ReservaRepository reservaRepo = mock(ReservaRepository.class);
     private final StorageService storage = mock(StorageService.class);
-    private final AceiteService service = new AceiteService(repo, reservaRepo, storage);
+    private final AceiteOtpService otpService = mock(AceiteOtpService.class);
+    private final AceiteService service = new AceiteService(repo, reservaRepo, storage, otpService);
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID reservaId = UUID.randomUUID();
@@ -44,6 +45,7 @@ class AceiteServiceTest {
         when(reservaRepo.findById(reservaId))
             .thenReturn(Optional.of(Reserva.builder().id(reservaId).tenantId(tenant).build()));
         when(repo.save(any(ReservaAceite.class))).thenAnswer(i -> i.getArgument(0));
+        when(otpService.status(any())).thenReturn(new AceiteOtpService.OtpStatus(false, "EMAIL", false));
     }
 
     @Test

@@ -20,4 +20,39 @@ export const aceiteService = {
       return null
     }
   },
+
+  /** OTP do aceite: está ativo p/ o tenant? qual canal? já verificado? */
+  async otpStatus(reservaId: string): Promise<OtpStatus> {
+    const { data } = await apiClient.get<OtpStatus>(`${path(reservaId)}/otp`)
+    return data
+  },
+
+  /** Envia o código (e-mail) ou gera o link WhatsApp. */
+  async otpEnviar(reservaId: string): Promise<OtpEnvio> {
+    const { data } = await apiClient.post<OtpEnvio>(`${path(reservaId)}/otp/enviar`, {})
+    return data
+  },
+
+  /** Verifica o código informado. */
+  async otpVerificar(reservaId: string, codigo: string): Promise<boolean> {
+    const { data } = await apiClient.post<{ verificado: boolean }>(
+      `${path(reservaId)}/otp/verificar`,
+      { codigo }
+    )
+    return !!data.verificado
+  },
+}
+
+export interface OtpStatus {
+  ativo: boolean
+  canal: 'EMAIL' | 'WHATSAPP'
+  verificado: boolean
+}
+
+export interface OtpEnvio {
+  ativo: boolean
+  canal: 'EMAIL' | 'WHATSAPP' | null
+  destinoMascarado: string | null
+  whatsappUrl: string | null
+  mensagem: string | null
 }

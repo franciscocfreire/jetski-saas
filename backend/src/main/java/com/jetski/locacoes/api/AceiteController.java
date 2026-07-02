@@ -31,6 +31,7 @@ import java.util.UUID;
 public class AceiteController {
 
     private final AceiteService aceiteService;
+    private final com.jetski.locacoes.internal.AceiteOtpService otpService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
@@ -68,6 +69,35 @@ public class AceiteController {
         return aceiteService.getUltimo(id)
             .map(a -> ResponseEntity.ok(toResponse(a)))
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/otp")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Status do OTP do aceite (ativo? canal? já verificado?)")
+    public ResponseEntity<com.jetski.locacoes.internal.AceiteOtpService.OtpStatus> otpStatus(
+        @PathVariable UUID tenantId, @PathVariable UUID id) {
+        validateTenantContext(tenantId);
+        return ResponseEntity.ok(otpService.status(id));
+    }
+
+    @PostMapping("/otp/enviar")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Enviar código OTP ao cliente (e-mail) ou gerar link WhatsApp")
+    public ResponseEntity<com.jetski.locacoes.internal.AceiteOtpService.EnvioResultado> otpEnviar(
+        @PathVariable UUID tenantId, @PathVariable UUID id) {
+        validateTenantContext(tenantId);
+        return ResponseEntity.ok(otpService.enviar(id));
+    }
+
+    @PostMapping("/otp/verificar")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Verificar o código OTP informado")
+    public ResponseEntity<java.util.Map<String, Boolean>> otpVerificar(
+        @PathVariable UUID tenantId, @PathVariable UUID id,
+        @RequestBody java.util.Map<String, String> body) {
+        validateTenantContext(tenantId);
+        boolean ok = otpService.verificar(id, body != null ? body.get("codigo") : null);
+        return ResponseEntity.ok(java.util.Map.of("verificado", ok));
     }
 
     private ReservaAceite.Metodo parseMetodo(String metodo) {

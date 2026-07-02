@@ -56,6 +56,16 @@ public class ReservaAceite {
     @Column(name = "aceito_em", nullable = false)
     private Instant aceitoEm;
 
+    // OTP: evidência de posse do canal (e-mail/WhatsApp) confirmada no aceite.
+    @Column(name = "otp_verificado")
+    private Boolean otpVerificado;
+
+    @Column(name = "otp_canal", length = 20)
+    private String otpCanal;
+
+    @Column(name = "otp_destino", length = 160)
+    private String otpDestino;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
