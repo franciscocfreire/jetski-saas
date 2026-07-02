@@ -855,21 +855,32 @@ export default function ConfiguracoesPage() {
                     </div>
                   )}
 
-                  <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+                  <div className="space-y-3 rounded-lg border p-4">
                     <div className="space-y-1">
                       <Label className="text-sm font-medium">Assinatura digital do PDF (PAdES)</Label>
                       <p className="text-xs text-muted-foreground">
                         Assina criptograficamente o PDF emitido → documento <strong>à prova de
-                        adulteração</strong> (qualquer alteração é detectada no próprio arquivo, verificável
-                        no Adobe Reader). Sem custo e sem mudar nada para o cliente. Usa um certificado
-                        auto-assinado da plataforma (o Adobe indica a identidade como &quot;não
-                        verificada&quot;, mas a integridade é garantida).
+                        adulteração</strong> (verificável no Adobe Reader). Sem custo e sem mudar nada para o
+                        cliente. Usa um certificado auto-assinado da plataforma — a integridade é garantida,
+                        mas a identidade aparece como &quot;não verificada&quot;. Por isso é configurável por
+                        destino: na cópia da <strong>Marinha</strong>, esse aviso pode confundir quem abre o
+                        arquivo, então normalmente deixe ligado só na cópia do <strong>cliente</strong>.
                       </p>
                     </div>
-                    <Switch
-                      checked={assCfg.pades.ativo}
-                      onCheckedChange={(v) => setAssCfg({ ...assCfg, pades: { ...assCfg.pades, ativo: v } })}
-                    />
+                    <div className="flex items-center justify-between gap-4">
+                      <Label className="text-sm">Assinar a cópia do <strong>cliente</strong></Label>
+                      <Switch
+                        checked={assCfg.pades.cliente}
+                        onCheckedChange={(v) => setAssCfg({ ...assCfg, pades: { ...assCfg.pades, cliente: v } })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <Label className="text-sm">Assinar a cópia da <strong>Marinha</strong></Label>
+                      <Switch
+                        checked={assCfg.pades.marinha}
+                        onCheckedChange={(v) => setAssCfg({ ...assCfg, pades: { ...assCfg.pades, marinha: v } })}
+                      />
+                    </div>
                   </div>
 
                   <Button onClick={() => updateAss.mutate(assCfg)} disabled={updateAss.isPending} className="gap-2">

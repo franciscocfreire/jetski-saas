@@ -1245,7 +1245,7 @@ export interface AssinaturaConfig {
   paginaAuditoria: boolean
   carimboTempo: { ativo: boolean; tsaUrl?: string | null }
   otp: { ativo: boolean; canal: 'EMAIL' | 'WHATSAPP' }
-  pades: { ativo: boolean }
+  pades: { cliente: boolean; marinha: boolean }
 }
 
 // ==========================================

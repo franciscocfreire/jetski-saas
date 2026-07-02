@@ -33,9 +33,16 @@ public record AssinaturaConfig(
             @JsonProperty("canal") String canal
     ) {}
 
-    /** Assinatura digital PAdES do PDF emitido (tamper-evident). Fase C2. */
+    /**
+     * Assinatura digital PAdES do PDF emitido (tamper-evident), configurável por
+     * destino. Fase C2. Na cópia da Marinha, o cert auto-assinado gera aviso de
+     * "validade desconhecida" em leitores — por isso é separado do cliente.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Pades(@JsonProperty("ativo") Boolean ativo) {}
+    public record Pades(
+            @JsonProperty("cliente") Boolean cliente,
+            @JsonProperty("marinha") Boolean marinha
+    ) {}
 
     /** TSA gratuita padrão (RFC 3161, sem fé pública ICP-Brasil). */
     public static final String TSA_GRATUITA = "https://freetsa.org/tsr";
@@ -45,7 +52,7 @@ public record AssinaturaConfig(
                 true, // página de auditoria ligada
                 new CarimboTempo(true, TSA_GRATUITA),
                 new Otp(false, "EMAIL"),
-                new Pades(false)); // PAdES opt-in (cert auto-assinado)
+                new Pades(false, false)); // PAdES opt-in por destino (cert auto-assinado)
     }
 
     /** Nunca devolve null — campos ausentes caem no padrão. */
@@ -66,8 +73,17 @@ public record AssinaturaConfig(
         return carimboTempo == null || carimboTempo.ativo() == null || carimboTempo.ativo();
     }
 
-    public boolean padesOn() {
-        return pades != null && Boolean.TRUE.equals(pades.ativo());
+    public boolean padesClienteOn() {
+        return pades != null && Boolean.TRUE.equals(pades.cliente());
+    }
+
+    public boolean padesMarinhaOn() {
+        return pades != null && Boolean.TRUE.equals(pades.marinha());
+    }
+
+    /** Assina algum destino? (para decidir se precisa do certificado). */
+    public boolean padesAlgum() {
+        return padesClienteOn() || padesMarinhaOn();
     }
 
     public String tsaUrlOrDefault() {

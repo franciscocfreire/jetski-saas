@@ -122,9 +122,13 @@ public class EmissaoService {
             if (pdfMarinha != null) pdfMarinha = comAuditoria(pdfMarinha, cliente, aceite, hab, cfgAss);
         }
         // Assinatura digital PAdES (por último — deve ser a operação final sobre o PDF).
-        if (cfgAss.padesOn()) {
+        // Configurável por destino: na cópia da Marinha o cert auto-assinado gera aviso
+        // de "validade desconhecida", então normalmente fica só na cópia do cliente.
+        if (cfgAss.padesClienteOn()) {
             pdfCliente = comAssinaturaDigital(pdfCliente, cfgAss);
-            if (pdfMarinha != null) pdfMarinha = comAssinaturaDigital(pdfMarinha, cfgAss);
+        }
+        if (pdfMarinha != null && cfgAss.padesMarinhaOn()) {
+            pdfMarinha = comAssinaturaDigital(pdfMarinha, cfgAss);
         }
 
         // Canônico p/ download/consulta = visão do cliente (completa). Marinha à parte.
