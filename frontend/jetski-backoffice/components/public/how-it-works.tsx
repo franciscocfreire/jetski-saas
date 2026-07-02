@@ -1,23 +1,23 @@
-import { Search, Calendar, Waves } from 'lucide-react'
+import { Search, MessageCircle, Waves } from 'lucide-react'
 
 const steps = [
   {
     icon: Search,
     number: '01',
-    title: 'Descubra',
-    description: 'Explore nossa curadoria de embarcações premium. Filtre por localização, tipo e preço.',
+    title: 'Explore',
+    description: 'Compare modelos, preços e localizações das embarcações de locadoras parceiras.',
   },
   {
-    icon: Calendar,
+    icon: MessageCircle,
     number: '02',
-    title: 'Reserve',
-    description: 'Escolha data e horário com disponibilidade em tempo real. Confirmação instantânea.',
+    title: 'Reserve pelo WhatsApp',
+    description: 'Fale direto com a locadora, sem intermediário: escolha data, horário e confirme sua reserva.',
   },
   {
     icon: Waves,
     number: '03',
     title: 'Navegue',
-    description: 'Apresente-se na marina e viva uma experiência náutica inesquecível.',
+    description: 'No embarque, a habilitação CHA-MTA-E e o termo digital são resolvidos na hora, sem papelada.',
   },
 ]
 

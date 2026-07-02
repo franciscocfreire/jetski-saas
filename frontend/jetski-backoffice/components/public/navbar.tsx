@@ -9,8 +9,9 @@ import { Logo } from '@/components/logo'
 
 const navLinks = [
   { href: '/', label: 'Início' },
-  { href: '#ofertas', label: 'Embarcações' },
-  { href: '#como-funciona', label: 'Como Funciona' },
+  { href: '/#ofertas', label: 'Embarcações' },
+  { href: '/#como-funciona', label: 'Como Funciona' },
+  { href: '/para-empresas', label: 'Para Empresas' },
 ]
 
 export function Navbar() {
@@ -71,7 +72,7 @@ export function Navbar() {
             )}
             asChild
           >
-            <Link href="/signup">Cadastrar Empresa</Link>
+            <Link href="/para-empresas">Para Empresas</Link>
           </Button>
         </div>
 
@@ -116,7 +117,7 @@ export function Navbar() {
               <Link href="/login">Acesso Empresa</Link>
             </Button>
             <Button className="w-full bg-white text-black hover:bg-white/90 rounded-none" asChild>
-              <Link href="/signup">Cadastrar Empresa</Link>
+              <Link href="/para-empresas">Para Empresas</Link>
             </Button>
           </div>
         </div>

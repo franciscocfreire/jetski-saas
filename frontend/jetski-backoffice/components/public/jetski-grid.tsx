@@ -179,6 +179,10 @@ export function JetskiGrid() {
           <JetskiCard key={offering.id} {...offering} />
         ))}
       </div>
+      {/* Contagem real — sem números inventados */}
+      <p className="mt-16 text-center text-white/30 text-sm">
+        Exibindo {allOfferings.length} embarcaç{allOfferings.length === 1 ? 'ão' : 'ões'} de locadoras parceiras
+      </p>
     </>
   )
 }

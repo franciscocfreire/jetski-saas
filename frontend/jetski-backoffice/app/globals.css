@@ -160,6 +160,12 @@
   }
 }
 
+/* Tailwind v4: o utilitário container só limita a largura — centraliza e dá respiro aqui */
+@utility container {
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+}
+
 /* Navy Abissal sólido — fundo estrutural do site público */
 .bg-abyss {
   background-color: oklch(0.17 0.038 255);

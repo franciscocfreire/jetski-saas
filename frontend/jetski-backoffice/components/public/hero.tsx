@@ -47,10 +47,10 @@ export function Hero() {
 
           {/* Main Heading - Serif */}
           <h1 className="font-display text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-medium tracking-tight text-white leading-[1.1]">
-            Viva o{' '}
-            <span className="text-gold-gradient">Luxo</span>
+            Alugue jetskis e{' '}
+            <span className="text-gold-gradient">lanchas</span>
             <br />
-            <span className="text-white/90">Sobre as Águas</span>
+            <span className="text-white/90">premium</span>
           </h1>
 
           {/* Decorative Line */}
@@ -58,8 +58,8 @@ export function Hero() {
 
           {/* Subtitle */}
           <p className="text-lg md:text-xl text-white/60 max-w-2xl mx-auto leading-relaxed">
-            Descubra as melhores embarcações de luxo do Brasil.
-            Jetskis e lanchas premium das melhores empresas do Brasil.
+            Compare embarcações de locadoras parceiras e reserve direto pelo
+            WhatsApp — com documentação náutica digital no embarque.
           </p>
 
           {/* CTAs */}
@@ -72,26 +72,26 @@ export function Hero() {
               <ArrowDown className="ml-2 h-4 w-4" />
             </Link>
             <Link
-              href="/signup"
+              href="#como-funciona"
               className="inline-flex items-center justify-center text-base px-8 py-4 border-2 border-white/30 text-white font-medium hover:bg-white/10 hover:border-white/50 active:bg-white/20 transition-all duration-300"
             >
-              Para Empresas
+              Como Funciona
             </Link>
           </div>
 
-          {/* Stats - Premium Style */}
-          <div className="mt-24 grid grid-cols-3 gap-8 max-w-3xl mx-auto">
+          {/* Diferenciais reais (sem números fictícios) */}
+          <div className="mt-24 grid grid-cols-1 sm:grid-cols-3 gap-8 max-w-3xl mx-auto">
             <div className="text-center">
-              <div className="font-display text-4xl md:text-5xl text-white font-medium">50+</div>
-              <div className="mt-2 text-sm text-white/40 tracking-wide uppercase">Empresas Parceiras</div>
+              <div className="font-display text-xl md:text-2xl text-white font-medium">Locadoras verificadas</div>
+              <div className="mt-2 text-sm text-white/40 tracking-wide">Você fala direto com quem opera</div>
             </div>
-            <div className="text-center border-x border-white/10 px-4">
-              <div className="font-display text-4xl md:text-5xl text-white font-medium">200+</div>
-              <div className="mt-2 text-sm text-white/40 tracking-wide uppercase">Embarcações</div>
+            <div className="text-center sm:border-x border-white/10 px-4">
+              <div className="font-display text-xl md:text-2xl text-white font-medium">Documentação digital</div>
+              <div className="mt-2 text-sm text-white/40 tracking-wide">NORMAM-212 resolvida no embarque</div>
             </div>
             <div className="text-center">
-              <div className="font-display text-4xl md:text-5xl text-white font-medium">10k+</div>
-              <div className="mt-2 text-sm text-white/40 tracking-wide uppercase">Experiências</div>
+              <div className="font-display text-xl md:text-2xl text-white font-medium">Termo no celular</div>
+              <div className="mt-2 text-sm text-white/40 tracking-wide">Assinatura digital, sem papelada</div>
             </div>
           </div>
         </div>

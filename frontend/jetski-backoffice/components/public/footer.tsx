@@ -71,19 +71,24 @@ export function Footer() {
             </h3>
             <ul className="space-y-3">
               <li>
-                <Link href="/login" className="text-sm text-white/40 hover:text-gold transition-colors duration-300">
-                  Acessar Painel
+                <Link href="/para-empresas" className="text-sm text-white/40 hover:text-gold transition-colors duration-300">
+                  Conheça o sistema
+                </Link>
+              </li>
+              <li>
+                <Link href="/para-empresas#planos" className="text-sm text-white/40 hover:text-gold transition-colors duration-300">
+                  Planos e preços
                 </Link>
               </li>
               <li>
                 <Link href="/signup" className="text-sm text-white/40 hover:text-gold transition-colors duration-300">
-                  Cadastrar Empresa
+                  Teste grátis 14 dias
                 </Link>
               </li>
               <li>
-                <span className="text-sm text-white/20">
-                  Planos (em breve)
-                </span>
+                <Link href="/login" className="text-sm text-white/40 hover:text-gold transition-colors duration-300">
+                  Acessar Painel
+                </Link>
               </li>
             </ul>
           </div>
