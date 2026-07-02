@@ -2,8 +2,8 @@
 
 import { signIn } from 'next-auth/react'
 import Link from 'next/link'
-import { Waves } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Logo } from '@/components/logo'
 
 export default function LoginPage() {
   const handleLogin = () => {
@@ -16,10 +16,7 @@ export default function LoginPage() {
       <div className="hidden lg:flex lg:w-1/2 bg-ocean-gradient items-center justify-center p-12">
         <div className="text-center text-white">
           <div className="mb-8">
-            <Waves className="h-24 w-24 mx-auto mb-4 animate-pulse" />
-            <h1 className="text-5xl font-bold tracking-tight">
-              MeuJet
-            </h1>
+            <Logo variant="full" theme="dark" size={56} className="mx-auto mb-4 flex-col gap-4" />
             <p className="mt-4 text-xl text-white/80">
               Gestão completa para sua frota de jet skis
             </p>
@@ -57,13 +54,8 @@ export default function LoginPage() {
       <div className="flex w-full lg:w-1/2 items-center justify-center bg-auth-gradient p-8">
         <div className="w-full max-w-md space-y-8">
           {/* Mobile Logo */}
-          <div className="lg:hidden text-center mb-8">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary">
-              <Waves className="h-8 w-8 text-primary-foreground" />
-            </div>
-            <h1 className="mt-4 text-3xl font-bold tracking-tight text-primary">
-              MeuJet
-            </h1>
+          <div className="lg:hidden mb-8 flex justify-center">
+            <Logo variant="full" theme="light" size={40} />
           </div>
 
           <div className="rounded-xl bg-white p-8 shadow-xl">

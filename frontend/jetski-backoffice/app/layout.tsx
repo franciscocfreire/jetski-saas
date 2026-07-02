@@ -21,10 +21,16 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "MeuJet | Aluguel de Jetskis e Lanchas",
+  metadataBase: new URL("https://meujet.com.br"),
+  title: "Meu Jet | Aluguel de Jetskis e Lanchas",
   description: "Marketplace de aluguel de jetskis e lanchas. Compare preços, reserve online e viva experiências náuticas exclusivas.",
-  icons: {
-    icon: "/favicon.ico",
+  openGraph: {
+    title: "Meu Jet | Aluguel de Jetskis e Lanchas",
+    description: "Marketplace de aluguel de jetskis e lanchas. Compare preços, reserve online e viva experiências náuticas exclusivas.",
+    url: "https://meujet.com.br",
+    siteName: "Meu Jet",
+    locale: "pt_BR",
+    type: "website",
   },
 };
 
@@ -34,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} antialiased`}
       >

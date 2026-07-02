@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Waves, Loader2, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react'
+import { Loader2, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Logo } from '@/components/logo'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -150,10 +151,7 @@ export default function SignupPage() {
       {/* Left side - Branding (hidden on mobile) */}
       <div className="hidden lg:flex lg:w-1/2 bg-ocean-gradient items-center justify-center p-12">
         <div className="text-center text-white max-w-lg">
-          <Waves className="h-20 w-20 mx-auto mb-6" />
-          <h1 className="text-4xl font-bold tracking-tight mb-4">
-            MeuJet
-          </h1>
+          <Logo variant="full" theme="dark" size={48} className="mx-auto mb-6 flex-col gap-4" />
           <p className="text-xl text-white/90 mb-8">
             A plataforma completa para gestão de locadoras de jet skis
           </p>
@@ -190,13 +188,8 @@ export default function SignupPage() {
       <div className="flex w-full lg:w-1/2 items-center justify-center bg-auth-gradient py-8 px-4">
         <div className="w-full max-w-md space-y-6">
           {/* Mobile Logo */}
-          <div className="lg:hidden text-center mb-6">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary">
-              <Waves className="h-7 w-7 text-primary-foreground" />
-            </div>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight text-primary">
-              MeuJet
-            </h1>
+          <div className="lg:hidden mb-6 flex justify-center">
+            <Logo variant="full" theme="light" size={36} />
           </div>
 
           <div className="rounded-xl bg-white p-6 sm:p-8 shadow-xl">

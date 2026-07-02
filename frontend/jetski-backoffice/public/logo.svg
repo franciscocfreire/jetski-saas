@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 48" role="img" aria-label="Meu Jet">
+  <g fill="none" stroke-linecap="round" stroke-width="4">
+    <path d="M6 22 C 16 22, 20 12.5, 31 12.5 C 40.5 12.5, 43 19, 60 17" stroke="#C9A24B"/>
+    <path d="M6 35.5 C 14 35.5, 19.5 27, 29 27 C 38 27, 43.5 34, 60 31.5" stroke="#1E4266"/>
+  </g>
+  <text x="76" y="31.5" font-family="'Playfair Display', Georgia, serif" font-weight="600" font-size="21" letter-spacing="4.6" fill="#12263F">MEU JET</text>
+</svg>

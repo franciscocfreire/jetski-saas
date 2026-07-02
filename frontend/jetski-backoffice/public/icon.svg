@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Meu Jet">
+  <rect width="64" height="64" rx="14" fill="#0A1628"/>
+  <g fill="none" stroke-linecap="round" stroke-width="5">
+    <path d="M10 28 C 19 28, 22.5 19.5, 32.5 19.5 C 41 19.5, 43.5 25, 55 23.5" stroke="#C9A24B"/>
+    <path d="M10 41 C 17 41, 22 33.5, 30.5 33.5 C 38.5 33.5, 43.5 40, 55 38" stroke="#F8F4EA"/>
+  </g>
+</svg>

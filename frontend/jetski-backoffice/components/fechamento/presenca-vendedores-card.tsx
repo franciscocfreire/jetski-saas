@@ -137,12 +137,12 @@ function PresencaItem({ presenca }: { presenca: PresencaVendedorResponse }) {
           {presenca.tipo === 'INTEGRAL' ? 'Integral' : 'Meia'}
         </Badge>
         {isAjustado && (
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-orange-600 border-orange-300">
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-warning border-warning/40">
             Ajustado
           </Badge>
         )}
       </div>
-      <span className={isAjustado ? 'text-orange-600 font-medium' : ''}>
+      <span className={isAjustado ? 'text-warning font-medium' : ''}>
         {formatCurrency(presenca.valorEfetivo)}
       </span>
     </div>

@@ -212,7 +212,7 @@ function DetalhesSheet({
               <Separator />
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Combustível</span>
-                <span className="font-medium text-orange-600">
+                <span className="font-medium text-warning">
                   {formatCurrency(fechamento.totalCombustivel)}
                 </span>
               </div>
@@ -622,7 +622,7 @@ export default function FechamentoDiarioPage() {
               <CardTitle className="text-sm font-medium">Combustível</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
+              <div className="text-2xl font-bold text-warning">
                 {formatCurrency(totais.combustivel)}
               </div>
             </CardContent>
@@ -715,7 +715,7 @@ export default function FechamentoDiarioPage() {
                     <TableCell className="text-right text-green-600">
                       {formatCurrency(fechamento.totalFaturado)}
                     </TableCell>
-                    <TableCell className="text-right text-orange-600">
+                    <TableCell className="text-right text-warning">
                       {formatCurrency(fechamento.totalCombustivel)}
                     </TableCell>
                     <TableCell className="text-right text-blue-600">

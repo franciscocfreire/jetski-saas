@@ -364,12 +364,12 @@ export default function DashboardFinanceiroPage() {
                       labelFormatter={(label) => `Dia ${label}`}
                     />
                     <Legend />
-                    <Bar dataKey="Receita" fill="#22c55e" stackId="positive" />
-                    <Bar dataKey="Despesas Op." fill="#ef4444" stackId="negative" />
-                    <Bar dataKey="Combustível" fill="#f97316" stackId="negative" />
-                    <Bar dataKey="Comissões" fill="#3b82f6" stackId="negative" />
-                    <Bar dataKey="Diárias Vend." fill="#8b5cf6" stackId="negative" />
-                    <Bar dataKey="Manutenções" fill="#ec4899" stackId="negative" />
+                    <Bar dataKey="Receita" fill="var(--success)" stackId="positive" />
+                    <Bar dataKey="Despesas Op." fill="var(--chart-1)" stackId="negative" />
+                    <Bar dataKey="Combustível" fill="var(--chart-2)" stackId="negative" />
+                    <Bar dataKey="Comissões" fill="var(--chart-3)" stackId="negative" />
+                    <Bar dataKey="Diárias Vend." fill="var(--chart-4)" stackId="negative" />
+                    <Bar dataKey="Manutenções" fill="var(--chart-5)" stackId="negative" />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -616,7 +616,7 @@ export default function DashboardFinanceiroPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <CalendarIcon className="h-5 w-5 text-orange-500" />
+                  <CalendarIcon className="h-5 w-5 text-warning" />
                   Dias sem Fechamento
                 </CardTitle>
               </CardHeader>

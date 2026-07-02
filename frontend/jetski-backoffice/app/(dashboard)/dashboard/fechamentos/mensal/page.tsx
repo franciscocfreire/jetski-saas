@@ -268,7 +268,7 @@ function DetalhesSheet({
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">(-) Custos Operacionais</span>
-                <span className="font-medium text-orange-600">
+                <span className="font-medium text-warning">
                   {formatCurrency(fechamento.totalCustos)}
                 </span>
               </div>
@@ -609,7 +609,7 @@ export default function FechamentoMensalPage() {
                       <TableCell className="text-right text-green-600">
                         {formatCurrency(fechamento.totalFaturado)}
                       </TableCell>
-                      <TableCell className="text-right text-orange-600">
+                      <TableCell className="text-right text-warning">
                         {formatCurrency(fechamento.totalCustos + fechamento.totalComissoes + fechamento.totalManutencoes)}
                       </TableCell>
                       <TableCell className={cn(

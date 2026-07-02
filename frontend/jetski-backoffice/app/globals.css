@@ -11,6 +11,12 @@
   --font-serif: var(--font-playfair);
   --color-gold: var(--gold);
   --color-gold-foreground: var(--gold-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,87 +52,103 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* MeuJet - Identidade Visual */
-/* Primary: Azul Oceano (#0ea5e9 / sky-500) */
-/* Accent: Laranja Energético (#f97316 / orange-500) */
+/* Meu Jet — Identidade Visual "Náutico Premium" (ver BRAND.md)
+   Primary: Navy Marinha (#1E4266) · Accent: Dourado (#C9A24B) · Neutros: areia */
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.98 0.005 240);
-  --foreground: oklch(0.2 0.02 240);
+  /* Neutros areia */
+  --background: oklch(0.985 0.006 90);
+  --foreground: oklch(0.24 0.045 252);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.02 240);
+  --card-foreground: oklch(0.24 0.045 252);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.02 240);
-  /* Primary: Sky Blue - Azul Oceano */
-  --primary: oklch(0.685 0.169 237.323);
+  --popover-foreground: oklch(0.24 0.045 252);
+  /* Primary: Navy Marinha */
+  --primary: oklch(0.36 0.075 252);
   --primary-foreground: oklch(1 0 0);
-  /* Secondary: Light Sky */
-  --secondary: oklch(0.95 0.02 237);
-  --secondary-foreground: oklch(0.4 0.08 237);
-  --muted: oklch(0.96 0.01 240);
-  --muted-foreground: oklch(0.5 0.02 240);
-  /* Accent: Orange - Laranja Energético */
-  --accent: oklch(0.702 0.183 55.093);
-  --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.02 240);
-  --input: oklch(0.9 0.02 240);
-  --ring: oklch(0.685 0.169 237.323);
-  /* Gold accent for premium */
+  /* Secondary: Areia */
+  --secondary: oklch(0.97 0.012 90);
+  --secondary-foreground: oklch(0.36 0.075 252);
+  --muted: oklch(0.96 0.01 90);
+  --muted-foreground: oklch(0.5 0.03 250);
+  /* Accent: champagne suave (hover de menus/superfícies); dourado pleno em --gold */
+  --accent: oklch(0.93 0.035 90);
+  --accent-foreground: oklch(0.3 0.06 252);
+  --destructive: oklch(0.55 0.18 25);
+  --border: oklch(0.91 0.02 90);
+  --input: oklch(0.91 0.02 90);
+  --ring: oklch(0.36 0.075 252);
+  /* Dourado premium */
   --gold: oklch(0.75 0.12 85);
-  --gold-foreground: oklch(0.15 0.02 85);
-  /* Charts com paleta oceano */
-  --chart-1: oklch(0.685 0.169 237.323);
-  --chart-2: oklch(0.702 0.183 55.093);
-  --chart-3: oklch(0.6 0.15 180);
-  --chart-4: oklch(0.75 0.15 280);
-  --chart-5: oklch(0.65 0.2 340);
-  /* Sidebar - Azul escuro elegante */
-  --sidebar: oklch(0.25 0.05 240);
-  --sidebar-foreground: oklch(0.95 0.01 240);
-  --sidebar-primary: oklch(0.685 0.169 237.323);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.35 0.06 240);
-  --sidebar-accent-foreground: oklch(0.95 0.01 240);
-  --sidebar-border: oklch(0.35 0.04 240);
-  --sidebar-ring: oklch(0.685 0.169 237.323);
+  --gold-foreground: oklch(0.22 0.05 85);
+  /* Semânticas de status (separadas da marca) */
+  --success: oklch(0.6 0.13 155);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.58 0.125 72);
+  --warning-foreground: oklch(1 0 0);
+  --info: oklch(0.6 0.11 240);
+  --info-foreground: oklch(1 0 0);
+  /* Charts — paleta categórica validada (CVD + contraste), ordem fixa */
+  --chart-1: oklch(0.45 0.12 250);
+  --chart-2: oklch(0.6 0.13 80);
+  --chart-3: oklch(0.58 0.12 195);
+  --chart-4: oklch(0.55 0.13 300);
+  --chart-5: oklch(0.63 0.15 40);
+  /* Sidebar — Navy Abissal com item ativo dourado (âncora da marca) */
+  --sidebar: oklch(0.19 0.042 255);
+  --sidebar-foreground: oklch(0.88 0.015 250);
+  --sidebar-primary: oklch(0.75 0.12 85);
+  --sidebar-primary-foreground: oklch(0.19 0.042 255);
+  --sidebar-accent: oklch(0.26 0.05 252);
+  --sidebar-accent-foreground: oklch(0.95 0.01 250);
+  --sidebar-border: oklch(0.28 0.045 252);
+  --sidebar-ring: oklch(0.75 0.12 85);
 }
 
 .dark {
-  --background: oklch(0.15 0.02 240);
-  --foreground: oklch(0.95 0.01 240);
-  --card: oklch(0.2 0.025 240);
-  --card-foreground: oklch(0.95 0.01 240);
-  --popover: oklch(0.2 0.025 240);
-  --popover-foreground: oklch(0.95 0.01 240);
-  /* Primary: Sky Blue - Azul Oceano (lighter for dark mode) */
-  --primary: oklch(0.75 0.15 237.323);
-  --primary-foreground: oklch(0.15 0.02 240);
-  --secondary: oklch(0.25 0.03 240);
-  --secondary-foreground: oklch(0.9 0.01 240);
-  --muted: oklch(0.25 0.02 240);
-  --muted-foreground: oklch(0.65 0.02 240);
-  /* Accent: Orange */
-  --accent: oklch(0.75 0.17 55.093);
-  --accent-foreground: oklch(0.15 0.02 240);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.3 0.02 240);
-  --input: oklch(0.3 0.02 240);
-  --ring: oklch(0.75 0.15 237.323);
-  --chart-1: oklch(0.75 0.15 237.323);
-  --chart-2: oklch(0.75 0.17 55.093);
-  --chart-3: oklch(0.65 0.12 180);
-  --chart-4: oklch(0.7 0.15 280);
-  --chart-5: oklch(0.7 0.18 340);
-  --sidebar: oklch(0.18 0.03 240);
-  --sidebar-foreground: oklch(0.95 0.01 240);
-  --sidebar-primary: oklch(0.75 0.15 237.323);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.28 0.04 240);
-  --sidebar-accent-foreground: oklch(0.95 0.01 240);
-  --sidebar-border: oklch(0.3 0.03 240);
-  --sidebar-ring: oklch(0.75 0.15 237.323);
+  --background: oklch(0.19 0.042 255);
+  --foreground: oklch(0.94 0.012 90);
+  --card: oklch(0.23 0.045 252);
+  --card-foreground: oklch(0.94 0.012 90);
+  --popover: oklch(0.23 0.045 252);
+  --popover-foreground: oklch(0.94 0.012 90);
+  /* Primary: Navy Céu (clareado para dark) */
+  --primary: oklch(0.65 0.09 245);
+  --primary-foreground: oklch(0.16 0.04 250);
+  --secondary: oklch(0.27 0.05 252);
+  --secondary-foreground: oklch(0.9 0.015 250);
+  --muted: oklch(0.26 0.04 252);
+  --muted-foreground: oklch(0.64 0.03 250);
+  /* Accent: navy elevado com texto champagne */
+  --accent: oklch(0.3 0.055 252);
+  --accent-foreground: oklch(0.85 0.08 90);
+  --destructive: oklch(0.66 0.16 25);
+  --border: oklch(0.3 0.04 252);
+  --input: oklch(0.3 0.04 252);
+  --ring: oklch(0.65 0.09 245);
+  /* Champagne assume o papel do dourado no escuro */
+  --gold: oklch(0.85 0.08 90);
+  --gold-foreground: oklch(0.19 0.042 255);
+  --success: oklch(0.7 0.13 155);
+  --success-foreground: oklch(0.16 0.04 250);
+  --warning: oklch(0.8 0.13 85);
+  --warning-foreground: oklch(0.25 0.05 85);
+  --info: oklch(0.7 0.1 240);
+  --info-foreground: oklch(0.16 0.04 250);
+  --chart-1: oklch(0.64 0.11 245);
+  --chart-2: oklch(0.66 0.12 85);
+  --chart-3: oklch(0.63 0.11 195);
+  --chart-4: oklch(0.62 0.11 300);
+  --chart-5: oklch(0.65 0.14 45);
+  --sidebar: oklch(0.17 0.038 255);
+  --sidebar-foreground: oklch(0.88 0.015 250);
+  --sidebar-primary: oklch(0.75 0.12 85);
+  --sidebar-primary-foreground: oklch(0.19 0.042 255);
+  --sidebar-accent: oklch(0.24 0.045 252);
+  --sidebar-accent-foreground: oklch(0.95 0.01 250);
+  --sidebar-border: oklch(0.26 0.04 252);
+  --sidebar-ring: oklch(0.75 0.12 85);
 }
 
 @layer base {
@@ -138,27 +160,33 @@
   }
 }
 
-/* Custom gradient backgrounds for MeuJet */
+/* Navy Abissal sólido — fundo estrutural do site público */
+.bg-abyss {
+  background-color: oklch(0.17 0.038 255);
+}
+
+/* Custom gradient backgrounds — Meu Jet */
 .bg-ocean-gradient {
   background: linear-gradient(135deg,
-    oklch(0.685 0.169 237.323) 0%,
-    oklch(0.55 0.15 220) 50%,
-    oklch(0.45 0.12 200) 100%
+    oklch(0.36 0.075 252) 0%,
+    oklch(0.28 0.06 252) 50%,
+    oklch(0.19 0.042 255) 100%
   );
 }
 
+/* Compat: antigo gradiente laranja re-apontado para bronze/dourado */
 .bg-sunset-gradient {
   background: linear-gradient(135deg,
-    oklch(0.702 0.183 55.093) 0%,
-    oklch(0.65 0.2 30) 100%
+    oklch(0.75 0.12 85) 0%,
+    oklch(0.6 0.12 70) 100%
   );
 }
 
 .bg-auth-gradient {
   background: linear-gradient(135deg,
-    oklch(0.95 0.02 237) 0%,
-    oklch(0.9 0.04 220) 50%,
-    oklch(0.95 0.03 55) 100%
+    oklch(0.97 0.012 90) 0%,
+    oklch(0.93 0.025 250) 50%,
+    oklch(0.955 0.02 90) 100%
   );
 }
 
@@ -169,17 +197,17 @@
 /* Premium Dark Background */
 .bg-premium-dark {
   background: linear-gradient(180deg,
-    oklch(0.08 0.02 240) 0%,
-    oklch(0.05 0.015 240) 100%
+    oklch(0.16 0.035 255) 0%,
+    oklch(0.12 0.03 255) 100%
   );
 }
 
 /* Premium Navy Gradient */
 .bg-premium-navy {
   background: linear-gradient(135deg,
-    oklch(0.12 0.04 240) 0%,
-    oklch(0.08 0.03 220) 50%,
-    oklch(0.06 0.02 200) 100%
+    oklch(0.22 0.05 252) 0%,
+    oklch(0.17 0.04 253) 50%,
+    oklch(0.14 0.032 255) 100%
   );
 }
 
@@ -206,7 +234,7 @@
 
 /* Glassmorphism card */
 .glass {
-  background: oklch(0.15 0.02 240 / 0.6);
+  background: oklch(0.19 0.042 255 / 0.6);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid oklch(1 0 0 / 0.1);
@@ -229,8 +257,8 @@
 
 .shadow-glow {
   box-shadow:
-    0 0 30px oklch(0.685 0.169 237.323 / 0.3),
-    0 0 60px oklch(0.685 0.169 237.323 / 0.1);
+    0 0 30px oklch(0.5 0.09 248 / 0.3),
+    0 0 60px oklch(0.5 0.09 248 / 0.1);
 }
 
 .shadow-gold-glow {
@@ -292,7 +320,7 @@
   background: linear-gradient(
     135deg,
     oklch(0.75 0.12 85) 0%,
-    oklch(0.685 0.169 237.323) 50%,
+    oklch(0.5 0.09 248) 50%,
     oklch(0.75 0.12 85) 100%
   );
   background-size: 200% 200%;

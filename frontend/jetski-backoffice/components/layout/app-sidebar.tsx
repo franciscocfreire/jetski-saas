@@ -11,7 +11,6 @@ import {
   ClipboardList,
   FileText,
   Home,
-  Waves,
   Ship,
   Users,
   UserCircle,
@@ -50,6 +49,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Logo } from '@/components/logo'
 import { useTenantStore } from '@/lib/store/tenant-store'
 
 const mainNavItems = [
@@ -210,12 +210,12 @@ export function AppSidebar() {
                   size="lg"
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <Waves className="size-4" />
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-accent">
+                    <Logo variant="icon" theme="dark" size={14} />
                   </div>
                   <div className="flex flex-col gap-0.5 leading-none">
                     <span className="font-semibold">
-                      {currentTenant?.razaoSocial || 'MeuJet'}
+                      {currentTenant?.razaoSocial || 'Meu Jet'}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {currentTenant?.slug || 'Selecione um tenant'}

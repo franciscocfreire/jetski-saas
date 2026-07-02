@@ -295,7 +295,7 @@ function VendedorPresencaRow({
                 Base: {formatCurrency(vendedor.diariaBase)}
               </p>
             ) : (
-              <p className="text-xs text-orange-600 flex items-center gap-1">
+              <p className="text-xs text-warning flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" />
                 Diária não configurada
               </p>

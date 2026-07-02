@@ -16,7 +16,7 @@ const statusConfig: Record<ReservaStatus, { label: string; color: string }> = {
   CONFIRMADA: { label: 'Confirmada', color: 'bg-green-500' },
   CANCELADA: { label: 'Cancelada', color: 'bg-red-500' },
   FINALIZADA: { label: 'Finalizada', color: 'bg-gray-500' },
-  EXPIRADA: { label: 'Expirada', color: 'bg-orange-500' },
+  EXPIRADA: { label: 'Expirada', color: 'bg-warning' },
 }
 
 const ymd = (d: Date) =>
