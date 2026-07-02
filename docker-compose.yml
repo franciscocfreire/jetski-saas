@@ -215,8 +215,9 @@ services:
       # External URL (for ngrok or other tunnels - used for JWT issuer validation)
       JETSKI_EXTERNAL_URL: ${JETSKI_EXTERNAL_URL:-}
 
-      # Super admin de plataforma (emails separados por vírgula) — promovidos no boot
-      PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
+      # Super admin de plataforma (emails separados por vírgula) — promovidos no boot.
+      # Dev: admin@acme.com por padrão (mesmo super admin de prod).
+      PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-admin@acme.com}
 
       # Logging
       LOGGING_LEVEL_ROOT: INFO

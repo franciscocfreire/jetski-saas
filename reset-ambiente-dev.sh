@@ -337,6 +337,12 @@ WHERE NOT EXISTS (
     SELECT 1 FROM public.credito_lancamento c WHERE c.tenant_id = t.id AND c.tipo = 'ADESAO'
 );
 
+-- Super admin de dev (espelha PLATFORM_ADMIN_EMAILS do compose; o seeder do backend
+-- só roda no boot — este bloco garante o acesso logo após o reset, sem restart)
+INSERT INTO public.usuario_global_roles (usuario_id, roles, unrestricted_access)
+SELECT id, ARRAY['PLATFORM_ADMIN'], true FROM public.usuario WHERE email = 'admin@acme.com'
+ON CONFLICT (usuario_id) DO UPDATE SET unrestricted_access = true, updated_at = now();
+
 -- F2.3: habilitação do condutor (CHA/EMA + GRU)
 CREATE TABLE IF NOT EXISTS public.reserva_habilitacao (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
