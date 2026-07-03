@@ -372,6 +372,30 @@ ALTER TABLE public.credito_compra
     ADD COLUMN IF NOT EXISTS valor_pago     numeric(10,2),
     ADD COLUMN IF NOT EXISTS preco_unitario numeric(10,2);
 
+-- V031: portal do cliente — avaliações de locação (nota 1-5 + média pública)
+CREATE TABLE IF NOT EXISTS public.avaliacao (
+    id          uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id   uuid NOT NULL,
+    locacao_id  uuid NOT NULL REFERENCES public.locacao(id) ON DELETE CASCADE,
+    cliente_id  uuid NOT NULL,
+    modelo_id   uuid NOT NULL,
+    nota        integer NOT NULL,
+    comentario  text,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT avaliacao_locacao_uq UNIQUE (locacao_id),
+    CONSTRAINT avaliacao_nota_check CHECK (nota BETWEEN 1 AND 5)
+);
+CREATE INDEX IF NOT EXISTS idx_avaliacao_tenant_modelo ON public.avaliacao (tenant_id, modelo_id);
+CREATE INDEX IF NOT EXISTS idx_avaliacao_modelo ON public.avaliacao (modelo_id);
+ALTER TABLE public.avaliacao ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.avaliacao FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_avaliacao ON public.avaliacao;
+CREATE POLICY tenant_isolation_avaliacao ON public.avaliacao
+    USING (tenant_id = public.get_current_tenant_id());
+DROP POLICY IF EXISTS avaliacao_public_read ON public.avaliacao;
+CREATE POLICY avaliacao_public_read ON public.avaliacao
+    FOR SELECT USING (true);
+
 -- V030: portal do cliente — canal de origem da reserva (BALCAO | PORTAL)
 ALTER TABLE public.reserva ADD COLUMN IF NOT EXISTS canal varchar(20) NOT NULL DEFAULT 'BALCAO';
 ALTER TABLE public.reserva DROP CONSTRAINT IF EXISTS reserva_canal_check;

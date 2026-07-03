@@ -61,9 +61,16 @@ public class MarketplaceService {
                 t.whatsapp,
                 t.cidade,
                 t.uf,
-                t.prioridade_marketplace
+                t.prioridade_marketplace,
+                av.nota_media,
+                av.total_avaliacoes
             FROM modelo m
             INNER JOIN tenant t ON m.tenant_id = t.id
+            LEFT JOIN LATERAL (
+                SELECT round(avg(a.nota)::numeric, 1) AS nota_media,
+                       count(*)::int AS total_avaliacoes
+                FROM avaliacao a WHERE a.modelo_id = m.id
+            ) av ON true
             WHERE m.ativo = true
               AND m.exibir_no_marketplace = true
               AND t.status = 'ATIVO'
@@ -122,9 +129,16 @@ public class MarketplaceService {
                 t.whatsapp,
                 t.cidade,
                 t.uf,
-                t.prioridade_marketplace
+                t.prioridade_marketplace,
+                av.nota_media,
+                av.total_avaliacoes
             FROM modelo m
             INNER JOIN tenant t ON m.tenant_id = t.id
+            LEFT JOIN LATERAL (
+                SELECT round(avg(a.nota)::numeric, 1) AS nota_media,
+                       count(*)::int AS total_avaliacoes
+                FROM avaliacao a WHERE a.modelo_id = m.id
+            ) av ON true
             WHERE m.id = :modeloId
               AND m.ativo = true
               AND m.exibir_no_marketplace = true
@@ -168,9 +182,16 @@ public class MarketplaceService {
                 t.whatsapp,
                 t.cidade,
                 t.uf,
-                t.prioridade_marketplace
+                t.prioridade_marketplace,
+                av.nota_media,
+                av.total_avaliacoes
             FROM modelo m
             INNER JOIN tenant t ON m.tenant_id = t.id
+            LEFT JOIN LATERAL (
+                SELECT round(avg(a.nota)::numeric, 1) AS nota_media,
+                       count(*)::int AS total_avaliacoes
+                FROM avaliacao a WHERE a.modelo_id = m.id
+            ) av ON true
             WHERE t.slug = :slug
               AND m.ativo = true
               AND m.exibir_no_marketplace = true
@@ -283,6 +304,8 @@ public class MarketplaceService {
         String cidade = (String) row[11];
         String uf = (String) row[12];
         Integer prioridade = row[13] != null ? ((Number) row[13]).intValue() : 0;
+        BigDecimal notaMedia = row[14] != null ? new BigDecimal(row[14].toString()) : null;
+        Integer totalAvaliacoes = row[15] != null ? ((Number) row[15]).intValue() : 0;
 
         BigDecimal precoPacote30min = extractPacote30min(pacotesJson);
 
@@ -300,7 +323,9 @@ public class MarketplaceService {
             empresaWhatsapp,
             cidade,
             uf,
-            prioridade
+            prioridade,
+            notaMedia,
+            totalAvaliacoes
         );
     }
 

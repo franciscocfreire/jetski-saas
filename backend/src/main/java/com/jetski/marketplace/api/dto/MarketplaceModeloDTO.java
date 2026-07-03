@@ -25,6 +25,8 @@ public record MarketplaceModeloDTO(
     String empresaWhatsapp,
     String localizacao,
     Integer prioridade,
+    BigDecimal notaMedia,
+    Integer totalAvaliacoes,
     List<MarketplaceMidiaDTO> midias
 ) {
     /**
@@ -44,7 +46,9 @@ public record MarketplaceModeloDTO(
             String empresaWhatsapp,
             String cidade,
             String uf,
-            Integer prioridade
+            Integer prioridade,
+            BigDecimal notaMedia,
+            Integer totalAvaliacoes
     ) {
         return new MarketplaceModeloDTO(
             id,
@@ -60,6 +64,8 @@ public record MarketplaceModeloDTO(
             empresaWhatsapp,
             formatLocalizacao(cidade, uf),
             prioridade,
+            notaMedia,
+            totalAvaliacoes,
             List.of()
         );
     }
@@ -82,6 +88,8 @@ public record MarketplaceModeloDTO(
             this.empresaWhatsapp,
             this.localizacao,
             this.prioridade,
+            this.notaMedia,
+            this.totalAvaliacoes,
             midias != null ? midias : List.of()
         );
     }
