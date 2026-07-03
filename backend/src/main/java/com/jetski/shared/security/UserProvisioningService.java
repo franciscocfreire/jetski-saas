@@ -99,4 +99,15 @@ public interface UserProvisioningService {
      * @return {@code true} se atualizado com sucesso
      */
     boolean updateUserName(String providerUserId, String nome);
+
+    /**
+     * Vincula o CPF à identidade: o USERNAME do usuário passa a ser o CPF
+     * (dígitos apenas) e o atributo {@code cpf} é gravado — habilita login
+     * por e-mail OU CPF (loginWithEmailAllowed nativo do Keycloak) e a
+     * unicidade do username vira uma segunda trava de CPF único.
+     *
+     * @throws DuplicateUserException se o CPF/username já pertence a outra conta
+     * @return {@code true} se sincronizado com sucesso
+     */
+    boolean definirCpf(String providerUserId, String cpfDigits);
 }

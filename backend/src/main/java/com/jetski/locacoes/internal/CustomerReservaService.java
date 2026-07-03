@@ -1,6 +1,7 @@
 package com.jetski.locacoes.internal;
 
 import com.jetski.locacoes.domain.Cliente;
+import com.jetski.locacoes.domain.CustomerProfile;
 import com.jetski.locacoes.domain.ClienteIdentityProvider;
 import com.jetski.locacoes.api.ModeloService;
 import com.jetski.locacoes.domain.Modelo;
@@ -67,6 +68,7 @@ public class CustomerReservaService {
     private final ReservaComprovanteRepository comprovanteRepository;
     private final StorageService storageService;
     private final CustomerAccountService customerAccountService;
+    private final CustomerProfileService customerProfileService;
     private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
     private final AceiteService aceiteService;
     private final AceiteOtpService aceiteOtpService;
@@ -117,20 +119,42 @@ public class CustomerReservaService {
 
     /**
      * Resolve o Cliente do sub nesta loja; cria (origem=PORTAL, conta ATIVA) se
-     * for a primeira interação. Dedupe por CPF nunca vincula silenciosamente:
-     * CPF já cadastrado na loja ⇒ orienta o fluxo de claim (anti-takeover).
+     * for a primeira interação. A IDENTIDADE (CPF/RG/nascimento…) vem do perfil
+     * GLOBAL: a reserva sempre usa o CPF do cadastro — CPF divergente é
+     * bloqueado. Dedupe por CPF na loja nunca vincula silenciosamente
+     * (pre-conta do balcão ⇒ claim/OTP).
      */
     private Cliente resolverOuCriarCliente(UUID tenantId, String sub, String email,
                                            String nome, String cpf, String telefone) {
+        CustomerProfile profile = customerProfileService.obter(sub, nome);
+
+        // CPF do wizard: define no perfil se ainda não há; divergente ⇒ bloqueia
+        if (cpf != null && !cpf.isBlank()) {
+            if (profile.getCpf() != null && !profile.getCpf().isBlank()
+                    && !soDigitos(profile.getCpf()).equals(soDigitos(cpf))) {
+                throw new BusinessException(
+                    "A reserva usa o CPF do seu cadastro (" + mascarar(profile.getCpf()) +
+                    ") — não é possível reservar para outro CPF. Para corrigir, fale com a loja.");
+            }
+            customerProfileService.definirCpf(profile, cpf);
+        }
+        String cpfEfetivo = profile.getCpf();
+
+        // ATENÇÃO: lookup tenant-scoped — a policy de self-read (V029) torna
+        // vínculos de outras lojas visíveis nesta transação (app.customer_sub).
         Optional<ClienteIdentityProvider> vinculo =
-            identityRepository.findByProviderAndProviderUserId(PROVIDER, sub);
+            identityRepository.findByTenantIdAndProviderAndProviderUserId(tenantId, PROVIDER, sub);
         if (vinculo.isPresent()) {
-            return clienteRepository.findById(vinculo.get().getClienteId())
+            Cliente existente = clienteRepository.findById(vinculo.get().getClienteId())
                 .orElseThrow(() -> new NotFoundException("Cliente do vínculo não encontrado"));
+            // preenche identidade faltante no Cliente da loja
+            customerProfileService.hidratarIdentidade(existente, profile);
+            return clienteRepository.save(existente);
         }
 
-        if (cpf != null && !cpf.isBlank()) {
-            Optional<Cliente> mesmoCpf = clienteRepository.findByDocumento(cpf.trim());
+        if (cpfEfetivo != null && !cpfEfetivo.isBlank()) {
+            Optional<Cliente> mesmoCpf =
+                clienteRepository.findByTenantIdAndDocumento(tenantId, cpfEfetivo.trim());
             if (mesmoCpf.isPresent()) {
                 throw new BusinessException(
                     "Este CPF já tem cadastro nesta loja. Peça à loja o link de ativação " +
@@ -138,16 +162,17 @@ public class CustomerReservaService {
             }
         }
 
-        Cliente cliente = clienteRepository.save(Cliente.builder()
+        Cliente cliente = Cliente.builder()
             .tenantId(tenantId)
             .nome(nome)
             .email(email)
-            .documento(cpf != null && !cpf.isBlank() ? cpf.trim() : null)
             .telefone(telefone)
             .origem(Cliente.Origem.PORTAL)
             .statusConta(Cliente.StatusConta.ATIVA)
             .ativo(true)
-            .build());
+            .build();
+        customerProfileService.hidratarIdentidade(cliente, profile);
+        cliente = clienteRepository.save(cliente);
 
         identityRepository.save(ClienteIdentityProvider.builder()
             .tenantId(tenantId)
@@ -400,6 +425,17 @@ public class CustomerReservaService {
         habilitacaoService.registrar(l.reserva().getId(), dados);
         log.info("CHA enviada pelo cliente no portal: reserva={}", reservaId);
         return habilitacao(sub, reservaId);
+    }
+
+    private static String soDigitos(String cpf) {
+        return cpf == null ? "" : cpf.replaceAll("\\D", "");
+    }
+
+    /** Mascara o CPF para exibição: ***.***.789-00 */
+    private static String mascarar(String cpf) {
+        String d = soDigitos(cpf);
+        if (d.length() != 11) return "***";
+        return "***.***." + d.substring(6, 9) + "-" + d.substring(9);
     }
 
     /** Decodifica dataURL ou base64 puro de imagem. */

@@ -76,4 +76,9 @@ class KeycloakUserProvisioningAdapter implements UserProvisioningService {
     public boolean updateUserName(String providerUserId, String nome) {
         return keycloakAdminService.updateUserName(providerUserId, nome);
     }
+
+    @Override
+    public boolean definirCpf(String providerUserId, String cpfDigits) {
+        return keycloakAdminService.definirCpf(providerUserId, cpfDigits);
+    }
 }

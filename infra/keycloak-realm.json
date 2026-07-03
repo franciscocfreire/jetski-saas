@@ -15,7 +15,7 @@
     "starttls": "${SMTP_STARTTLS:false}",
     "ssl": "false"
   },
-  "editUsernameAllowed": false,
+  "editUsernameAllowed": true,
   "bruteForceProtected": true,
   "permanentLockout": false,
   "maxFailureWaitSeconds": 900,
@@ -369,5 +369,6 @@
   "defaultLocale": "pt-BR",
   "attributes": {
     "frontendUrl": "${REALM_FRONTEND_URL:http://localhost:8080}"
-  }
+  },
+  "loginWithEmailAllowed": true
 }

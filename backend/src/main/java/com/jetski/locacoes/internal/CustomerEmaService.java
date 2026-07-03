@@ -43,6 +43,7 @@ public class CustomerEmaService {
     private final ClienteAnexoService clienteAnexoService;
     private final HabilitacaoService habilitacaoService;
     private final GruService gruService;
+    private final CustomerProfileService customerProfileService;
     private final ObjectMapper objectMapper;
 
     // ============================ Dados pessoais ============================
@@ -109,6 +110,9 @@ public class CustomerEmaService {
         }
 
         clienteRepository.save(c);
+        // write-through da IDENTIDADE para o perfil global (endereço/telefone
+        // permanecem só na loja — decisão de produto)
+        customerProfileService.absorverIdentidade(sub, c.getNome(), c);
         log.info("Dados pessoais atualizados pelo cliente no portal: cliente={}", c.getId());
         return toDadosPessoais(c);
     }

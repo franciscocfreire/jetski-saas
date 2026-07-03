@@ -98,6 +98,9 @@ d = json.load(sys.stdin)
 a = d.get("attributes") or {}
 a["frontendUrl"] = os.environ["BASE"]
 d["attributes"] = a
+# login por e-mail OU CPF: username editável (vira o CPF quando definido)
+d["editUsernameAllowed"] = True
+d["loginWithEmailAllowed"] = True
 json.dump(d, open("/tmp/kc_realm.json","w"))
 '
 curl -s -o /dev/null -w ">> PUT realm http=%{http_code}\n" -X PUT \

@@ -236,6 +236,44 @@ public class KeycloakAdminService {
     }
 
     /**
+     * Vincula o CPF ao usuário: username = CPF (dígitos) + atributo cpf.
+     * Requer editUsernameAllowed=true no realm. Login por e-mail continua
+     * (loginWithEmailAllowed). Username duplicado (CPF de outra conta) → 409.
+     *
+     * @throws com.jetski.shared.security.DuplicateUserException CPF em uso
+     */
+    public boolean definirCpf(String keycloakUserId, String cpfDigits) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            RealmResource realmResource = keycloak.realm(targetRealm);
+
+            // CPF já usado como username por OUTRO usuário?
+            List<UserRepresentation> existentes =
+                realmResource.users().searchByUsername(cpfDigits, true);
+            if (!existentes.isEmpty() && !existentes.get(0).getId().equals(keycloakUserId)) {
+                throw new com.jetski.shared.security.DuplicateUserException("CPF " + cpfDigits);
+            }
+
+            UserResource userResource = realmResource.users().get(keycloakUserId);
+            UserRepresentation rep = userResource.toRepresentation();
+            rep.setUsername(cpfDigits);
+            Map<String, List<String>> attributes =
+                rep.getAttributes() != null ? rep.getAttributes() : new HashMap<>();
+            attributes.put("cpf", Collections.singletonList(cpfDigits));
+            rep.setAttributes(attributes);
+            userResource.update(rep);
+
+            log.info("CPF vinculado ao usuário Keycloak (username+atributo): userId={}", keycloakUserId);
+            return true;
+        } catch (com.jetski.shared.security.DuplicateUserException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Erro ao vincular CPF no Keycloak: userId={}, error={}",
+                keycloakUserId, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
      * Atribui roles realm-level ao usuário.
      *
      * @param realmResource Recurso do realm

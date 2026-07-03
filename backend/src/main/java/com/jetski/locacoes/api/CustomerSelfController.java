@@ -1,6 +1,8 @@
 package com.jetski.locacoes.api;
 
+import com.jetski.locacoes.domain.CustomerProfile;
 import com.jetski.locacoes.internal.CustomerAccountService;
+import com.jetski.locacoes.internal.CustomerProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -34,10 +36,31 @@ import java.util.List;
 public class CustomerSelfController {
 
     private final CustomerAccountService customerAccountService;
+    private final CustomerProfileService customerProfileService;
 
     public record AtualizarPerfilRequest(
-        @NotBlank @Size(min = 3, max = 120) String nome
+        @NotBlank @Size(min = 3, max = 120) String nome,
+        // Identidade global (CPF define-only; endereço/telefone são por loja)
+        @Size(max = 20) String cpf,
+        @Size(max = 30) String rg,
+        @Size(max = 20) String orgaoEmissor,
+        @Size(max = 60) String nacionalidade,
+        @Size(max = 80) String naturalidade,
+        Boolean estrangeiro,
+        java.time.LocalDate dataNascimento
     ) {}
+
+    public record Identidade(
+        String cpf, String rg, String orgaoEmissor,
+        String nacionalidade, String naturalidade,
+        Boolean estrangeiro, java.time.LocalDate dataNascimento
+    ) {
+        static Identidade of(CustomerProfile p) {
+            return new Identidade(p.getCpf(), p.getRg(), p.getOrgaoEmissor(),
+                p.getNacionalidade(), p.getNaturalidade(), p.getEstrangeiro(),
+                p.getDataNascimento());
+        }
+    }
 
     @Value
     @Builder
@@ -45,6 +68,7 @@ public class CustomerSelfController {
         String nome;
         String email;
         boolean emailVerified;
+        Identidade identidade;
         List<CustomerAccountService.VinculoLoja> lojas;
     }
 
@@ -52,20 +76,29 @@ public class CustomerSelfController {
     @Operation(summary = "Perfil do cliente autenticado + lojas vinculadas")
     public ResponseEntity<SelfResponse> self(@AuthenticationPrincipal Jwt jwt) {
         Boolean verified = jwt.getClaimAsBoolean("email_verified");
+        CustomerProfile profile = customerProfileService.obter(
+            jwt.getSubject(), jwt.getClaimAsString("name"));
         return ResponseEntity.ok(SelfResponse.builder()
             .nome(jwt.getClaimAsString("name"))
             .email(jwt.getClaimAsString("email"))
             .emailVerified(Boolean.TRUE.equals(verified))
+            .identidade(Identidade.of(profile))
             .lojas(customerAccountService.vinculos(jwt.getSubject()))
             .build());
     }
 
     @PutMapping
-    @Operation(summary = "Atualiza o nome do cliente (identidade global)")
-    public ResponseEntity<Void> atualizar(
+    @Operation(summary = "Atualiza nome e identidade global (CPF define-only)")
+    public ResponseEntity<Identidade> atualizar(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody AtualizarPerfilRequest request) {
         customerAccountService.atualizarNome(jwt.getSubject(), request.nome());
-        return ResponseEntity.noContent().build();
+        CustomerProfile atualizado = customerProfileService.atualizar(
+            jwt.getSubject(), request.nome(),
+            new CustomerProfileService.AtualizarCmd(
+                request.cpf(), request.rg(), request.orgaoEmissor(),
+                request.nacionalidade(), request.naturalidade(),
+                request.estrangeiro(), request.dataNascimento()));
+        return ResponseEntity.ok(Identidade.of(atualizado));
     }
 }
