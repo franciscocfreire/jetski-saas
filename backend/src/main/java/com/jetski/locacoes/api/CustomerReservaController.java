@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -117,6 +118,75 @@ public class CustomerReservaController {
             request.contentType(),
             request.dataBase64());
         return ResponseEntity.ok(customerReservaService.anexarComprovante(jwt.getSubject(), id, cmd));
+    }
+
+    // ==================== Termos / aceite (P2) ====================
+
+    public record AssinarTermoRequest(@NotBlank String assinaturaBase64) {}
+
+    public record OtpVerificarRequest(@NotBlank @Size(min = 4, max = 8) String codigo) {}
+
+    @GetMapping("/{id}/aceite/otp")
+    @Operation(summary = "Status do OTP do aceite (ativo? verificado?)")
+    public ResponseEntity<com.jetski.locacoes.internal.AceiteOtpService.OtpStatus> otpStatus(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return ResponseEntity.ok(customerReservaService.otpStatus(jwt.getSubject(), id));
+    }
+
+    @PostMapping("/{id}/aceite/otp/enviar")
+    @Operation(summary = "Envia o código OTP (e-mail/WhatsApp conforme a loja)")
+    public ResponseEntity<com.jetski.locacoes.internal.AceiteOtpService.EnvioResultado> otpEnviar(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return ResponseEntity.ok(customerReservaService.otpEnviar(jwt.getSubject(), id));
+    }
+
+    @PostMapping("/{id}/aceite/otp/verificar")
+    @Operation(summary = "Verifica o código OTP digitado")
+    public ResponseEntity<Map<String, Boolean>> otpVerificar(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+            @Valid @RequestBody OtpVerificarRequest request) {
+        boolean ok = customerReservaService.otpVerificar(jwt.getSubject(), id, request.codigo().trim());
+        return ResponseEntity.ok(Map.of("verificado", ok));
+    }
+
+    @PostMapping("/{id}/aceite")
+    @Operation(summary = "Assina o termo remotamente (SignaturePad; OTP se a loja exigir)")
+    public ResponseEntity<Map<String, String>> assinar(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+            @Valid @RequestBody AssinarTermoRequest request,
+            jakarta.servlet.http.HttpServletRequest http) {
+        String ip = http.getHeader("X-Forwarded-For") != null
+            ? http.getHeader("X-Forwarded-For").split(",")[0].trim()
+            : http.getRemoteAddr();
+        customerReservaService.assinarTermo(jwt.getSubject(), id,
+            request.assinaturaBase64(), ip, http.getHeader("User-Agent"));
+        return ResponseEntity.ok(Map.of("message", "Termo assinado com sucesso"));
+    }
+
+    // ==================== Habilitação — caminho A (P2) ====================
+
+    public record EnviarChaRequest(
+        @Size(max = 40) String categoria,
+        @NotBlank @Size(max = 60) String numero,
+        java.time.LocalDate validade,
+        String fotoBase64
+    ) {}
+
+    @GetMapping("/{id}/habilitacao")
+    @Operation(summary = "Estado da habilitação da reserva (visão do cliente)")
+    public ResponseEntity<CustomerReservaService.HabilitacaoCliente> habilitacao(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return ResponseEntity.ok(customerReservaService.habilitacao(jwt.getSubject(), id));
+    }
+
+    @PostMapping("/{id}/habilitacao/cha")
+    @Operation(summary = "Envia a própria CHA (caminho A) + foto do documento")
+    public ResponseEntity<CustomerReservaService.HabilitacaoCliente> enviarCha(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+            @Valid @RequestBody EnviarChaRequest request) {
+        CustomerReservaService.EnviarChaCmd cmd = new CustomerReservaService.EnviarChaCmd(
+            request.categoria(), request.numero(), request.validade(), request.fotoBase64());
+        return ResponseEntity.ok(customerReservaService.enviarCha(jwt.getSubject(), id, cmd));
     }
 
     private Reserva.PagamentoTipo parseTipo(String tipo) {

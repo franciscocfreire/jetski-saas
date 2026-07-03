@@ -52,6 +52,9 @@ public class ReservaResponse {
     private String pagamentoMotivoRecusa;
     private BigDecimal valorTotal;
     private Instant documentoEmitidoEm;
+
+    /** Canal de criação: BALCAO (staff) ou PORTAL (cliente online). */
+    private String canal;
     private String observacoes;
     private Boolean ativo;
     private Instant createdAt;

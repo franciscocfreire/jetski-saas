@@ -68,6 +68,10 @@ public class CustomerReservaService {
     private final StorageService storageService;
     private final CustomerAccountService customerAccountService;
     private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+    private final AceiteService aceiteService;
+    private final AceiteOtpService aceiteOtpService;
+    private final HabilitacaoService habilitacaoService;
+    private final ClienteAnexoService clienteAnexoService;
 
     /** Percentual do sinal sobre o valor estimado da reserva (spec §5.2: ex. 30%). */
     @Value("${jetski.portal.sinal-percentual:30}")
@@ -315,6 +319,102 @@ public class CustomerReservaService {
         return n;
     }
 
+    // ============================ Termos / aceite (P2) ============================
+
+    @Transactional(readOnly = true)
+    public AceiteOtpService.OtpStatus otpStatus(String sub, UUID reservaId) {
+        Localizada l = localizar(sub, reservaId);
+        return aceiteOtpService.status(l.reserva().getId());
+    }
+
+    @Transactional
+    public AceiteOtpService.EnvioResultado otpEnviar(String sub, UUID reservaId) {
+        Localizada l = localizar(sub, reservaId);
+        return aceiteOtpService.enviar(l.reserva().getId());
+    }
+
+    @Transactional
+    public boolean otpVerificar(String sub, UUID reservaId, String codigo) {
+        Localizada l = localizar(sub, reservaId);
+        return aceiteOtpService.verificar(l.reserva().getId(), codigo);
+    }
+
+    /** Cliente assina o termo remotamente (SignaturePad no celular; OTP se o tenant exigir). */
+    @Transactional
+    public void assinarTermo(String sub, UUID reservaId, String assinaturaBase64,
+                             String ip, String userAgent) {
+        Localizada l = localizar(sub, reservaId);
+        byte[] assinatura = decodeBase64Imagem(assinaturaBase64);
+        aceiteService.registrar(l.reserva().getId(),
+            com.jetski.locacoes.domain.ReservaAceite.Metodo.SIGNATURE_PAD,
+            assinatura, ip, userAgent, "PORTAL");
+        log.info("Termo assinado pelo cliente no portal: reserva={}", reservaId);
+    }
+
+    // ============================ Habilitação — caminho A (P2) ============================
+
+    public record HabilitacaoCliente(
+        String via, String chaCategoria, String chaNumero,
+        java.time.LocalDate chaValidade, boolean resolvida, boolean temFotoCha) {}
+
+    @Transactional(readOnly = true)
+    public HabilitacaoCliente habilitacao(String sub, UUID reservaId) {
+        Localizada l = localizar(sub, reservaId);
+        boolean temFoto = clienteAnexoService
+            .buscar(l.reserva().getClienteId(), com.jetski.locacoes.domain.ClienteAnexo.Tipo.CHA)
+            .isPresent();
+        return habilitacaoService.getByReserva(l.reserva().getId())
+            .map(h -> new HabilitacaoCliente(
+                h.getVia() != null ? h.getVia().name() : null,
+                h.getChaCategoria(), h.getChaNumero(), h.getChaValidade(),
+                Boolean.TRUE.equals(h.getResolvida()), temFoto))
+            .orElse(new HabilitacaoCliente(null, null, null, null, false, temFoto));
+    }
+
+    public record EnviarChaCmd(
+        String categoria, String numero, java.time.LocalDate validade, String fotoBase64) {}
+
+    /** Cliente informa a própria CHA (caminho A) + foto do documento. */
+    @Transactional
+    public HabilitacaoCliente enviarCha(String sub, UUID reservaId, EnviarChaCmd cmd) {
+        if (cmd.numero() == null || cmd.numero().isBlank()) {
+            throw new BusinessException("Informe o número da habilitação (CHA)");
+        }
+        if (cmd.validade() != null && cmd.validade().isBefore(java.time.LocalDate.now())) {
+            throw new BusinessException("Sua habilitação está vencida — use o caminho da CHA-MTA-E");
+        }
+        Localizada l = localizar(sub, reservaId);
+
+        if (cmd.fotoBase64() != null && !cmd.fotoBase64().isBlank()) {
+            clienteAnexoService.salvar(l.reserva().getClienteId(),
+                com.jetski.locacoes.domain.ClienteAnexo.Tipo.CHA, cmd.fotoBase64());
+        }
+
+        com.jetski.locacoes.domain.ReservaHabilitacao dados =
+            com.jetski.locacoes.domain.ReservaHabilitacao.builder()
+                .via(com.jetski.locacoes.domain.ReservaHabilitacao.Via.CHA)
+                .chaCategoria(cmd.categoria())
+                .chaNumero(cmd.numero().trim())
+                .chaValidade(cmd.validade())
+                .build();
+        habilitacaoService.registrar(l.reserva().getId(), dados);
+        log.info("CHA enviada pelo cliente no portal: reserva={}", reservaId);
+        return habilitacao(sub, reservaId);
+    }
+
+    /** Decodifica dataURL ou base64 puro de imagem. */
+    private static byte[] decodeBase64Imagem(String base64) {
+        if (base64 == null || base64.isBlank()) {
+            throw new BusinessException("Assinatura é obrigatória");
+        }
+        String dados = base64.contains(",") ? base64.substring(base64.indexOf(',') + 1) : base64;
+        try {
+            return Base64.getDecoder().decode(dados);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("Assinatura inválida");
+        }
+    }
+
     // ============================ Internos ============================
 
     private record Localizada(Reserva reserva, Loja loja) {}
@@ -331,7 +431,7 @@ public class CustomerReservaService {
         throw new NotFoundException("Reserva não encontrada: " + reservaId);
     }
 
-    public record Loja(UUID tenantId, String slug, String nome, String cidade, String pixChave) {}
+    public record Loja(UUID tenantId, String slug, String nome, String cidade, String pixChave, String cnpj) {}
 
     /** Lookup público de loja por slug (usado pela disponibilidade pública). */
     public Optional<Loja> lojaPublica(String slug) {
@@ -339,12 +439,12 @@ public class CustomerReservaService {
     }
 
     private Optional<Loja> lojaBySlug(String slug) {
-        return lojaQuery("SELECT id, slug, razao_social, cidade, pix_chave FROM tenant " +
+        return lojaQuery("SELECT id, slug, razao_social, cidade, pix_chave, cnpj FROM tenant " +
             "WHERE slug = :param AND status = 'ATIVO'", slug);
     }
 
     private Loja lojaByTenantId(UUID tenantId) {
-        return lojaQuery("SELECT id, slug, razao_social, cidade, pix_chave FROM tenant " +
+        return lojaQuery("SELECT id, slug, razao_social, cidade, pix_chave, cnpj FROM tenant " +
             "WHERE id = :param", tenantId)
             .orElseThrow(() -> new NotFoundException("Loja não encontrada: " + tenantId));
     }
@@ -355,7 +455,7 @@ public class CustomerReservaService {
             .setParameter("param", param)
             .getResultList();
         return rows.stream().findFirst().map(r -> new Loja(
-            (UUID) r[0], (String) r[1], (String) r[2], (String) r[3], (String) r[4]));
+            (UUID) r[0], (String) r[1], (String) r[2], (String) r[3], (String) r[4], (String) r[5]));
     }
 
     /** Fixa app.tenant_id (transaction-local) — RLS estrita continua valendo. */
@@ -387,7 +487,7 @@ public class CustomerReservaService {
         String pixChave, String pixCopiaEColaSinal, String pixCopiaEColaTotal) {}
 
     public record ReservaCliente(
-        UUID id, String lojaSlug, String lojaNome,
+        UUID id, String lojaSlug, String lojaNome, String lojaCnpj,
         UUID modeloId, String modeloNome,
         LocalDateTime dataInicio, LocalDateTime dataFimPrevista,
         String status, String observacoes, Pagamento pagamento) {}
@@ -416,7 +516,7 @@ public class CustomerReservaService {
             loja.pixChave(), pixSinal, pixTotal);
 
         return new ReservaCliente(
-            r.getId(), loja.slug(), loja.nome(),
+            r.getId(), loja.slug(), loja.nome(), loja.cnpj(),
             modelo.getId(), modelo.getNome(),
             r.getDataInicio(), r.getDataFimPrevista(),
             r.getStatus() != null ? r.getStatus().name() : null,

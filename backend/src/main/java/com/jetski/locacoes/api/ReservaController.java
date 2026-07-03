@@ -547,6 +547,7 @@ public class ReservaController {
             .pagamentoMotivoRecusa(reserva.getPagamentoMotivoRecusa())
             .valorTotal(reserva.getValorTotal())
             .documentoEmitidoEm(reserva.getDocumentoEmitidoEm())
+            .canal(reserva.getCanal() != null ? reserva.getCanal().name() : null)
             .observacoes(reserva.getObservacoes())
             .ativo(reserva.getAtivo())
             .createdAt(reserva.getCreatedAt())

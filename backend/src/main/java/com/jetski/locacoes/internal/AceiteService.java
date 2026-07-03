@@ -40,6 +40,18 @@ public class AceiteService {
     @Transactional
     public ReservaAceite registrar(UUID reservaId, ReservaAceite.Metodo metodo,
                                    byte[] assinatura, String ip, String userAgent) {
+        return registrar(reservaId, metodo, assinatura, ip, userAgent, "BALCAO");
+    }
+
+    /**
+     * Registra o aceite com origem explícita: BALCAO (staff, tablet) ou PORTAL
+     * (cliente assina remotamente — P2). No portal não há operador
+     * (TenantContext.usuarioId nulo) e a posse do cliente é garantida pelo
+     * chamador (CustomerReservaService.localizar).
+     */
+    @Transactional
+    public ReservaAceite registrar(UUID reservaId, ReservaAceite.Metodo metodo,
+                                   byte[] assinatura, String ip, String userAgent, String origem) {
         Reserva reserva = reservaRepository.findById(reservaId)
             .orElseThrow(() -> new NotFoundException("Reserva não encontrada: " + reservaId));
 
@@ -82,7 +94,7 @@ public class AceiteService {
             .hashSha256(hash)
             .ip(ip)
             .userAgent(userAgent)
-            .origem("BALCAO")
+            .origem(origem)
             .otpVerificado(otpVerificado)
             .otpCanal(otpCanal)
             .otpDestino(otpDestino)
