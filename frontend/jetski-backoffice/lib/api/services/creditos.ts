@@ -52,11 +52,11 @@ export const creditosService = {
     return data
   },
 
-  /** Compra por VALOR: créditos = valor / preço vigente (calculado no backend). */
-  async solicitarCompra(valor: number, pixTxid: string): Promise<CompraCreditos> {
+  /** Compra por QUANTIDADE: o valor a transferir (qtd × preço) é calculado no backend. */
+  async solicitarCompra(quantidade: number, pixTxid: string): Promise<CompraCreditos> {
     const { data } = await apiClient.post<CompraCreditos>(
       `/v1/tenants/${getTenantId()}/creditos/compras`,
-      { valor, pixTxid }
+      { quantidade, pixTxid }
     )
     return data
   },
