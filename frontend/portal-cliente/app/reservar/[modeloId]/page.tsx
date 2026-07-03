@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
 import {
@@ -260,7 +261,7 @@ function Wizard() {
           {!logged && (
             <p className="mt-3 text-center text-xs text-slate-400">
               Não tem conta?{" "}
-              <a href="/cadastro" className="font-medium text-brand-600">Cadastre-se</a>{" "}
+              <Link href="/cadastro" className="font-medium text-brand-600">Cadastre-se</Link>{" "}
               — leva 1 minuto e você volta para cá.
             </p>
           )}

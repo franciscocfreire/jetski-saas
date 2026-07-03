@@ -91,6 +91,8 @@ services:
       # Nomes sem prefixo KC_ (reservado p/ opções de config do Keycloak).
       BACKOFFICE_URL: ${PUBLIC_URL:-http://localhost:3002}
       BACKOFFICE_REDIRECT: ${PUBLIC_URL:-http://localhost:3002}/*
+      PORTAL_URL: ${PUBLIC_URL:-http://localhost:3003}
+      PORTAL_REDIRECT: ${PUBLIC_URL:-http://localhost:3003}/*
 
       # Logging
       KC_LOG_LEVEL: INFO
@@ -263,6 +265,36 @@ services:
       # For server-side calls - default to nginx for local, override for túnel
       # Local: http://nginx/realms/jetski-saas
       # Túnel: https://www.pegaojet.com.br/realms/jetski-saas
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://nginx/realms/jetski-saas}
+    depends_on:
+      - backend
+      - nginx
+    restart: unless-stopped
+    networks:
+      - jetski-network
+
+  # ============ PORTAL DO CLIENTE ============
+  # Servido sob {host}/portal pelo nginx (mesmo host do backoffice — sem CORS,
+  # sem hostname novo no túnel). Client OIDC próprio: jetski-customer-portal.
+  portal:
+    build:
+      context: ./frontend/portal-cliente
+      dockerfile: Dockerfile
+    container_name: jetski-portal
+    ports:
+      - "0.0.0.0:3003:3000"
+    environment:
+      # SSR (server components) chama o backend direto pela rede do docker
+      API_INTERNAL_URL: http://backend:8090/api
+
+      # NextAuth — no túnel: ${PUBLIC_URL}/portal (rebuild.sh injeta)
+      NEXTAUTH_URL: ${PORTAL_NEXTAUTH_URL:-http://localhost:3003/portal}
+      NEXTAUTH_SECRET: jetski-dev-secret-change-in-production-123456
+      AUTH_TRUST_HOST: "true"
+
+      # Keycloak OAuth — client público + PKCE (sem Membro; role CLIENTE)
+      KEYCLOAK_CLIENT_ID: jetski-customer-portal
+      KEYCLOAK_CLIENT_SECRET: ""
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://nginx/realms/jetski-saas}
     depends_on:
       - backend

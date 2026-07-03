@@ -3,7 +3,15 @@
  * Sem X-Tenant-Id — o escopo /v1/customers/** é multi-loja por construção.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8090/api";
+// Browser: NEXT_PUBLIC_API_URL (relativo "/api" atrás do nginx — sem CORS; ou
+// absoluto em dev standalone). Server components (SSR): URL interna do docker
+// (API_INTERNAL_URL) — URL relativa não resolve no servidor.
+const API_URL =
+  typeof window === "undefined"
+    ? process.env.API_INTERNAL_URL ??
+      process.env.NEXT_PUBLIC_API_URL ??
+      "http://localhost:8090/api"
+    : process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8090/api";
 
 export interface VinculoLoja {
   tenantId: string;

@@ -38,6 +38,7 @@ NC='\033[0m' # No Color
 # Defaults
 REBUILD_BACKEND=true
 REBUILD_FRONTEND=true
+REBUILD_PORTAL=true
 NO_CACHE=""
 USE_LOCAL=false
 RUN_MIGRATE=false
@@ -55,9 +56,15 @@ for arg in "$@"; do
     case $arg in
         backend)
             REBUILD_FRONTEND=false
+            REBUILD_PORTAL=false
             ;;
         frontend)
             REBUILD_BACKEND=false
+            REBUILD_PORTAL=false
+            ;;
+        portal)
+            REBUILD_BACKEND=false
+            REBUILD_FRONTEND=false
             ;;
         --no-cache)
             NO_CACHE="--no-cache"
@@ -72,11 +79,12 @@ for arg in "$@"; do
             CLEAR_CACHE=true
             ;;
         -h|--help)
-            echo "Uso: $0 [backend|frontend] [--no-cache] [--local] [--migrate] [--clear-cache]"
+            echo "Uso: $0 [backend|frontend|portal] [--no-cache] [--local] [--migrate] [--clear-cache]"
             echo ""
             echo "Opções:"
             echo "  backend       Rebuild apenas o backend"
             echo "  frontend      Rebuild apenas o frontend"
+            echo "  portal        Rebuild apenas o portal do cliente"
             echo "  --no-cache    Rebuild sem cache Docker (mais lento)"
             echo "  --local       Usa localhost em vez de ngrok (para desenvolvimento local)"
             echo "  --migrate     Executa migrations pendentes do Flyway"
@@ -122,6 +130,9 @@ if [ "$REBUILD_BACKEND" = true ]; then
 fi
 if [ "$REBUILD_FRONTEND" = true ]; then
     SERVICES="$SERVICES frontend"
+fi
+if [ "$REBUILD_PORTAL" = true ]; then
+    SERVICES="$SERVICES portal"
 fi
 
 if [ -z "$SERVICES" ]; then
@@ -196,11 +207,16 @@ if [ "$REBUILD_FRONTEND" = true ]; then
     echo -e "${YELLOW}  -> Frontend (Next.js)...${NC}"
     docker compose build $NO_CACHE frontend
 fi
+if [ "$REBUILD_PORTAL" = true ]; then
+    echo -e "${YELLOW}  -> Portal do cliente (Next.js, basePath /portal)...${NC}"
+    docker compose build $NO_CACHE portal
+fi
 
 # Step 6: Start services with environment variables
 # --force-recreate ensures containers are recreated with new env vars
 echo -e "${BLUE}[6/6] Iniciando serviços...${NC}"
 NEXTAUTH_URL="$BASE_URL" \
+PORTAL_NEXTAUTH_URL="${BASE_URL}/portal" \
 KEYCLOAK_ISSUER="$KEYCLOAK_ISSUER" \
 JETSKI_FRONTEND_URL="$BASE_URL" \
 JETSKI_EXTERNAL_URL="$BASE_URL" \
