@@ -63,10 +63,30 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
   }
 }
 
+const secure = (process.env.NEXTAUTH_URL ?? "").startsWith("https");
+const cookiePrefix = secure ? "__Secure-" : "";
+
+// Opções padrão de cookie (mesmas do NextAuth) — só os NOMES mudam.
+const cookieDefaults = { httpOnly: true, sameSite: "lax" as const, path: "/", secure };
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
+  // O app vive sob /portal (basePath do Next) — sem isto o client do NextAuth
+  // chama /api/auth na RAIZ do host, que o nginx roteia para o BACKOFFICE
+  // (login sairia pelo client errado, azp=jetski-backoffice).
+  basePath: withBase("/api/auth"),
   // Dev local roda em http://localhost:3003 — cookies __Secure- só em https
-  useSecureCookies: (process.env.NEXTAUTH_URL ?? "").startsWith("https"),
+  useSecureCookies: secure,
+  // Portal e backoffice dividem o MESMO host: nomes de cookie próprios para as
+  // sessões não se sobrescreverem (authjs.session-token é o default de ambos).
+  cookies: {
+    sessionToken: { name: `${cookiePrefix}portal.session-token`, options: cookieDefaults },
+    callbackUrl: { name: `${cookiePrefix}portal.callback-url`, options: { ...cookieDefaults, httpOnly: false } },
+    csrfToken: { name: `${cookiePrefix}portal.csrf-token`, options: cookieDefaults },
+    pkceCodeVerifier: { name: `${cookiePrefix}portal.pkce.code_verifier`, options: { ...cookieDefaults, maxAge: 900 } },
+    state: { name: `${cookiePrefix}portal.state`, options: { ...cookieDefaults, maxAge: 900 } },
+    nonce: { name: `${cookiePrefix}portal.nonce`, options: cookieDefaults },
+  },
   providers: [
     Keycloak({
       clientId: process.env.KEYCLOAK_CLIENT_ID!,
