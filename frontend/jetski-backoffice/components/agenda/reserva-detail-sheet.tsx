@@ -254,7 +254,9 @@ export function ReservaDetailSheet({
 
   if (!reserva) return null
 
-  const online = reserva.cliente?.origem === 'PORTAL'
+  // canal da reserva é a fonte precisa (V030); cliente.origem é fallback
+  // (cliente nem sempre vem carregado no objeto da reserva)
+  const online = (reserva.canal ?? reserva.cliente?.origem) === 'PORTAL'
   const ema = hab?.via === 'EMA'
   const gruPaga = !!hab?.gruPago
   // Editável enquanto não-terminal (rascunho/pendente/confirmada).
@@ -287,7 +289,7 @@ export function ReservaDetailSheet({
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Badge variant={online ? 'default' : 'secondary'}>
-            {online ? 'Online (portal)' : 'Balcão'}
+            {online ? 'Portal' : 'Balcão'}
           </Badge>
           <Badge variant={reserva.status === 'CONFIRMADA' ? 'success' : 'warning'}>
             {reserva.status}
