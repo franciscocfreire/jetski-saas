@@ -1,5 +1,6 @@
 "use client";
 
+import { withBase } from "@/lib/base";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -250,7 +251,7 @@ function Wizard() {
                 className="flex-1 gap-2"
                 onClick={() =>
                   signIn("keycloak", {
-                    callbackUrl: `/reservar/${m.id}?data=${data}&hora=${hora}&horas=${horas}`,
+                    callbackUrl: withBase(`/reservar/${m.id}?data=${data}&hora=${hora}&horas=${horas}`),
                   })
                 }
               >

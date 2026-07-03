@@ -1,5 +1,6 @@
 "use client";
 
+import { withBase } from "@/lib/base";
 import Link from "next/link";
 import { CalendarCheck, User, Globe } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
@@ -55,7 +56,7 @@ export function Header() {
               >
                 <CalendarCheck size={16} /> {nome?.split(" ")[0] ?? "Minha conta"}
               </Link>
-              <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: "/" })}>
+              <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: withBase("/") })}>
                 Sair
               </Button>
             </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { withBase } from "@/lib/base";
 import { useState } from "react";
 import Link from "next/link";
 import { Anchor, MailCheck, Loader2 } from "lucide-react";
@@ -53,7 +54,7 @@ export default function CadastroPage() {
         <Button
           className="mt-6 w-full"
           size="lg"
-          onClick={() => signIn("keycloak", { callbackUrl: "/conta/perfil" })}
+          onClick={() => signIn("keycloak", { callbackUrl: withBase("/conta/perfil") })}
         >
           Entrar agora
         </Button>

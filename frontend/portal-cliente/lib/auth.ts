@@ -1,4 +1,5 @@
 import NextAuth from "next-auth";
+import { withBase } from "./base";
 import Keycloak from "next-auth/providers/keycloak";
 import type { JWT } from "next-auth/jwt";
 
@@ -107,9 +108,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
   },
   pages: {
-    signIn: "/login",
-    error: "/login",
-    signOut: "/login",
+    signIn: withBase("/login"),
+    error: withBase("/login"),
+    signOut: withBase("/login"),
   },
   session: {
     strategy: "jwt",

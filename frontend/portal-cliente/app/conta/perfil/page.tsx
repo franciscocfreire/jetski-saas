@@ -1,5 +1,6 @@
 "use client";
 
+import { withBase } from "@/lib/base";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -155,7 +156,7 @@ export default function PerfilPage() {
 
       <div className="mt-6 text-center">
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={() => signOut({ callbackUrl: withBase("/login") })}
           className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
         >
           <LogOut size={12} /> Sair da conta

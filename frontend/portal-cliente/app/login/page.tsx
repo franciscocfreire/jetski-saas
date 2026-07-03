@@ -1,5 +1,6 @@
 "use client";
 
+import { withBase } from "@/lib/base";
 import Link from "next/link";
 import { Anchor, ShieldCheck, LogIn } from "lucide-react";
 import { signIn } from "next-auth/react";
@@ -11,7 +12,7 @@ import { Button, Card } from "@/components/ui";
  */
 export default function LoginPage() {
   function entrar() {
-    signIn("keycloak", { callbackUrl: "/conta/perfil" });
+    signIn("keycloak", { callbackUrl: withBase("/conta/perfil") });
   }
 
   return (
