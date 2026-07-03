@@ -30,8 +30,8 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={`${geistSans.variable} ${playfair.variable}`}>
         <div className="prototype-banner no-print py-1 text-center text-[11px] font-semibold text-amber-900">
-          EM CONSTRUÇÃO — conta, reservas, pagamento, termos e habilitação já
-          são reais; histórico e emissão CHA-MTA-E em breve
+          Portal em evolução contínua — conta, reservas, pagamento, termos,
+          habilitação (CHA e CHA-MTA-E) e histórico já são reais
         </div>
         <Providers>
           <ChromeHeader />

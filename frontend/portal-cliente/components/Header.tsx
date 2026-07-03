@@ -32,6 +32,12 @@ export function Header() {
                 Minhas reservas
               </Link>
               <Link
+                href="/conta/locacoes"
+                className="rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100"
+              >
+                Histórico
+              </Link>
+              <Link
                 href="/conta/perfil"
                 className="rounded-lg px-3 py-2 text-slate-600 hover:bg-slate-100"
               >

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, Users } from "lucide-react";
+import { MapPin, Users, Star } from "lucide-react";
 import { brl } from "@/lib/cn";
 import { fotoPrincipal, type MarketplaceModelo } from "@/lib/api";
 import { jetImage } from "@/lib/img";
@@ -18,6 +18,12 @@ export function ModelCard({ m }: { m: MarketplaceModelo }) {
           alt={m.nome}
           className="h-full w-full object-cover transition group-hover:scale-105"
         />
+        {m.notaMedia != null && (m.totalAvaliacoes ?? 0) > 0 && (
+          <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-xs font-semibold text-slate-700">
+            <Star size={12} className="fill-amber-400 text-amber-400" />
+            {m.notaMedia.toFixed(1)} ({m.totalAvaliacoes})
+          </span>
+        )}
       </div>
       <div className="p-4">
         <div className="flex items-center gap-1 text-xs text-slate-400">

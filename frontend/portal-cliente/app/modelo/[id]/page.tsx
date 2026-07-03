@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   MapPin,
   Users,
+  Star,
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
@@ -14,9 +15,11 @@ import {
 import {
   getModeloPublico,
   getDisponibilidade,
+  getBrandingLoja,
   fotoPrincipal,
   type MarketplaceModelo,
   type Disponibilidade,
+  type BrandingLoja,
 } from "@/lib/api";
 import { jetImage } from "@/lib/img";
 import { brl } from "@/lib/cn";
@@ -29,6 +32,7 @@ export default function ModeloPage() {
   const router = useRouter();
 
   const [m, setM] = useState<MarketplaceModelo | null>(null);
+  const [branding, setBranding] = useState<BrandingLoja | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [data, setData] = useState(() => {
     const d = new Date(Date.now() + 3 * 86400000);
@@ -42,7 +46,10 @@ export default function ModeloPage() {
 
   useEffect(() => {
     getModeloPublico(id)
-      .then(setM)
+      .then((modelo) => {
+        setM(modelo);
+        getBrandingLoja(modelo.lojaSlug).then(setBranding);
+      })
       .catch(() => setM(null))
       .finally(() => setCarregando(false));
   }, [id]);
@@ -91,7 +98,20 @@ export default function ModeloPage() {
           <div className="flex items-center gap-1 text-sm text-slate-400">
             <MapPin size={14} /> {m.localizacao} · {m.empresaNome}
           </div>
-          <h1 className="mt-1 text-2xl font-bold text-ink-900">{m.nome}</h1>
+          <h1 className="mt-1 flex items-center gap-3 text-2xl font-bold text-ink-900">
+            {branding?.logoDataUrl && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={branding.logoDataUrl} alt={m.empresaNome}
+                className="h-8 w-8 rounded-lg object-contain" />
+            )}
+            {m.nome}
+          </h1>
+          {m.notaMedia != null && (m.totalAvaliacoes ?? 0) > 0 && (
+            <p className="mt-1 flex items-center gap-1 text-sm font-medium text-amber-600">
+              <Star size={14} className="fill-amber-400 text-amber-400" />
+              {m.notaMedia.toFixed(1)} · {m.totalAvaliacoes} avaliação(ões)
+            </p>
+          )}
 
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {m.fabricante && <Spec icon={<ShieldCheck size={16} />} label="Fabricante" value={m.fabricante} />}
@@ -205,6 +225,7 @@ export default function ModeloPage() {
           <Button
             className="mt-4 w-full"
             size="lg"
+            style={branding?.corPrimaria ? { backgroundColor: branding.corPrimaria } : undefined}
             onClick={() =>
               router.push(`/reservar/${m.id}?data=${data}&hora=${hora}&horas=${horas}`)
             }

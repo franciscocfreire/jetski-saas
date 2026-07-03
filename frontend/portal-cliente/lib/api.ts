@@ -101,6 +101,8 @@ export interface MarketplaceModelo {
   empresaWhatsapp?: string;
   localizacao: string;
   prioridade: number;
+  notaMedia?: number;
+  totalAvaliacoes?: number;
   midias: MarketplaceMidia[];
 }
 
@@ -416,4 +418,79 @@ export async function baixarBoletoGru(token: string, id: string): Promise<Blob> 
   const res = await fetch(`${emaBase(id)}/gru/boleto/download`, { headers: authHeaders(token) });
   if (!res.ok) await parseError(res);
   return res.blob();
+}
+
+// ===================== Locações / avaliações (P4) =====================
+
+export interface LocacaoCliente {
+  id: string;
+  lojaSlug: string;
+  lojaNome: string;
+  modeloNome?: string;
+  jetskiSerie?: string;
+  dataCheckIn?: string;
+  dataCheckOut?: string;
+  minutosUsados?: number;
+  minutosFaturaveis?: number;
+  valorBase?: number;
+  valorTotal?: number;
+  status: string;
+  avaliacaoNota?: number;
+  avaliacaoComentario?: string;
+}
+
+export interface FotoLocacao {
+  id: string;
+  tipo: string;
+  downloadUrl?: string;
+}
+
+export interface LocacaoClienteDetalhe {
+  locacao: LocacaoCliente;
+  fotos: FotoLocacao[];
+}
+
+export async function minhasLocacoes(token: string): Promise<LocacaoCliente[]> {
+  const res = await fetch(`${API_URL}/v1/customers/locacoes`, {
+    headers: authHeaders(token), cache: "no-store",
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function getLocacao(token: string, id: string): Promise<LocacaoClienteDetalhe> {
+  const res = await fetch(`${API_URL}/v1/customers/locacoes/${id}`, {
+    headers: authHeaders(token), cache: "no-store",
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function avaliarLocacao(
+  token: string, id: string, nota: number, comentario?: string
+): Promise<LocacaoCliente> {
+  const res = await fetch(`${API_URL}/v1/customers/locacoes/${id}/avaliacao`, {
+    method: "POST", headers: authHeaders(token),
+    body: JSON.stringify({ nota, comentario: comentario || undefined }),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+// ===================== Branding da loja (P4) =====================
+
+export interface BrandingLoja {
+  corPrimaria?: string;
+  corSecundaria?: string;
+  logoDataUrl?: string;
+}
+
+export async function getBrandingLoja(slug: string): Promise<BrandingLoja | null> {
+  try {
+    const res = await fetch(`${API_URL}/v1/public/lojas/${slug}/branding`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
