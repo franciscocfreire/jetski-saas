@@ -1,30 +1,49 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarX2, ChevronRight } from "lucide-react";
-import { useStore } from "@/lib/store";
-import { getModelo, type Reserva } from "@/lib/mock";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { CalendarX2, ChevronRight, Loader2 } from "lucide-react";
+import { minhasReservas, type ReservaCliente } from "@/lib/api";
 import { brl, fmtDateTime } from "@/lib/cn";
 import { Badge, Button, Card, SectionTitle } from "@/components/ui";
-import { EmailBanner } from "@/components/EmailBanner";
 
-function statusBadge(r: Reserva) {
-  switch (r.status) {
-    case "PRONTA":
-      return <Badge tone="green">Pronta p/ check-in</Badge>;
-    case "EM_CURSO":
-      return <Badge tone="brand">Em curso</Badge>;
-    case "FINALIZADA":
-      return <Badge tone="slate">Finalizada</Badge>;
-    case "CANCELADA":
-      return <Badge tone="red">Cancelada</Badge>;
-    default:
-      return <Badge tone="amber">Pendências</Badge>;
-  }
+function statusBadge(r: ReservaCliente) {
+  if (r.status === "CANCELADA") return <Badge tone="red">Cancelada</Badge>;
+  if (r.status === "EXPIRADA") return <Badge tone="red">Expirada</Badge>;
+  if (r.status === "FINALIZADA") return <Badge tone="slate">Finalizada</Badge>;
+  if (r.pagamento.status === "CONFIRMADO") return <Badge tone="green">Garantida</Badge>;
+  if (r.pagamento.status === "EM_ANALISE") return <Badge tone="amber">Pagamento em análise</Badge>;
+  if (r.pagamento.status === "RECUSADO") return <Badge tone="red">Pagamento recusado</Badge>;
+  return <Badge tone="amber">Aguardando pagamento</Badge>;
 }
 
 export default function ReservasPage() {
-  const reservas = useStore((s) => s.reservas);
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [reservas, setReservas] = useState<ReservaCliente[] | null>(null);
+  const [erro, setErro] = useState(false);
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/login");
+      return;
+    }
+    if (status === "authenticated" && session?.accessToken) {
+      minhasReservas(session.accessToken)
+        .then(setReservas)
+        .catch(() => setErro(true));
+    }
+  }, [status, session?.accessToken, router]);
+
+  if (status === "loading" || (!reservas && !erro)) {
+    return (
+      <div className="flex justify-center py-20 text-slate-400">
+        <Loader2 className="animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -32,9 +51,13 @@ export default function ReservasPage() {
         Minhas reservas
       </SectionTitle>
 
-      <EmailBanner />
+      {erro && (
+        <Card className="p-6 text-sm text-red-700">
+          Não foi possível carregar suas reservas — tente novamente.
+        </Card>
+      )}
 
-      {reservas.length === 0 ? (
+      {reservas && reservas.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
           <CalendarX2 className="text-slate-300" size={40} />
           <p className="text-slate-500">Você ainda não tem reservas.</p>
@@ -42,45 +65,32 @@ export default function ReservasPage() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {reservas.map((r) => {
-            const m = getModelo(r.modeloId);
-            const pend =
-              [r.sinal, r.habilitacao, r.termos].filter((e) => e !== "ok")
-                .length;
-            return (
-              <Link key={r.id} href={`/conta/reservas/${r.id}`}>
-                <Card className="flex items-center gap-4 p-4 transition hover:shadow-md">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={m?.fotoUrl}
-                    alt=""
-                    className="h-20 w-28 shrink-0 rounded-xl object-cover"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-slate-400">
-                        {r.id}
-                      </span>
-                      {statusBadge(r)}
-                    </div>
-                    <h3 className="mt-0.5 truncate font-semibold text-ink-900">
-                      {m?.nome}
-                    </h3>
-                    <p className="text-sm text-slate-500">
-                      {fmtDateTime(r.data)} · {r.duracaoHoras}h ·{" "}
-                      {brl(r.valorEstimado)}
-                    </p>
-                    {r.status === "PENDENTE" && (
-                      <p className="mt-1 text-xs font-medium text-amber-600">
-                        {pend} pendência(s) para liberar o check-in
-                      </p>
-                    )}
+          {reservas?.map((r) => (
+            <Link key={r.id} href={`/conta/reservas/${r.id}`}>
+              <Card className="flex items-center gap-4 p-4 transition hover:shadow-md">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-slate-400">
+                      {r.id.slice(0, 8)}
+                    </span>
+                    {statusBadge(r)}
                   </div>
-                  <ChevronRight className="text-slate-300" />
-                </Card>
-              </Link>
-            );
-          })}
+                  <h3 className="mt-0.5 truncate font-semibold text-ink-900">
+                    {r.modeloNome}
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    {r.lojaNome} · {fmtDateTime(r.dataInicio)} · {brl(r.pagamento.valorTotal)}
+                  </p>
+                  {r.pagamento.status === "AGUARDANDO" && r.status === "PENDENTE" && (
+                    <p className="mt-1 text-xs font-medium text-amber-600">
+                      Envie o pagamento para garantir — a pré-reserva expira em 24h
+                    </p>
+                  )}
+                </div>
+                <ChevronRight className="text-slate-300" />
+              </Card>
+            </Link>
+          ))}
         </div>
       )}
     </div>

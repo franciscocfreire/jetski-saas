@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   CreditCard,
   IdCard,
@@ -12,74 +14,105 @@ import {
   ArrowRight,
   PartyPopper,
   MapPin,
+  Loader2,
 } from "lucide-react";
-import { useStore } from "@/lib/store";
-import { getModelo, type ChecklistEstado } from "@/lib/mock";
+import {
+  getReserva,
+  getChecklist,
+  type ReservaCliente,
+  type ChecklistReserva,
+} from "@/lib/api";
 import { brl, fmtDateTime } from "@/lib/cn";
 import { Badge, Button, Card } from "@/components/ui";
-import { EmailBanner } from "@/components/EmailBanner";
 
 export default function ReservaDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const reserva = useStore((s) => s.reservas.find((r) => r.id === id));
-  const auth = useStore((s) => s.auth);
-  const m = reserva ? getModelo(reserva.modeloId) : undefined;
+  const { data: session, status } = useSession();
+  const router = useRouter();
 
-  if (!reserva || !m)
+  const [reserva, setReserva] = useState<ReservaCliente | null>(null);
+  const [checklist, setChecklist] = useState<ChecklistReserva | null>(null);
+  const [erro, setErro] = useState(false);
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/login");
+      return;
+    }
+    if (status === "authenticated" && session?.accessToken) {
+      Promise.all([
+        getReserva(session.accessToken, id),
+        getChecklist(session.accessToken, id),
+      ])
+        .then(([r, c]) => {
+          setReserva(r);
+          setChecklist(c);
+        })
+        .catch(() => setErro(true));
+    }
+  }, [status, session?.accessToken, id, router]);
+
+  if (erro) {
+    return <div className="py-20 text-center text-slate-400">Reserva não encontrada.</div>;
+  }
+  if (!reserva || !checklist) {
     return (
-      <div className="py-20 text-center text-slate-400">
-        Reserva não encontrada.
+      <div className="flex justify-center py-20 text-slate-400">
+        <Loader2 className="animate-spin" />
       </div>
     );
+  }
 
-  // Conta restrita (logado mas sem e-mail verificado) bloqueia a garantia.
-  const emailOk = !auth.logged || auth.emailVerified === true;
-  const pronta = reserva.status === "PRONTA" && emailOk;
+  const pg = reserva.pagamento;
+  const pronta = checklist.prontaParaCheckin;
+  const horas = Math.round(
+    (new Date(reserva.dataFimPrevista).getTime() - new Date(reserva.dataInicio).getTime()) / 3600000
+  );
+
+  const estadoPagamento =
+    pg.status === "CONFIRMADO" ? "ok" : pg.status === "EM_ANALISE" ? "em_validacao" : "pendente";
 
   return (
     <div className="mx-auto max-w-3xl">
-      <Link
-        href="/conta/reservas"
-        className="text-sm text-slate-400 hover:text-slate-600"
-      >
+      <Link href="/conta/reservas" className="text-sm text-slate-400 hover:text-slate-600">
         ← Minhas reservas
       </Link>
 
-      <div className="mt-3" />
-      <EmailBanner />
+      {!checklist.emailVerified && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <b>Verifique seu e-mail.</b> Sem a verificação a reserva não fica garantida
+          (link enviado no cadastro).
+        </div>
+      )}
 
-      <Card className="overflow-hidden">
+      <Card className="mt-3 overflow-hidden">
         <div className="flex flex-col gap-4 p-5 sm:flex-row">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={m.fotoUrl}
-            alt=""
-            className="h-32 w-full rounded-xl object-cover sm:w-48"
-          />
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-slate-400">{reserva.id}</span>
+              <span className="font-mono text-xs text-slate-400">{reserva.id.slice(0, 8)}</span>
               {pronta ? (
                 <Badge tone="green">Pronta p/ check-in</Badge>
+              ) : checklist.garantida ? (
+                <Badge tone="green">Garantida</Badge>
+              ) : reserva.status === "EXPIRADA" ? (
+                <Badge tone="red">Expirada</Badge>
               ) : (
                 <Badge tone="amber">Pendências</Badge>
               )}
             </div>
-            <h1 className="mt-1 text-xl font-bold text-ink-900">{m.nome}</h1>
+            <h1 className="mt-1 text-xl font-bold text-ink-900">{reserva.modeloNome}</h1>
             <p className="flex items-center gap-1 text-sm text-slate-500">
-              <MapPin size={13} /> {m.lojaNome}
+              <MapPin size={13} /> {reserva.lojaNome}
             </p>
             <p className="mt-2 text-sm text-slate-600">
-              {fmtDateTime(reserva.data)} · {reserva.duracaoHoras}h ·{" "}
-              {reserva.pessoas} pessoa(s)
+              {fmtDateTime(reserva.dataInicio)} · {horas}h
             </p>
             <p className="mt-1 text-sm">
-              <span className="text-slate-500">Sinal: </span>
-              <b>{brl(reserva.valorSinal)}</b>
-              <span className="text-slate-400">
-                {" "}
-                · de {brl(reserva.valorEstimado)}
+              <span className="text-slate-500">
+                {pg.tipo === "TOTAL" ? "Total: " : "Sinal: "}
               </span>
+              <b>{brl(pg.tipo === "TOTAL" ? pg.valorTotal : pg.valorSinal)}</b>
+              <span className="text-slate-400"> · estimado {brl(pg.valorTotal)}</span>
             </p>
           </div>
         </div>
@@ -88,31 +121,19 @@ export default function ReservaDetailPage() {
           <div className="flex items-center gap-3 border-t border-emerald-100 bg-emerald-50 px-5 py-4 text-emerald-800">
             <PartyPopper className="shrink-0" />
             <div className="text-sm">
-              <b>Tudo pronto!</b> Apresente-se na loja na data agendada. A
-              demonstração de segurança será feita pelo instrutor no embarque.
+              <b>Tudo pronto!</b> Apresente-se na loja na data agendada. A demonstração
+              de segurança será feita pelo instrutor no embarque.
             </div>
           </div>
-        ) : (
-          reserva.sinal !== "pendente" &&
-          (emailOk ? (
-            <div className="flex items-center gap-3 border-t border-brand-100 bg-brand-50 px-5 py-4 text-brand-900">
-              <PartyPopper className="shrink-0" />
-              <div className="text-sm">
-                <b>Reserva garantida!</b> Recebemos seu pagamento. Agora é só
-                concluir a <b>habilitação</b> e assinar os <b>termos</b> antes do
-                passeio.
-              </div>
+        ) : checklist.garantida ? (
+          <div className="flex items-center gap-3 border-t border-brand-100 bg-brand-50 px-5 py-4 text-brand-900">
+            <PartyPopper className="shrink-0" />
+            <div className="text-sm">
+              <b>Reserva garantida!</b> Agora é só concluir a <b>habilitação</b> e os{" "}
+              <b>termos</b> antes do passeio.
             </div>
-          ) : (
-            <div className="flex items-center gap-3 border-t border-amber-100 bg-amber-50 px-5 py-4 text-amber-900">
-              <PartyPopper className="shrink-0" />
-              <div className="text-sm">
-                <b>Pagamento recebido!</b> Para <b>garantir</b> a reserva, confirme
-                seu e-mail (a pré-reserva expira em 24h sem verificação).
-              </div>
-            </div>
-          ))
-        )}
+          </div>
+        ) : null}
       </Card>
 
       <h2 className="mb-3 mt-8 text-lg font-bold text-ink-900">
@@ -121,32 +142,30 @@ export default function ReservaDetailPage() {
 
       <div className="grid gap-3">
         <TaskRow
-          estado={reserva.sinal}
+          estado={estadoPagamento}
           icon={<CreditCard size={18} />}
-          title={
-            reserva.pagamentoTipo === "total"
-              ? "Pagamento (valor total)"
-              : "Pagamento (sinal 30%)"
-          }
+          title={pg.tipo === "TOTAL" ? "Pagamento (valor total)" : "Pagamento (sinal 30%)"}
           desc={
-            reserva.pagamentoTipo === "total"
-              ? "PIX da loja + comprovante · nada a pagar no embarque"
-              : "PIX da loja + comprovante · restante no check-in"
+            pg.status === "RECUSADO"
+              ? `Recusado: ${pg.motivoRecusa ?? "confira o valor"} — reenvie o comprovante`
+              : pg.tipo === "TOTAL"
+                ? "PIX com QR de valor exato · nada a pagar no embarque"
+                : "PIX com QR de valor exato · restante no check-in"
           }
           href={`/conta/reservas/${reserva.id}/pagamento`}
         />
         <TaskRow
-          estado={reserva.habilitacao}
+          estado={checklist.habilitacaoOk ? "ok" : "pendente"}
           icon={<IdCard size={18} />}
           title="Habilitação náutica"
-          desc="Envie sua CHA ou emita a CHA-MTA-E"
+          desc="Em breve pelo portal — por enquanto, resolva com a loja no atendimento"
           href={`/conta/reservas/${reserva.id}/habilitacao`}
         />
         <TaskRow
-          estado={reserva.termos}
+          estado={checklist.termosOk ? "ok" : "pendente"}
           icon={<FileSignature size={18} />}
           title="Termos e responsabilidade"
-          desc="Assine o termo da loja e os anexos da Marinha"
+          desc="Em breve pelo portal — assinatura acontece no atendimento da loja"
           href={`/conta/reservas/${reserva.id}/termos`}
         />
       </div>
@@ -154,7 +173,9 @@ export default function ReservaDetailPage() {
   );
 }
 
-function stateMeta(e: ChecklistEstado) {
+type Estado = "ok" | "em_validacao" | "pendente";
+
+function stateMeta(e: Estado) {
   switch (e) {
     case "ok":
       return {
@@ -167,12 +188,6 @@ function stateMeta(e: ChecklistEstado) {
         icon: <Clock className="text-amber-500" />,
         badge: <Badge tone="amber">Em validação</Badge>,
         cta: "Acompanhar",
-      };
-    case "expirada":
-      return {
-        icon: <Circle className="text-rose-400" />,
-        badge: <Badge tone="red">Expirada</Badge>,
-        cta: "Renovar",
       };
     default:
       return {
@@ -190,7 +205,7 @@ function TaskRow({
   desc,
   href,
 }: {
-  estado: ChecklistEstado;
+  estado: Estado;
   icon: React.ReactNode;
   title: string;
   desc: string;
@@ -210,11 +225,7 @@ function TaskRow({
         </div>
         <p className="text-sm text-slate-500">{desc}</p>
       </div>
-      <Button
-        href={href}
-        variant={estado === "ok" ? "outline" : "primary"}
-        size="sm"
-      >
+      <Button href={href} variant={estado === "ok" ? "outline" : "primary"} size="sm">
         {meta.cta} <ArrowRight size={15} />
       </Button>
     </Card>

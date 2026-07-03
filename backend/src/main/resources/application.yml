@@ -122,6 +122,7 @@ jetski:
     allowed-origins:
       - http://localhost:3000
       - http://localhost:3001
+      - http://localhost:3003
       - http://localhost
       - https://539d02e90662.ngrok-free.app
   frontend:

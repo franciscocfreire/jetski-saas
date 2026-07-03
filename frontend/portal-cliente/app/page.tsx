@@ -1,9 +1,19 @@
-import { Search, MapPin, CalendarRange, ShieldCheck } from "lucide-react";
-import { MODELOS } from "@/lib/mock";
+import { ShieldCheck } from "lucide-react";
+import { listModelos, type MarketplaceModelo } from "@/lib/api";
 import { ModelCard } from "@/components/ModelCard";
-import { SectionTitle, inputCls } from "@/components/ui";
+import { SectionTitle } from "@/components/ui";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  let modelos: MarketplaceModelo[] = [];
+  let erro = false;
+  try {
+    modelos = await listModelos();
+  } catch {
+    erro = true;
+  }
+
   return (
     <div>
       {/* Hero */}
@@ -16,29 +26,6 @@ export default function HomePage() {
             Reserve, pague o sinal e resolva sua habilitação náutica — tudo
             online, direto do celular.
           </p>
-
-          {/* Barra de busca (visual) */}
-          <div className="mt-6 grid gap-2 rounded-2xl bg-white p-2 text-slate-700 shadow-lg sm:grid-cols-[1fr_1fr_auto]">
-            <div className="flex items-center gap-2 rounded-xl px-3">
-              <MapPin size={16} className="text-slate-400" />
-              <input
-                className="h-11 w-full bg-transparent text-sm outline-none"
-                placeholder="Para onde? (cidade, praia)"
-                defaultValue="Angra dos Reis"
-              />
-            </div>
-            <div className="flex items-center gap-2 rounded-xl px-3 sm:border-l sm:border-slate-100">
-              <CalendarRange size={16} className="text-slate-400" />
-              <input
-                className="h-11 w-full bg-transparent text-sm outline-none"
-                placeholder="Data"
-                defaultValue="22 jun, 10:00"
-              />
-            </div>
-            <button className="flex h-11 items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 text-sm font-semibold text-white hover:bg-brand-700">
-              <Search size={16} /> Buscar
-            </button>
-          </div>
 
           <div className="mt-5 flex flex-wrap gap-4 text-xs text-brand-50">
             <span className="flex items-center gap-1">
@@ -60,8 +47,19 @@ export default function HomePage() {
         <SectionTitle sub="Modelos disponíveis em lojas parceiras">
           Escolha seu jet ski
         </SectionTitle>
+        {erro && (
+          <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Não foi possível carregar o catálogo agora — tente novamente em
+            instantes.
+          </p>
+        )}
+        {!erro && modelos.length === 0 && (
+          <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
+            Nenhum modelo publicado no momento.
+          </p>
+        )}
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {MODELOS.map((m) => (
+          {modelos.map((m) => (
             <ModelCard key={m.id} m={m} />
           ))}
         </div>
@@ -75,7 +73,7 @@ export default function HomePage() {
         <div className="grid gap-5 sm:grid-cols-4">
           {[
             ["1", "Reserve", "Escolha o modelo, data e horário."],
-            ["2", "Pague o sinal", "PIX da loja + envio do comprovante."],
+            ["2", "Pague o sinal", "PIX com QR de valor exato + comprovante."],
             [
               "3",
               "Habilite-se",

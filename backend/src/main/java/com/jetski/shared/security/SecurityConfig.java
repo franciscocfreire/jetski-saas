@@ -269,6 +269,7 @@ public class SecurityConfig {
             "http://localhost:3000",      // Frontend local (dev)
             "http://localhost:3001",      // Backoffice local (dev)
             "http://localhost:3002",      // Backoffice Next.js (dev)
+            "http://localhost:3003",      // Portal do cliente (dev)
             "https://*.ngrok-free.app",   // ngrok URLs (dev)
             "https://*.jetski.app",       // Mobile app (produção)
             "https://*.jetski.com.br",    // Web app (produção)
