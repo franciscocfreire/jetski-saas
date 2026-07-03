@@ -31,10 +31,13 @@ function maskCep(v: string) {
 
 export function AddressForm({
   onChange,
+  initial,
 }: {
   onChange?: (a: Address) => void;
+  /** Prefill (ex.: endereço já salvo no cadastro). */
+  initial?: Partial<Address> | null;
 }) {
-  const [addr, setAddr] = useState<Address>(EMPTY);
+  const [addr, setAddr] = useState<Address>({ ...EMPTY, ...(initial ?? {}) });
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [preenchido, setPreenchido] = useState(false);

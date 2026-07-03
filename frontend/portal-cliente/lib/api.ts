@@ -307,3 +307,113 @@ export async function enviarCha(token: string, id: string, req: {
   if (!res.ok) await parseError(res);
   return res.json();
 }
+
+// ===================== CHA-MTA-E / EMA (P3) =====================
+
+export interface EnderecoCliente {
+  cep?: string; logradouro?: string; numero?: string;
+  complemento?: string; bairro?: string; cidade?: string; uf?: string;
+}
+
+export interface DadosPessoais {
+  nome?: string; cpf?: string; rg?: string; orgaoEmissor?: string;
+  nacionalidade?: string; naturalidade?: string; estrangeiro?: boolean;
+  dataNascimento?: string; telefone?: string; whatsapp?: string;
+  endereco?: EnderecoCliente | null; completos: boolean;
+}
+
+export interface GruEstado {
+  numero?: string; valor?: number; pago: boolean;
+  pixCopiaECola?: string; pixExpiracao?: string;
+  boletoDisponivel: boolean; comprovanteDisponivel: boolean;
+  sucesso: boolean; reaproveitada: boolean; erroMensagem?: string;
+}
+
+export interface EmaEstado {
+  dadosPessoaisCompletos: boolean;
+  anexosPresentes: string[];
+  videoaulaAssistida: boolean;
+  anexoSaude: boolean; anexoRegras: boolean; anexoResidencia: boolean;
+  usaLentes: boolean; usaAparelho: boolean;
+  gru: GruEstado; resolvida: boolean;
+}
+
+const emaBase = (id: string) => `${API_URL}/v1/customers/reservas/${id}/ema`;
+
+export async function getEmaEstado(token: string, id: string): Promise<EmaEstado> {
+  const res = await fetch(emaBase(id), { headers: authHeaders(token), cache: "no-store" });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function getDadosPessoais(token: string, id: string): Promise<DadosPessoais> {
+  const res = await fetch(`${emaBase(id)}/dados`, { headers: authHeaders(token), cache: "no-store" });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function putDadosPessoais(
+  token: string, id: string, dados: Omit<DadosPessoais, "completos" | "nome">
+): Promise<DadosPessoais> {
+  const res = await fetch(`${emaBase(id)}/dados`, {
+    method: "PUT", headers: authHeaders(token), body: JSON.stringify(dados),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function uploadAnexoEma(
+  token: string, id: string,
+  tipo: "IDENTIDADE" | "SELFIE" | "COMPROVANTE_RESIDENCIA", conteudoBase64: string
+): Promise<string[]> {
+  const res = await fetch(`${emaBase(id)}/anexos`, {
+    method: "POST", headers: authHeaders(token),
+    body: JSON.stringify({ tipo, conteudoBase64 }),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function putEmaFlags(token: string, id: string, flags: {
+  videoaulaAssistida?: boolean; anexoSaude?: boolean; anexoRegras?: boolean;
+  anexoResidencia?: boolean; usaLentes?: boolean; usaAparelho?: boolean;
+}): Promise<EmaEstado> {
+  const res = await fetch(emaBase(id), {
+    method: "PUT", headers: authHeaders(token), body: JSON.stringify(flags),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function gerarGruPix(token: string, id: string): Promise<GruEstado> {
+  const res = await fetch(`${emaBase(id)}/gru/pix`, { method: "POST", headers: authHeaders(token) });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function gerarGruBoleto(token: string, id: string): Promise<GruEstado> {
+  const res = await fetch(`${emaBase(id)}/gru/boleto`, { method: "POST", headers: authHeaders(token) });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function verificarGru(token: string, id: string):
+    Promise<{ pago: boolean; situacao: string; comprovanteDisponivel: boolean }> {
+  const res = await fetch(`${emaBase(id)}/gru/verificar`, { method: "POST", headers: authHeaders(token) });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function enviarComprovanteGru(token: string, id: string, conteudoBase64: string): Promise<EmaEstado> {
+  const res = await fetch(`${emaBase(id)}/gru/comprovante`, {
+    method: "POST", headers: authHeaders(token), body: JSON.stringify({ conteudoBase64 }),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function baixarBoletoGru(token: string, id: string): Promise<Blob> {
+  const res = await fetch(`${emaBase(id)}/gru/boleto/download`, { headers: authHeaders(token) });
+  if (!res.ok) await parseError(res);
+  return res.blob();
+}

@@ -11,7 +11,6 @@ import {
   Award,
   Loader2,
   LifeBuoy,
-  Store,
 } from "lucide-react";
 import {
   getHabilitacao,
@@ -20,6 +19,7 @@ import {
   type HabilitacaoCliente,
 } from "@/lib/api";
 import { Button, Card, Field, inputCls } from "@/components/ui";
+import { EmaWizard } from "@/components/EmaWizard";
 
 type Via = null | "tem" | "nao";
 
@@ -225,26 +225,23 @@ export default function HabilitacaoPage() {
             </Card>
           )}
 
-          {/* Caminho B — CHA-MTA-E (P3) */}
+          {/* Caminho B — CHA-MTA-E (P3): wizard real */}
           {via === "nao" && (
-            <Card className="mt-6 p-6">
-              <h2 className="flex items-center gap-2 font-semibold text-ink-900">
-                <LifeBuoy className="text-brand-600" size={20} /> Emissão da CHA-MTA-E
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                A habilitação especial (videoaula da Marinha + declarações + taxa GRU)
-                estará disponível aqui no portal <b>em breve</b>. Por enquanto, a loja
-                faz esse processo com você no atendimento — leva poucos minutos.
-              </p>
-              <div className="mt-4 flex items-start gap-2 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-                <Store size={16} className="mt-0.5 shrink-0 text-slate-400" />
-                Chegue ~20 minutos antes do horário para emitir a CHA-MTA-E no balcão,
-                ou fale com a loja pelo WhatsApp para adiantar.
+            <div className="mt-6">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="flex items-center gap-2 font-semibold text-ink-900">
+                  <LifeBuoy className="text-brand-600" size={20} /> Emissão da CHA-MTA-E
+                </h2>
+                <Button variant="ghost" size="sm" onClick={() => setVia(null)}>
+                  Voltar
+                </Button>
               </div>
-              <Button className="mt-4" variant="outline" onClick={() => setVia(null)}>
-                Voltar
-              </Button>
-            </Card>
+              <p className="mb-4 text-sm text-slate-500">
+                Complete os 5 passos — a demonstração prática de segurança acontece no
+                embarque, com o instrutor da loja.
+              </p>
+              <EmaWizard reservaId={id} />
+            </div>
           )}
         </>
       )}
