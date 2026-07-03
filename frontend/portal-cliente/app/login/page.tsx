@@ -1,23 +1,17 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Anchor, ShieldCheck } from "lucide-react";
-import { useStore } from "@/lib/store";
-import { Button, Card, Field, inputCls } from "@/components/ui";
+import Link from "next/link";
+import { Anchor, ShieldCheck, LogIn } from "lucide-react";
+import { signIn } from "next-auth/react";
+import { Button, Card } from "@/components/ui";
 
+/**
+ * Login REAL: Keycloak (OIDC + PKCE, client jetski-customer-portal).
+ * A tela de credenciais é do Keycloak — aqui só disparamos o fluxo.
+ */
 export default function LoginPage() {
-  const login = useStore((s) => s.login);
-  const signup = useStore((s) => s.signup);
-  const router = useRouter();
-
   function entrar() {
-    login("Marina Albuquerque");
-    router.push("/conta/reservas");
-  }
-
-  function cadastrar() {
-    signup("Marina Albuquerque");
-    router.push("/conta/verificar-email");
+    signIn("keycloak", { callbackUrl: "/conta/perfil" });
   }
 
   return (
@@ -33,34 +27,25 @@ export default function LoginPage() {
       </div>
 
       <Card className="mt-6 p-6">
-        <div className="grid gap-3">
-          <Field label="E-mail">
-            <input className={inputCls} defaultValue="marina.alb@example.com" />
-          </Field>
-          <Field label="Senha">
-            <input className={inputCls} type="password" defaultValue="••••••••" />
-          </Field>
-        </div>
-        <Button className="mt-4 w-full" size="lg" onClick={entrar}>
-          Entrar
+        <Button className="w-full gap-2" size="lg" onClick={entrar}>
+          <LogIn size={16} /> Entrar com sua conta
         </Button>
+        <p className="mt-3 text-center text-xs text-slate-400">
+          Você será direcionado ao login seguro e voltará para cá.
+        </p>
         <div className="my-4 flex items-center gap-2 text-xs text-slate-300">
           <div className="h-px flex-1 bg-slate-200" /> ou{" "}
           <div className="h-px flex-1 bg-slate-200" />
         </div>
-        <Button variant="outline" className="w-full" onClick={entrar}>
-          Entrar com Keycloak (OIDC)
-        </Button>
-        <p className="mt-4 text-center text-sm text-slate-500">
+        <p className="text-center text-sm text-slate-500">
           Não tem conta?{" "}
-          <button onClick={cadastrar} className="font-medium text-brand-600">
+          <Link href="/cadastro" className="font-medium text-brand-600">
             Cadastre-se
-          </button>
+          </Link>
         </p>
       </Card>
       <p className="mt-4 flex items-center justify-center gap-1 text-center text-xs text-slate-400">
-        <ShieldCheck size={13} /> Login real será via Keycloak (PKCE) — aqui é
-        mock.
+        <ShieldCheck size={13} /> Login via Keycloak (OIDC + PKCE)
       </p>
     </div>
   );
