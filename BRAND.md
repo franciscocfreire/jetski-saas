@@ -29,6 +29,10 @@ traço **navy** (em fundo claro) ou **espuma** (em fundo escuro). Paths SVG can�
 
 Assets: `frontend/jetski-backoffice/public/{logo.svg, logo-dark.svg, icon.svg}` +
 `app/icon.svg` (favicon nativo Next 15). Componente: `components/logo.tsx`.
+**Modelo 3D**: `branding/meujet-crista-dupla.glb` — lockup completo (ondas +
+wordmark Playfair extrudado + filete) em glTF 2.0, materiais PBR nomeados
+("Ouro Meu Jet", "Espuma Meu Jet") com clearcoat; nós nomeados para edição
+(OndaDourada, OndaEspuma, Wordmark_MEUJET, FileteDourado).
 
 ## Paleta
 
