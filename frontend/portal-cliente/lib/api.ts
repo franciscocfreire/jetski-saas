@@ -20,10 +20,21 @@ export interface VinculoLoja {
   nome: string;
 }
 
+export interface IdentidadeCliente {
+  cpf?: string;
+  rg?: string;
+  orgaoEmissor?: string;
+  nacionalidade?: string;
+  naturalidade?: string;
+  estrangeiro?: boolean;
+  dataNascimento?: string;
+}
+
 export interface CustomerSelf {
   nome: string;
   email: string;
   emailVerified: boolean;
+  identidade?: IdentidadeCliente;
   lojas: VinculoLoja[];
 }
 
@@ -63,14 +74,16 @@ export async function getSelf(accessToken: string): Promise<CustomerSelf> {
   return res.json();
 }
 
-export async function updateSelf(accessToken: string, nome: string): Promise<void> {
+export async function updateSelf(
+  accessToken: string, nome: string, identidade?: IdentidadeCliente
+): Promise<void> {
   const res = await fetch(`${API_URL}/v1/customers/self`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ nome }),
+    body: JSON.stringify({ nome, ...(identidade ?? {}) }),
   });
   if (!res.ok) await parseError(res);
 }

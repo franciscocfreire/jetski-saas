@@ -12,8 +12,8 @@ import {
   inputCls,
   Badge,
 } from "@/components/ui";
-import { getSelf, updateSelf, ApiError, type CustomerSelf } from "@/lib/api";
-import { Loader2, LogOut, MailWarning, Store, BadgeCheck } from "lucide-react";
+import { getSelf, updateSelf, ApiError, type CustomerSelf, type IdentidadeCliente } from "@/lib/api";
+import { Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard } from "lucide-react";
 
 /**
  * Perfil REAL (P0): dados da identidade global + lojas vinculadas, direto do
@@ -25,6 +25,7 @@ export default function PerfilPage() {
 
   const [self, setSelf] = useState<CustomerSelf | null>(null);
   const [nome, setNome] = useState("");
+  const [ident, setIdent] = useState<IdentidadeCliente>({});
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -37,6 +38,7 @@ export default function PerfilPage() {
       const dados = await getSelf(token);
       setSelf(dados);
       setNome(dados.nome ?? "");
+      setIdent(dados.identidade ?? {});
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "Não foi possível carregar o perfil.");
     } finally {
@@ -60,8 +62,11 @@ export default function PerfilPage() {
     setErro(null);
     setSalvo(false);
     try {
-      await updateSelf(session.accessToken, nome);
+      await updateSelf(session.accessToken, nome, ident);
       setSalvo(true);
+      const dados = await getSelf(session.accessToken);
+      setSelf(dados);
+      setIdent(dados.identidade ?? {});
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "Não foi possível salvar.");
     } finally {
@@ -124,6 +129,76 @@ export default function PerfilPage() {
           </Button>
           {salvo && <span className="text-sm text-emerald-600">Salvo ✓</span>}
         </div>
+      </Card>
+
+      <Card className="mt-4 p-6">
+        <h3 className="flex items-center gap-2 font-semibold text-ink-900">
+          <IdCard size={18} /> Documento de identidade
+        </h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Vale para todas as lojas — endereço e telefone são pedidos por loja,
+          no fluxo da reserva.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Field
+            label="CPF"
+            hint={self?.identidade?.cpf ? "Definido uma única vez — fale com a loja para corrigir" : "Você também poderá entrar com o CPF"}
+          >
+            <input
+              className={inputCls}
+              value={ident.cpf ?? ""}
+              onChange={(e) => setIdent({ ...ident, cpf: e.target.value })}
+              placeholder="000.000.000-00"
+              disabled={!!self?.identidade?.cpf}
+            />
+          </Field>
+          <Field label="Data de nascimento">
+            <input
+              type="date"
+              className={inputCls}
+              value={ident.dataNascimento ?? ""}
+              onChange={(e) => setIdent({ ...ident, dataNascimento: e.target.value })}
+            />
+          </Field>
+          <Field label="RG / Identidade">
+            <input
+              className={inputCls}
+              value={ident.rg ?? ""}
+              onChange={(e) => setIdent({ ...ident, rg: e.target.value })}
+            />
+          </Field>
+          <Field label="Órgão emissor">
+            <input
+              className={inputCls}
+              value={ident.orgaoEmissor ?? ""}
+              onChange={(e) => setIdent({ ...ident, orgaoEmissor: e.target.value })}
+              placeholder="SSP/UF"
+            />
+          </Field>
+          <Field label="Nacionalidade">
+            <input
+              className={inputCls}
+              value={ident.nacionalidade ?? ""}
+              onChange={(e) => setIdent({ ...ident, nacionalidade: e.target.value })}
+              placeholder="Brasileira"
+            />
+          </Field>
+          <Field label="Naturalidade (Cidade/UF)">
+            <input
+              className={inputCls}
+              value={ident.naturalidade ?? ""}
+              onChange={(e) => setIdent({ ...ident, naturalidade: e.target.value })}
+            />
+          </Field>
+        </div>
+        <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={ident.estrangeiro ?? false}
+            onChange={(e) => setIdent({ ...ident, estrangeiro: e.target.checked })}
+          />
+          Sou estrangeiro(a)
+        </label>
       </Card>
 
       <Card className="mt-4 p-6">

@@ -42,7 +42,7 @@ function LoginInner() {
         <h1 className="mt-3 text-2xl font-bold text-ink-900">
           Entrar no Meu Jet
         </h1>
-        <p className="text-sm text-slate-500">Acesse sua conta de cliente</p>
+        <p className="text-sm text-slate-500">Entre com seu e-mail ou CPF (só números)</p>
       </div>
 
       {veioComErro && (

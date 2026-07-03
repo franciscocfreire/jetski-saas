@@ -16,6 +16,7 @@ import {
 import {
   getModeloPublico,
   criarReserva,
+  getSelf,
   ApiError,
   type MarketplaceModelo,
 } from "@/lib/api";
@@ -50,6 +51,7 @@ function Wizard() {
   const [horas, setHoras] = useState(Number(params.get("horas") ?? 2));
   const [observacoes, setObservacoes] = useState("");
   const [cpf, setCpf] = useState("");
+  const [cpfCadastro, setCpfCadastro] = useState<string | null>(null);
   const [telefone, setTelefone] = useState("");
   const [tipo, setTipo] = useState<"SINAL" | "TOTAL">("SINAL");
   const [criando, setCriando] = useState(false);
@@ -59,6 +61,21 @@ function Wizard() {
   useEffect(() => {
     getModeloPublico(modeloId).then(setM).catch(() => setM(null));
   }, [modeloId]);
+
+  // CPF do cadastro (identidade global): a reserva sempre usa ele
+  useEffect(() => {
+    if (status === "authenticated" && session?.accessToken) {
+      getSelf(session.accessToken)
+        .then((s) => {
+          const doc = s.identidade?.cpf;
+          if (doc) {
+            setCpfCadastro(doc);
+            setCpf(doc);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [status, session?.accessToken]);
 
   if (!m) {
     return (
@@ -170,12 +187,16 @@ function Wizard() {
             <ClipboardList size={18} /> Dados da reserva
           </h2>
           <div className="mt-4 grid gap-3">
-            <Field label="CPF (opcional — agiliza o check-in)">
+            <Field
+              label={cpfCadastro ? "CPF (do seu cadastro)" : "CPF (opcional — agiliza o check-in)"}
+              hint={cpfCadastro ? "A reserva sempre usa o CPF do cadastro — para corrigir, fale com a loja" : undefined}
+            >
               <input
                 className={inputCls}
                 value={cpf}
                 onChange={(e) => setCpf(e.target.value)}
                 placeholder="000.000.000-00"
+                disabled={!!cpfCadastro}
               />
             </Field>
             <Field label="Telefone/WhatsApp (opcional)">
