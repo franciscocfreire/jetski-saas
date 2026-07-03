@@ -13,6 +13,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import Image from 'next/image'
+import { B2bDashboardMock } from '@/components/public/b2b/dashboard-mock'
 import { PlanosSection } from '@/components/public/b2b/planos-section'
 import { FaqSection } from '@/components/public/b2b/faq-section'
 
@@ -164,17 +165,24 @@ export default function ParaEmpresasPage() {
       {/* ===== Grid de recursos ===== */}
       <section className="py-28 relative">
         <div className="container">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-3 mb-6">
-              <div className="h-px w-8 bg-gold/60" />
-              <span className="text-gold/80 text-sm tracking-[0.3em] uppercase">Recursos</span>
-              <div className="h-px w-8 bg-gold/60" />
+          {/* Intro em duas colunas: proposta + o painel real (mock) */}
+          <div className="grid gap-12 lg:grid-cols-2 lg:items-center mb-20">
+            <div>
+              <div className="inline-flex items-center gap-3 mb-6">
+                <div className="h-px w-8 bg-gold/60" />
+                <span className="text-gold/80 text-sm tracking-[0.3em] uppercase">Recursos</span>
+              </div>
+              <h2 className="font-display text-4xl md:text-5xl font-medium text-white">
+                Tudo que a operação
+                <br />
+                <span className="text-gold-gradient">precisa</span>
+              </h2>
+              <p className="mt-6 text-white/50 max-w-md leading-relaxed">
+                É assim que o dia da sua locadora aparece no painel: locações,
+                receita e frota em tempo real — com o balcão a um clique.
+              </p>
             </div>
-            <h2 className="font-display text-4xl md:text-5xl font-medium text-white">
-              Tudo que a operação
-              <br />
-              <span className="text-gold-gradient">precisa</span>
-            </h2>
+            <B2bDashboardMock />
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
