@@ -12,7 +12,7 @@ import {
   Store,
   Wallet,
 } from 'lucide-react'
-import { B2bDashboardMock } from '@/components/public/b2b/dashboard-mock'
+import Image from 'next/image'
 import { PlanosSection } from '@/components/public/b2b/planos-section'
 import { FaqSection } from '@/components/public/b2b/faq-section'
 
@@ -135,7 +135,18 @@ export default function ParaEmpresasPage() {
             </p>
           </div>
 
-          <B2bDashboardMock />
+          {/* Render 3D da marca (branding/meujet-crista-dupla.glb) — fundo transparente */}
+          <div className="relative hidden lg:block" aria-hidden>
+            <div className="absolute -inset-8 bg-gold/10 rounded-full blur-[110px]" />
+            <Image
+              src="/brand-3d-hero.webp"
+              alt=""
+              width={1400}
+              height={1060}
+              priority
+              className="relative w-full max-w-xl mx-auto drop-shadow-[0_24px_60px_rgba(3,9,18,0.7)]"
+            />
+          </div>
         </div>
       </section>
 
