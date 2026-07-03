@@ -83,8 +83,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     sessionToken: { name: `${cookiePrefix}portal.session-token`, options: cookieDefaults },
     callbackUrl: { name: `${cookiePrefix}portal.callback-url`, options: { ...cookieDefaults, httpOnly: false } },
     csrfToken: { name: `${cookiePrefix}portal.csrf-token`, options: cookieDefaults },
-    pkceCodeVerifier: { name: `${cookiePrefix}portal.pkce.code_verifier`, options: { ...cookieDefaults, maxAge: 900 } },
-    state: { name: `${cookiePrefix}portal.state`, options: { ...cookieDefaults, maxAge: 900 } },
+    pkceCodeVerifier: { name: `${cookiePrefix}portal.pkce.code_verifier`, options: { ...cookieDefaults, maxAge: 1800 } },
+    state: { name: `${cookiePrefix}portal.state`, options: { ...cookieDefaults, maxAge: 1800 } },
     nonce: { name: `${cookiePrefix}portal.nonce`, options: cookieDefaults },
   },
   providers: [

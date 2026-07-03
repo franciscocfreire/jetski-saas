@@ -20,6 +20,7 @@ export default function CadastroPage() {
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [criada, setCriada] = useState(false);
+  const [indo, setIndo] = useState(false);
 
   const valido =
     nome.trim().length >= 3 &&
@@ -54,7 +55,8 @@ export default function CadastroPage() {
         <Button
           className="mt-6 w-full"
           size="lg"
-          onClick={() => signIn("keycloak", { callbackUrl: withBase("/conta/perfil") })}
+          onClick={() => { if (!indo) { setIndo(true); signIn("keycloak", { callbackUrl: withBase("/conta/perfil") }); } }}
+          disabled={indo}
         >
           Entrar agora
         </Button>

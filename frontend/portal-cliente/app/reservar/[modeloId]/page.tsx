@@ -53,6 +53,7 @@ function Wizard() {
   const [telefone, setTelefone] = useState("");
   const [tipo, setTipo] = useState<"SINAL" | "TOTAL">("SINAL");
   const [criando, setCriando] = useState(false);
+  const [indoLogin, setIndoLogin] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
@@ -249,11 +250,14 @@ function Wizard() {
             ) : (
               <Button
                 className="flex-1 gap-2"
-                onClick={() =>
+                disabled={indoLogin}
+                onClick={() => {
+                  if (indoLogin) return;
+                  setIndoLogin(true);
                   signIn("keycloak", {
                     callbackUrl: withBase(`/reservar/${m.id}?data=${data}&hora=${hora}&horas=${horas}`),
-                  })
-                }
+                  });
+                }}
               >
                 <LogIn size={15} /> Entrar para confirmar
               </Button>
