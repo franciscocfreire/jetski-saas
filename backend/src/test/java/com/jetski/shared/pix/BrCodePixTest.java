@@ -1,4 +1,4 @@
-package com.jetski.creditos.internal;
+package com.jetski.shared.pix;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

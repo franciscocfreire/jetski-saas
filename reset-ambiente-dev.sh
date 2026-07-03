@@ -372,6 +372,14 @@ ALTER TABLE public.credito_compra
     ADD COLUMN IF NOT EXISTS valor_pago     numeric(10,2),
     ADD COLUMN IF NOT EXISTS preco_unitario numeric(10,2);
 
+-- V030: portal do cliente — canal de origem da reserva (BALCAO | PORTAL)
+ALTER TABLE public.reserva ADD COLUMN IF NOT EXISTS canal varchar(20) NOT NULL DEFAULT 'BALCAO';
+ALTER TABLE public.reserva DROP CONSTRAINT IF EXISTS reserva_canal_check;
+ALTER TABLE public.reserva ADD CONSTRAINT reserva_canal_check
+    CHECK ((canal)::text = ANY (ARRAY['BALCAO'::text, 'PORTAL'::text]));
+CREATE INDEX IF NOT EXISTS idx_reserva_canal_pagamento
+    ON public.reserva (tenant_id, canal, pagamento_status) WHERE ativo = true;
+
 -- V029: portal do cliente — leitura "self" cross-tenant dos vínculos do cliente
 -- autenticado (o serviço seta app.customer_sub antes do SELECT; policy permissiva
 -- soma-se à de tenant, liberando só as linhas do próprio sub)

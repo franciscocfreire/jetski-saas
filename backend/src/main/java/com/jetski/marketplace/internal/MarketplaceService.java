@@ -49,6 +49,8 @@ public class MarketplaceService {
         String sql = """
             SELECT
                 m.id,
+                m.tenant_id,
+                t.slug,
                 m.nome,
                 m.fabricante,
                 m.capacidade_pessoas,
@@ -108,6 +110,8 @@ public class MarketplaceService {
         String sql = """
             SELECT
                 m.id,
+                m.tenant_id,
+                t.slug,
                 m.nome,
                 m.fabricante,
                 m.capacidade_pessoas,
@@ -142,6 +146,79 @@ public class MarketplaceService {
                 return dto.withMidias(midias);
             });
     }
+
+    /**
+     * Vitrine pública de UMA loja (portal do cliente, /loja/{slug}).
+     * Mesmas regras de visibilidade do marketplace global.
+     */
+    @Transactional(readOnly = true)
+    public List<MarketplaceModeloDTO> listPublicModelosByLoja(String slug) {
+        String sql = """
+            SELECT
+                m.id,
+                m.tenant_id,
+                t.slug,
+                m.nome,
+                m.fabricante,
+                m.capacidade_pessoas,
+                m.preco_base_hora,
+                m.pacotes_json,
+                m.foto_referencia_url,
+                t.razao_social,
+                t.whatsapp,
+                t.cidade,
+                t.uf,
+                t.prioridade_marketplace
+            FROM modelo m
+            INNER JOIN tenant t ON m.tenant_id = t.id
+            WHERE t.slug = :slug
+              AND m.ativo = true
+              AND m.exibir_no_marketplace = true
+              AND t.status = 'ATIVO'
+              AND t.exibir_no_marketplace = true
+            ORDER BY m.nome
+            """;
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> results = entityManager.createNativeQuery(sql)
+            .setParameter("slug", slug)
+            .getResultList();
+
+        List<MarketplaceModeloDTO> modelos = results.stream().map(this::mapToDTO).toList();
+        if (!modelos.isEmpty()) {
+            Map<UUID, List<MarketplaceMidiaDTO>> midiasMap =
+                fetchMidiasForModelos(modelos.stream().map(MarketplaceModeloDTO::id).toList());
+            modelos = modelos.stream()
+                .map(m -> m.withMidias(midiasMap.getOrDefault(m.id(), List.of())))
+                .toList();
+        }
+        return modelos;
+    }
+
+    /** Dados públicos da loja (cabeçalho da vitrine). */
+    @Transactional(readOnly = true)
+    public Optional<MarketplaceLojaDTO> getPublicLoja(String slug) {
+        String sql = """
+            SELECT t.id, t.slug, t.razao_social, t.cidade, t.uf, t.whatsapp
+            FROM tenant t
+            WHERE t.slug = :slug
+              AND t.status = 'ATIVO'
+              AND t.exibir_no_marketplace = true
+            """;
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> results = entityManager.createNativeQuery(sql)
+            .setParameter("slug", slug)
+            .getResultList();
+
+        return results.stream().findFirst().map(r -> new MarketplaceLojaDTO(
+            (UUID) r[0], (String) r[1], (String) r[2],
+            (String) r[3], (String) r[4], (String) r[5]));
+    }
+
+    /** Loja pública (vitrine). */
+    public record MarketplaceLojaDTO(
+        UUID tenantId, String slug, String nome, String cidade, String uf, String whatsapp) {}
 
     /**
      * Fetch midias for multiple models (batch query for efficiency)
@@ -193,22 +270,26 @@ public class MarketplaceService {
 
     private MarketplaceModeloDTO mapToDTO(Object[] row) {
         UUID id = (UUID) row[0];
-        String nome = (String) row[1];
-        String fabricante = (String) row[2];
-        Integer capacidadePessoas = row[3] != null ? ((Number) row[3]).intValue() : 2;
-        BigDecimal precoBaseHora = row[4] != null ? (BigDecimal) row[4] : BigDecimal.ZERO;
-        String pacotesJson = (String) row[5];
-        String fotoReferenciaUrl = (String) row[6];
-        String empresaNome = (String) row[7];
-        String empresaWhatsapp = (String) row[8];
-        String cidade = (String) row[9];
-        String uf = (String) row[10];
-        Integer prioridade = row[11] != null ? ((Number) row[11]).intValue() : 0;
+        UUID tenantId = (UUID) row[1];
+        String lojaSlug = (String) row[2];
+        String nome = (String) row[3];
+        String fabricante = (String) row[4];
+        Integer capacidadePessoas = row[5] != null ? ((Number) row[5]).intValue() : 2;
+        BigDecimal precoBaseHora = row[6] != null ? (BigDecimal) row[6] : BigDecimal.ZERO;
+        String pacotesJson = (String) row[7];
+        String fotoReferenciaUrl = (String) row[8];
+        String empresaNome = (String) row[9];
+        String empresaWhatsapp = (String) row[10];
+        String cidade = (String) row[11];
+        String uf = (String) row[12];
+        Integer prioridade = row[13] != null ? ((Number) row[13]).intValue() : 0;
 
         BigDecimal precoPacote30min = extractPacote30min(pacotesJson);
 
         return MarketplaceModeloDTO.of(
             id,
+            tenantId,
+            lojaSlug,
             nome,
             fabricante,
             capacidadePessoas,

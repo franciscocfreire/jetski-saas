@@ -7,9 +7,14 @@ import java.util.UUID;
 /**
  * DTO para exibição de modelos no marketplace público.
  * Contém dados agregados do modelo e do tenant para listagem.
+ *
+ * tenantId/lojaSlug permitem ao portal do cliente rotear a reserva para a
+ * loja correta (P1) e montar a vitrine por loja (/loja/{slug}).
  */
 public record MarketplaceModeloDTO(
     UUID id,
+    UUID tenantId,
+    String lojaSlug,
     String nome,
     String fabricante,
     Integer capacidadePessoas,
@@ -27,6 +32,8 @@ public record MarketplaceModeloDTO(
      */
     public static MarketplaceModeloDTO of(
             UUID id,
+            UUID tenantId,
+            String lojaSlug,
             String nome,
             String fabricante,
             Integer capacidadePessoas,
@@ -39,9 +46,10 @@ public record MarketplaceModeloDTO(
             String uf,
             Integer prioridade
     ) {
-        String localizacao = formatLocalizacao(cidade, uf);
         return new MarketplaceModeloDTO(
             id,
+            tenantId,
+            lojaSlug,
             nome,
             fabricante,
             capacidadePessoas,
@@ -50,44 +58,9 @@ public record MarketplaceModeloDTO(
             fotoReferenciaUrl,
             empresaNome,
             empresaWhatsapp,
-            localizacao,
+            formatLocalizacao(cidade, uf),
             prioridade,
-            List.of()  // Empty list, will be populated by service
-        );
-    }
-
-    /**
-     * Factory method para criar DTO com midias.
-     */
-    public static MarketplaceModeloDTO of(
-            UUID id,
-            String nome,
-            String fabricante,
-            Integer capacidadePessoas,
-            BigDecimal precoBaseHora,
-            BigDecimal precoPacote30min,
-            String fotoReferenciaUrl,
-            String empresaNome,
-            String empresaWhatsapp,
-            String cidade,
-            String uf,
-            Integer prioridade,
-            List<MarketplaceMidiaDTO> midias
-    ) {
-        String localizacao = formatLocalizacao(cidade, uf);
-        return new MarketplaceModeloDTO(
-            id,
-            nome,
-            fabricante,
-            capacidadePessoas,
-            precoBaseHora,
-            precoPacote30min,
-            fotoReferenciaUrl,
-            empresaNome,
-            empresaWhatsapp,
-            localizacao,
-            prioridade,
-            midias != null ? midias : List.of()
+            List.of()
         );
     }
 
@@ -97,6 +70,8 @@ public record MarketplaceModeloDTO(
     public MarketplaceModeloDTO withMidias(List<MarketplaceMidiaDTO> midias) {
         return new MarketplaceModeloDTO(
             this.id,
+            this.tenantId,
+            this.lojaSlug,
             this.nome,
             this.fabricante,
             this.capacidadePessoas,

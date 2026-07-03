@@ -109,6 +109,18 @@ public class Reserva {
     private ReservaPrioridade prioridade = ReservaPrioridade.BAIXA;
 
     /**
+     * Canal de criação da reserva (V030): BALCAO (staff) ou PORTAL (cliente).
+     * O job de expiração de pré-reserva de 24h só alcança o canal PORTAL.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "canal", nullable = false, length = 20)
+    @Builder.Default
+    private Canal canal = Canal.BALCAO;
+
+    /** Canal de criação da reserva. */
+    public enum Canal { BALCAO, PORTAL }
+
+    /**
      * Whether customer paid deposit to guarantee reservation.
      * If true: ALTA priority (blocks capacity, guaranteed jetski)
      * If false: BAIXA priority (overbooking allowed, may not get jetski if fully booked)

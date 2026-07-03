@@ -1,4 +1,4 @@
-package com.jetski.creditos.internal;
+package com.jetski.shared.pix;
 
 import java.math.BigDecimal;
 import java.text.Normalizer;

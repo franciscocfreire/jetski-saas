@@ -1,8 +1,10 @@
 package com.jetski.locacoes.internal.jobs;
 
+import com.jetski.locacoes.internal.CustomerReservaService;
 import com.jetski.locacoes.internal.ReservaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -35,6 +37,11 @@ import org.springframework.stereotype.Component;
 public class ReservaExpiracaoJob {
 
     private final ReservaService reservaService;
+    private final CustomerReservaService customerReservaService;
+
+    /** Prazo (horas) para a pré-reserva do portal ser paga antes de expirar. */
+    @Value("${jetski.portal.pre-reserva-expiracao-horas:24}")
+    private int preReservaExpiracaoHoras;
 
     /**
      * Execute expiration processing for all tenants.
@@ -58,6 +65,23 @@ public class ReservaExpiracaoJob {
 
         } catch (Exception e) {
             log.error("Error during reservation expiration job: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Expira pré-reservas do PORTAL sem pagamento (AGUARDANDO) após o prazo
+     * (default 24h — spec §2.4: libera o slot se o compromisso não veio).
+     * Comprovante enviado (EM_ANALISE) ou confirmado nunca expira por aqui.
+     */
+    @Scheduled(fixedDelay = 900000) // 15 minutos
+    public void expirarPreReservasPortal() {
+        try {
+            int n = customerReservaService.expirarPreReservasPortal(preReservaExpiracaoHoras);
+            if (n > 0) {
+                log.info("Pré-reservas de portal expiradas pelo job: {}", n);
+            }
+        } catch (Exception e) {
+            log.error("Erro ao expirar pré-reservas do portal: {}", e.getMessage(), e);
         }
     }
 }

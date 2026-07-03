@@ -187,7 +187,7 @@ public class CreditoService {
         }
         BigDecimal valor = precoUnitario().multiply(BigDecimal.valueOf(quantidade))
             .setScale(2, RoundingMode.HALF_UP);
-        String payload = com.jetski.creditos.internal.BrCodePix.gerar(pixChave.trim(), valor, pixNome, pixCidade);
+        String payload = com.jetski.shared.pix.BrCodePix.gerar(pixChave.trim(), valor, pixNome, pixCidade);
         return new PixCobranca(payload, valor, quantidade);
     }
 
