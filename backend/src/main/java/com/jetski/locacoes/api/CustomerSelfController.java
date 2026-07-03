@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -83,8 +84,23 @@ public class CustomerSelfController {
             .email(jwt.getClaimAsString("email"))
             .emailVerified(Boolean.TRUE.equals(verified))
             .identidade(Identidade.of(profile))
-            .lojas(customerAccountService.vinculos(jwt.getSubject()))
+            .lojas(customerAccountService.vinculosComContato(jwt.getSubject()))
             .build());
+    }
+
+    public record ContatoLojaRequest(
+        @Size(max = 30) String telefone,
+        @Size(max = 30) String whatsapp
+    ) {}
+
+    @PutMapping("/lojas/{tenantId}/contato")
+    @Operation(summary = "Atualiza telefone/WhatsApp do cliente NESTA loja (contato é por loja)")
+    public ResponseEntity<CustomerAccountService.VinculoLoja> atualizarContato(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable java.util.UUID tenantId,
+            @Valid @RequestBody ContatoLojaRequest request) {
+        return ResponseEntity.ok(customerAccountService.atualizarContato(
+            jwt.getSubject(), tenantId, request.telefone(), request.whatsapp()));
     }
 
     @PutMapping

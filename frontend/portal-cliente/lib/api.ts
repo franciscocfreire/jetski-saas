@@ -18,6 +18,9 @@ export interface VinculoLoja {
   clienteId: string;
   slug: string;
   nome: string;
+  /** Contato é POR LOJA (como endereço). */
+  telefone?: string;
+  whatsapp?: string;
 }
 
 export interface IdentidadeCliente {
@@ -86,6 +89,22 @@ export async function updateSelf(
     body: JSON.stringify({ nome, ...(identidade ?? {}) }),
   });
   if (!res.ok) await parseError(res);
+}
+
+/** Atualiza telefone/WhatsApp do cliente NUMA loja (contato é por loja). */
+export async function updateContatoLoja(
+  accessToken: string, tenantId: string, telefone: string
+): Promise<VinculoLoja> {
+  const res = await fetch(`${API_URL}/v1/customers/self/lojas/${tenantId}/contato`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ telefone, whatsapp: telefone }),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
 }
 
 // ===================== Marketplace público (P1) =====================

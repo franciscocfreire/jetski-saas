@@ -27,6 +27,15 @@ public class MinIOStorageService implements StorageService {
 
     private final MinioClient minioClient;
 
+    /**
+     * Cliente usado APENAS para gerar presigned URLs: a assinatura SigV4
+     * inclui o host, então precisa ser o host que o BROWSER acessa (URL
+     * pública atrás do nginx/túnel), não o hostname interno do docker
+     * (http://minio:9000 → DNS_PROBE_FINISHED_NXDOMAIN no cliente).
+     * O nginx roteia /{bucket}/... até o MinIO preservando o Host.
+     */
+    private final MinioClient presignClient;
+
     @Value("${storage.minio.bucket}")
     private String bucket;
 
@@ -36,13 +45,24 @@ public class MinIOStorageService implements StorageService {
     public MinIOStorageService(
         @Value("${storage.minio.endpoint}") String endpoint,
         @Value("${storage.minio.access-key}") String accessKey,
-        @Value("${storage.minio.secret-key}") String secretKey
+        @Value("${storage.minio.secret-key}") String secretKey,
+        @Value("${storage.minio.public-url:}") String publicUrl
     ) {
-        log.info("Initializing MinIO client: endpoint={}", endpoint);
+        log.info("Initializing MinIO client: endpoint={}, publicUrl={}",
+            endpoint, publicUrl.isBlank() ? "(interno)" : publicUrl);
         this.minioClient = MinioClient.builder()
             .endpoint(endpoint)
             .credentials(accessKey, secretKey)
             .build();
+        // região fixa: evita o probe GetBucketLocation no endpoint público
+        // (o probe sai sem o prefixo do bucket na URL e falha atrás do nginx)
+        this.presignClient = publicUrl.isBlank()
+            ? this.minioClient
+            : MinioClient.builder()
+                .endpoint(publicUrl.trim())
+                .region("us-east-1")
+                .credentials(accessKey, secretKey)
+                .build();
     }
 
     @Override
@@ -87,7 +107,7 @@ public class MinIOStorageService implements StorageService {
             ensureBucketExists();
 
             // Gera presigned URL para PUT
-            String url = minioClient.getPresignedObjectUrl(
+            String url = presignClient.getPresignedObjectUrl(
                 GetPresignedObjectUrlArgs.builder()
                     .method(Method.PUT)
                     .bucket(bucket)
@@ -120,7 +140,7 @@ public class MinIOStorageService implements StorageService {
 
         try {
             // Gera presigned URL para GET
-            String url = minioClient.getPresignedObjectUrl(
+            String url = presignClient.getPresignedObjectUrl(
                 GetPresignedObjectUrlArgs.builder()
                     .method(Method.GET)
                     .bucket(bucket)

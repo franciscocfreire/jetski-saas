@@ -12,7 +12,7 @@ import {
   inputCls,
   Badge,
 } from "@/components/ui";
-import { getSelf, updateSelf, ApiError, type CustomerSelf, type IdentidadeCliente } from "@/lib/api";
+import { getSelf, updateSelf, updateContatoLoja, ApiError, type CustomerSelf, type IdentidadeCliente, type VinculoLoja } from "@/lib/api";
 import { Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard } from "lucide-react";
 
 /**
@@ -216,15 +216,11 @@ export default function PerfilPage() {
         )}
         <div className="mt-3 space-y-2">
           {self?.lojas.map((loja) => (
-            <div
+            <LojaRow
               key={loja.tenantId}
-              className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm"
-            >
-              <span className="flex-1 font-medium text-slate-700">
-                {loja.nome}
-              </span>
-              <Badge tone="brand">{loja.slug}</Badge>
-            </div>
+              loja={loja}
+              token={session?.accessToken}
+            />
           ))}
         </div>
       </Card>
@@ -236,6 +232,51 @@ export default function PerfilPage() {
         >
           <LogOut size={12} /> Sair da conta
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** Linha da loja com telefone/WhatsApp editável — contato é POR LOJA. */
+function LojaRow({ loja, token }: { loja: VinculoLoja; token?: string }) {
+  const [tel, setTel] = useState(loja.telefone ?? loja.whatsapp ?? "");
+  const [salvandoTel, setSalvandoTel] = useState(false);
+  const [okTel, setOkTel] = useState(false);
+  const original = loja.telefone ?? loja.whatsapp ?? "";
+
+  async function salvarTel() {
+    if (!token) return;
+    setSalvandoTel(true);
+    setOkTel(false);
+    try {
+      await updateContatoLoja(token, loja.tenantId, tel);
+      setOkTel(true);
+    } catch {
+      // mantém o valor digitado; usuário tenta de novo
+    } finally {
+      setSalvandoTel(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
+      <div className="flex items-center gap-2">
+        <span className="flex-1 font-medium text-slate-700">{loja.nome}</span>
+        <Badge tone="brand">{loja.slug}</Badge>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          className={inputCls + " max-w-[220px]"}
+          value={tel}
+          onChange={(e) => { setTel(e.target.value); setOkTel(false); }}
+          placeholder="Telefone/WhatsApp nesta loja"
+        />
+        {tel !== original && !okTel && (
+          <Button size="sm" variant="outline" onClick={salvarTel} disabled={salvandoTel}>
+            {salvandoTel ? <Loader2 size={13} className="animate-spin" /> : "Salvar"}
+          </Button>
+        )}
+        {okTel && <span className="text-xs text-emerald-600">Salvo ✓</span>}
       </div>
     </div>
   );

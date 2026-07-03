@@ -34,6 +34,7 @@ public class CustomerAccountService {
 
     private final UserProvisioningService userProvisioningService;
     private final EntityManager entityManager;
+    private final com.jetski.locacoes.internal.repository.ClienteRepository clienteRepository;
 
     /** Auto-cadastro público: identidade global + VERIFY_EMAIL (Keycloak envia o link). */
     public void signup(String nome, String email, String senha) {
@@ -93,5 +94,59 @@ public class CustomerAccountService {
         UUID clienteId;
         String slug;
         String nome;
+        /** Contato É POR LOJA — preenchidos apenas por vinculosComContato(). */
+        String telefone;
+        String whatsapp;
+    }
+
+    /**
+     * Vínculos + contato POR LOJA (telefone/whats do Cliente de cada tenant).
+     * Usa fixarTenant por vínculo — RLS estrita continua valendo.
+     */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<VinculoLoja> vinculosComContato(String providerUserId) {
+        return vinculos(providerUserId).stream().map(v -> {
+            fixarTenant(v.getTenantId());
+            return clienteRepository.findById(v.getClienteId())
+                .map(c -> VinculoLoja.builder()
+                    .tenantId(v.getTenantId()).clienteId(v.getClienteId())
+                    .slug(v.getSlug()).nome(v.getNome())
+                    .telefone(c.getTelefone()).whatsapp(c.getWhatsapp())
+                    .build())
+                .orElse(v);
+        }).toList();
+    }
+
+    /** Atualiza o contato do cliente NUMA loja específica (telefone/whats por loja). */
+    @org.springframework.transaction.annotation.Transactional
+    public VinculoLoja atualizarContato(String providerUserId, UUID tenantId,
+                                        String telefone, String whatsapp) {
+        VinculoLoja v = vinculos(providerUserId).stream()
+            .filter(x -> x.getTenantId().equals(tenantId))
+            .findFirst()
+            .orElseThrow(() -> new com.jetski.shared.exception.NotFoundException(
+                "Você não tem cadastro nesta loja"));
+        fixarTenant(tenantId);
+        var cliente = clienteRepository.findById(v.getClienteId())
+            .orElseThrow(() -> new com.jetski.shared.exception.NotFoundException(
+                "Cliente não encontrado"));
+        if (telefone != null) cliente.setTelefone(telefone.isBlank() ? null : telefone.trim());
+        if (whatsapp != null) cliente.setWhatsapp(whatsapp.isBlank() ? null : whatsapp.trim());
+        clienteRepository.save(cliente);
+        log.info("Contato atualizado pelo cliente no portal: cliente={}, tenant={}",
+            cliente.getId(), tenantId);
+        return VinculoLoja.builder()
+            .tenantId(tenantId).clienteId(v.getClienteId())
+            .slug(v.getSlug()).nome(v.getNome())
+            .telefone(cliente.getTelefone()).whatsapp(cliente.getWhatsapp())
+            .build();
+    }
+
+    /** Fixa app.tenant_id (transaction-local) — RLS estrita continua valendo. */
+    private void fixarTenant(UUID tenantId) {
+        entityManager.createNativeQuery("SELECT set_config('app.tenant_id', :tid, true)")
+            .setParameter("tid", tenantId.toString())
+            .getSingleResult();
+        com.jetski.shared.security.TenantContext.setTenantId(tenantId);
     }
 }

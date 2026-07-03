@@ -202,6 +202,9 @@ services:
       STORAGE_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       STORAGE_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       STORAGE_MINIO_BUCKET: ${MINIO_BUCKET:-jetski-docs}
+      # Host PÚBLICO para presigned URLs (assinatura inclui o host; o nginx
+      # roteia /jetski-docs/ → minio). Sem túnel, usa a porta publicada.
+      STORAGE_MINIO_PUBLIC_URL: ${STORAGE_MINIO_PUBLIC_URL:-http://localhost:9000}
 
       # Email: em dev envia para o Mailpit (UI em http://localhost:8025).
       # O host/port default (mailpit:1025) vêm do application-dev.yml.
