@@ -346,6 +346,25 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("PIX copia-e-cola traz valor exato (qtd × preço) e CRC")
+    void testPixCopiaECola() throws Exception {
+        mockMvc.perform(get("/v1/tenants/{tenantId}/creditos/pix?quantidade=50", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quantidade").value(50))
+            .andExpect(jsonPath("$.valor").value(250.00))
+            .andExpect(jsonPath("$.copiaECola", org.hamcrest.Matchers.startsWith("000201")))
+            .andExpect(jsonPath("$.copiaECola", org.hamcrest.Matchers.containsString("5406250.00")))
+            .andExpect(jsonPath("$.copiaECola", org.hamcrest.Matchers.matchesRegex(".*6304[0-9A-F]{4}$")));
+
+        mockMvc.perform(get("/v1/tenants/{tenantId}/creditos/pix?quantidade=0", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .with(admin()))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("Débito grava a reserva no motivo (extrato autoexplicativo)")
     void testDebitoGravaReservaNoMotivo() {
         creditoService.lancarAdesao(TENANT_ACME);

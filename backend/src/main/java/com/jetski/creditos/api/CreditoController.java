@@ -56,6 +56,15 @@ public class CreditoController {
             "precoUnitario", creditoService.precoUnitario()));
     }
 
+    @GetMapping("/pix")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "PIX copia-e-cola com o valor exato da quantidade (conteúdo do QR Code)")
+    public ResponseEntity<CreditoService.PixCobranca> pix(
+            @PathVariable UUID tenantId,
+            @RequestParam int quantidade) {
+        return ResponseEntity.ok(creditoService.gerarPixCompra(quantidade));
+    }
+
     @PostMapping("/compras")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
     @Operation(summary = "Solicitar compra por QUANTIDADE (valor = qtd × preço vigente; aguarda aprovação)")

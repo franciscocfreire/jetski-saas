@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Gauge, FileCheck2, Landmark, Eye, Coins, Copy, ShoppingCart } from 'lucide-react'
+import { PixQrCode } from '@/components/pix-qrcode'
+import { Loader2, Gauge, FileCheck2, Landmark, Eye, Coins, Copy, ShoppingCart, QrCode } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   Bar,
@@ -47,6 +48,7 @@ function ComprarCreditosCard() {
   const { toast } = useToast()
   const [quantidade, setQuantidade] = useState('50')
   const [pixTxid, setPixTxid] = useState('')
+  const [pix, setPix] = useState<{ copiaECola: string; valor: number; quantidade: number } | null>(null)
 
   const { data: config } = useQuery({
     queryKey: ['creditos-config'],
@@ -57,11 +59,25 @@ function ComprarCreditosCard() {
     queryFn: () => creditosService.getCompras(5),
   })
 
+  const gerarPix = useMutation({
+    mutationFn: () => creditosService.gerarPix(Number(quantidade)),
+    onSuccess: (p) => setPix(p),
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { message?: string } }; message?: string }
+      toast({
+        title: 'Erro ao gerar PIX',
+        description: err.response?.data?.message || err.message || 'Não foi possível gerar.',
+        variant: 'destructive',
+      })
+    },
+  })
+
   const solicitar = useMutation({
     mutationFn: () => creditosService.solicitarCompra(Number(quantidade), pixTxid),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['creditos-compras'] })
       setPixTxid('')
+      setPix(null)
       toast({
         title: 'Solicitação enviada',
         description: 'Assim que o pagamento for conferido, os créditos entram no seu saldo.',
@@ -77,10 +93,10 @@ function ComprarCreditosCard() {
     },
   })
 
-  const copiarChave = async () => {
-    if (config?.pixChave) {
-      await navigator.clipboard.writeText(config.pixChave)
-      toast({ title: 'Chave PIX copiada' })
+  const copiarPix = async () => {
+    if (pix) {
+      await navigator.clipboard.writeText(pix.copiaECola)
+      toast({ title: 'PIX copia-e-cola copiado', description: 'Cole no app do seu banco.' })
     }
   }
 
@@ -102,17 +118,8 @@ function ComprarCreditosCard() {
         )}
       </div>
       <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-        <li>Escolha quantas emissões quer comprar e veja o valor a transferir.</li>
-        <li>
-          Transfira o valor via PIX para a chave{' '}
-          <button
-            type="button"
-            onClick={copiarChave}
-            className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-medium text-foreground hover:bg-accent"
-          >
-            {config?.pixChave || '—'} <Copy className="h-3 w-3" />
-          </button>
-        </li>
+        <li>Escolha quantas emissões quer comprar e gere o PIX com o valor exato.</li>
+        <li>Pague pelo QR Code ou copia-e-cola no app do seu banco.</li>
         <li>Informe o número da transação (comprovante) — o Meu Jet confere e libera os créditos.</li>
       </ol>
       <div className="mt-4 flex flex-wrap items-end gap-3">
@@ -124,35 +131,58 @@ function ComprarCreditosCard() {
             min={1}
             step="1"
             value={quantidade}
-            onChange={(e) => setQuantidade(e.target.value)}
+            onChange={(e) => { setQuantidade(e.target.value); setPix(null) }}
             className="w-36 tabular-nums"
           />
         </div>
-        <div className="min-w-56 flex-1 space-y-1">
-          <label className="text-xs font-medium" htmlFor="compra-txid">Número da transação PIX</label>
-          <Input
-            id="compra-txid"
-            value={pixTxid}
-            onChange={(e) => setPixTxid(e.target.value)}
-            placeholder="Ex.: E12345678202607021234"
-            maxLength={80}
-          />
-        </div>
         <Button
-          onClick={() => solicitar.mutate()}
-          disabled={solicitar.isPending || !qtdValida || !pixTxid.trim()}
+          variant="outline"
+          onClick={() => gerarPix.mutate()}
+          disabled={gerarPix.isPending || !qtdValida}
           className="gap-2"
         >
-          {solicitar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
-          Solicitar créditos
+          {gerarPix.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <QrCode className="h-4 w-4" />}
+          Gerar PIX{qtdValida && preco > 0 ? ` de ${brl(valorAPagar)}` : ''}
         </Button>
       </div>
-      {qtdValida && preco > 0 && (
-        <p className="mt-3 rounded-md bg-muted px-3 py-2 text-sm">
-          Valor a transferir:{' '}
-          <span className="text-base font-semibold tabular-nums">{brl(valorAPagar)}</span>
-          <span className="text-muted-foreground"> ({qtdNum} × {brl(preco)})</span>
-        </p>
+
+      {pix && (
+        <div className="mt-4 flex flex-wrap items-center gap-5 rounded-lg border bg-muted/40 p-4">
+          <PixQrCode payload={pix.copiaECola} size={148} className="rounded-md border bg-white p-1.5" />
+          <div className="min-w-64 flex-1 space-y-2">
+            <p className="text-sm">
+              Pague <span className="font-semibold tabular-nums">{brl(pix.valor)}</span>{' '}
+              <span className="text-muted-foreground">({pix.quantidade} créditos)</span> escaneando o QR
+              ou pelo copia-e-cola:
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="max-w-xs truncate rounded bg-background px-2 py-1 text-[11px]">{pix.copiaECola}</code>
+              <Button size="sm" variant="outline" onClick={copiarPix} className="gap-1 shrink-0">
+                <Copy className="h-3.5 w-3.5" /> Copiar
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-end gap-2 pt-1">
+              <div className="min-w-56 flex-1 space-y-1">
+                <label className="text-xs font-medium" htmlFor="compra-txid">Número da transação (comprovante)</label>
+                <Input
+                  id="compra-txid"
+                  value={pixTxid}
+                  onChange={(e) => setPixTxid(e.target.value)}
+                  placeholder="Ex.: E12345678202607021234"
+                  maxLength={80}
+                />
+              </div>
+              <Button
+                onClick={() => solicitar.mutate()}
+                disabled={solicitar.isPending || !pixTxid.trim()}
+                className="gap-2"
+              >
+                {solicitar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
+                Já paguei — enviar
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {compras && compras.length > 0 && (

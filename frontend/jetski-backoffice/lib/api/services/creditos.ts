@@ -52,6 +52,15 @@ export const creditosService = {
     return data
   },
 
+  /** PIX copia-e-cola com o valor exato da quantidade (conteúdo do QR Code). */
+  async gerarPix(quantidade: number): Promise<{ copiaECola: string; valor: number; quantidade: number }> {
+    const { data } = await apiClient.get<{ copiaECola: string; valor: number; quantidade: number }>(
+      `/v1/tenants/${getTenantId()}/creditos/pix`,
+      { params: { quantidade } }
+    )
+    return data
+  },
+
   /** Compra por QUANTIDADE: o valor a transferir (qtd × preço) é calculado no backend. */
   async solicitarCompra(quantidade: number, pixTxid: string): Promise<CompraCreditos> {
     const { data } = await apiClient.post<CompraCreditos>(

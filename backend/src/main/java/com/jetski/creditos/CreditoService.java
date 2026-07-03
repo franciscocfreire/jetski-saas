@@ -49,6 +49,12 @@ public class CreditoService {
     @Value("${jetski.creditos.pix-chave:}")
     private String pixChave;
 
+    @Value("${jetski.creditos.pix-nome:Meu Jet}")
+    private String pixNome;
+
+    @Value("${jetski.creditos.pix-cidade:Florianopolis}")
+    private String pixCidade;
+
     @Transactional(readOnly = true)
     public int saldo(UUID tenantId) {
         return repository.saldo(tenantId);
@@ -166,6 +172,27 @@ public class CreditoService {
     public String pixChave() {
         return pixChave;
     }
+
+    /**
+     * PIX copia-e-cola (BR Code) com o valor exato de {@code quantidade} créditos.
+     * O mesmo payload é o conteúdo do QR Code exibido pela UI.
+     */
+    @Transactional(readOnly = true)
+    public PixCobranca gerarPixCompra(int quantidade) {
+        if (quantidade < 1 || quantidade > 100_000) {
+            throw new BusinessException("Informe a quantidade de emissões desejada");
+        }
+        if (pixChave == null || pixChave.isBlank()) {
+            throw new BusinessException("Chave PIX da plataforma não configurada — contate o Meu Jet");
+        }
+        BigDecimal valor = precoUnitario().multiply(BigDecimal.valueOf(quantidade))
+            .setScale(2, RoundingMode.HALF_UP);
+        String payload = com.jetski.creditos.internal.BrCodePix.gerar(pixChave.trim(), valor, pixNome, pixCidade);
+        return new PixCobranca(payload, valor, quantidade);
+    }
+
+    /** Cobrança PIX pronta para pagamento (copia-e-cola = conteúdo do QR). */
+    public record PixCobranca(String copiaECola, BigDecimal valor, int quantidade) {}
 
     /** Preço do crédito (R$) — configurável pelo super admin em plataforma_config. */
     @Transactional(readOnly = true)

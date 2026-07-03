@@ -135,6 +135,9 @@ jetski:
     adesao: ${JETSKI_CREDITOS_ADESAO:20}
     # Chave PIX fixa da plataforma para compra de créditos (fluxo manual v1).
     pix-chave: ${JETSKI_CREDITOS_PIX_CHAVE:pix@meujet.com.br}
+    # Nome/cidade do recebedor no BR Code (normalizados p/ EMV: sem acento, caixa alta)
+    pix-nome: ${JETSKI_CREDITOS_PIX_NOME:Meu Jet}
+    pix-cidade: ${JETSKI_CREDITOS_PIX_CIDADE:Florianopolis}
 
 # JWT configuration for magic link tokens
 jwt:
