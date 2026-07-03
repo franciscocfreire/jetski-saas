@@ -5,11 +5,15 @@ import { Eraser, PenLine } from "lucide-react";
 
 export function SignaturePad({
   onChange,
+  onDataUrlChange,
 }: {
   onChange?: (hasSignature: boolean) => void;
+  /** PNG dataURL da assinatura (null quando limpo) — para envio à API. */
+  onDataUrlChange?: (dataUrl: string | null) => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
+  const hasRef = useRef(false);
   const [has, setHas] = useState(false);
 
   function point(e: React.PointerEvent) {
@@ -41,21 +45,27 @@ export function SignaturePad({
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.stroke();
-    if (!has) {
+    if (!hasRef.current) {
+      hasRef.current = true;
       setHas(true);
       onChange?.(true);
     }
   }
 
   function up() {
+    if (drawing.current && hasRef.current) {
+      onDataUrlChange?.(ref.current!.toDataURL("image/png"));
+    }
     drawing.current = false;
   }
 
   function clear() {
     const c = ref.current!;
     c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
+    hasRef.current = false;
     setHas(false);
     onChange?.(false);
+    onDataUrlChange?.(null);
   }
 
   return (

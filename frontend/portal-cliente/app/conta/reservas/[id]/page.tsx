@@ -158,14 +158,14 @@ export default function ReservaDetailPage() {
           estado={checklist.habilitacaoOk ? "ok" : "pendente"}
           icon={<IdCard size={18} />}
           title="Habilitação náutica"
-          desc="Em breve pelo portal — por enquanto, resolva com a loja no atendimento"
+          desc="Envie sua CHA ou emita a CHA-MTA-E"
           href={`/conta/reservas/${reserva.id}/habilitacao`}
         />
         <TaskRow
           estado={checklist.termosOk ? "ok" : "pendente"}
           icon={<FileSignature size={18} />}
           title="Termos e responsabilidade"
-          desc="Em breve pelo portal — assinatura acontece no atendimento da loja"
+          desc="Assine o termo da loja pelo celular"
           href={`/conta/reservas/${reserva.id}/termos`}
         />
       </div>

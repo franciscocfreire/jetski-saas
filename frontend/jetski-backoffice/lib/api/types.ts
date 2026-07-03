@@ -204,6 +204,8 @@ export interface Reserva extends BaseEntity {
   pagamentoMotivoRecusa?: string
   valorTotal?: number
   documentoEmitidoEm?: string
+  /** Canal de criação: BALCAO (staff) ou PORTAL (cliente online) */
+  canal?: 'BALCAO' | 'PORTAL'
   observacoes?: string
 }
 

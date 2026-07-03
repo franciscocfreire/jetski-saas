@@ -357,8 +357,8 @@ export default function PendenciasPage() {
                 </button>
 
                 <div className="flex w-full items-center justify-end gap-2 sm:w-auto sm:shrink-0">
-                  <Badge variant={r.cliente?.origem === 'PORTAL' ? 'default' : 'secondary'}>
-                    {r.cliente?.origem === 'PORTAL' ? 'Online' : 'Balcão'}
+                  <Badge variant={(r.canal ?? r.cliente?.origem) === 'PORTAL' ? 'default' : 'secondary'}>
+                    {(r.canal ?? r.cliente?.origem) === 'PORTAL' ? 'Portal' : 'Balcão'}
                   </Badge>
                   {!carregando && (
                     <span

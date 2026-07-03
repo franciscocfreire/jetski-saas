@@ -1,56 +1,128 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   IdCard,
-  PlayCircle,
-  FileCheck2,
   UploadCloud,
-  Landmark,
-  LifeBuoy,
   CheckCircle2,
-  Clock,
-  ChevronRight,
   Award,
+  Loader2,
+  LifeBuoy,
+  Store,
 } from "lucide-react";
-import { useStore } from "@/lib/store";
-import { Button, Card, Field, inputCls, Badge } from "@/components/ui";
-import { AddressForm } from "@/components/AddressForm";
-import { brl } from "@/lib/cn";
+import {
+  getHabilitacao,
+  enviarCha,
+  ApiError,
+  type HabilitacaoCliente,
+} from "@/lib/api";
+import { Button, Card, Field, inputCls } from "@/components/ui";
 
 type Via = null | "tem" | "nao";
 
+const CATEGORIAS = ["MOTONAUTA", "ARRAIS_AMADOR", "MSA", "CPA", "MTA-E", "OUTRA"];
+
+/**
+ * Habilitação REAL — caminho A (já tenho CHA): número/categoria/validade +
+ * foto do documento. Caminho B (CHA-MTA-E via EMA/GRU) chega na P3 — por ora
+ * orienta o atendimento da loja.
+ */
 export default function HabilitacaoPage() {
   const { id } = useParams<{ id: string }>();
-  const reserva = useStore((s) => s.reservas.find((r) => r.id === id));
-  const setEtapa = useStore((s) => s.setEtapa);
-  const [via, setVia] = useState<Via>(null);
+  const { data: session, status } = useSession();
+  const router = useRouter();
 
-  if (!reserva) return <p>Reserva não encontrada.</p>;
+  const [hab, setHab] = useState<HabilitacaoCliente | null>(null);
+  const [via, setVia] = useState<Via>(null);
+  const [categoria, setCategoria] = useState("MOTONAUTA");
+  const [numero, setNumero] = useState("");
+  const [validade, setValidade] = useState("");
+  const [foto, setFoto] = useState<{ nome: string; dataUrl: string } | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const carregar = useCallback(async (token: string) => {
+    try {
+      setHab(await getHabilitacao(token, id));
+    } catch {
+      setErro("Reserva não encontrada.");
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/login");
+      return;
+    }
+    if (status === "authenticated" && session?.accessToken) {
+      carregar(session.accessToken);
+    }
+  }, [status, session?.accessToken, carregar, router]);
+
+  if (erro && !hab) return <p className="py-20 text-center text-slate-400">{erro}</p>;
+  if (!hab) {
+    return (
+      <div className="flex justify-center py-20 text-slate-400">
+        <Loader2 className="animate-spin" />
+      </div>
+    );
+  }
+
+  function selecionarFoto(f: File | undefined) {
+    setErro(null);
+    if (!f) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(f.type)) {
+      setErro("A foto deve ser JPEG, PNG ou WebP.");
+      return;
+    }
+    if (f.size > 5 * 1024 * 1024) {
+      setErro("A foto deve ter até 5 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setFoto({ nome: f.name, dataUrl: reader.result as string });
+    reader.readAsDataURL(f);
+  }
+
+  async function enviar() {
+    if (!session?.accessToken || !numero.trim()) return;
+    setEnviando(true);
+    setErro(null);
+    try {
+      const atualizada = await enviarCha(session.accessToken, id, {
+        categoria,
+        numero: numero.trim(),
+        validade: validade || undefined,
+        fotoBase64: foto?.dataUrl,
+      });
+      setHab(atualizada);
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível enviar a habilitação.");
+    } finally {
+      setEnviando(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-2xl">
-      <Link
-        href={`/conta/reservas/${id}`}
-        className="text-sm text-slate-400 hover:text-slate-600"
-      >
+      <Link href={`/conta/reservas/${id}`} className="text-sm text-slate-400 hover:text-slate-600">
         ← Voltar para a reserva
       </Link>
       <h1 className="mt-3 flex items-center gap-2 text-2xl font-bold text-ink-900">
         <IdCard className="text-brand-600" /> Habilitação náutica
       </h1>
 
-      {reserva.habilitacao === "ok" ? (
+      {hab.resolvida ? (
         <Card className="mt-6 flex flex-col items-center gap-3 p-8 text-center">
           <Award className="text-emerald-500" size={44} />
-          <h2 className="text-lg font-semibold text-ink-900">
-            Habilitação válida
-          </h2>
+          <h2 className="text-lg font-semibold text-ink-900">Habilitação registrada</h2>
           <p className="text-sm text-slate-500">
-            Tudo certo para conduzir. A demonstração prática de segurança será
-            feita no embarque.
+            {hab.chaCategoria ? `${hab.chaCategoria} · ` : ""}nº {hab.chaNumero}
+            {hab.temFotoCha && " · foto do documento anexada"}. A loja confere no
+            check-in; a demonstração prática de segurança acontece no embarque.
           </p>
           <Button href={`/conta/reservas/${id}`} variant="outline">
             Voltar para a reserva
@@ -59,380 +131,122 @@ export default function HabilitacaoPage() {
       ) : (
         <>
           {/* Triagem */}
-          <Card className="mt-6 p-6">
-            <h2 className="font-semibold text-ink-900">
-              Você possui habilitação náutica?
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Arrais Amador, Motonauta ou CHA (ARA/MSA/CPA/MTA-E).
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <button
-                onClick={() => setVia("tem")}
-                className={`rounded-xl border p-4 text-left transition ${
-                  via === "tem"
-                    ? "border-brand-500 bg-brand-50"
-                    : "border-slate-200 hover:border-slate-300"
-                }`}
-              >
-                <FileCheck2 className="text-brand-600" />
-                <h3 className="mt-2 font-semibold text-ink-900">Sim, eu tenho</h3>
-                <p className="text-sm text-slate-500">
-                  Envio o documento para validação.
-                </p>
-              </button>
-              <button
-                onClick={() => setVia("nao")}
-                className={`rounded-xl border p-4 text-left transition ${
-                  via === "nao"
-                    ? "border-brand-500 bg-brand-50"
-                    : "border-slate-200 hover:border-slate-300"
-                }`}
-              >
-                <LifeBuoy className="text-brand-600" />
-                <h3 className="mt-2 font-semibold text-ink-900">
-                  Não tenho
-                </h3>
-                <p className="text-sm text-slate-500">
-                  Emitir habilitação especial <b>CHA-MTA-E</b>.
-                </p>
-              </button>
-            </div>
-          </Card>
-
-          {via === "tem" && <CaminhoA reservaId={id} onDone={() => setEtapa(id, "habilitacao", "ok")} />}
-          {via === "nao" && <CaminhoB reservaId={id} onDone={() => setEtapa(id, "habilitacao", "ok")} />}
-        </>
-      )}
-    </div>
-  );
-}
-
-/* ---------- Caminho A: já possui habilitação ---------- */
-function CaminhoA({ onDone }: { reservaId: string; onDone: () => void }) {
-  const [enviado, setEnviado] = useState(false);
-  return (
-    <Card className="mt-4 p-6">
-      <h3 className="font-semibold text-ink-900">Envie sua habilitação</h3>
-      {enviado ? (
-        <div className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
-          <div className="flex items-center gap-2 font-semibold">
-            <Clock size={16} /> Documento em validação
-          </div>
-          <p className="mt-1 text-xs">A loja confere a autenticidade da CHA.</p>
-          <button
-            onClick={onDone}
-            className="mt-3 w-full rounded-lg border border-amber-300 bg-white py-2 text-xs font-medium text-amber-800 hover:bg-amber-100"
-          >
-            ▶︎ Simular aprovação do staff (demo)
-          </button>
-        </div>
-      ) : (
-        <div className="mt-4 grid gap-3">
-          <Field label="Categoria">
-            <select className={inputCls}>
-              <option>Arrais Amador</option>
-              <option>Motonauta</option>
-              <option>Capitão Amador</option>
-              <option>Mestre Amador</option>
-            </select>
-          </Field>
-          <Field label="Número da habilitação">
-            <input className={inputCls} placeholder="Ex.: 1234567890" />
-          </Field>
-          <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center hover:border-brand-400">
-            <UploadCloud className="text-slate-400" size={26} />
-            <span className="text-sm text-slate-600">
-              Anexar foto/PDF da CHA (frente e verso)
-            </span>
-            <input type="file" className="hidden" />
-          </label>
-          <Button className="w-full" onClick={() => setEnviado(true)}>
-            Enviar para validação
-          </Button>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-/* ---------- Caminho B: emissão da CHA-MTA-E (EMA) ---------- */
-const ETAPAS_B = [
-  "Videoaula da Marinha",
-  "Auto-declarações (Anexos)",
-  "Documentos",
-  "GRU (taxa da Marinha)",
-  "Demonstração prática",
-];
-
-function CaminhoB({ onDone }: { reservaId: string; onDone: () => void }) {
-  const [etapa, setEtapa] = useState(0);
-  const [emitindo, setEmitindo] = useState(false);
-  const avancar = () => setEtapa((e) => e + 1);
-
-  if (emitindo)
-    return (
-      <Card className="mt-4 p-6">
-        <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
-          <div className="flex items-center gap-2 font-semibold">
-            <Clock size={16} /> Emissão em processamento
-          </div>
-          <p className="mt-1 text-xs">
-            Com a GRU paga e os anexos assinados, a CHA-MTA-E será emitida
-            (válida por 30 dias). No v1 o staff valida o comprovante da GRU.
-          </p>
-          <button
-            onClick={onDone}
-            className="mt-3 w-full rounded-lg border border-amber-300 bg-white py-2 text-xs font-medium text-amber-800 hover:bg-amber-100"
-          >
-            ▶︎ Simular emissão da CHA-MTA-E (demo)
-          </button>
-        </div>
-      </Card>
-    );
-
-  return (
-    <Card className="mt-4 p-6">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-ink-900">
-          Emissão da CHA-MTA-E
-        </h3>
-        <Badge tone="brand">
-          Passo {etapa + 1}/{ETAPAS_B.length}
-        </Badge>
-      </div>
-
-      {/* trilha */}
-      <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
-        {ETAPAS_B.map((e, i) => (
-          <span
-            key={e}
-            className={`rounded-full px-2.5 py-1 ${
-              i < etapa
-                ? "bg-emerald-100 text-emerald-700"
-                : i === etapa
-                ? "bg-brand-600 text-white"
-                : "bg-slate-100 text-slate-400"
-            }`}
-          >
-            {e}
-          </span>
-        ))}
-      </div>
-
-      <div className="mt-5">
-        {etapa === 0 && (
-          <div>
-            <div className="grid h-44 place-items-center rounded-xl bg-slate-900 text-white">
-              <PlayCircle size={56} className="opacity-90" />
-            </div>
-            <p className="mt-3 text-sm text-slate-600">
-              Assista à videoaula oficial da Marinha do Brasil (RIPEAM, LESTA,
-              segurança e operação da moto aquática).
-            </p>
-            <Button className="mt-4 w-full" onClick={avancar}>
-              Marcar como assistida <ChevronRight size={15} />
-            </Button>
-          </div>
-        )}
-
-        {etapa === 1 && <Anexos onNext={avancar} />}
-
-        {etapa === 2 && (
-          <div>
-            <p className="text-sm text-slate-600">
-              Envie um documento de identidade com foto e CPF.
-              <br />
-              <span className="text-xs text-slate-400">
-                Estrangeiro? Use o passaporte (anexos em inglês).
-              </span>
-            </p>
-            <label className="mt-3 flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center hover:border-brand-400">
-              <UploadCloud className="text-slate-400" size={26} />
-              <span className="text-sm text-slate-600">
-                Anexar RG/CNH ou passaporte
-              </span>
-              <input type="file" className="hidden" />
-            </label>
-            <Button className="mt-4 w-full" onClick={avancar}>
-              Continuar <ChevronRight size={15} />
-            </Button>
-          </div>
-        )}
-
-        {etapa === 3 && <Gru onNext={avancar} />}
-
-        {etapa === 4 && (
-          <div>
-            <div className="flex gap-3 rounded-xl bg-brand-50 p-4 text-sm text-brand-900">
-              <LifeBuoy className="shrink-0" />
-              <div>
-                <b>Demonstração prática — presencial.</b> No dia do passeio, um
-                instrutor confere seus dados e realiza a demonstração de
-                segurança no embarque. Sem experiência? A demonstração inclui
-                deslocamento com você na garupa do instrutor.
+          {via === null && (
+            <Card className="mt-6 p-6">
+              <h2 className="font-semibold text-ink-900">Você possui habilitação náutica?</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Arrais Amador, Motonauta ou CHA (ARA/MSA/CPA/MTA-E).
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <button
+                  onClick={() => setVia("tem")}
+                  className="rounded-xl border border-slate-200 p-4 text-left hover:border-brand-400"
+                >
+                  <CheckCircle2 className="text-emerald-500" size={20} />
+                  <div className="mt-2 font-semibold text-ink-900">Sim, eu tenho</div>
+                  <div className="text-sm text-slate-500">
+                    Informe os dados e anexe a foto da sua CHA.
+                  </div>
+                </button>
+                <button
+                  onClick={() => setVia("nao")}
+                  className="rounded-xl border border-slate-200 p-4 text-left hover:border-brand-400"
+                >
+                  <LifeBuoy className="text-brand-600" size={20} />
+                  <div className="mt-2 font-semibold text-ink-900">Ainda não tenho</div>
+                  <div className="text-sm text-slate-500">
+                    Emita a habilitação especial CHA-MTA-E para o passeio.
+                  </div>
+                </button>
               </div>
-            </div>
-            <Button className="mt-4 w-full" onClick={() => setEmitindo(true)}>
-              Concluir e solicitar emissão
-            </Button>
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-}
+            </Card>
+          )}
 
-function Anexos({ onNext }: { onNext: () => void }) {
-  const [saude, setSaude] = useState(false);
-  const [regras, setRegras] = useState(false);
-  const [temComprovante, setTemComprovante] = useState(true);
-  const [residencia, setResidencia] = useState(false);
+          {/* Caminho A — tenho CHA */}
+          {via === "tem" && (
+            <Card className="mt-6 p-6">
+              <h2 className="font-semibold text-ink-900">Dados da sua habilitação</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <Field label="Categoria">
+                  <select className={inputCls} value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+                    {CATEGORIAS.map((c) => (
+                      <option key={c} value={c}>{c.replace("_", " ")}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Número da CHA">
+                  <input
+                    className={inputCls}
+                    value={numero}
+                    onChange={(e) => setNumero(e.target.value)}
+                    placeholder="Ex.: 123456789"
+                  />
+                </Field>
+              </div>
+              <div className="mt-3">
+                <Field label="Validade" hint="Como impressa no documento">
+                  <input
+                    type="date"
+                    className={inputCls}
+                    value={validade}
+                    onChange={(e) => setValidade(e.target.value)}
+                  />
+                </Field>
+              </div>
 
-  const ok = saude && regras && (temComprovante || residencia);
+              <label className="mt-4 flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center hover:border-brand-400">
+                <UploadCloud className="text-slate-400" size={26} />
+                <span className="text-sm text-slate-600">
+                  {foto ? foto.nome : "Foto da CHA (frente) — JPEG/PNG até 5 MB"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => selecionarFoto(e.target.files?.[0])}
+                />
+              </label>
 
-  return (
-    <div className="space-y-3">
-      {/* 5-C Saúde */}
-      <div className="rounded-xl border border-slate-200 p-4">
-        <span className="text-xs font-semibold text-slate-400">ANEXO 5-C</span>
-        <h4 className="font-medium text-ink-900">Autodeclaração de saúde</h4>
-        <label className="mt-2 flex items-start gap-2 text-sm text-slate-600">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={saude}
-            onChange={(e) => setSaude(e.target.checked)}
-          />
-          Declaro gozar de boas condições de saúde física e mental para conduzir
-          moto aquática.
-        </label>
-      </div>
+              {erro && (
+                <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>
+              )}
 
-      {/* 5-B Regras */}
-      <div className="rounded-xl border border-slate-200 p-4">
-        <span className="text-xs font-semibold text-slate-400">ANEXO 5-B</span>
-        <h4 className="font-medium text-ink-900">
-          Ciência das regras de condução
-        </h4>
-        <ul className="mt-2 space-y-1 text-xs text-slate-500">
-          <li>• Conduzir apenas na área delimitada e entre o nascer e o pôr do sol</li>
-          <li>• Não transportar passageiros nem transferir a moto a terceiros</li>
-          <li>• Velocidade máxima de 37 km/h (20 nós) · não abastecer</li>
-          <li>• Jamais conduzir após álcool ou substâncias entorpecentes</li>
-        </ul>
-        <label className="mt-2 flex items-start gap-2 text-sm text-slate-600">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={regras}
-            onChange={(e) => setRegras(e.target.checked)}
-          />
-          Li e estou ciente das regras e das sanções (LESTA/RLESTA e art. 299 CP).
-        </label>
-      </div>
+              <div className="mt-4 flex gap-2">
+                <Button variant="outline" onClick={() => setVia(null)}>Voltar</Button>
+                <Button
+                  className="flex-1 gap-2"
+                  onClick={enviar}
+                  disabled={enviando || !numero.trim()}
+                >
+                  {enviando && <Loader2 size={15} className="animate-spin" />}
+                  Enviar habilitação
+                </Button>
+              </div>
+            </Card>
+          )}
 
-      {/* 1-C Residência (condicional) */}
-      <div className="rounded-xl border border-slate-200 p-4">
-        <span className="text-xs font-semibold text-slate-400">ANEXO 1-C</span>
-        <h4 className="font-medium text-ink-900">Comprovante de residência</h4>
-        <div className="mt-2 flex gap-2 text-sm">
-          <button
-            onClick={() => setTemComprovante(true)}
-            className={`rounded-lg border px-3 py-1.5 ${
-              temComprovante
-                ? "border-brand-500 bg-brand-50 text-brand-700"
-                : "border-slate-200 text-slate-500"
-            }`}
-          >
-            Tenho comprovante
-          </button>
-          <button
-            onClick={() => setTemComprovante(false)}
-            className={`rounded-lg border px-3 py-1.5 ${
-              !temComprovante
-                ? "border-brand-500 bg-brand-50 text-brand-700"
-                : "border-slate-200 text-slate-500"
-            }`}
-          >
-            Não tenho (declarar)
-          </button>
-        </div>
-        {!temComprovante && (
-          <div className="mt-3">
-            <p className="mb-2 text-xs text-slate-500">
-              Informe o CEP para preencher o endereço automaticamente.
-            </p>
-            <AddressForm />
-            <label className="mt-3 flex items-start gap-2 text-sm text-slate-600">
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={residencia}
-                onChange={(e) => setResidencia(e.target.checked)}
-              />
-              Declaro, sob as penas da lei (Lei 7.115/83), residir no endereço
-              acima.
-            </label>
-          </div>
-        )}
-      </div>
-
-      <Button className="w-full" disabled={!ok} onClick={onNext}>
-        {ok ? "Gerar anexos e continuar" : "Marque as declarações para continuar"}
-      </Button>
-    </div>
-  );
-}
-
-function Gru({ onNext }: { onNext: () => void }) {
-  const [gerada, setGerada] = useState(false);
-  const valor = 23.13; // taxa simbólica da GRU (exemplo)
-  return (
-    <div>
-      {!gerada ? (
-        <div className="text-center">
-          <Landmark className="mx-auto text-slate-300" size={40} />
-          <p className="mt-2 text-sm text-slate-600">
-            A emissão da CHA-MTA-E exige o recolhimento de uma taxa à Marinha via
-            <b> GRU</b>.
-          </p>
-          <Button className="mt-4 w-full" onClick={() => setGerada(true)}>
-            Gerar GRU
-          </Button>
-          <p className="mt-2 text-xs text-slate-400">
-            (No v1, a GRU é assistida — futuro: geração automática + PIX/boleto)
-          </p>
-        </div>
-      ) : (
-        <div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Valor da GRU</span>
-              <b className="text-ink-900">{brl(valor)}</b>
-            </div>
-            <div className="mt-2 flex justify-between text-sm">
-              <span className="text-slate-500">Nº da GRU</span>
-              <b className="font-mono text-ink-900">2026-000482-19</b>
-            </div>
-            <div className="mt-3">
-              <span className="text-xs text-slate-400">Linha digitável</span>
-              <code className="mt-1 block truncate rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-700">
-                85800000000-2 33880482019-3 26060000110-8 04190000000-1
-              </code>
-            </div>
-          </div>
-          <label className="mt-3 flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center hover:border-brand-400">
-            <UploadCloud className="text-slate-400" size={26} />
-            <span className="text-sm text-slate-600">
-              Anexar comprovante de pagamento da GRU
-            </span>
-            <input type="file" className="hidden" />
-          </label>
-          <Button className="mt-4 w-full" onClick={onNext}>
-            Continuar <ChevronRight size={15} />
-          </Button>
-        </div>
+          {/* Caminho B — CHA-MTA-E (P3) */}
+          {via === "nao" && (
+            <Card className="mt-6 p-6">
+              <h2 className="flex items-center gap-2 font-semibold text-ink-900">
+                <LifeBuoy className="text-brand-600" size={20} /> Emissão da CHA-MTA-E
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                A habilitação especial (videoaula da Marinha + declarações + taxa GRU)
+                estará disponível aqui no portal <b>em breve</b>. Por enquanto, a loja
+                faz esse processo com você no atendimento — leva poucos minutos.
+              </p>
+              <div className="mt-4 flex items-start gap-2 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                <Store size={16} className="mt-0.5 shrink-0 text-slate-400" />
+                Chegue ~20 minutos antes do horário para emitir a CHA-MTA-E no balcão,
+                ou fale com a loja pelo WhatsApp para adiantar.
+              </div>
+              <Button className="mt-4" variant="outline" onClick={() => setVia(null)}>
+                Voltar
+              </Button>
+            </Card>
+          )}
+        </>
       )}
     </div>
   );

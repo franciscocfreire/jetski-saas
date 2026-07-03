@@ -162,6 +162,7 @@ export interface ReservaCliente {
   id: string;
   lojaSlug: string;
   lojaNome: string;
+  lojaCnpj?: string;
   modeloId: string;
   modeloNome: string;
   dataInicio: string;
@@ -225,6 +226,82 @@ export async function anexarComprovante(token: string, id: string, req: {
   tipo: "SINAL" | "TOTAL"; valorInformado: number; contentType: string; dataBase64: string;
 }): Promise<ReservaCliente> {
   const res = await fetch(`${API_URL}/v1/customers/reservas/${id}/comprovante`, {
+    method: "POST", headers: authHeaders(token), body: JSON.stringify(req),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+// ===================== Termos / aceite (P2) =====================
+
+export interface OtpStatus {
+  ativo: boolean;
+  canal?: string;
+  verificado: boolean;
+}
+
+export interface OtpEnvio {
+  ativo: boolean;
+  canal?: string;
+  destinoMascarado?: string;
+  whatsappUrl?: string;
+  mensagem?: string;
+}
+
+export async function getOtpStatus(token: string, id: string): Promise<OtpStatus> {
+  const res = await fetch(`${API_URL}/v1/customers/reservas/${id}/aceite/otp`, {
+    headers: authHeaders(token), cache: "no-store",
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function enviarOtp(token: string, id: string): Promise<OtpEnvio> {
+  const res = await fetch(`${API_URL}/v1/customers/reservas/${id}/aceite/otp/enviar`, {
+    method: "POST", headers: authHeaders(token),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function verificarOtp(token: string, id: string, codigo: string): Promise<boolean> {
+  const res = await fetch(`${API_URL}/v1/customers/reservas/${id}/aceite/otp/verificar`, {
+    method: "POST", headers: authHeaders(token), body: JSON.stringify({ codigo }),
+  });
+  if (!res.ok) await parseError(res);
+  return (await res.json()).verificado === true;
+}
+
+export async function assinarTermo(token: string, id: string, assinaturaBase64: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/customers/reservas/${id}/aceite`, {
+    method: "POST", headers: authHeaders(token), body: JSON.stringify({ assinaturaBase64 }),
+  });
+  if (!res.ok) await parseError(res);
+}
+
+// ===================== Habilitação — caminho A (P2) =====================
+
+export interface HabilitacaoCliente {
+  via?: "CHA" | "EMA";
+  chaCategoria?: string;
+  chaNumero?: string;
+  chaValidade?: string;
+  resolvida: boolean;
+  temFotoCha: boolean;
+}
+
+export async function getHabilitacao(token: string, id: string): Promise<HabilitacaoCliente> {
+  const res = await fetch(`${API_URL}/v1/customers/reservas/${id}/habilitacao`, {
+    headers: authHeaders(token), cache: "no-store",
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function enviarCha(token: string, id: string, req: {
+  categoria?: string; numero: string; validade?: string; fotoBase64?: string;
+}): Promise<HabilitacaoCliente> {
+  const res = await fetch(`${API_URL}/v1/customers/reservas/${id}/habilitacao/cha`, {
     method: "POST", headers: authHeaders(token), body: JSON.stringify(req),
   });
   if (!res.ok) await parseError(res);
