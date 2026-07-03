@@ -104,6 +104,8 @@ services:
       STORAGE_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       STORAGE_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       STORAGE_MINIO_BUCKET: ${MINIO_BUCKET:-jetski-docs}
+      # Presigned URLs assinadas com o host público (nginx roteia /jetski-docs/)
+      STORAGE_MINIO_PUBLIC_URL: ${PUBLIC_URL}
 
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
@@ -120,6 +122,21 @@ services:
     ports: !override
       - "127.0.0.1:8090:8090"
     mem_limit: 1500m
+    restart: unless-stopped
+
+  portal:
+    environment:
+      API_INTERNAL_URL: http://backend:8090/api
+      NEXTAUTH_URL: ${PUBLIC_URL}/portal
+      # pode ser o mesmo do backoffice (cookies têm nomes distintos: portal.*)
+      NEXTAUTH_SECRET: ${PORTAL_NEXTAUTH_SECRET:-${NEXTAUTH_SECRET}}
+      AUTH_TRUST_HOST: "true"
+      KEYCLOAK_CLIENT_ID: jetski-customer-portal
+      KEYCLOAK_CLIENT_SECRET: ""
+      KEYCLOAK_ISSUER: ${PUBLIC_URL}/realms/jetski-saas
+    ports: !override
+      - "127.0.0.1:3003:3000"
+    mem_limit: 500m
     restart: unless-stopped
 
   frontend:

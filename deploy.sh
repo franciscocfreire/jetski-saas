@@ -88,9 +88,10 @@ if [ "${NO_BUILD:-0}" != "1" ]; then
   log "build backend + frontend (--no-cache p/ evitar reaproveitar imagem velha)..."
   $COMPOSE build --no-cache backend
   $COMPOSE build --no-cache frontend
+  $COMPOSE build --no-cache portal
 fi
-log "recriando backend e frontend..."
-$COMPOSE up -d --force-recreate --no-deps backend frontend
+log "recriando backend, frontend e portal..."
+$COMPOSE up -d --force-recreate --no-deps backend frontend portal
 
 # 7. OPA (recarrega policies — não tem --watch) e ingress
 log "recarregando OPA e subindo nginx/cloudflared..."
