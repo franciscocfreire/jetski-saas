@@ -200,6 +200,7 @@ class SecurityConfigTest extends AbstractIntegrationTest {
                 "http://localhost:3000",
                 "http://localhost:3001",
                 "http://localhost:3002",
+                "http://localhost:3003",
                 "https://*.ngrok-free.app",
                 "https://*.jetski.app",
                 "https://*.jetski.com.br",
