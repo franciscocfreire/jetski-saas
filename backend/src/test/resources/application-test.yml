@@ -1,4 +1,9 @@
 spring:
+  datasource:
+    hikari:
+      # muitos contextos cacheados × pool — manter pequeno p/ não esgotar o PG
+      maximum-pool-size: 5
+      minimum-idle: 1
   application:
     name: jetski-api-test
 
