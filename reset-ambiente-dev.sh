@@ -372,6 +372,14 @@ ALTER TABLE public.credito_compra
     ADD COLUMN IF NOT EXISTS valor_pago     numeric(10,2),
     ADD COLUMN IF NOT EXISTS preco_unitario numeric(10,2);
 
+-- V029: portal do cliente — leitura "self" cross-tenant dos vínculos do cliente
+-- autenticado (o serviço seta app.customer_sub antes do SELECT; policy permissiva
+-- soma-se à de tenant, liberando só as linhas do próprio sub)
+DROP POLICY IF EXISTS cliente_idp_self_read ON public.cliente_identity_provider;
+CREATE POLICY cliente_idp_self_read ON public.cliente_identity_provider
+    FOR SELECT
+    USING (provider_user_id = current_setting('app.customer_sub', true));
+
 -- Super admin de dev (espelha PLATFORM_ADMIN_EMAILS do compose; o seeder do backend
 -- só roda no boot — este bloco garante o acesso logo após o reset, sem restart)
 INSERT INTO public.usuario_global_roles (usuario_id, roles, unrestricted_access)

@@ -65,4 +65,15 @@ class KeycloakUserProvisioningAdapter implements UserProvisioningService {
 
         return keycloakUserId;
     }
+
+    @Override
+    public String provisionCustomer(String email, String nome, String senha) {
+        log.debug("Provisioning self-registered customer via Keycloak adapter: email={}", email);
+        return keycloakAdminService.createCustomerUser(email, nome, senha);
+    }
+
+    @Override
+    public boolean updateUserName(String providerUserId, String nome) {
+        return keycloakAdminService.updateUserName(providerUserId, nome);
+    }
 }

@@ -147,6 +147,95 @@ public class KeycloakAdminService {
     }
 
     /**
+     * Cria um CLIENTE FINAL auto-registrado (portal do cliente).
+     *
+     * Diferenças do fluxo de convite (createUserWithPassword):
+     * - senha DEFINITIVA (temporary=false), escolhida pelo cliente
+     * - emailVerified=false + required action VERIFY_EMAIL (Keycloak envia o link
+     *   via SMTP do realm — Mailpit em dev, Gmail em prod)
+     * - role CLIENTE, sem atributo tenant_id (cliente é multi-loja)
+     *
+     * @return Keycloak user ID ou null em falha
+     * @throws com.jetski.shared.security.DuplicateUserException se e-mail já existir (409)
+     */
+    public String createCustomerUser(String email, String nome, String senha) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            log.info("Criando cliente final no Keycloak (self-signup): email={}, realm={}", email, targetRealm);
+
+            RealmResource realmResource = keycloak.realm(targetRealm);
+            UsersResource usersResource = realmResource.users();
+
+            UserRepresentation user = new UserRepresentation();
+            user.setUsername(email);
+            user.setEmail(email);
+            user.setFirstName(extractFirstName(nome));
+            user.setLastName(extractLastName(nome));
+            user.setEnabled(true);
+            user.setEmailVerified(false);
+            user.setRequiredActions(Collections.singletonList("VERIFY_EMAIL"));
+
+            CredentialRepresentation credential = new CredentialRepresentation();
+            credential.setType(CredentialRepresentation.PASSWORD);
+            credential.setValue(senha);
+            credential.setTemporary(false);
+            user.setCredentials(Collections.singletonList(credential));
+
+            Response response = usersResource.create(user);
+            int status = response.getStatus();
+            String locationHeader = response.getHeaderString("Location");
+            response.close();
+
+            if (status == 409) {
+                throw new com.jetski.shared.security.DuplicateUserException(email);
+            }
+            if (status != 201 || locationHeader == null || locationHeader.isEmpty()) {
+                log.error("Falha ao criar cliente no Keycloak: status={}, email={}", status, email);
+                return null;
+            }
+
+            String keycloakUserId = locationHeader.substring(locationHeader.lastIndexOf('/') + 1);
+            assignRolesToUser(realmResource, usersResource.get(keycloakUserId), List.of("CLIENTE"));
+
+            // Best-effort: dispara o e-mail de verificação (exige SMTP no realm).
+            try {
+                usersResource.get(keycloakUserId).sendVerifyEmail();
+            } catch (Exception e) {
+                log.warn("Não foi possível enviar e-mail de verificação (SMTP do realm?): email={}, err={}",
+                        email, e.getMessage());
+            }
+
+            log.info("Cliente final criado no Keycloak: keycloakId={}, email={}", keycloakUserId, email);
+            return keycloakUserId;
+
+        } catch (com.jetski.shared.security.DuplicateUserException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Erro ao criar cliente no Keycloak: email={}, error={}", email, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Atualiza nome (first/last) de um usuário existente.
+     *
+     * @return true se atualizado
+     */
+    public boolean updateUserName(String keycloakUserId, String nome) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            UserResource userResource = keycloak.realm(targetRealm).users().get(keycloakUserId);
+            UserRepresentation rep = userResource.toRepresentation();
+            rep.setFirstName(extractFirstName(nome));
+            rep.setLastName(extractLastName(nome));
+            userResource.update(rep);
+            log.info("Nome atualizado no Keycloak: userId={}", keycloakUserId);
+            return true;
+        } catch (Exception e) {
+            log.error("Erro ao atualizar nome no Keycloak: userId={}, error={}", keycloakUserId, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
      * Atribui roles realm-level ao usuário.
      *
      * @param realmResource Recurso do realm

@@ -69,6 +69,22 @@ public class TenantFilter extends OncePerRequestFilter {
                 return;
             }
 
+            // Escopo do cliente final (/v1/customers/**): token sem tenant e sem
+            // Membro — não há X-Tenant-Id nem validação de acesso por tenant aqui.
+            // O papel CLIENTE (já garantido pelo SecurityConfig) vai ao contexto
+            // para o ABAC/OPA; cada serviço customer-scoped resolve os vínculos e
+            // seta a RLS por tenant internamente (set_config transaction-local).
+            if (isCustomerEndpoint(requestPath)) {
+                Authentication customerAuth = SecurityContextHolder.getContext().getAuthentication();
+                if (customerAuth != null && customerAuth.isAuthenticated()
+                        && customerAuth.getAuthorities().stream()
+                            .anyMatch(a -> "ROLE_CLIENTE".equals(a.getAuthority()))) {
+                    TenantContext.setUserRoles(java.util.List.of("CLIENTE"));
+                }
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             // 1. Extract tenant ID from request
             String tenantIdStr = extractTenantId(request);
 
@@ -218,6 +234,12 @@ public class TenantFilter extends OncePerRequestFilter {
      * @param path request path
      * @return true if public endpoint
      */
+    /** Endpoints do cliente final (portal) — autenticados, porém sem tenant no request. */
+    private boolean isCustomerEndpoint(String path) {
+        String normalizedPath = path.startsWith("/api/") ? path.substring(4) : path;
+        return normalizedPath.startsWith("/v1/customers/") || normalizedPath.equals("/v1/customers");
+    }
+
     private boolean isPublicEndpoint(String path) {
         // Remove context-path if present for consistent matching
         String normalizedPath = path.startsWith("/api/") ? path.substring(4) : path;

@@ -72,4 +72,31 @@ public interface UserProvisioningService {
         List<String> roles,
         String password
     );
+
+    /**
+     * Provisiona um CLIENTE FINAL auto-registrado (portal do cliente).
+     *
+     * <p>Diferente do fluxo de convite ({@link #provisionUserWithPassword}):
+     * <ul>
+     *   <li>Senha DEFINITIVA escolhida pelo próprio cliente (não temporária)</li>
+     *   <li>E-mail NÃO verificado + required action {@code VERIFY_EMAIL}
+     *       (o provedor envia o link de verificação)</li>
+     *   <li>Role fixa {@code CLIENTE}; sem atributo de tenant (cliente é
+     *       multi-loja — vínculos ficam em {@code cliente_identity_provider})</li>
+     * </ul>
+     *
+     * @param email e-mail do cliente (username)
+     * @param nome  nome completo
+     * @param senha senha definitiva escolhida no cadastro
+     * @return provider user id (sub) ou {@code null} em falha
+     * @throws DuplicateUserException se já existir conta com o e-mail
+     */
+    String provisionCustomer(String email, String nome, String senha);
+
+    /**
+     * Atualiza o nome (first/last) de um usuário já provisionado.
+     *
+     * @return {@code true} se atualizado com sucesso
+     */
+    boolean updateUserName(String providerUserId, String nome);
 }

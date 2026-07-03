@@ -124,8 +124,11 @@ allow if {
 # Ações de plataforma (platform:*) NUNCA são liberadas pelo RBAC de papel — nem pelo
 # wildcard "*" do ADMIN_TENANT — apenas via is_platform_admin (super admin). Sem isso,
 # qualquer admin de empresa conseguiria aprovar/listar todas as empresas.
+# Ações do cliente final (customer:*) também ficam fora do RBAC de staff — só a
+# regra dedicada de CLIENTE abaixo as libera.
 allow if {
     not startswith(input.action, "platform:")
+    not startswith(input.action, "customer:")
     tenant_is_valid
     rbac_allow
     alcada_allow
@@ -136,11 +139,22 @@ allow if {
 # Autorização sem alçada (ações que não requerem alçada)
 allow if {
     not startswith(input.action, "platform:")
+    not startswith(input.action, "customer:")
     tenant_is_valid
     rbac_allow
     not alcada_requer_aprovacao
     business_allow
     context_allow
+}
+
+# Cliente final (portal, role CLIENTE): apenas ações customer:*. O token não
+# carrega tenant (cliente é multi-loja) — por isso não se exige tenant_is_valid;
+# cada serviço customer-scoped resolve os vínculos e seta a RLS por tenant
+# internamente (set_config transaction-local), sem bypass.
+allow if {
+    startswith(input.action, "customer:")
+    some role in input.user.roles
+    role == "CLIENTE"
 }
 
 # =============================================================================

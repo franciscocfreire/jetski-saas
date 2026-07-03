@@ -69,6 +69,15 @@ public class ActionExtractor {
             return "platform:" + sub;
         }
 
+        // Ações do cliente final (portal): /v1/customers/... → "customer:<último-segmento>",
+        // ex.: GET /v1/customers/self → "customer:self". Prefixo próprio para casar com a
+        // regra OPA de CLIENTE (sem tenant no token).
+        if (uri.startsWith("/v1/customers")) {
+            Matcher last = SUB_ACTION_PATTERN.matcher(uri);
+            String sub = last.find() ? last.group(1) : method.toLowerCase();
+            return "customer:" + sub;
+        }
+
         // Tenta extrair resource (primeiro segmento após /v1/)
         String resource = extractResource(uri);
         if (resource == null) {

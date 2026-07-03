@@ -6,6 +6,54 @@
 
 ---
 
+## 0. Estado em 2026-07-03 — reconciliação com o código (fases P0–P4)
+
+O trabalho do **balcão (F2/F3)**, posterior a esta spec, construiu no backend boa parte do
+que o §13 listava como dependência. Inventário:
+
+**Já existe (reusar, não recriar):**
+- Identidade do cliente: role **CLIENTE** no realm, `cliente_identity_provider`,
+  `cliente_claim_token`, `POST /v1/public/clientes/claim/validar` (ativação com
+  provisioning Keycloak, sem Membro), `cliente.origem`/`status_conta`, eventos + auditoria.
+- Aceite com evidências (hash/IP/UA/assinatura) + **OTP** por e-mail + página de auditoria
+  + carimbo de tempo + **PAdES** — hoje staff-only (`AceiteController`).
+- **GRU real** (`GruService` PIX/boleto via RPA) + e-mail da GRU ao cliente.
+- Modelo de habilitação (`reserva_habilitacao`: via EMA/CHA, anexos, GRU, resolvida).
+- Pagamento com `tipo` (SINAL/TOTAL) e `status` (AGUARDANDO/EM_ANALISE/CONFIRMADO/RECUSADO)
+  + `confirmar-sinal`/`recusar-pagamento` (staff). Tabela `reserva_comprovante` criada
+  (V003) porém **sem entity/endpoint — falta plugar**.
+- `BrCodePix` (QR PIX com valor exato) e `tenant.pix_chave`.
+- Créditos de emissão (cobrança da plataforma) — a emissão final continua no staff.
+
+**Continua faltando:** client OIDC `jetski-customer-portal`; signup público; escopo
+`/v1/customers/**` (agregação multi-tenant por vínculos com `set_config`); catálogo
+público por loja e disponibilidade realmente pública; comprovante anexável pelo cliente;
+aceite/habilitação iniciados pelo cliente; estados de visão do cliente + job de expiração
+24h; avaliações; notificações in-app; i18n EN.
+
+**Decisões (03/07):** portal real ponta a ponta · Keycloak com senha (client próprio,
+PKCE) · sinal PIX manual com QR de valor exato + comprovante (staff confirma).
+
+**Fases executáveis:**
+- **P0 — Fundação de identidade** ✅ *(em implementação)*: client OIDC novo, signup
+  público (identidade global + Verify Email), escopo CLIENTE `/v1/customers/**`,
+  `GET/PUT /v1/customers/self`, portal com NextAuth real (cadastro/login/perfil).
+- **P1 — Catálogo + reserva online + sinal PIX**: vitrine por loja, disponibilidade
+  pública, `POST /v1/customers/reservas` (cria/vincula Cliente; dedupe CPF ⇒ claim/OTP),
+  QR de sinal com valor, wire do `reserva_comprovante` + fila no backoffice, checklist,
+  job de expiração, telas reais do wizard/minhas-reservas.
+- **P2 — Termos + habilitação caminho A**: aceite customer-facing delegando ao
+  `AceiteService` (SignaturePad + OTP), termos por loja, upload de CHA + validação staff.
+- **P3 — EMA/GRU pelo cliente**: videoaula, anexos 5-B/5-C/1-C in-app
+  (`DocumentoPdfService` já gera), GRU self-service reusando `GruService`; emissão
+  permanece no staff (consome créditos).
+- **P4 — Pós-venda**: histórico de locações, avaliações, notificações in-app,
+  white-label da loja no portal (backend pronto), i18n EN, PWA.
+
+O restante deste documento é a spec original (válida como referência de UX/contratos).
+
+---
+
 ## 1. Visão geral
 
 O **Portal do Cliente** é uma aplicação web (PWA-ready) onde o consumidor final:

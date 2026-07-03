@@ -105,6 +105,48 @@
       ]
     },
     {
+      "clientId": "jetski-customer-portal",
+      "name": "Meu Jet — Portal do Cliente",
+      "description": "Next.js portal do cliente final (role CLIENTE, sem Membro)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "rootUrl": "${PORTAL_URL:http://localhost:3003}",
+      "baseUrl": "/",
+      "redirectUris": [
+        "http://localhost:3003/*",
+        "${PORTAL_REDIRECT:http://localhost:3003/*}"
+      ],
+      "webOrigins": [
+        "http://localhost:3003",
+        "${PORTAL_URL:http://localhost:3003}"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "jetski-mobile",
       "name": "Jetski Mobile App",
       "description": "KMM mobile application (Android/iOS)",
