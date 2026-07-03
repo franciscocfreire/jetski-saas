@@ -366,5 +366,8 @@
     "pt-BR",
     "en"
   ],
-  "defaultLocale": "pt-BR"
+  "defaultLocale": "pt-BR",
+  "attributes": {
+    "frontendUrl": "${REALM_FRONTEND_URL:http://localhost:8080}"
+  }
 }

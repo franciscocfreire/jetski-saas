@@ -93,6 +93,8 @@ services:
       BACKOFFICE_REDIRECT: ${PUBLIC_URL:-http://localhost:3002}/*
       PORTAL_URL: ${PUBLIC_URL:-http://localhost:3003}
       PORTAL_REDIRECT: ${PUBLIC_URL:-http://localhost:3003}/*
+      # Base pública dos links gerados pelo realm (e-mails de verificação etc.)
+      REALM_FRONTEND_URL: ${PUBLIC_URL:-http://localhost:8080}
 
       # Logging
       KC_LOG_LEVEL: INFO

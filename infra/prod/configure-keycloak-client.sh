@@ -86,4 +86,22 @@ print(">> publicClient=True, PKCE=S256; redirectUris="+str(d["redirectUris"]))
 
 converge_client "jetski-backoffice" "$PUBLIC_URL" "Jetski Backoffice"
 converge_client "jetski-customer-portal" "${PORTAL_PUBLIC_URL:-$PUBLIC_URL}" "Meu Jet — Portal do Cliente"
+
+# Frontend URL do realm: base pública dos links gerados (e-mails de verificação,
+# action-tokens). Sem isso, e-mails disparados por chamadas internas do backend
+# saem com http://keycloak:8080.
+echo ">> Realm frontendUrl: ${PUBLIC_URL%/}"
+curl -s "$KC/admin/realms/$REALM" -H "Authorization: Bearer $TOKEN" \
+  | BASE="${PUBLIC_URL%/}" python3 -c '
+import sys, json, os
+d = json.load(sys.stdin)
+a = d.get("attributes") or {}
+a["frontendUrl"] = os.environ["BASE"]
+d["attributes"] = a
+json.dump(d, open("/tmp/kc_realm.json","w"))
+'
+curl -s -o /dev/null -w ">> PUT realm http=%{http_code}\n" -X PUT \
+  "$KC/admin/realms/$REALM" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d @/tmp/kc_realm.json
+rm -f /tmp/kc_realm.json
 echo ">> clients Keycloak configurados."
