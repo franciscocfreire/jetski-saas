@@ -417,10 +417,10 @@ public class CustomerReservaService {
 
     // ============================ Internos ============================
 
-    private record Localizada(Reserva reserva, Loja loja) {}
+    public record Localizada(Reserva reserva, Loja loja) {}
 
-    /** Localiza a reserva entre os vínculos do cliente (e valida a posse). */
-    private Localizada localizar(String sub, UUID reservaId) {
+    /** Localiza a reserva entre os vínculos do cliente (e valida a posse) — reuso P2/P3. */
+    public Localizada localizar(String sub, UUID reservaId) {
         for (CustomerAccountService.VinculoLoja v : customerAccountService.vinculos(sub)) {
             fixarTenant(v.getTenantId());
             Optional<Reserva> r = reservaRepository.findById(reservaId);
