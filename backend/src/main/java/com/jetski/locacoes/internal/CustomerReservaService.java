@@ -149,6 +149,16 @@ public class CustomerReservaService {
                 .orElseThrow(() -> new NotFoundException("Cliente do vínculo não encontrado"));
             // preenche identidade faltante no Cliente da loja
             customerProfileService.hidratarIdentidade(existente, profile);
+            // contato é POR LOJA: telefone digitado no wizard completa o cadastro
+            // desta loja quando ainda estiver vazio
+            if (telefone != null && !telefone.isBlank()) {
+                if (existente.getTelefone() == null || existente.getTelefone().isBlank()) {
+                    existente.setTelefone(telefone.trim());
+                }
+                if (existente.getWhatsapp() == null || existente.getWhatsapp().isBlank()) {
+                    existente.setWhatsapp(telefone.trim());
+                }
+            }
             return clienteRepository.save(existente);
         }
 
@@ -167,6 +177,7 @@ public class CustomerReservaService {
             .nome(nome)
             .email(email)
             .telefone(telefone)
+            .whatsapp(telefone)
             .origem(Cliente.Origem.PORTAL)
             .statusConta(Cliente.StatusConta.ATIVA)
             .ativo(true)

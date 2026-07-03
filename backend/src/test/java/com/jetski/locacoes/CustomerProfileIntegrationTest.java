@@ -163,19 +163,22 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/v1/customers/reservas")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"lojaSlug":"marina-bay","modeloId":"%s","dataInicio":"%s","dataFimPrevista":"%s","pagamentoTipo":"SINAL"}
+                    {"lojaSlug":"marina-bay","modeloId":"%s","dataInicio":"%s","dataFimPrevista":"%s","pagamentoTipo":"SINAL","telefone":"48999990000"}
                     """.formatted(MODELO_MARINA, ISO.format(inicio), ISO.format(inicio.plusHours(1))))
                 .with(cliente(SUB, "perfil@test.com")))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.lojaSlug").value("marina-bay"));
 
-        // novo Cliente na marina-bay nasceu com CPF/RG do perfil e SEM endereço
+        // novo Cliente na marina-bay nasceu com CPF/RG do perfil e SEM endereço;
+        // telefone/whats são POR LOJA (vieram do wizard desta reserva)
         var row = jdbc.queryForMap(
-            "SELECT documento, rg, endereco FROM cliente " +
+            "SELECT documento, rg, endereco, telefone, whatsapp FROM cliente " +
             "WHERE tenant_id = ? AND email = 'perfil@test.com'", TENANT_MARINA);
         assertThat(row.get("documento")).isEqualTo("321.654.987-00");
         assertThat(row.get("rg")).isEqualTo("RG-11");
         assertThat(row.get("endereco")).isNull();
+        assertThat(row.get("telefone")).isEqualTo("48999990000");
+        assertThat(row.get("whatsapp")).isEqualTo("48999990000");
     }
 
     @Test
