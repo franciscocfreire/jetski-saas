@@ -14,6 +14,8 @@ import {
 } from "@/components/ui";
 import { getSelf, updateSelf, updateContatoLoja, ApiError, type CustomerSelf, type IdentidadeCliente, type VinculoLoja } from "@/lib/api";
 import { Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard } from "lucide-react";
+import { maskCpf } from "@/lib/masks";
+import { PhoneInput } from "@/components/PhoneInput";
 
 /**
  * Perfil REAL (P0): dados da identidade global + lojas vinculadas, direto do
@@ -146,8 +148,9 @@ export default function PerfilPage() {
           >
             <input
               className={inputCls}
-              value={ident.cpf ?? ""}
-              onChange={(e) => setIdent({ ...ident, cpf: e.target.value })}
+              inputMode="numeric"
+              value={maskCpf(ident.cpf ?? "")}
+              onChange={(e) => setIdent({ ...ident, cpf: maskCpf(e.target.value) })}
               placeholder="000.000.000-00"
               disabled={!!self?.identidade?.cpf}
             />
@@ -265,11 +268,10 @@ function LojaRow({ loja, token }: { loja: VinculoLoja; token?: string }) {
         <Badge tone="brand">{loja.slug}</Badge>
       </div>
       <div className="mt-2 flex items-center gap-2">
-        <input
-          className={inputCls + " max-w-[220px]"}
+        <PhoneInput
+          className="max-w-[300px] flex-1"
           value={tel}
-          onChange={(e) => { setTel(e.target.value); setOkTel(false); }}
-          placeholder="Telefone/WhatsApp nesta loja"
+          onChange={(v) => { setTel(v); setOkTel(false); }}
         />
         {tel !== original && !okTel && (
           <Button size="sm" variant="outline" onClick={salvarTel} disabled={salvandoTel}>

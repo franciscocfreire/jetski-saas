@@ -1,6 +1,8 @@
 "use client";
 
 import { withBase } from "@/lib/base";
+import { maskCpf } from "@/lib/masks";
+import { PhoneInput } from "@/components/PhoneInput";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -193,19 +195,15 @@ function Wizard() {
             >
               <input
                 className={inputCls}
-                value={cpf}
-                onChange={(e) => setCpf(e.target.value)}
+                inputMode="numeric"
+                value={maskCpf(cpf)}
+                onChange={(e) => setCpf(maskCpf(e.target.value))}
                 placeholder="000.000.000-00"
                 disabled={!!cpfCadastro}
               />
             </Field>
             <Field label="Telefone/WhatsApp (opcional)">
-              <input
-                className={inputCls}
-                value={telefone}
-                onChange={(e) => setTelefone(e.target.value)}
-                placeholder="(48) 99999-9999"
-              />
+              <PhoneInput value={telefone} onChange={setTelefone} />
             </Field>
             <Field label="Observações (opcional)">
               <textarea

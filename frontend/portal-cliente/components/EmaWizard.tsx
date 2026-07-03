@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { maskCpf } from "@/lib/masks";
+import { PhoneInput } from "@/components/PhoneInput";
 import { useSession } from "next-auth/react";
 import {
   CheckCircle2,
@@ -204,8 +206,9 @@ function PassoDados({ token, reservaId, onSalvo }:
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="CPF">
-          <input className={inputCls} value={dados.cpf ?? ""} placeholder="000.000.000-00"
-            onChange={(e) => up({ cpf: e.target.value })} />
+          <input className={inputCls} inputMode="numeric" value={maskCpf(dados.cpf ?? "")}
+            placeholder="000.000.000-00"
+            onChange={(e) => up({ cpf: maskCpf(e.target.value) })} />
         </Field>
         <Field label="Data de nascimento">
           <input type="date" className={inputCls} value={dados.dataNascimento ?? ""}
@@ -228,8 +231,9 @@ function PassoDados({ token, reservaId, onSalvo }:
             onChange={(e) => up({ naturalidade: e.target.value })} />
         </Field>
         <Field label="Telefone/WhatsApp">
-          <input className={inputCls} value={dados.whatsapp ?? dados.telefone ?? ""}
-            onChange={(e) => up({ whatsapp: e.target.value })} />
+          <PhoneInput
+            value={dados.whatsapp ?? dados.telefone ?? ""}
+            onChange={(v) => up({ whatsapp: v })} />
         </Field>
         <label className="mt-6 flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={dados.estrangeiro ?? false}
