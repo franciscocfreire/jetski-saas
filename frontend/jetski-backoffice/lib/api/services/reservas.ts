@@ -5,12 +5,26 @@ import type {
   ReservaStatus,
   ConfirmarPagamentoRequest,
   ResultadoEmissao,
+  PagamentoPendente,
+  ReservaComprovante,
 } from '../types'
 
 const getBasePath = () => `/v1/tenants/${getTenantId()}/reservas`
 
 export const reservasService = {
   // Backend returns a simple list, not a paginated response
+  /** Fila de validação: reservas com comprovante enviado (EM_ANALISE). */
+  async pagamentosPendentes(): Promise<PagamentoPendente[]> {
+    const { data } = await apiClient.get<PagamentoPendente[]>(`${getBasePath()}/pagamentos-pendentes`)
+    return data
+  },
+
+  /** Comprovantes anexados à reserva (URL de download temporária). */
+  async comprovantes(id: string): Promise<ReservaComprovante[]> {
+    const { data } = await apiClient.get<ReservaComprovante[]>(`${getBasePath()}/${id}/comprovantes`)
+    return data
+  },
+
   async list(params?: {
     status?: ReservaStatus
     dataInicio?: string

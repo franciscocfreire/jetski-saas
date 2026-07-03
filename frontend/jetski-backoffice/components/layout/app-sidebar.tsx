@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
+  BadgeCheck,
   Anchor,
   Calendar,
   CalendarCheck,
@@ -163,6 +164,11 @@ const financeiroItems = [
     title: 'Pagamentos',
     href: '/dashboard/financeiro/pagamentos',
     icon: Wallet,
+  },
+  {
+    title: 'Validar pagamentos',
+    href: '/dashboard/financeiro/sinais',
+    icon: BadgeCheck,
   },
   {
     title: 'Despesas Operacionais',

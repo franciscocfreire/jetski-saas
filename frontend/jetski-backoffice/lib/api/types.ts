@@ -218,6 +218,25 @@ export interface ReservaCreateRequest {
 }
 
 // Balcão — pagamento / habilitação / aceite / emissão / claim
+export interface PagamentoPendente {
+  reservaId: string
+  clienteNome: string
+  modeloNome: string
+  dataInicio: string
+  pagamentoTipo?: 'SINAL' | 'TOTAL'
+  valorInformado?: number
+  valorEstimadoTotal?: number
+  comprovanteEnviadoEm?: string
+  canal: 'BALCAO' | 'PORTAL'
+}
+
+export interface ReservaComprovante {
+  id: string
+  tipo: string
+  enviadoEm: string
+  downloadUrl: string
+}
+
 export interface ConfirmarPagamentoRequest {
   tipo: PagamentoTipo
   valorPago?: number
