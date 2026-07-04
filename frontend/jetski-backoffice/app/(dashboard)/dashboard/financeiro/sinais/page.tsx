@@ -146,7 +146,7 @@ export default function SinaisPage() {
                   {divergente && ' ⚠'}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                 <Button size="sm" variant="outline" className="gap-1" onClick={() => verComprovante(p.reservaId)}>
                   <FileSearch className="h-4 w-4" /> Comprovante
                 </Button>
