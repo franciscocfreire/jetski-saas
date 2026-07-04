@@ -372,6 +372,10 @@ ALTER TABLE public.credito_compra
     ADD COLUMN IF NOT EXISTS valor_pago     numeric(10,2),
     ADD COLUMN IF NOT EXISTS preco_unitario numeric(10,2);
 
+-- V034: reserva por modelo — controle de estoque opcional por tenant
+ALTER TABLE public.reserva_config
+    ADD COLUMN IF NOT EXISTS controlar_estoque boolean NOT NULL DEFAULT false;
+
 -- V033: notificações in-app do cliente do portal (sininho)
 CREATE TABLE IF NOT EXISTS public.cliente_notificacao (
     id          uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,

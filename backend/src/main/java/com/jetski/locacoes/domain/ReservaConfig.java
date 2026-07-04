@@ -98,6 +98,15 @@ public class ReservaConfig {
      * Enable customer notifications before expiration.
      * If true, system will notify customer N minutes before expiration.
      */
+    /**
+     * Reserva é por MODELO: por padrão o tenant NÃO controla estoque e a
+     * criação/confirmação nunca é bloqueada por disponibilidade de unidade.
+     * true restaura os bloqueios físicos (frota apertada).
+     */
+    @Column(name = "controlar_estoque", nullable = false)
+    @Builder.Default
+    private Boolean controlarEstoque = false;
+
     @Column(name = "notificar_antes_expiracao", nullable = false)
     @Builder.Default
     private Boolean notificarAntesExpiracao = true;

@@ -232,7 +232,10 @@ public class ReservaService {
             JetskiStatus.DISPONIVEL
         );
 
-        if (totalJetskisDisponiveis == 0) {
+        // Reserva é por MODELO: só bloqueia por unidade quando o tenant
+        // optou por controlar estoque (config; default = não controla)
+        boolean controlarEstoque = Boolean.TRUE.equals(config.getControlarEstoque());
+        if (controlarEstoque && totalJetskisDisponiveis == 0) {
             throw new BusinessException(
                 String.format("Nenhum jetski disponível para o modelo %s", modelo.getNome())
             );
@@ -256,8 +259,8 @@ public class ReservaService {
         ReservaPrioridade prioridade = sinalPago ? ReservaPrioridade.ALTA : ReservaPrioridade.BAIXA;
 
         if (sinalPago) {
-            // ALTA priority: check physical capacity
-            if (reservasGarantidas >= totalJetskisDisponiveis) {
+            // ALTA priority: capacidade física só quando o tenant controla estoque
+            if (controlarEstoque && reservasGarantidas >= totalJetskisDisponiveis) {
                 throw new BusinessException(
                     String.format("Capacidade esgotada: %d jetskis disponíveis, %d reservas garantidas já existentes",
                                   totalJetskisDisponiveis, reservasGarantidas)
@@ -738,7 +741,8 @@ public class ReservaService {
             reserva.getDataFimPrevista()
         );
 
-        if (reservasGarantidas >= totalJetskisDisponiveis) {
+        if (Boolean.TRUE.equals(reservaConfigService.getConfigForCurrentTenant().getControlarEstoque())
+                && reservasGarantidas >= totalJetskisDisponiveis) {
             throw new BusinessException(
                 String.format("Capacidade esgotada para reservas garantidas: %d jetskis disponíveis, " +
                               "%d reservas garantidas já existentes",

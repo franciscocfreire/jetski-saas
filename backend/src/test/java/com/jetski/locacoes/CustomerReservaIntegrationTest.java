@@ -313,4 +313,42 @@ class CustomerReservaIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.totalJetskis").value(1))
             .andExpect(jsonPath("$.aceitaComSinal").value(true));
     }
+
+    @Test
+    @DisplayName("Reserva é por MODELO: sem controle de estoque (default), cria mesmo sem jetski DISPONIVEL")
+    void testReservaSemControleDeEstoque() throws Exception {
+        // todos os jetskis do modelo ficam em manutenção
+        jdbc.update("UPDATE jetski SET status = 'MANUTENCAO' WHERE modelo_id = ?", MODELO_ID);
+        jdbc.update("UPDATE reserva_config SET controlar_estoque = false WHERE tenant_id = ?", TENANT_ACME);
+        try {
+            java.time.LocalDateTime inicio = java.time.LocalDateTime.now()
+                .plusDays(6).withHour(9).withMinute(0).withSecond(0).withNano(0);
+            mockMvc.perform(post("/v1/customers/reservas")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"lojaSlug":"acme","modeloId":"%s","dataInicio":"%s","dataFimPrevista":"%s","pagamentoTipo":"SINAL"}
+                        """.formatted(MODELO_ID,
+                            java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(inicio),
+                            java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(inicio.plusHours(1))))
+                    .with(cliente()))
+                .andExpect(status().isCreated());
+
+            // ligando o controle, o mesmo cenário bloqueia
+            jdbc.update("UPDATE reserva_config SET controlar_estoque = true WHERE tenant_id = ?", TENANT_ACME);
+            mockMvc.perform(post("/v1/customers/reservas")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"lojaSlug":"acme","modeloId":"%s","dataInicio":"%s","dataFimPrevista":"%s","pagamentoTipo":"SINAL"}
+                        """.formatted(MODELO_ID,
+                            java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(inicio.plusHours(3)),
+                            java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(inicio.plusHours(4))))
+                    .with(cliente()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message",
+                    org.hamcrest.Matchers.containsString("Nenhum jetski disponível")));
+        } finally {
+            jdbc.update("UPDATE jetski SET status = 'DISPONIVEL' WHERE modelo_id = ?", MODELO_ID);
+            jdbc.update("UPDATE reserva_config SET controlar_estoque = false WHERE tenant_id = ?", TENANT_ACME);
+        }
+    }
 }
