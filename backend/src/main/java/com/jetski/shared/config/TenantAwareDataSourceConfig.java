@@ -82,7 +82,9 @@ public class TenantAwareDataSourceConfig {
                     // is_local = false: config persists for the entire connection/session, not just current transaction
                     String sql = String.format("SELECT set_config('app.tenant_id', '%s', false)", tenantId);
                     statement.execute(sql);
-                    log.info("RLS tenant context set: {}", tenantId);
+                    // DEBUG: roda a CADA checkout de conexão do pool (toda query) —
+                    // em INFO isso vira uma linha por query no Loki
+                    log.debug("RLS tenant context set: {}", tenantId);
                 } else {
                     // IMPORTANT: Reset tenant context for public endpoints (marketplace, etc.)
                     // HikariCP reuses connections, so we must clear any previous tenant context
