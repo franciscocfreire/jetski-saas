@@ -179,3 +179,29 @@ export function SkeletonCards({ n = 3 }: { n?: number }) {
     </div>
   );
 }
+
+/** Estado vazio com voz (D2): ícone + título + texto + CTA opcional. */
+export function EmptyState({
+  icon,
+  titulo,
+  texto,
+  cta,
+  href,
+}: {
+  icon: React.ReactNode;
+  titulo: string;
+  texto: string;
+  cta?: string;
+  href?: string;
+}) {
+  return (
+    <Card className="flex flex-col items-center gap-3 p-12 text-center">
+      <span className="grid h-16 w-16 place-items-center rounded-full bg-brand-50 text-brand-400">
+        {icon}
+      </span>
+      <h3 className="font-semibold text-ink-900">{titulo}</h3>
+      <p className="max-w-xs text-sm text-slate-500">{texto}</p>
+      {cta && href && <Button href={href}>{cta}</Button>}
+    </Card>
+  );
+}

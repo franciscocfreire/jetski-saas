@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { Star, ChevronRight, Loader2, Waves } from "lucide-react";
 import { minhasLocacoes, type LocacaoCliente } from "@/lib/api";
 import { brl, fmtDateTime } from "@/lib/cn";
-import { Badge, Button, Card, SectionTitle, SkeletonCards } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, SectionTitle, SkeletonCards } from "@/components/ui";
 import { statusLocacao } from "@/lib/status";
 
 export default function LocacoesPage() {
@@ -48,14 +48,13 @@ export default function LocacoesPage() {
       )}
 
       {locacoes && locacoes.length === 0 ? (
-        <Card className="flex flex-col items-center gap-3 p-12 text-center">
-          <Waves className="text-slate-300" size={40} />
-          <p className="text-slate-500">
-            Nenhum passeio concluído ainda — seu histórico aparece aqui após o
-            check-out.
-          </p>
-          <Button href="/">Explorar jet skis</Button>
-        </Card>
+        <EmptyState
+          icon={<Waves size={28} />}
+          titulo="Nenhum passeio concluído ainda"
+          texto="Seu histórico aparece aqui após o check-out — com fotos, recibo e espaço para avaliar a experiência."
+          cta="Explorar jet skis"
+          href="/"
+        />
       ) : (
         <div className="grid gap-4">
           {locacoes?.map((l) => (

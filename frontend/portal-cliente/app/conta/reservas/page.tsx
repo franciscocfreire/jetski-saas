@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { CalendarX2, ChevronRight, Loader2 } from "lucide-react";
 import { minhasReservas, type ReservaCliente } from "@/lib/api";
 import { brl, fmtDateTime } from "@/lib/cn";
-import { Badge, Button, Card, SectionTitle, SkeletonCards } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, SectionTitle, SkeletonCards } from "@/components/ui";
 import { statusReserva } from "@/lib/status";
 
 function statusBadge(r: ReservaCliente) {
@@ -57,11 +57,13 @@ export default function ReservasPage() {
       )}
 
       {reservas && reservas.length === 0 ? (
-        <Card className="flex flex-col items-center gap-3 p-12 text-center">
-          <CalendarX2 className="text-slate-300" size={40} />
-          <p className="text-slate-500">Você ainda não tem reservas.</p>
-          <Button href="/">Explorar jet skis</Button>
-        </Card>
+        <EmptyState
+          icon={<CalendarX2 size={28} />}
+          titulo="Seu próximo passeio começa aqui"
+          texto="Você ainda não tem reservas. Escolha um jet ski, reserve em minutos e pague o sinal por PIX."
+          cta="Explorar jet skis"
+          href="/"
+        />
       ) : (
         <div className="grid gap-4">
           {reservas?.map((r) => (

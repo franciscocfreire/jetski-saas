@@ -136,39 +136,60 @@ export default function ReservaDetailPage() {
         ) : null}
       </Card>
 
-      <h2 className="mb-3 mt-8 text-lg font-bold text-ink-900">
-        {pronta ? "Etapas concluídas" : "Conclua para liberar o check-in"}
+      <h2 className="mb-4 mt-8 text-lg font-bold text-ink-900">
+        Sua jornada até o passeio
       </h2>
 
-      <div className="grid gap-3">
-        <TaskRow
-          estado={estadoPagamento}
-          icon={<CreditCard size={18} />}
-          title={pg.tipo === "TOTAL" ? "Pagamento (valor total)" : "Pagamento (sinal 30%)"}
-          desc={
-            pg.status === "RECUSADO"
-              ? `Recusado: ${pg.motivoRecusa ?? "confira o valor"} — reenvie o comprovante`
-              : pg.tipo === "TOTAL"
-                ? "PIX com QR de valor exato · nada a pagar no embarque"
-                : "PIX com QR de valor exato · restante no check-in"
-          }
-          href={`/conta/reservas/${reserva.id}/pagamento`}
-        />
-        <TaskRow
-          estado={checklist.habilitacaoOk ? "ok" : "pendente"}
-          icon={<IdCard size={18} />}
-          title="Habilitação náutica"
-          desc="Envie sua CHA ou emita a CHA-MTA-E"
-          href={`/conta/reservas/${reserva.id}/habilitacao`}
-        />
-        <TaskRow
-          estado={checklist.termosOk ? "ok" : "pendente"}
-          icon={<FileSignature size={18} />}
-          title="Termos e responsabilidade"
-          desc="Assine o termo da loja pelo celular"
-          href={`/conta/reservas/${reserva.id}/termos`}
-        />
-      </div>
+      <Timeline
+        passos={[
+          {
+            titulo: "Reserva feita",
+            desc: `${reserva.modeloNome} · ${fmtDateTime(reserva.dataInicio)}`,
+            estado: "ok",
+          },
+          {
+            titulo: pg.tipo === "TOTAL" ? "Pagamento (valor total)" : "Pagamento (sinal 30%)",
+            desc:
+              pg.status === "RECUSADO"
+                ? `Recusado: ${pg.motivoRecusa ?? "confira o valor"} — reenvie o comprovante`
+                : pg.status === "EM_ANALISE"
+                  ? "Comprovante em análise pela loja"
+                  : pg.status === "CONFIRMADO"
+                    ? "Pagamento confirmado pela loja"
+                    : "PIX com QR de valor exato",
+            estado: estadoPagamento,
+            icone: <CreditCard size={16} />,
+            href: `/conta/reservas/${reserva.id}/pagamento`,
+            alerta: pg.status === "RECUSADO",
+          },
+          {
+            titulo: "Termos e responsabilidade",
+            desc: checklist.termosOk
+              ? "Termo assinado"
+              : "Assine o termo da loja pelo celular",
+            estado: checklist.termosOk ? "ok" : "pendente",
+            icone: <FileSignature size={16} />,
+            href: `/conta/reservas/${reserva.id}/termos`,
+          },
+          {
+            titulo: "Habilitação náutica",
+            desc: checklist.habilitacaoOk
+              ? "Habilitação resolvida"
+              : "Envie sua CHA ou emita a CHA-MTA-E",
+            estado: checklist.habilitacaoOk ? "ok" : "pendente",
+            icone: <IdCard size={16} />,
+            href: `/conta/reservas/${reserva.id}/habilitacao`,
+          },
+          {
+            titulo: "Pronto para o check-in",
+            desc: pronta
+              ? "Tudo certo — apresente-se na loja na data agendada"
+              : "Libera quando as etapas acima estiverem concluídas",
+            estado: pronta ? "ok" : "futuro",
+            final: true,
+          },
+        ]}
+      />
       <p className="mt-8 text-center text-[11px] text-slate-300">
         Código da reserva: {reserva.id}
       </p>
@@ -176,61 +197,112 @@ export default function ReservaDetailPage() {
   );
 }
 
-type Estado = "ok" | "em_validacao" | "pendente";
+type Estado = "ok" | "em_validacao" | "pendente" | "futuro";
 
-function stateMeta(e: Estado) {
-  switch (e) {
-    case "ok":
-      return {
-        icon: <CheckCircle2 className="text-emerald-500" />,
-        badge: <Badge tone="green">Concluído</Badge>,
-        cta: "Ver",
-      };
-    case "em_validacao":
-      return {
-        icon: <Clock className="text-amber-500" />,
-        badge: <Badge tone="amber">Em validação</Badge>,
-        cta: "Acompanhar",
-      };
-    default:
-      return {
-        icon: <Circle className="text-slate-300" />,
-        badge: <Badge tone="slate">Pendente</Badge>,
-        cta: "Resolver",
-      };
-  }
+interface Passo {
+  titulo: string;
+  desc: string;
+  estado: Estado;
+  icone?: React.ReactNode;
+  href?: string;
+  alerta?: boolean;
+  final?: boolean;
 }
 
-function TaskRow({
-  estado,
-  icon,
-  title,
-  desc,
-  href,
-}: {
-  estado: Estado;
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-  href: string;
-}) {
-  const meta = stateMeta(estado);
+/** Linha do tempo vertical da reserva (D2): onde estou e o que falta. */
+function Timeline({ passos }: { passos: Passo[] }) {
+  // o passo "atual" é o primeiro não-concluído acionável
+  const atualIdx = passos.findIndex((p) => p.estado !== "ok" && !p.final);
   return (
-    <Card className="flex items-center gap-4 p-4">
-      <span className="shrink-0">{meta.icon}</span>
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600">
-        {icon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-ink-900">{title}</h3>
-          {meta.badge}
-        </div>
-        <p className="text-sm text-slate-500">{desc}</p>
-      </div>
-      <Button href={href} variant={estado === "ok" ? "outline" : "primary"} size="sm">
-        {meta.cta} <ArrowRight size={15} />
-      </Button>
-    </Card>
+    <ol className="relative">
+      {passos.map((p, i) => {
+        const atual = i === atualIdx;
+        const ultimo = i === passos.length - 1;
+        const cardado = atual || p.alerta || (p.final && p.estado === "ok");
+        return (
+          <li key={p.titulo} className="relative flex gap-4 pb-6 last:pb-0">
+            {!ultimo && (
+              <span
+                className={`absolute left-[15px] top-9 h-[calc(100%-28px)] w-0.5 ${
+                  p.estado === "ok" ? "bg-emerald-300" : "bg-slate-200"
+                }`}
+                aria-hidden
+              />
+            )}
+            <span className="relative z-10 mt-1 shrink-0">
+              {p.estado === "ok" ? (
+                <CheckCircle2 size={32} className="text-emerald-500" strokeWidth={2} />
+              ) : p.estado === "em_validacao" ? (
+                <span className="grid h-8 w-8 place-items-center rounded-full border-2 border-amber-400 bg-amber-50">
+                  <Clock size={15} className="text-amber-500" />
+                </span>
+              ) : atual ? (
+                <span className="grid h-8 w-8 place-items-center rounded-full border-2 border-brand-500 bg-brand-50 ring-4 ring-brand-100">
+                  <Circle size={10} className="fill-brand-500 text-brand-500" />
+                </span>
+              ) : (
+                <span className="grid h-8 w-8 place-items-center rounded-full border-2 border-slate-200 bg-white">
+                  <Circle size={10} className="text-slate-300" />
+                </span>
+              )}
+            </span>
+            <div
+              className={
+                cardado
+                  ? `min-w-0 flex-1 rounded-2xl border p-4 ${
+                      p.alerta
+                        ? "border-red-200 bg-red-50"
+                        : p.final
+                          ? "border-emerald-200 bg-emerald-50"
+                          : "border-brand-200 bg-white shadow-sm"
+                    }`
+                  : "min-w-0 flex-1 px-0 py-1"
+              }
+            >
+              <div className="flex items-center gap-2">
+                {p.icone && <span className="text-slate-400">{p.icone}</span>}
+                <h3
+                  className={`font-semibold ${
+                    p.estado === "futuro" ? "text-slate-400" : "text-ink-900"
+                  }`}
+                >
+                  {p.titulo}
+                </h3>
+              </div>
+              <p
+                className={`mt-0.5 text-sm ${
+                  p.alerta
+                    ? "text-red-700"
+                    : p.estado === "futuro"
+                      ? "text-slate-400"
+                      : "text-slate-500"
+                }`}
+              >
+                {p.desc}
+              </p>
+              {p.href && p.estado !== "ok" && (
+                <Button
+                  href={p.href}
+                  size="sm"
+                  variant={atual || p.alerta ? "primary" : "outline"}
+                  className="mt-3"
+                >
+                  {p.estado === "em_validacao" ? "Acompanhar" : "Resolver"}{" "}
+                  <ArrowRight size={15} />
+                </Button>
+              )}
+              {p.href && p.estado === "ok" && (
+                <Link
+                  href={p.href}
+                  className="mt-1 inline-block text-xs text-slate-400 underline-offset-2 hover:underline"
+                >
+                  ver detalhes
+                </Link>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
