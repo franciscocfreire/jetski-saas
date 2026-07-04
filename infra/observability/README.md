@@ -9,10 +9,12 @@ containers e as métricas do backend no Grafana, pelo mesmo host público.
 | **Loki** | armazenamento de logs (7 dias) | 512 MB | interno (`:3100` só em 127.0.0.1) |
 | **Promtail** | coleta os logs de TODOS os containers via Docker | 256 MB | interno |
 | **Prometheus** | métricas do backend (7 dias) | 512 MB | interno (`:9090` só em 127.0.0.1) |
+| **node-exporter** | CPU/RAM/disco/rede do host | 64 MB | interno |
+| **cAdvisor** | memória/CPU por container | 256 MB | interno |
 
-Total: ~1,6 GB no pior caso. **Sem Jaeger/Alertmanager** nesta v1 (adicionar
-quando precisar de tracing/alertas — o stack de dev em
-`infra/docker-compose-monitoring.yml` continua sendo a referência completa).
+Total: ~2 GB no pior caso. Alertas usam o alerting nativo do Grafana (sem
+Alertmanager); **sem Jaeger** (tracing) nesta versão — o stack de dev em
+`infra/docker-compose-monitoring.yml` continua sendo a referência completa.
 
 ## Subir (no servidor)
 
@@ -42,6 +44,7 @@ próprio (`grafana/provisioning/` — **sem Jaeger**, que não existe nesta v1).
 | **Saúde de Produção** | o primeiro a abrir: backend up, req/s, 5xx, P95, Hikari, heap/CPU + erros nos logs por serviço, 4xx/5xx do nginx e últimos ERROR do backend |
 | **Logs & Erros** | investigação: variáveis serviço/busca/tenant, volume por serviço/nível, top exceções, falhas de login do Keycloak, logs ao vivo (cole um `trace_id` na busca p/ correlacionar nginx ↔ backend) |
 | **Visão por Tenant** | variável `$tenant`: saldo de créditos, check-ins, reservas, receita, pagamentos, emissões por tipo e logs/erros daquele tenant |
+| **Infraestrutura** | host (CPU/RAM/disco/rede) e memória/CPU por container — quem está comendo os 11 GB |
 | **Visão Operacional** | gauges de negócio (locações ativas, reservas, frota, ocupação) |
 | **Performance do Sistema** | JVM/threads/HTTP/Hikari em detalhe |
 
@@ -62,6 +65,24 @@ próprio (`grafana/provisioning/` — **sem Jaeger**, que não existe nesta v1).
   Prometheus (`.created`, `.count`, `.sum`, `.total`…) é decepado pelo client —
   o teste `MetricsEventListenerTest#testPrometheusExposedNames` trava o
   contrato de nomes que os dashboards consomem.
+
+## Alertas (e-mail)
+
+Cinco regras provisionadas (pasta **Alertas** na UI; arquivo
+`grafana/provisioning/alerting/alertas.yml` — regra provisionada não é editável
+pela UI, edite o arquivo e recrie o Grafana):
+
+| Alerta | Condição | Severidade |
+|---|---|---|
+| Backend fora do ar | `up == 0` por 3 min | critical |
+| Taxa de erros 5xx | > 5% por 5 min | critical |
+| Disco do host | > 80% por 10 min | warning |
+| Memória do host | > 90% por 10 min | warning |
+| Pico de ERROR nos logs | > 20 linhas/5min por 10 min (Loki) | warning |
+
+Notificação por e-mail via SMTP do Gmail (reaproveita `GMAIL_USER` /
+`GMAIL_APP_PASSWORD` do `.env`); destinatário em `GRAFANA_ALERT_EMAIL`
+(sem valor → o próprio `GMAIL_USER`). Para desligar: `GRAFANA_SMTP_ENABLED=false`.
 
 ## Como os logs chegam
 

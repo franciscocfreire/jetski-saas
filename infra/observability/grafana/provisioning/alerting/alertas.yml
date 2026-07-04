@@ -1,0 +1,190 @@
+# Regras de alerta de produção (Grafana unified alerting, provisionadas por arquivo).
+# Notificação: contact point "email-ops" (ver contact-points.yml / policies.yml).
+#
+# Regra provisionada não é editável pela UI — edite aqui e recrie o Grafana.
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: jetski-prod
+    folder: Alertas
+    interval: 1m
+    rules:
+      # ------------------------------------------------------------------
+      - uid: backend-down
+        title: Backend fora do ar
+        condition: C
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: >-
+            Prometheus não consegue raspar o backend (up == 0) há 3 minutos.
+            Ver `docker compose ps backend` e o dashboard Saúde de Produção.
+        isPaused: false
+        noDataState: Alerting
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: Prometheus
+            model:
+              expr: up{job="jetski-backend"}
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      # ------------------------------------------------------------------
+      - uid: erros-5xx-altos
+        title: Taxa de erros 5xx acima de 5%
+        condition: C
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: >-
+            Mais de 5% das requisições HTTP do backend retornando 5xx nos
+            últimos 5 minutos. Ver painel "Tráfego por resultado" e os logs
+            ERROR no dashboard Logs & Erros.
+        isPaused: false
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: Prometheus
+            model:
+              expr: >-
+                100 * (sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) or vector(0))
+                / sum(rate(http_server_requests_seconds_count[5m]))
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [5] }
+
+      # ------------------------------------------------------------------
+      - uid: disco-quase-cheio
+        title: Disco do host acima de 80%
+        condition: C
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: >-
+            Partição raiz do servidor acima de 80%. Suspeitos usuais: imagens
+            Docker antigas (docker system prune -af) e volumes de logs/métricas.
+            Ver dashboard Infraestrutura.
+        isPaused: false
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: Prometheus
+            model:
+              expr: >-
+                100 * (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}
+                / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"})
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [80] }
+
+      # ------------------------------------------------------------------
+      - uid: memoria-host-alta
+        title: Memória do host acima de 90%
+        condition: C
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: >-
+            RAM do servidor (11 GB) acima de 90% há 10 minutos — risco de
+            OOM-kill. Ver "Memória por container" no dashboard Infraestrutura
+            para achar o culpado.
+        isPaused: false
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: Prometheus
+            model:
+              expr: >-
+                100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [90] }
+
+      # ------------------------------------------------------------------
+      - uid: erros-backend-spike
+        title: Pico de ERROR nos logs do backend
+        condition: C
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: >-
+            Mais de 20 linhas ERROR em 5 minutos nos logs do backend, por 10
+            minutos seguidos. Ver "Top exceções" no dashboard Logs & Erros.
+        isPaused: false
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: Loki
+            model:
+              expr: sum(count_over_time({service="backend", level="ERROR"} [5m]))
+              queryType: instant
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [20] }

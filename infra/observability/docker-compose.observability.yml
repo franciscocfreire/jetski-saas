@@ -71,6 +71,44 @@ services:
     networks:
       - app
 
+  # Métricas do HOST (CPU/RAM/disco/rede) — o que enxerga os 11 GB acabando
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: jetski-node-exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - '--path.rootfs=/host'
+    volumes:
+      - /:/host:ro,rslave
+    mem_limit: 64m
+    networks:
+      - app
+
+  # Métricas POR CONTAINER (memória/CPU de backend, keycloak, portal…)
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: jetski-cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    command:
+      # enxuto: só o essencial de memória/CPU/rede por container
+      - '--housekeeping_interval=30s'
+      - '--docker_only=true'
+      - '--store_container_labels=false'
+      - '--disable_metrics=percpu,sched,tcp,udp,process,hugetlb,referenced_memory,cpu_topology,resctrl,memory_numa,cpuset,advtcp'
+    mem_limit: 256m
+    networks:
+      - app
+
   grafana:
     image: grafana/grafana:10.1.5
     container_name: jetski-grafana
@@ -85,6 +123,15 @@ services:
       GF_SERVER_ROOT_URL: ${PUBLIC_URL:-http://localhost:3300}/grafana
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
+      # Alertas por e-mail — reaproveita o Gmail do backend (.env)
+      GF_SMTP_ENABLED: ${GRAFANA_SMTP_ENABLED:-true}
+      GF_SMTP_HOST: ${GRAFANA_SMTP_HOST:-smtp.gmail.com:587}
+      GF_SMTP_USER: ${GMAIL_USER:-}
+      GF_SMTP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      GF_SMTP_FROM_ADDRESS: ${GMAIL_USER:-grafana@localhost}
+      GF_SMTP_FROM_NAME: Grafana Meu Jet
+      # destinatário dos alertas (usado pelo provisioning de alerting)
+      GRAFANA_ALERT_EMAIL: ${GRAFANA_ALERT_EMAIL:-${GMAIL_USER:-ops@localhost}}
     volumes:
       # provisioning próprio de prod (datasources sem Jaeger) + dashboards
       # compartilhados com o stack de dev

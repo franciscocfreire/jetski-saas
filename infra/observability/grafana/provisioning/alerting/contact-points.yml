@@ -1,0 +1,15 @@
+# Contact point de alertas — e-mail via SMTP do Grafana (GF_SMTP_* no compose,
+# que reaproveita GMAIL_USER/GMAIL_APP_PASSWORD do .env).
+# O destinatário vem da env GRAFANA_ALERT_EMAIL (fallback: GMAIL_USER).
+
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: email-ops
+    receivers:
+      - uid: email-ops-1
+        type: email
+        settings:
+          addresses: $GRAFANA_ALERT_EMAIL
+          singleEmail: true
