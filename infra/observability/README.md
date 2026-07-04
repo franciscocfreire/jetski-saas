@@ -20,7 +20,9 @@ quando precisar de tracing/alertas — o stack de dev em
 cd /home/ubuntu/jetski
 # 1) garanta no .env:  GRAFANA_ADMIN_PASSWORD=...
 # 2) stack principal precisa estar no ar (a rede do app é externa p/ este compose)
-docker compose -f infra/observability/docker-compose.observability.yml up -d
+# --env-file é obrigatório: o compose fica em infra/observability/, então o
+# Compose v2 NÃO acha o .env da raiz sozinho (GRAFANA_ADMIN_PASSWORD, PUBLIC_URL)
+docker compose --env-file .env -f infra/observability/docker-compose.observability.yml up -d
 
 # nginx precisa conhecer a rota /grafana (após atualizar nginx.conf):
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate nginx
@@ -84,6 +86,6 @@ ganham ainda o label `level` e campos `tenant_id`/`trace_id` extraídos.
 ## Parar / remover
 
 ```bash
-docker compose -f infra/observability/docker-compose.observability.yml down   # mantém dados
-docker compose -f infra/observability/docker-compose.observability.yml down -v # apaga logs/métricas
+docker compose --env-file .env -f infra/observability/docker-compose.observability.yml down    # mantém dados
+docker compose --env-file .env -f infra/observability/docker-compose.observability.yml down -v  # apaga logs/métricas
 ```
