@@ -511,7 +511,7 @@
       "options": {
         "dedupStrategy": "none",
         "enableLogDetails": true,
-        "prettifyLogMessage": false,
+        "prettifyLogMessage": true,
         "showCommonLabels": false,
         "showLabels": false,
         "showTime": true,
@@ -561,7 +561,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "{service=\"backend\"} |~ `$busca` | json | tenant_id=~`$tenant`",
+          "expr": "{service=\"backend\"} |~ `$busca` | json | tenant_id=~`$tenant` | line_format \"{{.level}} {{.tenant_id}} [{{.logger_name}}] {{.message}}\"",
           "queryType": "range",
           "refId": "A"
         }

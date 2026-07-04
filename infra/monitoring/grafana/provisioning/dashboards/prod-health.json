@@ -1490,7 +1490,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "{service=\"backend\", level=\"ERROR\"}",
+          "expr": "{service=\"backend\", level=\"ERROR\"} | json | line_format \"[{{.logger_name}}] {{.message}}\"",
           "queryType": "range",
           "refId": "A"
         }

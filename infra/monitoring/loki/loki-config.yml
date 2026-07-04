@@ -6,6 +6,9 @@ auth_enabled: false
 server:
   http_listen_port: 3100
   grpc_listen_port: 9096
+  # sem INFO: o Loki loga cada query executada (avaliação de alerta a cada 1min,
+  # cada refresh de painel) e esse firehose volta p/ dentro dele via Promtail
+  log_level: warn
 
 common:
   path_prefix: /tmp/loki

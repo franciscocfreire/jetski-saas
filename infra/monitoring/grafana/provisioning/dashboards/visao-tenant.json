@@ -1279,7 +1279,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "{service=\"backend\"} | json | tenant_id=`$tenant`",
+          "expr": "{service=\"backend\"} | json | tenant_id=`$tenant` | line_format \"{{.level}} [{{.logger_name}}] {{.message}}\"",
           "queryType": "range",
           "refId": "A"
         }
