@@ -13,6 +13,8 @@ declare module "next-auth" {
   interface Session {
     accessToken: string;
     emailVerified?: boolean;
+    /** Papéis do realm — usados p/ mostrar o acesso staff no Perfil. */
+    roles?: string[];
     error?: string;
   }
 }
@@ -119,10 +121,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return refreshAccessToken(token);
     },
     async session({ session, token }) {
+      // papéis do realm (p/ mostrar acesso ao Backoffice só a quem é staff)
+      let roles: string[] = [];
+      try {
+        const payload = JSON.parse(
+          Buffer.from((token.accessToken as string).split(".")[1], "base64").toString()
+        );
+        roles = payload?.realm_access?.roles ?? [];
+      } catch {
+        // token ausente/expirado — sem papéis
+      }
       return {
         ...session,
         accessToken: token.accessToken as string,
         emailVerified: token.emailVerified as boolean | undefined,
+        roles,
         error: token.error as string | undefined,
       };
     },

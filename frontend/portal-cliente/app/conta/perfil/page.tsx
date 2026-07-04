@@ -13,7 +13,7 @@ import {
   Badge,
 } from "@/components/ui";
 import { getSelf, updateSelf, updateContatoLoja, ApiError, type CustomerSelf, type IdentidadeCliente, type VinculoLoja } from "@/lib/api";
-import { Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard } from "lucide-react";
+import { Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard, Briefcase, ExternalLink } from "lucide-react";
 import { maskCpf } from "@/lib/masks";
 import { PhoneInput } from "@/components/PhoneInput";
 import { useToast } from "@/components/Toast";
@@ -28,6 +28,7 @@ export default function PerfilPage() {
 
   const { toast } = useToast();
   const [self, setSelf] = useState<CustomerSelf | null>(null);
+  const [somenteStaff, setSomenteStaff] = useState(false);
   const [nome, setNome] = useState("");
   const [ident, setIdent] = useState<IdentidadeCliente>({});
   const [carregando, setCarregando] = useState(true);
@@ -44,7 +45,12 @@ export default function PerfilPage() {
       setNome(dados.nome ?? "");
       setIdent(dados.identidade ?? {});
     } catch (e) {
-      setErro(e instanceof ApiError ? e.message : "Não foi possível carregar o perfil.");
+      if (e instanceof ApiError && e.status === 403) {
+        // conta só de staff (sem papel CLIENTE): não há perfil de cliente
+        setSomenteStaff(true);
+      } else {
+        setErro(e instanceof ApiError ? e.message : "Não foi possível carregar o perfil.");
+      }
     } finally {
       setCarregando(false);
     }
@@ -85,6 +91,35 @@ export default function PerfilPage() {
     return (
       <div className="flex justify-center py-20 text-slate-400">
         <Loader2 className="animate-spin" />
+      </div>
+    );
+  }
+
+  if (somenteStaff) {
+    return (
+      <div className="mx-auto max-w-md py-10 text-center">
+        <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-brand-50 text-brand-500">
+          <Briefcase size={26} />
+        </span>
+        <h1 className="mt-4 text-xl font-bold text-ink-900">Conta da equipe</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          Esta conta tem papel de staff — o portal é a área do cliente final.
+          Seu painel de trabalho fica no Backoffice.
+        </p>
+        <a
+          href="/dashboard"
+          className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-700"
+        >
+          Abrir o Backoffice <ExternalLink size={14} />
+        </a>
+        <div className="mt-8">
+          <button
+            onClick={() => signOut({ callbackUrl: withBase("/login") })}
+            className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
+          >
+            <LogOut size={12} /> Sair da conta
+          </button>
+        </div>
       </div>
     );
   }
@@ -232,6 +267,27 @@ export default function PerfilPage() {
           ))}
         </div>
       </Card>
+
+      {session?.roles?.some((r) =>
+        ["ADMIN_TENANT", "GERENTE", "OPERADOR", "FINANCEIRO", "MECANICO", "VENDEDOR", "PLATFORM_ADMIN"].includes(r)
+      ) && (
+        <Card className="mt-4 p-6">
+          <h3 className="flex items-center gap-2 font-semibold text-ink-900">
+            <Briefcase size={18} /> Acesso da equipe
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Sua conta também tem papel de staff — o painel da loja fica no
+            Backoffice.
+          </p>
+          {/* <a> puro: URL absoluta do host, fora do basePath /portal */}
+          <a
+            href="/dashboard"
+            className="mt-3 inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Abrir o Backoffice <ExternalLink size={14} />
+          </a>
+        </Card>
+      )}
 
       <div className="mt-6 text-center">
         <button
