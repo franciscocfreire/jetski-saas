@@ -36,7 +36,13 @@ public abstract class AbstractIntegrationTest {
         postgres = new PostgreSQLContainer<>("postgres:16-alpine")
                 .withDatabaseName("jetski_test")
                 .withUsername("test")
-                .withPassword("test");
+                .withPassword("test")
+                // cada contexto Spring cacheado mantém um pool Hikari vivo e a
+                // suíte inteira estoura os 100 max_connections default ("too
+                // many clients"). withCommand NÃO adianta: PostgreSQLContainer
+                // .configure() sobrescreve o cmd no start — só o modifier fica.
+                .withCreateContainerCmdModifier(cmd -> cmd.withCmd(
+                    "postgres", "-c", "fsync=off", "-c", "max_connections=400"));
         postgres.start();
 
         redis = new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
