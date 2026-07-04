@@ -71,7 +71,8 @@
         "${BACKOFFICE_URL:http://localhost:3002}"
       ],
       "attributes": {
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
       },
       "protocolMappers": [
         {
@@ -127,7 +128,8 @@
         "${PORTAL_URL:http://localhost:3003}"
       ],
       "attributes": {
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
       },
       "protocolMappers": [
         {

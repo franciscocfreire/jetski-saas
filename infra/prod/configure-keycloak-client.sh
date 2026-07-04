@@ -43,7 +43,7 @@ d={
   "rootUrl": base, "baseUrl": "/",
   "redirectUris": [base+"/*", base+"/api/auth/callback/keycloak"],
   "webOrigins": [base],
-  "attributes": {"pkce.code.challenge.method": "S256",
+  "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "+",
                  "post.logout.redirect.uris": base+"/*"},
   "protocolMappers": [{
     "name": "roles-mapper", "protocol": "openid-connect",
@@ -73,6 +73,7 @@ d["clientAuthenticatorType"]="client-secret"
 d.pop("secret", None)
 a=d.get("attributes") or {}
 a["pkce.code.challenge.method"]="S256"
+a["post.logout.redirect.uris"]="+"
 parts=set(filter(None,(a.get("post.logout.redirect.uris","") or "").split("##"))); parts.update([base+"/*"]); a["post.logout.redirect.uris"]="##".join(sorted(parts))
 d["attributes"]=a
 json.dump(d, open("/tmp/kc_client.json","w"))

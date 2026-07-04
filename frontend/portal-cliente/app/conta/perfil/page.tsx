@@ -3,7 +3,8 @@
 import { withBase } from "@/lib/base";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { sairDaConta } from "@/lib/logout";
 import {
   Button,
   Card,
@@ -114,7 +115,7 @@ export default function PerfilPage() {
         </a>
         <div className="mt-8">
           <button
-            onClick={() => signOut({ callbackUrl: withBase("/login") })}
+            onClick={() => sairDaConta(session?.idToken)}
             className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
           >
             <LogOut size={12} /> Sair da conta
@@ -291,7 +292,7 @@ export default function PerfilPage() {
 
       <div className="mt-6 text-center">
         <button
-          onClick={() => signOut({ callbackUrl: withBase("/login") })}
+          onClick={() => sairDaConta(session?.idToken)}
           className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
         >
           <LogOut size={12} /> Sair da conta

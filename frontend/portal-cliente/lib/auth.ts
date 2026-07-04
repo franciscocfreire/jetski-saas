@@ -12,6 +12,8 @@ import type { JWT } from "next-auth/jwt";
 declare module "next-auth" {
   interface Session {
     accessToken: string;
+    /** id_token p/ o logout federado no Keycloak (id_token_hint). */
+    idToken?: string;
     emailVerified?: boolean;
     /** Papéis do realm — usados p/ mostrar o acesso staff no Perfil. */
     roles?: string[];
@@ -134,6 +136,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return {
         ...session,
         accessToken: token.accessToken as string,
+        idToken: token.idToken as string | undefined,
         emailVerified: token.emailVerified as boolean | undefined,
         roles,
         error: token.error as string | undefined,
