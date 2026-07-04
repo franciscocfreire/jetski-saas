@@ -1,0 +1,44 @@
+# Promtail de PRODUÇÃO — coleta os logs de TODOS os containers via Docker SD.
+# Sem arquivos de log da aplicação: a fonte é o json-file do próprio Docker,
+# então nginx/keycloak/backend/portal entram de graça.
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /positions/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 15s
+    relabel_configs:
+      # nome do container sem a barra inicial → label "container"
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      # serviço do compose (backend, nginx, keycloak, portal…) → label "service"
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: project
+
+    pipeline_stages:
+      # Backend loga JSON estruturado — extrai nível/tenant/trace p/ filtros
+      - match:
+          selector: '{service="backend"}'
+          stages:
+            - json:
+                expressions:
+                  level: level
+                  logger: logger
+                  message: message
+                  tenant_id: tenant_id
+                  trace_id: trace_id
+            - labels:
+                level:
