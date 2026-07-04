@@ -33,3 +33,7 @@ datasources:
     jsonData:
       maxLines: 1000
       timeout: "60s"
+      # Sem ruler no Loki: impede o Grafana de tentar listar regras de alerta
+      # DO Loki (banner "Errors loading rules" na página de Alerting).
+      # Alertas Grafana-managed que CONSULTAM o Loki continuam funcionando.
+      manageAlerts: false

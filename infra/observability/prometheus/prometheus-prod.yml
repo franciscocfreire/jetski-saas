@@ -7,8 +7,9 @@ global:
   external_labels:
     environment: prod
 
-rule_files:
-  - /etc/prometheus/rules/*.yml
+# Sem rule_files: os alertas de prod são gerenciados pelo GRAFANA
+# (grafana/provisioning/alerting/) — regra avaliada aqui iria para o nada
+# (não há Alertmanager) e ainda polui a UI de Alerting com "firing" fantasma.
 
 scrape_configs:
   - job_name: 'jetski-backend'
