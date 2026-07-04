@@ -351,4 +351,42 @@ class CustomerReservaIntegrationTest extends AbstractIntegrationTest {
             jdbc.update("UPDATE reserva_config SET controlar_estoque = false WHERE tenant_id = ?", TENANT_ACME);
         }
     }
+
+    @Test
+    @DisplayName("Triagem na reserva: possuiCha define a via da habilitação (CHA sem GRU / EMA com)")
+    void testTriagemChaNaReserva() throws Exception {
+        java.time.LocalDateTime inicio = java.time.LocalDateTime.now()
+            .plusDays(7).withHour(9).withMinute(0).withSecond(0).withNano(0);
+        var iso = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+
+        // possuiCha = true → via CHA
+        String r1 = mockMvc.perform(post("/v1/customers/reservas")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("""
+                    {"lojaSlug":"acme","modeloId":"%s","dataInicio":"%s","dataFimPrevista":"%s",
+                     "pagamentoTipo":"SINAL","possuiCha":true}
+                    """.formatted(MODELO_ID, iso.format(inicio), iso.format(inicio.plusHours(1))))
+                .with(cliente()))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+        String id1 = com.jayway.jsonpath.JsonPath.read(r1, "$.id");
+        assertThat(jdbc.queryForObject(
+            "SELECT via FROM reserva_habilitacao WHERE reserva_id = ?::uuid", String.class, id1))
+            .isEqualTo("CHA");
+
+        // possuiCha = false → via EMA
+        String r2 = mockMvc.perform(post("/v1/customers/reservas")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("""
+                    {"lojaSlug":"acme","modeloId":"%s","dataInicio":"%s","dataFimPrevista":"%s",
+                     "pagamentoTipo":"SINAL","possuiCha":false}
+                    """.formatted(MODELO_ID, iso.format(inicio.plusHours(3)), iso.format(inicio.plusHours(4))))
+                .with(cliente()))
+            .andExpect(status().isCreated())
+            .andReturn().getResponse().getContentAsString();
+        String id2 = com.jayway.jsonpath.JsonPath.read(r2, "$.id");
+        assertThat(jdbc.queryForObject(
+            "SELECT via FROM reserva_habilitacao WHERE reserva_id = ?::uuid", String.class, id2))
+            .isEqualTo("EMA");
+    }
 }

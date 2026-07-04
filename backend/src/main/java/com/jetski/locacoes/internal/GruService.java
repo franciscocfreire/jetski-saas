@@ -439,8 +439,8 @@ public class GruService {
             clienteNotificacaoService.notificar(tenantId, r.getClienteId(),
                 com.jetski.locacoes.domain.ClienteNotificacao.GRU_PAGA,
                 "Taxa da Marinha paga ✅",
-                (numero != null ? "GRU nº " + numero + " paga" : "A taxa da Marinha foi paga")
-                    + " — sua habilitação avançou.",
+                (numero != null ? "A loja pagou a GRU nº " + numero : "A loja pagou a taxa da Marinha")
+                    + " em seu nome — sua habilitação avançou.",
                 "/conta/reservas/" + reservaId + "/habilitacao"));
     }
 }

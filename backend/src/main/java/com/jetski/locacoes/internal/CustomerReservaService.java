@@ -86,7 +86,7 @@ public class CustomerReservaService {
         String lojaSlug, UUID modeloId,
         LocalDateTime dataInicio, LocalDateTime dataFimPrevista,
         String observacoes, Reserva.PagamentoTipo pagamentoTipo,
-        String cpf, String telefone) {}
+        String cpf, String telefone, Boolean possuiCha) {}
 
     @Transactional
     public ReservaCliente criar(String sub, String email, String nome, CriarCmd cmd) {
@@ -113,8 +113,21 @@ public class CustomerReservaService {
         }
 
         Reserva criada = reservaService.createReserva(reserva);
-        log.info("Reserva de portal criada: reserva={}, tenant={}, cliente={}",
-            criada.getId(), loja.tenantId(), cliente.getId());
+
+        // Triagem de habilitação JÁ na reserva (pergunta feita antes do PIX):
+        // com CHA própria → via CHA (a loja NÃO emite GRU); sem CHA → via EMA
+        // (a loja emite e paga a GRU quando confirmar o pagamento).
+        if (cmd.possuiCha() != null) {
+            habilitacaoService.registrar(criada.getId(),
+                com.jetski.locacoes.domain.ReservaHabilitacao.builder()
+                    .via(cmd.possuiCha()
+                        ? com.jetski.locacoes.domain.ReservaHabilitacao.Via.CHA
+                        : com.jetski.locacoes.domain.ReservaHabilitacao.Via.EMA)
+                    .build());
+        }
+
+        log.info("Reserva de portal criada: reserva={}, tenant={}, cliente={}, possuiCha={}",
+            criada.getId(), loja.tenantId(), cliente.getId(), cmd.possuiCha());
         return toDto(criada, loja);
     }
 

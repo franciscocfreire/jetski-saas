@@ -224,6 +224,8 @@ function authHeaders(token: string) {
 export async function criarReserva(token: string, req: {
   lojaSlug: string; modeloId: string; dataInicio: string; dataFimPrevista: string;
   observacoes?: string; pagamentoTipo?: "SINAL" | "TOTAL"; cpf?: string; telefone?: string;
+  /** true = já tem CHA (sem GRU); false = loja emite via EMA. */
+  possuiCha?: boolean;
 }): Promise<ReservaCliente> {
   const res = await fetch(`${API_URL}/v1/customers/reservas`, {
     method: "POST", headers: authHeaders(token), body: JSON.stringify(req),

@@ -53,6 +53,7 @@ function Wizard() {
   const [horas, setHoras] = useState(Number(params.get("horas") ?? 2));
   const [observacoes, setObservacoes] = useState("");
   const [cpf, setCpf] = useState("");
+  const [possuiCha, setPossuiCha] = useState<boolean | null>(null);
   const [cpfCadastro, setCpfCadastro] = useState<string | null>(null);
   const [telefone, setTelefone] = useState("");
   const [tipo, setTipo] = useState<"SINAL" | "TOTAL">("SINAL");
@@ -114,6 +115,7 @@ function Wizard() {
         pagamentoTipo: tipo,
         cpf: cpf || undefined,
         telefone: telefone || undefined,
+        possuiCha: possuiCha ?? undefined,
       });
       router.push(`/conta/reservas/${reserva.id}/pagamento?tipo=${tipo}`);
     } catch (e) {
@@ -205,6 +207,39 @@ function Wizard() {
             <Field label="Telefone/WhatsApp (opcional)">
               <PhoneInput value={telefone} onChange={setTelefone} />
             </Field>
+            <Field label="Você já tem habilitação náutica (CHA)?">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPossuiCha(true)}
+                  className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${
+                    possuiCha === true
+                      ? "border-brand-500 bg-brand-50 text-brand-800"
+                      : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  Sim, tenho CHA
+                  <span className="mt-0.5 block text-[11px] font-normal text-slate-400">
+                    Você envia a carteira depois
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPossuiCha(false)}
+                  className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${
+                    possuiCha === false
+                      ? "border-brand-500 bg-brand-50 text-brand-800"
+                      : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  Ainda não
+                  <span className="mt-0.5 block text-[11px] font-normal text-slate-400">
+                    A loja emite e paga a taxa da Marinha por você
+                  </span>
+                </button>
+              </div>
+            </Field>
+
             <Field label="Observações (opcional)">
               <textarea
                 className={`${inputCls} min-h-20`}
@@ -216,7 +251,13 @@ function Wizard() {
           </div>
           <div className="mt-5 flex gap-2">
             <Button variant="outline" onClick={() => setStep(0)}>Voltar</Button>
-            <Button className="flex-1" onClick={() => setStep(2)}>Continuar</Button>
+            <Button
+              className="flex-1"
+              disabled={possuiCha === null}
+              onClick={() => setStep(2)}
+            >
+              {possuiCha === null ? "Responda sobre a CHA para continuar" : "Continuar"}
+            </Button>
           </div>
         </Card>
       )}
@@ -225,6 +266,14 @@ function Wizard() {
       {step === 2 && (
         <Card className="mt-6 p-6">
           <h2 className="font-semibold text-ink-900">Resumo</h2>
+          {possuiCha !== null && (
+            <p className="mt-1 text-xs text-slate-500">
+              Habilitação:{" "}
+              {possuiCha
+                ? "CHA própria (você envia a carteira depois)"
+                : "CHA-MTA-E — a loja emite e paga a taxa da Marinha por você"}
+            </p>
+          )}
           <div className="mt-3 space-y-1.5 text-sm">
             <Row label="Modelo" value={m.nome} />
             <Row label="Loja" value={m.empresaNome} />

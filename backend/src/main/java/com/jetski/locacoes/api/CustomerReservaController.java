@@ -50,7 +50,9 @@ public class CustomerReservaController {
         @Size(max = 1000) String observacoes,
         String pagamentoTipo,
         @Size(max = 20) String cpf,
-        @Size(max = 30) String telefone
+        @Size(max = 30) String telefone,
+        /** true = cliente já tem CHA (sem GRU); false = loja emite via EMA. */
+        Boolean possuiCha
     ) {}
 
     public record AnexarComprovanteRequest(
@@ -73,7 +75,7 @@ public class CustomerReservaController {
             request.observacoes(),
             parseTipo(request.pagamentoTipo()),
             request.cpf(),
-            request.telefone());
+            request.telefone(), request.possuiCha());
         CustomerReservaService.ReservaCliente criada = customerReservaService.criar(
             jwt.getSubject(),
             jwt.getClaimAsString("email"),
