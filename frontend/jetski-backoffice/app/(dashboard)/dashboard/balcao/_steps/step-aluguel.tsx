@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useTenantStore } from '@/lib/store/tenant-store'
-import { modelosService, reservasService, instrutoresService } from '@/lib/api/services'
+import { modelosService, reservasService } from '@/lib/api/services'
 import { formatDuracao } from '@/lib/utils'
 import type { Atendimento } from '../types'
 import type { Modelo, Reserva } from '@/lib/api/types'
@@ -31,7 +31,7 @@ export function StepAluguel({
 }: {
   atendimento: Atendimento
   onBack: () => void
-  onDone: (reserva: Reserva, modelo: Modelo, instrutorId?: string) => void
+  onDone: (reserva: Reserva, modelo: Modelo) => void
 }) {
   const { currentTenant } = useTenantStore()
 
@@ -53,16 +53,10 @@ export function StepAluguel({
     reservaExistente?.modeloId ?? atendimento.modelo?.id ?? ''
   )
   const [duracaoMin, setDuracaoMin] = useState(duracaoInicial)
-  const [instrutorId, setInstrutorId] = useState(atendimento.instrutorId ?? '')
 
   const { data: modelos, isLoading } = useQuery({
     queryKey: ['modelos', currentTenant?.id],
     queryFn: () => modelosService.list(),
-    enabled: !!currentTenant,
-  })
-  const { data: instrutores } = useQuery({
-    queryKey: ['instrutores', currentTenant?.id],
-    queryFn: () => instrutoresService.list(),
     enabled: !!currentTenant,
   })
 
@@ -99,7 +93,7 @@ export function StepAluguel({
       }
       return reservaExistente
     },
-    onSuccess: (reserva) => onDone(reserva, modelo!, instrutorId || undefined),
+    onSuccess: (reserva) => onDone(reserva, modelo!),
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(msg ?? 'Falha ao salvar o passeio.')
@@ -167,35 +161,6 @@ export function StepAluguel({
           </p>
         </div>
         <span className="text-2xl font-bold">R$ {valorIlustrativo.toFixed(2)}</span>
-      </div>
-
-      <div className="space-y-2 rounded-lg border p-4">
-        <Label className="text-sm font-medium">Instrutor (Atestado de Demonstração 5-B-1)</Label>
-        <p className="text-xs text-muted-foreground">
-          Necessário para emissão da habilitação temporária (EMA).
-        </p>
-        {(instrutores ?? []).length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            Nenhum instrutor cadastrado.{' '}
-            <Link href="/dashboard/instrutores" className="text-primary underline" target="_blank">
-              Cadastrar instrutor
-            </Link>
-          </p>
-        ) : (
-          <Select value={instrutorId} onValueChange={setInstrutorId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione o instrutor" />
-            </SelectTrigger>
-            <SelectContent>
-              {(instrutores ?? []).map((i) => (
-                <SelectItem key={i.id} value={i.id}>
-                  {i.nome}
-                  {i.cha ? ` — CHA ${i.cha}` : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
       </div>
 
       <div className="flex justify-between">

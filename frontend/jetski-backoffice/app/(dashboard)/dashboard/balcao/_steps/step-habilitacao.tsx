@@ -162,14 +162,14 @@ export function StepHabilitacao({
         if (chaFoto) await clientesService.uploadAnexo(clienteId, 'CHA', chaFoto).catch(() => null)
         return !!h.resolvida
       }
-      // EMA: persiste via + número da GRU (referência) + instrutor (coletado no
+      // EMA: persiste via + número da GRU (referência); o instrutor agora é
+      // a ÚLTIMA etapa (selecionado na emissão — o cliente chega instruído
       // Passeio & Preço). O pagamento NÃO é marcado aqui — só via "Verificar
       // pagamento" (PIX) ou anexo do comprovante. Sem isso, a reserva segue como
       // pendência e a Marinha não é notificada.
       const h = await habilitacaoService.registrar(reservaId, {
         via: 'EMA',
         gruNumero: gruNumero || undefined,
-        instrutorId: atendimento.instrutorId || undefined,
       })
       return !!h.resolvida
     },

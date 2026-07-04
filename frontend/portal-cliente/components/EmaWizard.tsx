@@ -146,7 +146,7 @@ export function EmaWizard({ reservaId }: { reservaId: string }) {
                   onSalvo={() => { recarregar(); setAberto(4); }} />
               )}
               {i === 4 && (
-                <PassoGru token={token} reservaId={reservaId} estado={estado} onMudou={recarregar} />
+                <PassoGru estado={estado} />
               )}
             </div>
           )}
@@ -451,108 +451,49 @@ function PassoDeclaracoes({ token, reservaId, estado, onSalvo }:
 
 // ============================ Passo 5 — GRU ============================
 
-function PassoGru({ token, reservaId, estado, onMudou }:
-  { token: string; reservaId: string; estado: EmaEstado; onMudou: () => void }) {
+function PassoGru({ estado }: { estado: EmaEstado }) {
   const gru = estado.gru;
-  const [gerando, setGerando] = useState(false);
-  const [verificando, setVerificando] = useState(false);
-  const [copiado, setCopiado] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
 
-  async function gerar() {
-    setGerando(true);
-    setErro(null);
-    try {
-      const g = await gerarGruPix(token, reservaId);
-      if (!g.sucesso) {
-        setErro(g.erroMensagem ?? "Não foi possível gerar a GRU agora — envie o comprovante manual abaixo ou tente de novo.");
-      }
-      onMudou();
-    } catch (e) {
-      setErro(e instanceof ApiError ? e.message : "Não foi possível gerar a GRU.");
-    } finally {
-      setGerando(false);
-    }
-  }
-
-  async function verificar() {
-    setVerificando(true);
-    setMsg(null);
-    try {
-      const v = await verificarGru(token, reservaId);
-      setMsg(v.pago ? "Pagamento confirmado! 🎉" : `Ainda não identificado (${v.situacao}).`);
-      onMudou();
-    } finally {
-      setVerificando(false);
-    }
-  }
-
-  async function comprovante(dataUrl: string) {
-    setErro(null);
-    try {
-      await enviarComprovanteGru(token, reservaId, dataUrl);
-      onMudou();
-    } catch (e) {
-      setErro(e instanceof ApiError ? e.message : "Não foi possível enviar o comprovante.");
-    }
-  }
-
+  // A loja emite E PAGA a GRU em nome do cliente (decisão de produto):
+  // este passo é só informativo — o cliente acompanha o status.
   if (gru.pago) {
     return (
       <p className="flex items-center gap-2 text-sm font-medium text-emerald-600">
-        <CheckCircle2 size={16} /> GRU paga{gru.numero ? ` — nº ${gru.numero}` : ""}. Habilitação encaminhada!
+        <CheckCircle2 size={16} /> Taxa da Marinha paga pela loja
+        {gru.numero ? ` — GRU nº ${gru.numero}` : ""}. Habilitação encaminhada!
       </p>
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-slate-600">
-        A taxa da Marinha (GRU) é obrigatória para emitir a CHA-MTA-E. Geramos o
-        PIX oficial direto do sistema do governo.
-      </p>
-
-      {!gru.pixCopiaECola ? (
-        <Button className="w-full gap-2" onClick={gerar} disabled={gerando}>
-          {gerando ? <Loader2 size={15} className="animate-spin" /> : <Landmark size={15} />}
-          {gerando ? "Gerando GRU no site da Marinha…" : "Gerar GRU com PIX"}
-        </Button>
-      ) : (
-        <div className="flex flex-col items-center gap-3">
+  if (gru.numero) {
+    return (
+      <div className="flex items-start gap-3 rounded-xl bg-brand-50 p-4 text-sm text-brand-900">
+        <Landmark size={18} className="mt-0.5 shrink-0" />
+        <div>
+          <b>GRU nº {gru.numero} emitida em seu nome</b>
           {gru.valor != null && (
-            <p className="text-sm">
-              Valor: <b className="tabular-nums">{brl(gru.valor)}</b>
-              {gru.numero && <span className="text-slate-400"> · GRU nº {gru.numero}</span>}
-            </p>
+            <> · <span className="tabular-nums">{brl(gru.valor)}</span></>
           )}
-          <PixQr payload={gru.pixCopiaECola} size={160} />
-          <div className="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
-            <code className="flex-1 truncate text-[11px] text-slate-700">{gru.pixCopiaECola}</code>
-            <Button size="sm" variant="outline" onClick={() => {
-              navigator.clipboard?.writeText(gru.pixCopiaECola!);
-              setCopiado(true);
-              setTimeout(() => setCopiado(false), 1500);
-            }}>
-              {copiado ? <Check size={14} /> : <Copy size={14} />}
-            </Button>
-          </div>
-          <Button className="w-full gap-2" variant="outline" onClick={verificar} disabled={verificando}>
-            {verificando && <Loader2 size={14} className="animate-spin" />} Já paguei — verificar pagamento
-          </Button>
-          {msg && <p className="text-sm text-slate-600">{msg}</p>}
+          <p className="mt-1 text-brand-800/80">
+            A loja está processando o pagamento da taxa — nada a fazer da sua
+            parte. Você recebe uma notificação quando for confirmada.
+          </p>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {erro && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{erro}</p>}
-
-      <details className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
-        <summary className="cursor-pointer font-medium">Paguei por fora / tenho o comprovante</summary>
-        <div className="mt-3">
-          <UploadTile rotulo="Comprovante da GRU (imagem ou PDF)" presente={gru.comprovanteDisponivel}
-            onFile={comprovante} />
-        </div>
-      </details>
+  return (
+    <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+      <Landmark size={18} className="mt-0.5 shrink-0" />
+      <div>
+        <b className="text-ink-900">A loja cuida da taxa da Marinha</b>
+        <p className="mt-1">
+          Assim que o pagamento da sua reserva for confirmado, a loja emite e
+          paga a GRU em seu nome — você recebe o número por aqui. Nada a fazer
+          neste passo.
+        </p>
+      </div>
     </div>
   );
 }

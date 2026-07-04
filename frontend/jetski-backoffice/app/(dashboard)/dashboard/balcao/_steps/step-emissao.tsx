@@ -1,12 +1,22 @@
 'use client'
 
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useMutation } from '@tanstack/react-query'
 import { FileDown, CheckCircle2, Anchor, Mail, Printer, AlertTriangle, Ship } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { DocumentoPreviewButtons } from '@/components/documento-preview-buttons'
-import { reservasService, documentosService } from '@/lib/api/services'
+import { reservasService, documentosService, instrutoresService, habilitacaoService } from '@/lib/api/services'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
+import Link from 'next/link'
 import { abrirPdfPorLink } from '@/lib/pdf'
 import type { Atendimento } from '../types'
 import type { ResultadoEmissao } from '@/lib/api/types'
@@ -22,6 +32,30 @@ export function StepEmissao({
 }) {
   const [resultado, setResultado] = useState<ResultadoEmissao | null>(null)
   const [baixando, setBaixando] = useState(false)
+  // Instrutor é a ÚLTIMA etapa: o cliente já chegou instruído (videoaula) e
+  // a emissão não sai sem ele — aqui é onde o staff confirma quem demonstrou.
+  const [instrutorId, setInstrutorId] = useState(atendimento.instrutorId ?? '')
+  const [salvandoInstrutor, setSalvandoInstrutor] = useState(false)
+
+  const { data: instrutores } = useQuery({
+    queryKey: ['instrutores-emissao'],
+    queryFn: () => instrutoresService.list(),
+    enabled: !atendimento.temCha,
+  })
+
+  async function escolherInstrutor(id: string) {
+    setInstrutorId(id)
+    if (!atendimento.reserva) return
+    try {
+      setSalvandoInstrutor(true)
+      await habilitacaoService.registrar(atendimento.reserva.id, { via: 'EMA', instrutorId: id })
+      toast.success('Instrutor registrado.')
+    } catch {
+      toast.error('Não foi possível registrar o instrutor.')
+    } finally {
+      setSalvandoInstrutor(false)
+    }
+  }
 
   async function abrirPdf(documentoId: string) {
     try {
@@ -171,7 +205,10 @@ export function StepEmissao({
     )
   }
 
-  // GRU paga + termos → pode emitir agora.
+  // GRU paga + termos → pode emitir agora (instrutor é o último requisito).
+  const precisaInstrutor = !atendimento.temCha
+  const instrutorOk = !precisaInstrutor || !!instrutorId
+
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
@@ -179,6 +216,40 @@ export function StepEmissao({
           ? 'Gera o comprovante (termo + assinatura) para o cliente. Habilitação por CHA — sem envio à Marinha.'
           : 'Gera o PDF consolidado (anexos + termo + assinatura), arquiva, envia à Marinha e ao cliente, e disponibiliza a GRU.'}
       </p>
+
+      {precisaInstrutor && (
+        <div className="space-y-2 rounded-lg border p-4">
+          <Label className="text-sm font-medium">
+            Instrutor (Atestado de Demonstração 5-B-1) — última etapa
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            O instrutor confirma a demonstração prática realizada — obrigatório
+            para emitir os documentos.
+          </p>
+          {(instrutores ?? []).length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Nenhum instrutor cadastrado.{' '}
+              <Link href="/dashboard/instrutores" className="text-primary underline" target="_blank">
+                Cadastrar instrutor
+              </Link>
+            </p>
+          ) : (
+            <Select value={instrutorId} onValueChange={escolherInstrutor} disabled={salvandoInstrutor}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione quem fez a demonstração" />
+              </SelectTrigger>
+              <SelectContent>
+                {(instrutores ?? []).map((i) => (
+                  <SelectItem key={i.id} value={i.id}>
+                    {i.nome}
+                    {i.cha ? ` — CHA ${i.cha}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
       {atendimento.reserva && (
         <DocumentoPreviewButtons
           reservaId={atendimento.reserva.id}
@@ -190,7 +261,12 @@ export function StepEmissao({
         <Button type="button" variant="outline" onClick={onBack}>
           Voltar
         </Button>
-        <Button type="button" disabled={emitir.isPending} onClick={() => emitir.mutate()}>
+        <Button
+          type="button"
+          disabled={emitir.isPending || !instrutorOk}
+          title={!instrutorOk ? 'Selecione o instrutor da demonstração' : undefined}
+          onClick={() => emitir.mutate()}
+        >
           {emitir.isPending ? 'Emitindo…' : 'Emitir documentos'}
         </Button>
       </div>

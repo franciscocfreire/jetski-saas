@@ -198,8 +198,8 @@ function BalcaoWizard() {
             <StepAluguel
               atendimento={at}
               onBack={() => setStep(0)}
-              onDone={(reserva, modelo, instrutorId) => {
-                setAt((a) => ({ ...a, reserva, modelo, instrutorId }))
+              onDone={(reserva, modelo) => {
+                setAt((a) => ({ ...a, reserva, modelo }))
                 setStep(2)
               }}
             />
