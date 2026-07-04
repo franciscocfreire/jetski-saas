@@ -74,6 +74,10 @@ export default function SinaisPage() {
     onError: (e: Error) => toast.error('Não foi possível recusar', { description: e.message }),
   })
 
+  // Viewer IN-APP: navegar para a URL do MinIO dentro do PWA standalone
+  // engole o app (mesmo host = mesmo escopo; sem chrome, sem voltar).
+  const [viewer, setViewer] = useState<{ url: string; pdf: boolean } | null>(null)
+
   const verComprovante = async (reservaId: string) => {
     try {
       const lista = await reservasService.comprovantes(reservaId)
@@ -81,7 +85,9 @@ export default function SinaisPage() {
         toast.info('Nenhum comprovante anexado')
         return
       }
-      window.open(lista[0].downloadUrl, '_blank', 'noopener')
+      const url = lista[0].downloadUrl
+      const pdf = /\.pdf(\?|$)/i.test(url)
+      setViewer({ url, pdf })
     } catch {
       toast.error('Não foi possível abrir o comprovante')
     }
@@ -168,6 +174,38 @@ export default function SinaisPage() {
           )
         })}
       </div>
+
+      {/* Comprovante (viewer in-app — não navega o PWA) */}
+      <Dialog open={!!viewer} onOpenChange={(o) => !o && setViewer(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Comprovante</DialogTitle>
+          </DialogHeader>
+          {viewer && (
+            <div className="max-h-[65vh] overflow-auto rounded-lg border bg-muted/30">
+              {viewer.pdf ? (
+                <iframe src={viewer.url} className="h-[60vh] w-full" title="Comprovante" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={viewer.url} alt="Comprovante" className="w-full" />
+              )}
+            </div>
+          )}
+          <div className="flex justify-between gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => viewer && window.open(viewer.url, '_blank', 'noopener')}
+            >
+              Abrir em nova aba
+            </Button>
+            <Button type="button" size="sm" onClick={() => setViewer(null)}>
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirmar */}
       <Dialog open={!!confirmando} onOpenChange={(o) => !o && setConfirmando(null)}>
