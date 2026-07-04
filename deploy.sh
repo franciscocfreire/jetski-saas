@@ -124,6 +124,7 @@ done
 if [ "$kc_ready" = "1" ]; then
   bash infra/prod/configure-keycloak-client.sh || warn "config do client Keycloak falhou (verifique manualmente)"
   bash infra/prod/configure-keycloak-smtp.sh || warn "config de SMTP do Keycloak falhou (verifique manualmente)"
+  bash infra/prod/configure-keycloak-grafana.sh || warn "config OIDC do Grafana falhou (verifique manualmente)"
 else
   warn "Keycloak realm não respondeu — pulei a config do client/SMTP (rode os scripts em infra/prod/ depois)"
 fi

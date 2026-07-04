@@ -131,6 +131,23 @@ services:
       GF_SMTP_FROM_NAME: Grafana Meu Jet
       # destinatário dos alertas (usado pelo provisioning de alerting)
       GRAFANA_ALERT_EMAIL: ${GRAFANA_ALERT_EMAIL:-${GMAIL_USER:-ops@localhost}}
+      # Login via Keycloak (realm jetski-saas). role_attribute_strict é o que
+      # impede CLIENTES do portal (mesmo realm!) de entrar: sem grafana_admin/
+      # grafana_viewer o login é negado. Login local do admin segue como
+      # quebra-vidro. auth_url é a URL que o NAVEGADOR alcança; token/api vão
+      # direto no keycloak pela rede interna.
+      GF_AUTH_GENERIC_OAUTH_ENABLED: "true"
+      GF_AUTH_GENERIC_OAUTH_NAME: Keycloak
+      GF_AUTH_GENERIC_OAUTH_CLIENT_ID: grafana
+      GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: ${GRAFANA_OIDC_CLIENT_SECRET:-}
+      GF_AUTH_GENERIC_OAUTH_SCOPES: openid profile email
+      GF_AUTH_GENERIC_OAUTH_AUTH_URL: ${GRAFANA_KEYCLOAK_URL:-${PUBLIC_URL:-http://localhost:8080}}/realms/jetski-saas/protocol/openid-connect/auth
+      GF_AUTH_GENERIC_OAUTH_TOKEN_URL: http://keycloak:8080/realms/jetski-saas/protocol/openid-connect/token
+      GF_AUTH_GENERIC_OAUTH_API_URL: http://keycloak:8080/realms/jetski-saas/protocol/openid-connect/userinfo
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: contains(roles[*], 'grafana_admin') && 'Admin' || contains(roles[*], 'grafana_viewer') && 'Viewer'
+      GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_STRICT: "true"
+      GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
+      GF_AUTH_GENERIC_OAUTH_USE_PKCE: "true"
     volumes:
       # provisioning (datasources/alerting) + dashboards JSON
       - ./grafana/provisioning:/etc/grafana/provisioning:ro

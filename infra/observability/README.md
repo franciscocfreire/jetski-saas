@@ -90,6 +90,20 @@ próprio (`grafana/provisioning/` — **sem Jaeger**, que não existe nesta v1).
 > imune ao storage. O deploy.sh também faz `docker builder prune` pós-build:
 > os builds --no-cache do CD acumulavam build cache sem limite (155GB!).
 
+## Login (Keycloak OIDC)
+
+O botão **"Entrar com Keycloak"** federa com o realm `jetski-saas`. Acesso é
+restrito às roles de realm **`grafana_admin`** / **`grafana_viewer`**
+(`role_attribute_strict`): o realm é compartilhado com os CLIENTES do portal,
+então autenticar não basta — sem a role, o login é negado. O login local do
+`admin` (GRAFANA_ADMIN_PASSWORD) continua como quebra-vidra.
+
+- Client/roles são convergidos pelo `infra/prod/configure-keycloak-grafana.sh`
+  (roda no deploy; secret gerado e gravado no `.env` na 1ª vez). Dê a role a
+  alguém via `GRAFANA_ADMIN_EMAILS` no `.env` ou pelo admin do Keycloak.
+- Em dev o realm.json já traz o client (`grafana-dev-secret`) e o
+  `admin@acme.com` com `grafana_admin`.
+
 ## Alertas (e-mail)
 
 Cinco regras provisionadas (pasta **Alertas** na UI; arquivo

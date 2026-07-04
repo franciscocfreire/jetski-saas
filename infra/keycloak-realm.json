@@ -193,6 +193,42 @@
       "webOrigins": [
         "*"
       ]
+    },
+    {
+      "clientId": "grafana",
+      "name": "Grafana (observabilidade)",
+      "description": "OIDC do Grafana — acesso restrito às roles grafana_admin/grafana_viewer",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "grafana-dev-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3300/grafana/login/generic_oauth",
+        "https://www.pegaojet.com.br/grafana/login/generic_oauth"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "post.logout.redirect.uris": "+"
+      },
+      "protocolMappers": [
+        {
+          "name": "roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        }
+      ]
     }
   ],
   "roles": {
@@ -224,6 +260,14 @@
       {
         "name": "CLIENTE",
         "description": "Customer (rental client) — self-service, sem Membro"
+      },
+      {
+        "name": "grafana_admin",
+        "description": "Acesso Admin ao Grafana (observabilidade)"
+      },
+      {
+        "name": "grafana_viewer",
+        "description": "Acesso somente-leitura ao Grafana (observabilidade)"
       }
     ]
   },
@@ -245,7 +289,8 @@
       ],
       "realmRoles": [
         "ADMIN_TENANT",
-        "GERENTE"
+        "GERENTE",
+        "grafana_admin"
       ],
       "attributes": {
         "tenant_id": [
