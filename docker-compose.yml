@@ -37,7 +37,10 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U jetski"]
+      # -d é obrigatório: sem ele o pg_isready usa o nome do usuário como
+      # database ("jetski", que não existe) e o Postgres loga
+      # FATAL: database "jetski" does not exist a cada 10s
+      test: ["CMD-SHELL", "pg_isready -U jetski -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5

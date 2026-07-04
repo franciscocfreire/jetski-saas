@@ -31,8 +31,11 @@
             <!-- Timestamp format (ISO 8601 with UTC) -->
             <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampPattern>
 
-            <!-- Pretty print for readability (disable in prod for performance) -->
-            <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
+            <!-- SEM pretty print: o Docker captura o log POR LINHA — JSON
+                 multi-linha vira um evento por fragmento no Loki e o parse
+                 `| json` do Promtail nunca funciona (level/tenant_id/trace_id
+                 deixam de virar labels e os painéis/alerta de ERROR cegam).
+                 Para ler no terminal: docker compose logs backend | jq . -->
         </encoder>
     </appender>
 
