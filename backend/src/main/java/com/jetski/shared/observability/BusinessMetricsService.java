@@ -1,23 +1,26 @@
 package com.jetski.shared.observability;
 
-import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.MultiGauge;
+import io.micrometer.core.instrument.Tags;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Serviço de métricas de negócio customizadas para Jetski SaaS.
- * Expõe métricas relevantes para o dashboard de gestão.
+ * Expõe gauges de estado atual consultando o banco periodicamente.
+ *
+ * <p>Contadores de eventos (check-ins, reservas, emissões…) NÃO vivem aqui —
+ * são incrementados por evento de domínio no {@code MetricsEventListener}
+ * (módulo {@code metrics}) via {@link BusinessMetrics}, com tag de tenant.
  */
 @Service
 @Slf4j
@@ -34,15 +37,8 @@ public class BusinessMetricsService {
     private final AtomicInteger jetskisEmManutencao = new AtomicInteger(0);
     private final Map<String, AtomicInteger> jetskisPorModelo = new ConcurrentHashMap<>();
 
-    // Contadores - incrementam continuamente
-    private Counter locacoesRealizadas;
-    private Counter reservasCriadas;
-    private Counter checkinsRealizados;
-    private Counter checkoutsRealizados;
-    private Counter manutencoesCriadas;
-
-    // Timers - medem duração
-    private Timer duracaoLocacao;
+    // Saldo de créditos de emissão por tenant (ledger append-only)
+    private MultiGauge creditosSaldo;
 
     public BusinessMetricsService(MeterRegistry meterRegistry, JdbcTemplate jdbcTemplate) {
         this.meterRegistry = meterRegistry;
@@ -86,36 +82,9 @@ public class BusinessMetricsService {
                 .tag("tipo", "frota")
                 .register(meterRegistry);
 
-        // Registrar Contadores - métricas que só incrementam
-        locacoesRealizadas = Counter.builder("jetski.locacoes.total")
-                .description("Total de locações realizadas")
-                .tag("tipo", "operacional")
-                .register(meterRegistry);
-
-        reservasCriadas = Counter.builder("jetski.reservas.total")
-                .description("Total de reservas criadas")
-                .tag("tipo", "operacional")
-                .register(meterRegistry);
-
-        checkinsRealizados = Counter.builder("jetski.checkins.total")
-                .description("Total de check-ins realizados")
-                .tag("tipo", "operacional")
-                .register(meterRegistry);
-
-        checkoutsRealizados = Counter.builder("jetski.checkouts.total")
-                .description("Total de check-outs realizados")
-                .tag("tipo", "operacional")
-                .register(meterRegistry);
-
-        manutencoesCriadas = Counter.builder("jetski.manutencoes.total")
-                .description("Total de ordens de manutenção criadas")
-                .tag("tipo", "manutencao")
-                .register(meterRegistry);
-
-        // Registrar Timer - mede duração
-        duracaoLocacao = Timer.builder("jetski.locacao.duracao")
-                .description("Duração das locações")
-                .tag("tipo", "operacional")
+        // Saldo de créditos de emissão por tenant (linhas registradas a cada refresh)
+        creditosSaldo = MultiGauge.builder("jetski.creditos.saldo")
+                .description("Saldo de créditos de emissão por tenant")
                 .register(meterRegistry);
 
         log.info("Business metrics initialized successfully");
@@ -167,6 +136,26 @@ public class BusinessMetricsService {
         } catch (Exception e) {
             log.error("Error updating gauge metrics", e);
         }
+
+        atualizarSaldoCreditos();
+    }
+
+    /**
+     * Atualiza o gauge de saldo de créditos por tenant a partir do ledger.
+     * Try/catch próprio: ambiente sem a tabela não derruba os demais gauges.
+     */
+    private void atualizarSaldoCreditos() {
+        try {
+            List<MultiGauge.Row<?>> rows = jdbcTemplate.query(
+                "SELECT tenant_id::text AS tenant_id, COALESCE(SUM(quantidade), 0) AS saldo " +
+                "FROM credito_lancamento GROUP BY tenant_id",
+                (rs, i) -> MultiGauge.Row.of(
+                    Tags.of("tenant_id", rs.getString("tenant_id")), rs.getInt("saldo"))
+            );
+            creditosSaldo.register(rows, true);
+        } catch (Exception e) {
+            log.error("Error updating credit balance gauge", e);
+        }
     }
 
     /**
@@ -180,29 +169,4 @@ public class BusinessMetricsService {
         return (jetskisEmUso.get() * 100.0) / total;
     }
 
-    // Métodos para incrementar contadores (chamados pelos serviços de negócio)
-
-    public void registrarLocacaoRealizada() {
-        locacoesRealizadas.increment();
-    }
-
-    public void registrarReservaCriada() {
-        reservasCriadas.increment();
-    }
-
-    public void registrarCheckinRealizado() {
-        checkinsRealizados.increment();
-    }
-
-    public void registrarCheckoutRealizado() {
-        checkoutsRealizados.increment();
-    }
-
-    public void registrarManutencaoCriada() {
-        manutencoesCriadas.increment();
-    }
-
-    public void registrarDuracaoLocacao(long minutos) {
-        duracaoLocacao.record(minutos, TimeUnit.MINUTES);
-    }
 }

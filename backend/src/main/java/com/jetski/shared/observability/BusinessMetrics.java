@@ -1,10 +1,12 @@
 package com.jetski.shared.observability;
 
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
@@ -12,12 +14,16 @@ import java.util.concurrent.TimeUnit;
  * Business Metrics - Custom metrics for Jetski SaaS application
  *
  * This class provides custom business metrics for monitoring:
- * - Rental operations (check-in, check-out)
+ * - Rental operations (check-in, check-out, duration, revenue)
  * - Reservation operations (created, confirmed, cancelled)
+ * - Payments, document emissions (metering) and emission credits
  * - Authentication operations (login, token refresh)
  * - Multi-tenant operations (tenant context switches)
  *
- * All metrics are tagged with tenant_id for per-tenant monitoring.
+ * All metrics are tagged with tenant_id for per-tenant monitoring. Meters are
+ * registered lazily on first record — never pre-register a meter name here with
+ * a different tag set (Prometheus rejects the same name with different tag keys,
+ * which silently drops the metric).
  *
  * @author Jetski Team
  * @since 0.7.5
@@ -27,95 +33,8 @@ public class BusinessMetrics {
 
     private final MeterRegistry registry;
 
-    // Rental metrics
-    private final Counter checkinCounter;
-    private final Counter checkoutCounter;
-    private final Timer rentalDurationTimer;
-
-    // Reservation metrics
-    private final Counter reservationCreatedCounter;
-    private final Counter reservationConfirmedCounter;
-    private final Counter reservationCancelledCounter;
-
-    // Authentication metrics
-    private final Counter loginSuccessCounter;
-    private final Counter loginFailureCounter;
-    private final Counter tokenRefreshCounter;
-
-    // Tenant context metrics
-    private final Counter tenantContextSwitchCounter;
-
-    // OPA authorization metrics
-    private final Counter opaDecisionCounter;
-    private final Timer opaDecisionTimer;
-
     public BusinessMetrics(MeterRegistry registry) {
         this.registry = registry;
-
-        // Initialize rental metrics
-        this.checkinCounter = Counter.builder("jetski.rental.checkin")
-                .description("Number of rental check-ins performed")
-                .tag("type", "business")
-                .register(registry);
-
-        this.checkoutCounter = Counter.builder("jetski.rental.checkout")
-                .description("Number of rental check-outs performed")
-                .tag("type", "business")
-                .register(registry);
-
-        this.rentalDurationTimer = Timer.builder("jetski.rental.duration")
-                .description("Duration of rentals (in minutes)")
-                .tag("type", "business")
-                .register(registry);
-
-        // Initialize reservation metrics
-        this.reservationCreatedCounter = Counter.builder("jetski.reservation.created")
-                .description("Number of reservations created")
-                .tag("type", "business")
-                .register(registry);
-
-        this.reservationConfirmedCounter = Counter.builder("jetski.reservation.confirmed")
-                .description("Number of reservations confirmed")
-                .tag("type", "business")
-                .register(registry);
-
-        this.reservationCancelledCounter = Counter.builder("jetski.reservation.cancelled")
-                .description("Number of reservations cancelled")
-                .tag("type", "business")
-                .register(registry);
-
-        // Initialize authentication metrics
-        this.loginSuccessCounter = Counter.builder("jetski.auth.login.success")
-                .description("Number of successful logins")
-                .tag("type", "security")
-                .register(registry);
-
-        this.loginFailureCounter = Counter.builder("jetski.auth.login.failure")
-                .description("Number of failed login attempts")
-                .tag("type", "security")
-                .register(registry);
-
-        this.tokenRefreshCounter = Counter.builder("jetski.auth.token.refresh")
-                .description("Number of token refresh operations")
-                .tag("type", "security")
-                .register(registry);
-
-        // Initialize tenant metrics
-        this.tenantContextSwitchCounter = Counter.builder("jetski.tenant.context.switch")
-                .description("Number of tenant context switches")
-                .tag("type", "multi-tenant")
-                .register(registry);
-
-        // Initialize OPA metrics
-        this.opaDecisionCounter = Counter.builder("jetski.opa.decision")
-                .description("Number of OPA authorization decisions")
-                .tag("type", "security")
-                .register(registry);
-
-        this.opaDecisionTimer = Timer.builder("jetski.opa.decision.duration")
-                .description("Duration of OPA authorization decisions")
-                .tag("type", "security")
-                .register(registry);
     }
 
     // ========================================
@@ -165,10 +84,7 @@ public class BusinessMetrics {
      * @param tenantId Tenant identifier
      */
     public void recordReservationCreated(String tenantId) {
-        Counter.builder("jetski.reservation.created")
-                .tag("tenant_id", tenantId)
-                .register(registry)
-                .increment();
+        reservaEvento(tenantId, "criada");
     }
 
     /**
@@ -176,23 +92,112 @@ public class BusinessMetrics {
      * @param tenantId Tenant identifier
      */
     public void recordReservationConfirmed(String tenantId) {
-        Counter.builder("jetski.reservation.confirmed")
+        reservaEvento(tenantId, "confirmada");
+    }
+
+    /**
+     * Record a reservation cancellation. The free-text cancellation reason is
+     * deliberately NOT a tag (unbounded label cardinality).
+     * @param tenantId Tenant identifier
+     */
+    public void recordReservationCancelled(String tenantId) {
+        reservaEvento(tenantId, "cancelada");
+    }
+
+    /**
+     * Single counter family jetski_reserva_total{evento=...}. A name ending in a
+     * Prometheus reserved suffix (.created, .count, .sum, .total...) would be
+     * silently stripped by the Prometheus 1.x client — hence the evento tag
+     * instead of one metric per lifecycle step.
+     */
+    private void reservaEvento(String tenantId, String evento) {
+        Counter.builder("jetski.reserva")
+                .description("Eventos do ciclo de vida de reservas")
+                .tag("tenant_id", tenantId)
+                .tag("evento", evento)
+                .register(registry)
+                .increment();
+    }
+
+    // ========================================
+    // Revenue & Payment Metrics
+    // ========================================
+
+    /**
+     * Record the total value of a completed rental (check-out).
+     * Exposed as jetski_rental_valor_sum/_count (sum = revenue in BRL).
+     * @param tenantId Tenant identifier
+     * @param valorTotal Total charged for the rental
+     */
+    public void recordRentalRevenue(String tenantId, BigDecimal valorTotal) {
+        if (valorTotal == null) {
+            return;
+        }
+        DistributionSummary.builder("jetski.rental.valor")
+                .description("Valor total das locações finalizadas (BRL)")
+                .tag("tenant_id", tenantId)
+                .register(registry)
+                .record(valorTotal.doubleValue());
+    }
+
+    /**
+     * Record a confirmed reservation payment.
+     * @param tenantId Tenant identifier
+     * @param tipo Payment type (e.g. PIX, SINAL) — bounded enum values only
+     * @param valorPago Amount paid (nullable)
+     */
+    public void recordPagamentoConfirmado(String tenantId, String tipo, BigDecimal valorPago) {
+        DistributionSummary.builder("jetski.pagamento.valor")
+                .description("Pagamentos de reserva confirmados (BRL)")
+                .tag("tenant_id", tenantId)
+                .tag("tipo", tipo != null ? tipo : "desconhecido")
+                .register(registry)
+                .record(valorPago != null ? valorPago.doubleValue() : 0.0);
+    }
+
+    /**
+     * Record a refused reservation payment.
+     * @param tenantId Tenant identifier
+     */
+    public void recordPagamentoRecusado(String tenantId) {
+        Counter.builder("jetski.pagamento.recusado")
+                .description("Pagamentos de reserva recusados")
                 .tag("tenant_id", tenantId)
                 .register(registry)
                 .increment();
     }
 
+    // ========================================
+    // Emission (Metering) & Credit Metrics
+    // ========================================
+
     /**
-     * Record a reservation cancellation
+     * Record a billable emission (metering fact).
      * @param tenantId Tenant identifier
-     * @param reason Cancellation reason
+     * @param tipo Emission type: DOCUMENTO, GRU or PREVIA
      */
-    public void recordReservationCancelled(String tenantId, String reason) {
-        Counter.builder("jetski.reservation.cancelled")
+    public void recordEmissao(String tenantId, String tipo) {
+        Counter.builder("jetski.emissao")
+                .description("Emissões contabilizadas (metering)")
                 .tag("tenant_id", tenantId)
-                .tag("reason", reason)
+                .tag("tipo", tipo)
                 .register(registry)
                 .increment();
+    }
+
+    /**
+     * Record an emission-credit ledger entry (grant or manual adjustment).
+     * @param tenantId Tenant identifier
+     * @param tipo Ledger entry type (ADESAO, AJUSTE, ...) — bounded enum values only
+     * @param quantidade Signed quantity; recorded as absolute amount under the tipo tag
+     */
+    public void recordCreditoMovimento(String tenantId, String tipo, int quantidade) {
+        Counter.builder("jetski.creditos.movimento")
+                .description("Movimentações de créditos de emissão")
+                .tag("tenant_id", tenantId)
+                .tag("tipo", tipo)
+                .register(registry)
+                .increment(Math.abs(quantidade));
     }
 
     // ========================================
