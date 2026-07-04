@@ -80,10 +80,13 @@ export function PhoneInput({
 
   const display = pais.dial === "55" ? maskNacionalBR(nacional) : nacional;
 
+  // largura do select via style: o w-full do inputCls vence utilitários
+  // de largura pela ordem no CSS gerado — inline style não perde nunca
   return (
-    <div className={`flex gap-2 ${className ?? ""}`}>
+    <div className={`flex w-full gap-2 ${className ?? ""}`}>
       <select
-        className={inputCls + " w-[92px] shrink-0 px-2"}
+        className="h-11 shrink-0 rounded-xl border border-slate-300 bg-white px-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        style={{ width: 104 }}
         value={pais.code}
         onChange={(e) => trocarPais(e.target.value)}
         aria-label="País do telefone"
@@ -95,7 +98,7 @@ export function PhoneInput({
         ))}
       </select>
       <input
-        className={inputCls}
+        className={inputCls + " min-w-0 flex-1"}
         inputMode="tel"
         value={display}
         onChange={(e) => setNumero(e.target.value)}
