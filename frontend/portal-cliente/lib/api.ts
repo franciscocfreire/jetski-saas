@@ -526,3 +526,51 @@ export async function getBrandingLoja(slug: string): Promise<BrandingLoja | null
     return null;
   }
 }
+
+// ===================== Recibo + Notificações (backlog P4) =====================
+
+export async function baixarRecibo(token: string, locacaoId: string): Promise<Blob> {
+  const res = await fetch(`${API_URL}/v1/customers/locacoes/${locacaoId}/recibo`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) await parseError(res);
+  return res.blob();
+}
+
+export interface NotificacaoCliente {
+  id: string;
+  lojaSlug: string;
+  tipo: string;
+  titulo: string;
+  mensagem?: string;
+  link?: string;
+  lida: boolean;
+  criadaEm: string;
+}
+
+export interface CaixaNotificacoes {
+  naoLidas: number;
+  itens: NotificacaoCliente[];
+}
+
+export async function getNotificacoes(token: string): Promise<CaixaNotificacoes> {
+  const res = await fetch(`${API_URL}/v1/customers/notificacoes`, {
+    headers: authHeaders(token), cache: "no-store",
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export async function marcarNotificacaoLida(token: string, id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/customers/notificacoes/${id}/lida`, {
+    method: "POST", headers: authHeaders(token),
+  });
+  if (!res.ok) await parseError(res);
+}
+
+export async function marcarTodasLidas(token: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/customers/notificacoes/lidas`, {
+    method: "POST", headers: authHeaders(token),
+  });
+  if (!res.ok) await parseError(res);
+}

@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Star, Camera, CheckCircle2, Loader2, MapPin } from "lucide-react";
+import { Star, Camera, CheckCircle2, Loader2, MapPin, Download } from "lucide-react";
 import {
   getLocacao,
   avaliarLocacao,
+  baixarRecibo,
   ApiError,
   type LocacaoClienteDetalhe,
 } from "@/lib/api";
@@ -24,6 +25,7 @@ export default function LocacaoDetailPage() {
   const [hover, setHover] = useState(0);
   const [comentario, setComentario] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [baixando, setBaixando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   const carregar = useCallback(async (token: string) => {
@@ -55,6 +57,24 @@ export default function LocacaoDetailPage() {
 
   const l = det.locacao;
   const fotos = det.fotos.filter((f) => f.downloadUrl);
+
+  async function baixar() {
+    if (!session?.accessToken || baixando) return;
+    setBaixando(true);
+    try {
+      const blob = await baixarRecibo(session.accessToken, id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `recibo-${id.slice(0, 8)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível baixar o recibo.");
+    } finally {
+      setBaixando(false);
+    }
+  }
 
   async function avaliar() {
     if (!session?.accessToken || nota === 0) return;
@@ -92,6 +112,19 @@ export default function LocacaoDetailPage() {
           <Stat label="Faturável" value={l.minutosFaturaveis != null ? `${l.minutosFaturaveis} min` : "—"} />
           <Stat label="Total" value={l.valorTotal != null ? brl(l.valorTotal) : "—"} />
         </div>
+
+        {l.status === "FINALIZADA" && (
+          <Button
+            variant="outline"
+            className="mt-4 w-full"
+            size="sm"
+            disabled={baixando}
+            onClick={baixar}
+          >
+            {baixando ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+            Baixar recibo (PDF)
+          </Button>
+        )}
       </Card>
 
       <h2 className="mb-2 mt-6 flex items-center gap-2 text-lg font-bold text-ink-900">
