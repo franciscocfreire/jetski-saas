@@ -89,7 +89,7 @@ export default function ReservaDetailPage() {
         <div className="flex flex-col gap-4 p-5 sm:flex-row">
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-slate-400">{reserva.id.slice(0, 8)}</span>
+
               {pronta ? (
                 <Badge tone="green">Pronta p/ check-in</Badge>
               ) : checklist.garantida ? (
@@ -169,6 +169,9 @@ export default function ReservaDetailPage() {
           href={`/conta/reservas/${reserva.id}/termos`}
         />
       </div>
+      <p className="mt-8 text-center text-[11px] text-slate-300">
+        Código da reserva: {reserva.id}
+      </p>
     </div>
   );
 }

@@ -7,7 +7,8 @@ import { useSession } from "next-auth/react";
 import { Star, ChevronRight, Loader2, Waves } from "lucide-react";
 import { minhasLocacoes, type LocacaoCliente } from "@/lib/api";
 import { brl, fmtDateTime } from "@/lib/cn";
-import { Badge, Button, Card, SectionTitle } from "@/components/ui";
+import { Badge, Button, Card, SectionTitle, SkeletonCards } from "@/components/ui";
+import { statusLocacao } from "@/lib/status";
 
 export default function LocacoesPage() {
   const { data: session, status } = useSession();
@@ -29,8 +30,9 @@ export default function LocacoesPage() {
 
   if (status === "loading" || (!locacoes && !erro)) {
     return (
-      <div className="flex justify-center py-20 text-slate-400">
-        <Loader2 className="animate-spin" />
+      <div>
+        <SectionTitle sub="Seus passeios concluídos">Histórico</SectionTitle>
+        <SkeletonCards n={3} />
       </div>
     );
   }
@@ -60,9 +62,6 @@ export default function LocacoesPage() {
             <Link key={l.id} href={`/conta/locacoes/${l.id}`}>
               <Card className="flex items-center gap-4 p-4 transition hover:shadow-md">
                 <div className="min-w-0 flex-1">
-                  <span className="font-mono text-xs text-slate-400">
-                    {l.id.slice(0, 8)}
-                  </span>
                   <h3 className="font-semibold text-ink-900">
                     {l.modeloNome ?? "Jet ski"}
                   </h3>
@@ -73,15 +72,12 @@ export default function LocacoesPage() {
                     {l.valorTotal != null && <> · {brl(l.valorTotal)}</>}
                   </p>
                   <div className="mt-1">
-                    {l.status !== "FINALIZADA" ? (
-                      <Badge tone="brand">Em curso</Badge>
-                    ) : l.avaliacaoNota != null ? (
-                      <Badge tone="green">
-                        <Star size={11} className="fill-emerald-600" /> Avaliada ({l.avaliacaoNota}★)
-                      </Badge>
-                    ) : (
-                      <Badge tone="amber">Avalie sua experiência</Badge>
-                    )}
+                    <Badge tone={statusLocacao(l).tone}>
+                      {l.avaliacaoNota != null && (
+                        <Star size={11} className="fill-emerald-600" />
+                      )}
+                      {statusLocacao(l).label}
+                    </Badge>
                   </div>
                 </div>
                 <ChevronRight className="text-slate-300" />

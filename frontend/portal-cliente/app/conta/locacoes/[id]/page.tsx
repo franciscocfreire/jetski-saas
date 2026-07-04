@@ -14,12 +14,14 @@ import {
 } from "@/lib/api";
 import { brl, fmtDateTime } from "@/lib/cn";
 import { Button, Card } from "@/components/ui";
+import { useToast } from "@/components/Toast";
 
 export default function LocacaoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: session, status } = useSession();
   const router = useRouter();
 
+  const { toast } = useToast();
   const [det, setDet] = useState<LocacaoClienteDetalhe | null>(null);
   const [nota, setNota] = useState(0);
   const [hover, setHover] = useState(0);
@@ -70,7 +72,7 @@ export default function LocacaoDetailPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setErro(e instanceof ApiError ? e.message : "Não foi possível baixar o recibo.");
+      toast(e instanceof ApiError ? e.message : "Não foi possível baixar o recibo.", "erro");
     } finally {
       setBaixando(false);
     }
@@ -83,6 +85,7 @@ export default function LocacaoDetailPage() {
     try {
       const atualizada = await avaliarLocacao(session.accessToken, id, nota, comentario);
       setDet((d) => (d ? { ...d, locacao: atualizada } : d));
+      toast("Avaliação enviada — obrigado!");
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "Não foi possível enviar a avaliação.");
     } finally {
@@ -97,7 +100,7 @@ export default function LocacaoDetailPage() {
       </Link>
 
       <Card className="mt-3 p-5">
-        <span className="font-mono text-xs text-slate-400">{l.id.slice(0, 8)}</span>
+
         <h1 className="text-xl font-bold text-ink-900">{l.modeloNome ?? "Jet ski"}</h1>
         <p className="flex items-center gap-1 text-sm text-slate-500">
           <MapPin size={13} /> {l.lojaNome}
@@ -209,6 +212,9 @@ export default function LocacaoDetailPage() {
           </>
         )}
       </Card>
+      <p className="mt-8 text-center text-[11px] text-slate-300">
+        Código da locação: {l.id}
+      </p>
     </div>
   );
 }

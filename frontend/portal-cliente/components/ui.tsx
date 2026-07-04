@@ -154,3 +154,28 @@ export function Field({
 
 export const inputCls =
   "h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
+
+/** Skeleton de carregamento (D1): forma do conteúdo no lugar de spinner. */
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn("animate-pulse rounded-xl bg-slate-200/70", className)}
+      aria-hidden
+    />
+  );
+}
+
+/** Lista de cards fantasmas para telas de listagem. */
+export function SkeletonCards({ n = 3 }: { n?: number }) {
+  return (
+    <div className="grid gap-4">
+      {Array.from({ length: n }).map((_, i) => (
+        <Card key={i} className="p-4">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="mt-2 h-5 w-2/3" />
+          <Skeleton className="mt-2 h-4 w-1/2" />
+        </Card>
+      ))}
+    </div>
+  );
+}

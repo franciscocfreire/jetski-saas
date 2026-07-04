@@ -3,6 +3,7 @@ import { Geist, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { ChromeHeader, ChromeFooter } from "@/components/Chrome";
 import { Providers } from "@/components/Providers";
+import { BottomNav } from "@/components/BottomNav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,14 +30,12 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`${geistSans.variable} ${playfair.variable}`}>
-        <div className="prototype-banner no-print py-1 text-center text-[11px] font-semibold text-amber-900">
-          Portal em evolução contínua — conta, reservas, pagamento, termos,
-          habilitação (CHA e CHA-MTA-E) e histórico já são reais
-        </div>
         <Providers>
           <ChromeHeader />
-          <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+          {/* pb extra no mobile: espaço p/ a bottom nav fixa */}
+          <main className="mx-auto max-w-6xl px-4 py-8 pb-24 md:pb-8">{children}</main>
           <ChromeFooter />
+          <BottomNav />
         </Providers>
       </body>
     </html>

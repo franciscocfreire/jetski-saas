@@ -16,6 +16,7 @@ import { getSelf, updateSelf, updateContatoLoja, ApiError, type CustomerSelf, ty
 import { Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard } from "lucide-react";
 import { maskCpf } from "@/lib/masks";
 import { PhoneInput } from "@/components/PhoneInput";
+import { useToast } from "@/components/Toast";
 
 /**
  * Perfil REAL (P0): dados da identidade global + lojas vinculadas, direto do
@@ -25,6 +26,7 @@ export default function PerfilPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
+  const { toast } = useToast();
   const [self, setSelf] = useState<CustomerSelf | null>(null);
   const [nome, setNome] = useState("");
   const [ident, setIdent] = useState<IdentidadeCliente>({});
@@ -66,11 +68,14 @@ export default function PerfilPage() {
     try {
       await updateSelf(session.accessToken, nome, ident);
       setSalvo(true);
+      toast("Perfil salvo");
       const dados = await getSelf(session.accessToken);
       setSelf(dados);
       setIdent(dados.identidade ?? {});
     } catch (e) {
-      setErro(e instanceof ApiError ? e.message : "Não foi possível salvar.");
+      const msg = e instanceof ApiError ? e.message : "Não foi possível salvar.";
+      setErro(msg);
+      toast(msg, "erro");
     } finally {
       setSalvando(false);
     }
@@ -242,6 +247,7 @@ export default function PerfilPage() {
 
 /** Linha da loja com telefone/WhatsApp editável — contato é POR LOJA. */
 function LojaRow({ loja, token }: { loja: VinculoLoja; token?: string }) {
+  const { toast } = useToast();
   const [tel, setTel] = useState(loja.telefone ?? loja.whatsapp ?? "");
   const [salvandoTel, setSalvandoTel] = useState(false);
   const [okTel, setOkTel] = useState(false);
@@ -254,6 +260,7 @@ function LojaRow({ loja, token }: { loja: VinculoLoja; token?: string }) {
     try {
       await updateContatoLoja(token, loja.tenantId, tel);
       setOkTel(true);
+      toast(`Contato salvo na ${loja.nome}`);
     } catch {
       // mantém o valor digitado; usuário tenta de novo
     } finally {

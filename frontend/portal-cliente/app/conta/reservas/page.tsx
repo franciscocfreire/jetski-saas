@@ -7,16 +7,12 @@ import { useSession } from "next-auth/react";
 import { CalendarX2, ChevronRight, Loader2 } from "lucide-react";
 import { minhasReservas, type ReservaCliente } from "@/lib/api";
 import { brl, fmtDateTime } from "@/lib/cn";
-import { Badge, Button, Card, SectionTitle } from "@/components/ui";
+import { Badge, Button, Card, SectionTitle, SkeletonCards } from "@/components/ui";
+import { statusReserva } from "@/lib/status";
 
 function statusBadge(r: ReservaCliente) {
-  if (r.status === "CANCELADA") return <Badge tone="red">Cancelada</Badge>;
-  if (r.status === "EXPIRADA") return <Badge tone="red">Expirada</Badge>;
-  if (r.status === "FINALIZADA") return <Badge tone="slate">Finalizada</Badge>;
-  if (r.pagamento.status === "CONFIRMADO") return <Badge tone="green">Garantida</Badge>;
-  if (r.pagamento.status === "EM_ANALISE") return <Badge tone="amber">Pagamento em análise</Badge>;
-  if (r.pagamento.status === "RECUSADO") return <Badge tone="red">Pagamento recusado</Badge>;
-  return <Badge tone="amber">Aguardando pagamento</Badge>;
+  const v = statusReserva(r);
+  return <Badge tone={v.tone}>{v.label}</Badge>;
 }
 
 export default function ReservasPage() {
@@ -39,8 +35,11 @@ export default function ReservasPage() {
 
   if (status === "loading" || (!reservas && !erro)) {
     return (
-      <div className="flex justify-center py-20 text-slate-400">
-        <Loader2 className="animate-spin" />
+      <div>
+        <SectionTitle sub="Acompanhe e conclua as pendências de cada reserva">
+          Minhas reservas
+        </SectionTitle>
+        <SkeletonCards n={3} />
       </div>
     );
   }
@@ -69,12 +68,7 @@ export default function ReservasPage() {
             <Link key={r.id} href={`/conta/reservas/${r.id}`}>
               <Card className="flex items-center gap-4 p-4 transition hover:shadow-md">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-slate-400">
-                      {r.id.slice(0, 8)}
-                    </span>
-                    {statusBadge(r)}
-                  </div>
+                  <div className="flex items-center gap-2">{statusBadge(r)}</div>
                   <h3 className="mt-0.5 truncate font-semibold text-ink-900">
                     {r.modeloNome}
                   </h3>
