@@ -117,7 +117,9 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?defina GRAFANA_ADMIN_PASSWORD no .env}
       GF_USERS_ALLOW_SIGN_UP: "false"
       # atrás do nginx em /grafana (mesmo host público do app)
-      GF_SERVER_ROOT_URL: ${PUBLIC_URL:-http://localhost:3300}/grafana
+      # GRAFANA_PUBLIC_URL permite expor o Grafana no túnel de dev sem setar o
+      # PUBLIC_URL global (que mudaria Keycloak/redirects do app no recreate)
+      GF_SERVER_ROOT_URL: ${GRAFANA_PUBLIC_URL:-${PUBLIC_URL:-http://localhost:3300}}/grafana
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       # Alertas por e-mail — reaproveita o Gmail do backend (.env)
