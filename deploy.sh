@@ -93,6 +93,16 @@ fi
 log "recriando backend, frontend e portal..."
 $COMPOSE up -d --force-recreate --no-deps backend frontend portal
 
+# 6.5 Limpeza pós-build: como os builds acima são --no-cache, o build cache do
+# BuildKit nunca é reaproveitado e só acumula (já chegou a 155GB e quase encheu
+# o disco). Mantém 10GB dos mais recentes por segurança; remove também imagens
+# dangling (as versões antigas de backend/frontend/portal que ficaram sem tag).
+if [ "${NO_BUILD:-0}" != "1" ]; then
+  log "limpando build cache antigo e imagens dangling..."
+  docker builder prune -af --keep-storage 10GB >/dev/null 2>&1 || warn "builder prune falhou (ignorado)"
+  docker image prune -f >/dev/null 2>&1 || warn "image prune falhou (ignorado)"
+fi
+
 # 7. OPA (recarrega policies — não tem --watch) e ingress
 log "recarregando OPA e subindo nginx/cloudflared..."
 $COMPOSE restart opa

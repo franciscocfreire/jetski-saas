@@ -725,12 +725,12 @@
             "type": "prometheus",
             "uid": "Prometheus"
           },
-          "expr": "sum by (name) (container_memory_working_set_bytes{name!=\"\"})",
-          "legendFormat": "{{name}}",
+          "expr": "docker_container_mem_usage{container_name!=\"\"}",
+          "legendFormat": "{{container_name}}",
           "refId": "A"
         }
       ],
-      "description": "Working set (o que o OOM-killer considera) — quem está comendo os 11 GB"
+      "description": "Uso de memória via API do Docker (Telegraf) — quem está comendo os 11 GB"
     },
     {
       "id": 10,
@@ -815,8 +815,8 @@
             "type": "prometheus",
             "uid": "Prometheus"
           },
-          "expr": "100 * sum by (name) (rate(container_cpu_usage_seconds_total{name!=\"\"}[5m]))",
-          "legendFormat": "{{name}}",
+          "expr": "docker_container_cpu_usage_percent{container_name!=\"\", cpu=\"cpu-total\"}",
+          "legendFormat": "{{container_name}}",
           "refId": "A"
         }
       ]

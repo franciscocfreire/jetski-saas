@@ -84,32 +84,22 @@ services:
     networks:
       - app
 
-  # Métricas POR CONTAINER (memória/CPU de backend, keycloak, portal…)
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    container_name: jetski-cadvisor
+  # Métricas POR CONTAINER (memória/CPU de backend, keycloak, portal…) via
+  # API do Docker. Substitui o cAdvisor, que não funciona com o containerd
+  # image store do Docker moderno (google/cadvisor#3643, closed-not-planned):
+  # falhava ao registrar todos os containers ("read-write layer ID").
+  telegraf:
+    image: telegraf:1.31
+    container_name: jetski-telegraf
     restart: unless-stopped
-    privileged: true
-    devices:
-      - /dev/kmsg
+    # o entrypoint da imagem derruba para o usuário "telegraf", que não lê o
+    # docker.sock (gid do grupo docker varia por host) — invocamos direto
+    user: root
+    entrypoint: ["telegraf"]
     volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-      - /dev/disk:/dev/disk:ro
-    command:
-      # enxuto: só memória/CPU/rede por container. "disk" desabilitado também
-      # por compatibilidade: com o containerd image store (storage driver
-      # "overlayfs"), o cAdvisor não acha a camada rw no layout antigo
-      # (/var/lib/docker/image/...) e falha ao registrar TODOS os containers
-      # ("failed to identify the read-write layer ID") — sem disk, ele pula
-      # essa consulta e as métricas de memória/CPU voltam.
-      - '--housekeeping_interval=30s'
-      - '--docker_only=true'
-      - '--store_container_labels=false'
-      - '--disable_metrics=disk,diskIO,percpu,sched,tcp,udp,process,hugetlb,referenced_memory,cpu_topology,resctrl,memory_numa,cpuset,advtcp'
-    mem_limit: 256m
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    mem_limit: 192m
     networks:
       - app
 

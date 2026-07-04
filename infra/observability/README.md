@@ -10,7 +10,7 @@ containers e as métricas do backend no Grafana, pelo mesmo host público.
 | **Promtail** | coleta os logs de TODOS os containers via Docker | 256 MB | interno |
 | **Prometheus** | métricas do backend (7 dias) | 512 MB | interno (`:9090` só em 127.0.0.1) |
 | **node-exporter** | CPU/RAM/disco/rede do host | 64 MB | interno |
-| **cAdvisor** | memória/CPU por container | 256 MB | interno |
+| **Telegraf** | memória/CPU por container (API do Docker) | 192 MB | interno |
 
 Total: ~2 GB no pior caso. Alertas usam o alerting nativo do Grafana (sem
 Alertmanager); **sem Jaeger** (tracing) nesta versão — o stack de dev em
@@ -65,6 +65,13 @@ próprio (`grafana/provisioning/` — **sem Jaeger**, que não existe nesta v1).
   Prometheus (`.created`, `.count`, `.sum`, `.total`…) é decepado pelo client —
   o teste `MetricsEventListenerTest#testPrometheusExposedNames` trava o
   contrato de nomes que os dashboards consomem.
+
+> Por que Telegraf e não cAdvisor? O Docker do servidor usa o containerd
+> image store (storage driver "overlayfs") e o cAdvisor não suporta esse
+> layout (google/cadvisor#3643, fechado como not-planned) — ele falhava ao
+> registrar todos os containers. O Telegraf lê a API do Docker (docker.sock),
+> imune ao storage. O deploy.sh também faz `docker builder prune` pós-build:
+> os builds --no-cache do CD acumulavam build cache sem limite (155GB!).
 
 ## Alertas (e-mail)
 
