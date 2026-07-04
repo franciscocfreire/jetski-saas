@@ -87,7 +87,6 @@ export function EmaWizard({ reservaId }: { reservaId: string }) {
     { titulo: "Documentos", icone: <IdCard size={16} />, ok: documentosOk },
     { titulo: "Videoaula da Marinha", icone: <PlayCircle size={16} />, ok: estado.videoaulaAssistida },
     { titulo: "Declarações", icone: <FileCheck2 size={16} />, ok: declaracoesOk },
-    { titulo: "Taxa da Marinha (GRU)", icone: <Landmark size={16} />, ok: estado.gru.pago },
   ];
 
   if (estado.resolvida) {
@@ -143,15 +142,15 @@ export function EmaWizard({ reservaId }: { reservaId: string }) {
               )}
               {i === 3 && (
                 <PassoDeclaracoes token={token} reservaId={reservaId} estado={estado}
-                  onSalvo={() => { recarregar(); setAberto(4); }} />
-              )}
-              {i === 4 && (
-                <PassoGru estado={estado} />
+                  onSalvo={() => { recarregar(); setAberto(-1); }} />
               )}
             </div>
           )}
         </Card>
       ))}
+
+      {/* Taxa da Marinha: responsabilidade da LOJA — só status, não é passo */}
+      <PassoGru estado={estado} />
     </div>
   );
 }

@@ -212,6 +212,8 @@ export interface ChecklistReserva {
   pagamentoTipo?: string;
   pagamentoOk: boolean;
   habilitacaoOk: boolean;
+  /** CHA | EMA | null — decisão tomada na reserva. */
+  habilitacaoVia?: "CHA" | "EMA";
   termosOk: boolean;
   garantida: boolean;
   prontaParaCheckin: boolean;

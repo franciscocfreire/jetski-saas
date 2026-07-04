@@ -46,7 +46,10 @@ export default function HabilitacaoPage() {
 
   const carregar = useCallback(async (token: string) => {
     try {
-      setHab(await getHabilitacao(token, id));
+      const h = await getHabilitacao(token, id);
+      setHab(h);
+      // decisão já tomada na reserva (triagem do wizard) — não pergunta de novo
+      setVia((atual) => atual ?? (h.via === "CHA" ? "tem" : h.via === "EMA" ? "nao" : null));
     } catch {
       setErro("Reserva não encontrada.");
     }
@@ -237,7 +240,7 @@ export default function HabilitacaoPage() {
                 </Button>
               </div>
               <p className="mb-4 text-sm text-slate-500">
-                Complete os 5 passos — a demonstração prática de segurança acontece no
+                Complete os 4 passos — a demonstração prática de segurança acontece no
                 embarque, com o instrutor da loja.
               </p>
               <EmaWizard reservaId={id} />

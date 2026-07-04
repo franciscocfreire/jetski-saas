@@ -239,9 +239,13 @@ public class CustomerReservaService {
         Reserva r = l.reserva();
 
         boolean pagamentoOk = r.getPagamentoStatus() == Reserva.PagamentoStatus.CONFIRMADO;
-        boolean habilitacaoOk = habilitacaoRepository.findByReservaId(r.getId())
+        var hab = habilitacaoRepository.findByReservaId(r.getId());
+        boolean habilitacaoOk = hab
             .map(h -> Boolean.TRUE.equals(h.getResolvida()))
             .orElse(false);
+        String habilitacaoVia = hab
+            .map(h -> h.getVia() != null ? h.getVia().name() : null)
+            .orElse(null);
         boolean termosOk = aceiteRepository
             .findFirstByReservaIdOrderByAceitoEmDesc(r.getId())
             .isPresent();
@@ -253,6 +257,7 @@ public class CustomerReservaService {
             .pagamentoTipo(r.getPagamentoTipo() != null ? r.getPagamentoTipo().name() : null)
             .pagamentoOk(pagamentoOk)
             .habilitacaoOk(habilitacaoOk)
+            .habilitacaoVia(habilitacaoVia)
             .termosOk(termosOk)
             .garantida(garantida)
             .prontaParaCheckin(garantida && habilitacaoOk && termosOk)
@@ -547,6 +552,8 @@ public class CustomerReservaService {
         String pagamentoTipo;
         boolean pagamentoOk;
         boolean habilitacaoOk;
+        /** CHA | EMA | null — decisão tomada na reserva (triagem do wizard). */
+        String habilitacaoVia;
         boolean termosOk;
         boolean garantida;
         boolean prontaParaCheckin;
