@@ -30,6 +30,12 @@ docker compose --env-file .env -f infra/observability/docker-compose.observabili
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate nginx
 ```
 
+> **Após um `git pull` que mude config montada** (prometheus-prod.yml,
+> promtail-prod.yml, datasources/alerting do Grafana): `up -d` NÃO recria o
+> container — mudança de conteúdo de arquivo montado não conta como mudança de
+> serviço. Rode `... restart prometheus` / `restart grafana` / `restart promtail`
+> conforme o arquivo alterado (dashboards JSON são a exceção: recarregam a cada 30s).
+
 Acesse `https://SEU_HOST/grafana` → Explore → datasource **Loki** →
 query `{service="backend"}` (ou `nginx`, `keycloak`, `portal`…).
 
