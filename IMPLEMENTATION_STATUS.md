@@ -191,7 +191,7 @@ As 36 migrations incrementais antigas (V001→V036) não rodavam limpas do zero 
 - Apenas documentação; código no working dir `/mnt/c/repos/jetski-mobile`.
 
 ### Observabilidade
-- Configuração base (Actuator, infra de monitoring em `backend/infra/monitoring` com Grafana/Loki/Prometheus); validar dashboards e correlação por `traceId`.
+- Configuração base (Actuator, stack de observabilidade em `infra/observability` com Grafana/Loki/Prometheus); validar dashboards e correlação por `traceId`.
 
 ---
 

@@ -205,7 +205,7 @@ newman run Jetski-Jornadas.postman_collection.json -e environments/Dev.postman_e
 ## 📊 Observabilidade
 
 - **Logs:** JSON estruturado com `tenant_id` e `traceId` (MDC)
-- **Métricas:** Prometheus + Grafana (`infra/monitoring/`, `monitoring-stack.sh`)
+- **Métricas e logs:** Grafana + Prometheus + Loki/Alloy (`infra/observability/` — mesmo stack em dev e prod)
 - **Health:** Spring Boot Actuator (`/api/actuator/health`)
 - **Auditoria:** trilha "quem/o quê/quando" via eventos (módulo `audit`)
 

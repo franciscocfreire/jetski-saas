@@ -1,13 +1,14 @@
-# Observabilidade de Produção — logs e métricas
+# Observabilidade — logs e métricas (dev = prod)
 
-Stack **enxuto** para o servidor (Oracle ARM, 11 GB): ver os logs de todos os
-containers e as métricas do backend no Grafana, pelo mesmo host público.
+Stack **enxuto** e idêntico nos dois ambientes: no servidor (Oracle ARM, 11 GB)
+e no dev/WSL2 + Docker Desktop. Logs de todos os containers e métricas de
+backend/host/containers no Grafana.
 
 | Serviço | Função | Memória | Acesso |
 |---|---|---|---|
 | **Grafana** | UI de logs + dashboards | 320 MB | `https://SEU_HOST/grafana` (admin / `GRAFANA_ADMIN_PASSWORD`) |
 | **Loki** | armazenamento de logs (7 dias) | 512 MB | interno (`:3100` só em 127.0.0.1) |
-| **Promtail** | coleta os logs de TODOS os containers via Docker | 256 MB | interno |
+| **Alloy** | coleta os logs de todos os containers via **API do Docker** | 256 MB | interno |
 | **Prometheus** | métricas do backend (7 dias) | 512 MB | interno (`:9090` só em 127.0.0.1) |
 | **node-exporter** | CPU/RAM/disco/rede do host | 64 MB | interno |
 | **Telegraf** | memória/CPU por container (API do Docker) | 192 MB | interno |
@@ -16,11 +17,11 @@ Total: ~2 GB no pior caso. Alertas usam o alerting nativo do Grafana (sem
 Alertmanager); **sem Jaeger** (tracing) nesta versão — o stack de dev em
 `infra/docker-compose-monitoring.yml` continua sendo a referência completa.
 
-## Subir (no servidor)
+## Subir (servidor OU dev — mesmo comando)
 
 ```bash
-cd /home/ubuntu/jetski
 # 1) garanta no .env:  GRAFANA_ADMIN_PASSWORD=...
+#    (em dev, opcional: GRAFANA_SMTP_HOST=mailpit:1025 → alertas caem no Mailpit :8025)
 # 2) stack principal precisa estar no ar (a rede do app é externa p/ este compose)
 # --env-file é obrigatório: o compose fica em infra/observability/, então o
 # Compose v2 NÃO acha o .env da raiz sozinho (GRAFANA_ADMIN_PASSWORD, PUBLIC_URL)
@@ -29,6 +30,18 @@ docker compose --env-file .env -f infra/observability/docker-compose.observabili
 # nginx precisa conhecer a rota /grafana (após atualizar nginx.conf):
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate nginx
 ```
+
+Em dev, acesse direto: Grafana em `http://localhost:3300` (ou via nginx em
+`/grafana`). node-exporter em dev mede a VM do Docker Desktop (limites do
+`.wslconfig`), não o Windows.
+
+> **Migração Promtail → Alloy (jul/2026):** `git pull` e
+> `docker compose --env-file .env -f infra/observability/docker-compose.observability.yml up -d --remove-orphans`
+> — o `--remove-orphans` remove o container do Promtail; Loki e Grafana são
+> recriados automaticamente (mounts mudaram). Pode haver uma pequena
+> duplicação de logs recentes na virada (o Alloy relê a posição corrente
+> dos containers). O stack antigo de dev (`infra/docker-compose-monitoring.yml`,
+> com Jaeger/Alertmanager) foi aposentado junto.
 
 > **Após um `git pull` que mude config montada** (prometheus-prod.yml,
 > promtail-prod.yml, datasources/alerting do Grafana): `up -d` NÃO recria o
@@ -54,9 +67,6 @@ próprio (`grafana/provisioning/` — **sem Jaeger**, que não existe nesta v1).
 | **Infraestrutura** | host (CPU/RAM/disco/rede) e memória/CPU por container — quem está comendo os 11 GB |
 | **Visão Operacional** | gauges de negócio (locações ativas, reservas, frota, ocupação) |
 | **Performance do Sistema** | JVM/threads/HTTP/Hikari em detalhe |
-
-> Os painéis Loki desses dashboards só têm dados em **prod** (em dev/WSL2 o
-> Promtail não coleta — ver limitação abaixo).
 
 ### De onde vêm as métricas de negócio
 
@@ -100,14 +110,15 @@ Notificação por e-mail via SMTP do Gmail (reaproveita `GMAIL_USER` /
 
 ## Como os logs chegam
 
-O Promtail lê o **json-file do próprio Docker** (socket + `/var/lib/docker/containers`),
-com labels `service` (nome do serviço no compose), `container` e `project` —
-nenhuma aplicação precisou ser alterada. Logs do backend (JSON estruturado)
-ganham ainda o label `level` e campos `tenant_id`/`trace_id` extraídos.
+O **Alloy** (`alloy/config.alloy`) coleta os logs de todos os containers do
+compose pela **API do Docker** (docker.sock) — por isso funciona igualmente em
+prod e em dev/WSL2 (o Promtail antigo lia `/var/lib/docker`, inacessível no
+Docker Desktop). Labels: `service` (nome do serviço no compose), `container` e
+`project`; logs do backend (JSON estruturado) ganham ainda o label `level`.
+Containers fora do compose (ex.: k8s do Docker Desktop em dev) são ignorados.
 
-> **Dev/WSL2 + Docker Desktop:** este desenho NÃO funciona localmente — os
-> arquivos de log ficam dentro da VM do Docker Desktop. Em dev, use
-> `docker compose logs -f <serviço>` (ou o stack antigo de dev p/ métricas).
+> Painel do backend sem o label `level` em dev? A imagem local do backend está
+> velha (logback antigo com pretty-print) — rode `./rebuild.sh backend`.
 
 ## Queries úteis (Explore → Loki)
 

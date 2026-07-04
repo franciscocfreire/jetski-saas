@@ -1,0 +1,72 @@
+// Grafana Alloy — coleta de logs de TODOS os containers via API DO DOCKER
+// (substitui o Promtail, que lia os json-files de /var/lib/docker e por isso
+// não funcionava em dev/WSL2 + Docker Desktop; a API funciona nos dois).
+//
+// Labels resultantes (mesmo contrato do Promtail antigo, dashboards intactos):
+//   service   — nome do serviço no compose (backend, nginx, keycloak, portal…)
+//   container — nome do container
+//   project   — projeto do compose
+//   level     — só para o backend (extraído do log JSON)
+
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  // só containers do docker compose — em dev/WSL2 a API também lista os
+  // containers de k8s do Docker Desktop (coredns etc.), que não interessam
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = ".+"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "project"
+  }
+}
+
+loki.source.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  targets          = discovery.relabel.containers.output
+  forward_to       = [loki.process.backend_json.receiver]
+  refresh_interval = "15s"
+}
+
+loki.process "backend_json" {
+  // backend loga JSON estruturado — extrai o nível p/ virar label indexado
+  stage.match {
+    selector = "{service=\"backend\"}"
+
+    stage.json {
+      expressions = { level = "level" }
+    }
+
+    stage.labels {
+      values = { level = "" }
+    }
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

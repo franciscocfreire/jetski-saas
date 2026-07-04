@@ -1,20 +1,19 @@
 # =============================================================================
-# Observabilidade de PRODUÇÃO (enxuta) — Grafana + Loki + Promtail + Prometheus
+# Observabilidade (DEV = PROD) — Grafana + Loki + Alloy + Prometheus + exporters
 #
-# Uso (no servidor, a partir da raiz do repo):
-#   docker compose -f infra/observability/docker-compose.observability.yml up -d
+# Uso (raiz do repo, no servidor OU no dev/WSL2 — mesmo stack nos dois):
+#   docker compose --env-file .env -f infra/observability/docker-compose.observability.yml up -d
 #
 # Desenho:
-# - Promtail lê os LOGS DE TODOS os containers direto do Docker (socket +
-#   /var/lib/docker/containers) → Loki. Nada de arquivos de log da app:
-#   funciona para backend, nginx, keycloak, portal etc. sem tocar em ninguém.
-#   (Em dev/WSL2 + Docker Desktop isso NÃO funciona — os logs ficam na VM;
-#   use `docker compose logs` em dev, este stack é para o servidor Linux.)
-# - Prometheus raspa o backend pelo nome de serviço (rede do app, externa).
+# - Alloy coleta os LOGS DE TODOS os containers do compose via API DO DOCKER
+#   (docker.sock) → Loki. Funciona igualmente em prod e em dev/WSL2 + Docker
+#   Desktop (o Promtail antigo lia /var/lib/docker e só funcionava em prod).
+# - Prometheus raspa backend/node-exporter/telegraf pelo nome de serviço
+#   (rede do app, externa).
 # - Grafana atrás do nginx em ${PUBLIC_URL}/grafana (login próprio; senha
-#   admin vem do .env — GRAFANA_ADMIN_PASSWORD).
-# - Sem Jaeger/Alertmanager na v1 (memória curta no servidor; adicionar
-#   depois se precisar de tracing/alertas).
+#   admin vem do .env — GRAFANA_ADMIN_PASSWORD). Alertas por e-mail (em dev,
+#   aponte GRAFANA_SMTP_HOST=mailpit:1025 p/ ver os alertas no Mailpit).
+# - Sem Jaeger (tracing) nesta versão.
 # - Portas só em 127.0.0.1 (ingress público é o tunnel → nginx).
 # - Retenção: Loki 7d (loki-config), Prometheus 7d (flag abaixo).
 #
@@ -30,23 +29,25 @@ services:
     ports:
       - "127.0.0.1:3100:3100"
     volumes:
-      - ../monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki-data:/tmp/loki
     command: -config.file=/etc/loki/local-config.yaml
     mem_limit: 512m
     networks:
       - app
 
-  promtail:
-    image: grafana/promtail:2.9.2
-    container_name: jetski-promtail
+  alloy:
+    image: grafana/alloy:v1.4.2
+    container_name: jetski-alloy
     restart: unless-stopped
     volumes:
-      - ./promtail/promtail-prod.yml:/etc/promtail/config.yml:ro
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - promtail-positions:/positions
-    command: -config.file=/etc/promtail/config.yml
+      - alloy-data:/var/lib/alloy/data
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
     mem_limit: 256m
     networks:
       - app
@@ -79,7 +80,9 @@ services:
     command:
       - '--path.rootfs=/host'
     volumes:
-      - /:/host:ro,rslave
+      # sem rslave: Docker Desktop (dev/WSL2) não suporta propagação shared;
+      # o custo é só não enxergar montagens feitas APÓS o start — ok p/ nós
+      - /:/host:ro
     mem_limit: 64m
     networks:
       - app
@@ -127,10 +130,9 @@ services:
       # destinatário dos alertas (usado pelo provisioning de alerting)
       GRAFANA_ALERT_EMAIL: ${GRAFANA_ALERT_EMAIL:-${GMAIL_USER:-ops@localhost}}
     volumes:
-      # provisioning próprio de prod (datasources sem Jaeger) + dashboards
-      # compartilhados com o stack de dev
+      # provisioning (datasources/alerting) + dashboards JSON
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ../monitoring/grafana/provisioning/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     mem_limit: 320m
     networks:
@@ -146,6 +148,6 @@ networks:
 
 volumes:
   loki-data:
-  promtail-positions:
+  alloy-data:
   prometheus-data:
   grafana-data:
