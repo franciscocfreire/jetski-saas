@@ -503,7 +503,7 @@ export default function FilaPage() {
                               onCheckedChange={() => toggleSel(p.reservaIds[0])}
                             />
                           )}
-                          <div className="min-w-0 flex-1">
+                          <div className="min-w-[200px] flex-1 basis-56">
                             <p className="flex flex-wrap items-center gap-2 font-medium">
                               {grupo && <Users className="h-4 w-4 text-primary" />}
                               {grupo ? (
@@ -586,6 +586,7 @@ export default function FilaPage() {
                               />
                             </div>
                           </div>
+                          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
                           {hrefChamar && (
                             <a
                               href={hrefChamar}
@@ -630,6 +631,7 @@ export default function FilaPage() {
                               <Anchor className="mr-1 h-4 w-4" /> Embarcar
                             </Button>
                           )}
+                          </div>
                         </div>
                       </div>
                     )
