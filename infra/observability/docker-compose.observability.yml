@@ -99,11 +99,16 @@ services:
       - /var/lib/docker:/var/lib/docker:ro
       - /dev/disk:/dev/disk:ro
     command:
-      # enxuto: só o essencial de memória/CPU/rede por container
+      # enxuto: só memória/CPU/rede por container. "disk" desabilitado também
+      # por compatibilidade: com o containerd image store (storage driver
+      # "overlayfs"), o cAdvisor não acha a camada rw no layout antigo
+      # (/var/lib/docker/image/...) e falha ao registrar TODOS os containers
+      # ("failed to identify the read-write layer ID") — sem disk, ele pula
+      # essa consulta e as métricas de memória/CPU voltam.
       - '--housekeeping_interval=30s'
       - '--docker_only=true'
       - '--store_container_labels=false'
-      - '--disable_metrics=percpu,sched,tcp,udp,process,hugetlb,referenced_memory,cpu_topology,resctrl,memory_numa,cpuset,advtcp'
+      - '--disable_metrics=disk,diskIO,percpu,sched,tcp,udp,process,hugetlb,referenced_memory,cpu_topology,resctrl,memory_numa,cpuset,advtcp'
     mem_limit: 256m
     networks:
       - app
