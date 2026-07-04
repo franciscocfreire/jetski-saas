@@ -50,6 +50,7 @@ próprio (`grafana/provisioning/` — **sem Jaeger**, que não existe nesta v1).
 | **Saúde de Produção** | o primeiro a abrir: backend up, req/s, 5xx, P95, Hikari, heap/CPU + erros nos logs por serviço, 4xx/5xx do nginx e últimos ERROR do backend |
 | **Logs & Erros** | investigação: variáveis serviço/busca/tenant, volume por serviço/nível, top exceções, falhas de login do Keycloak, logs ao vivo (cole um `trace_id` na busca p/ correlacionar nginx ↔ backend) |
 | **Visão por Tenant** | variável `$tenant`: saldo de créditos, check-ins, reservas, receita, pagamentos, emissões por tipo e logs/erros daquele tenant |
+| **Endpoints do Backend** | top 10 por tráfego/latência/4xx/5xx + detalhe por endpoint (status, P50/P95, exceções, ERROR no Loki) |
 | **Infraestrutura** | host (CPU/RAM/disco/rede) e memória/CPU por container — quem está comendo os 11 GB |
 | **Visão Operacional** | gauges de negócio (locações ativas, reservas, frota, ocupação) |
 | **Performance do Sistema** | JVM/threads/HTTP/Hikari em detalhe |
