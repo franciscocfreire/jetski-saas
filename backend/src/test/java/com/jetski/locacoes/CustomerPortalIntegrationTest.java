@@ -154,12 +154,21 @@ class CustomerPortalIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Staff (ADMIN_TENANT) não acessa o escopo do cliente — 403")
-    void testStaffNaoAcessaCustomers() throws Exception {
+    @DisplayName("Staff TAMBÉM é cliente da plataforma: acessa o escopo customer com a persona CLIENTE")
+    void testStaffTambemECliente() throws Exception {
+        // staff de um tenant pode alugar jetski como cliente — o isolamento é
+        // por sub/vínculos; sem vínculos, vê o próprio perfil vazio
         mockMvc.perform(get("/v1/customers/self")
-                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))
+                .with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString())
+                        .claim("name", "Staff Cliente")
+                        .claim("email", "staff.cliente@test.com"))
                     .authorities(new SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.lojas.length()").value(0));
+
+        // anônimo continua barrado
+        mockMvc.perform(get("/v1/customers/self"))
+            .andExpect(status().isUnauthorized());
     }
 
     @Test

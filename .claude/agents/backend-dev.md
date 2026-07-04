@@ -31,7 +31,7 @@ Motivo: o backend em dev roda com Flyway desativado — migrations novas NÃO s�
 - Rodar: `cd backend && mvn test` (suíte toda, ~920 testes) ou `mvn test -Dtest='NomeDoTeste'`.
 
 ## Escopo do cliente final (/v1/customers/**) — armadilhas
-- Clientes autenticam com role CLIENTE (sem Membro/X-Tenant-Id); posse via vínculos `cliente_identity_provider` + `set_config('app.tenant_id', ..., true)` por transação.
+- QUALQUER usuário autenticado assume a persona CLIENTE no escopo /v1/customers/** (staff também é cliente da plataforma — decisão de produto 04/07); papéis de staff NÃO entram no contexto ABAC nesse escopo. Posse via vínculos `cliente_identity_provider` + `set_config('app.tenant_id', ..., true)` por transação.
 - **A policy de self-read (V029, `app.customer_sub`) expõe vínculos de OUTRAS lojas na mesma transação** — lookups de vínculo e dedupe por CPF DEVEM ser tenant-scoped explícitos (`findByTenantIdAnd...`), nunca confiar só na RLS.
 - Testes rodam como superuser do Postgres (RLS bypass) — filtros explícitos por tenant são obrigatórios também por isso.
 - Identidade global do cliente (CPF/RG/nascimento) vive em `customer_profile` (define-only, único); endereço/telefone/anexos são POR LOJA (Cliente).

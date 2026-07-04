@@ -69,16 +69,15 @@ public class TenantFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // Escopo do cliente final (/v1/customers/**): token sem tenant e sem
-            // Membro — não há X-Tenant-Id nem validação de acesso por tenant aqui.
-            // O papel CLIENTE (já garantido pelo SecurityConfig) vai ao contexto
-            // para o ABAC/OPA; cada serviço customer-scoped resolve os vínculos e
-            // seta a RLS por tenant internamente (set_config transaction-local).
+            // Escopo do cliente final (/v1/customers/**): token sem X-Tenant-Id.
+            // QUALQUER usuário autenticado assume a persona CLIENTE aqui — staff
+            // de um tenant também pode ser cliente da plataforma. Os papéis de
+            // staff NÃO entram no contexto (persona única por escopo); cada
+            // serviço customer-scoped resolve os vínculos pelo sub e seta a RLS
+            // por tenant internamente (set_config transaction-local).
             if (isCustomerEndpoint(requestPath)) {
                 Authentication customerAuth = SecurityContextHolder.getContext().getAuthentication();
-                if (customerAuth != null && customerAuth.isAuthenticated()
-                        && customerAuth.getAuthorities().stream()
-                            .anyMatch(a -> "ROLE_CLIENTE".equals(a.getAuthority()))) {
+                if (customerAuth != null && customerAuth.isAuthenticated()) {
                     TenantContext.setUserRoles(java.util.List.of("CLIENTE"));
                 }
                 filterChain.doFilter(request, response);

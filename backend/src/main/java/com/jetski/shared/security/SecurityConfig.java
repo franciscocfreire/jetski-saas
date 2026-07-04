@@ -231,7 +231,10 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Portal do cliente final: escopo exclusivo da role CLIENTE (sem Membro).
                 // Sem X-Tenant-Id — vínculos por loja são resolvidos internamente.
-                .requestMatchers("/v1/customers/**").hasRole("CLIENTE")
+                // Qualquer usuário autenticado pode ser CLIENTE da plataforma
+                // (staff de um tenant também aluga jetski) — o isolamento é
+                // por sub/vínculos, nunca pelo papel.
+                .requestMatchers("/v1/customers/**").authenticated()
 
                 // Endpoints protegidos - exemplos de controle por role
                 // (method-level security com @PreAuthorize é recomendado para controle fino)
