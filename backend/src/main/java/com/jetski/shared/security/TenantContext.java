@@ -65,7 +65,11 @@ public class TenantContext {
     public static UUID getTenantId() {
         UUID tenantId = TENANT_ID.get();
         if (tenantId == null) {
-            log.warn("Tenant ID requested but not set in context");
+            // DEBUG: contexto vazio é NORMAL — todo checkout de conexão
+            // (TenantAwareDataSource) consulta o tenant, e endpoints públicos
+            // (marketplace/portal), health checks e jobs agendados rodam sem
+            // tenant por design; a RLS é quem barra acesso indevido
+            log.debug("Tenant ID requested but not set in context");
         }
         return tenantId;
     }
