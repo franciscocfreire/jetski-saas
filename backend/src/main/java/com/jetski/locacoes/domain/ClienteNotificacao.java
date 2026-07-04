@@ -33,6 +33,8 @@ public class ClienteNotificacao {
     public static final String PAGAMENTO_CONFIRMADO = "PAGAMENTO_CONFIRMADO";
     public static final String PAGAMENTO_RECUSADO = "PAGAMENTO_RECUSADO";
     public static final String GRU_PAGA = "GRU_PAGA";
+    public static final String GRU_EMITIDA = "GRU_EMITIDA";
+    public static final String GRU_PENDENTE_DADOS = "GRU_PENDENTE_DADOS";
     public static final String DOCUMENTOS_EMITIDOS = "DOCUMENTOS_EMITIDOS";
     public static final String RESERVA_EXPIRADA = "RESERVA_EXPIRADA";
 

@@ -44,6 +44,7 @@ public class CustomerEmaService {
     private final HabilitacaoService habilitacaoService;
     private final GruService gruService;
     private final CustomerProfileService customerProfileService;
+    private final GruAutoEmissaoService gruAutoEmissaoService;
     private final ObjectMapper objectMapper;
 
     // ============================ Dados pessoais ============================
@@ -114,6 +115,17 @@ public class CustomerEmaService {
         // permanecem só na loja — decisão de produto)
         customerProfileService.absorverIdentidade(sub, c.getNome(), c);
         log.info("Dados pessoais atualizados pelo cliente no portal: cliente={}", c.getId());
+
+        // retry da auto-emissão: se o pagamento já foi confirmado e a GRU
+        // ainda não saiu (faltavam dados), agora ela sai sozinha
+        CustomerReservaService.Localizada loc = customerReservaService.localizar(sub, reservaId);
+        if (Boolean.TRUE.equals(loc.reserva().getSinalPago())) {
+            try {
+                gruAutoEmissaoService.emitirSeAplicavel(loc.reserva().getTenantId(), reservaId);
+            } catch (Exception e) {
+                log.warn("Retry de auto-GRU falhou (reserva={}): {}", reservaId, e.getMessage());
+            }
+        }
         return toDadosPessoais(c);
     }
 

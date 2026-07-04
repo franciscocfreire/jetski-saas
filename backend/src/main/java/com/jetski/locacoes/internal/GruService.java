@@ -430,13 +430,17 @@ public class GruService {
         return s == null ? "" : s.replaceAll("\\D", "");
     }
 
-    /** Notifica o cliente que a GRU foi confirmada (best-effort). */
+    /** Notifica o cliente que a GRU foi confirmada, com o número (best-effort). */
     private void notificarGruPaga(java.util.UUID tenantId, java.util.UUID reservaId) {
+        String numero = habilitacaoRepository.findByReservaId(reservaId)
+            .map(com.jetski.locacoes.domain.ReservaHabilitacao::getGruNumero)
+            .orElse(null);
         reservaRepository.findById(reservaId).ifPresent(r ->
             clienteNotificacaoService.notificar(tenantId, r.getClienteId(),
                 com.jetski.locacoes.domain.ClienteNotificacao.GRU_PAGA,
-                "Pagamento da GRU confirmado ✅",
-                "A taxa da Marinha foi confirmada — sua habilitação segue para a próxima etapa.",
+                "Taxa da Marinha paga ✅",
+                (numero != null ? "GRU nº " + numero + " paga" : "A taxa da Marinha foi paga")
+                    + " — sua habilitação avançou.",
                 "/conta/reservas/" + reservaId + "/habilitacao"));
     }
 }

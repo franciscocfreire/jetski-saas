@@ -39,6 +39,7 @@ class CustomerNotificacaoIntegrationTest extends AbstractIntegrationTest {
     @Autowired JdbcTemplate jdbc;
 
     @MockBean OPAAuthorizationService opa;
+    @MockBean com.jetski.locacoes.internal.gru.GruClient gruClient;
 
     private static final UUID TENANT_ACME = UUID.fromString("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
     private static final UUID MODELO_ID = UUID.fromString("77777777-7777-4777-8777-000000000051");
@@ -52,6 +53,10 @@ class CustomerNotificacaoIntegrationTest extends AbstractIntegrationTest {
     void setUp() {
         when(opa.authorize(any(OPAInput.class)))
             .thenReturn(OPADecision.builder().allow(true).tenantIsValid(true).build());
+        when(gruClient.gerar(any())).thenReturn(new com.jetski.locacoes.internal.gru.GruResultado(
+            "GRU-AUTO-123", new java.math.BigDecimal("23.13"), "Taxa CHA",
+            "pix-copia-e-cola-demo", null,
+            java.time.Instant.now().plusSeconds(3600), "IDGRU-1", "SESSAO-1"));
 
         jdbc.update("""
             INSERT INTO modelo (id, tenant_id, nome, fabricante, potencia_hp, capacidade_pessoas,
@@ -67,6 +72,7 @@ class CustomerNotificacaoIntegrationTest extends AbstractIntegrationTest {
             """, JETSKI_ID, TENANT_ACME, MODELO_ID);
 
         jdbc.update("DELETE FROM cliente_notificacao WHERE tenant_id = ?", TENANT_ACME);
+        jdbc.update("DELETE FROM reserva_habilitacao WHERE reserva_id = ?", RESERVA_ID);
         jdbc.update("DELETE FROM locacao WHERE id = ?", LOCACAO_ID);
         jdbc.update("DELETE FROM reserva WHERE id = ?", RESERVA_ID);
         jdbc.update("DELETE FROM cliente_identity_provider WHERE provider_user_id = ?", SUB);
@@ -113,19 +119,21 @@ class CustomerNotificacaoIntegrationTest extends AbstractIntegrationTest {
                 .with(staff()))
             .andExpect(status().isOk());
 
-        // cliente vê a notificação na caixa
+        // cliente vê a notificação na caixa (a auto-GRU pode gerar uma 2ª — async)
         MvcResult res = mockMvc.perform(get("/v1/customers/notificacoes").with(cliente()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.naoLidas").value(1))
-            .andExpect(jsonPath("$.itens[0].tipo").value("PAGAMENTO_CONFIRMADO"))
-            .andExpect(jsonPath("$.itens[0].titulo",
-                org.hamcrest.Matchers.containsString("confirmado")))
-            .andExpect(jsonPath("$.itens[0].link",
-                org.hamcrest.Matchers.containsString("/conta/reservas/")))
+            .andExpect(jsonPath("$.itens[?(@.tipo=='PAGAMENTO_CONFIRMADO')].titulo",
+                org.hamcrest.Matchers.hasItem(
+                    org.hamcrest.Matchers.containsString("confirmado"))))
+            .andExpect(jsonPath("$.itens[?(@.tipo=='PAGAMENTO_CONFIRMADO')].link",
+                org.hamcrest.Matchers.hasItem(
+                    org.hamcrest.Matchers.containsString("/conta/reservas/"))))
             .andReturn();
 
-        String id = com.jayway.jsonpath.JsonPath.read(
-            res.getResponse().getContentAsString(), "$.itens[0].id");
+        java.util.List<String> ids = com.jayway.jsonpath.JsonPath.read(
+            res.getResponse().getContentAsString(),
+            "$.itens[?(@.tipo=='PAGAMENTO_CONFIRMADO')].id");
+        String id = ids.get(0);
 
         // outro cliente não consegue marcar como lida
         mockMvc.perform(post("/v1/customers/notificacoes/{id}/lida", id)
@@ -133,12 +141,65 @@ class CustomerNotificacaoIntegrationTest extends AbstractIntegrationTest {
                     .authorities(new SimpleGrantedAuthority("ROLE_CLIENTE"))))
             .andExpect(status().isNotFound());
 
-        // dono marca como lida → contagem zera
+        // dono marca como lida; depois "todas lidas" zera a contagem
         mockMvc.perform(post("/v1/customers/notificacoes/{id}/lida", id).with(cliente()))
+            .andExpect(status().isNoContent());
+        mockMvc.perform(post("/v1/customers/notificacoes/lidas").with(cliente()))
             .andExpect(status().isNoContent());
         mockMvc.perform(get("/v1/customers/notificacoes").with(cliente()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.naoLidas").value(0));
+    }
+
+    @Test
+    @DisplayName("Auto-GRU: confirmar sinal de reserva PORTAL emite GRU pelo tenant e notifica só o número")
+    void testAutoGruNaConfirmacao() throws Exception {
+        mockMvc.perform(post("/v1/tenants/{t}/reservas/{id}/confirmar-sinal", TENANT_ACME, RESERVA_ID)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"valorSinal\": 90.00, \"tipo\": \"SINAL\"}")
+                .with(staff()))
+            .andExpect(status().isOk());
+
+        // listener roda AFTER_COMMIT + @Async — aguarda até 10s
+        String gru = null;
+        for (int i = 0; i < 50; i++) {
+            var rows = jdbc.queryForList(
+                "SELECT gru_numero FROM reserva_habilitacao WHERE reserva_id = ?", RESERVA_ID);
+            if (!rows.isEmpty() && rows.get(0).get("gru_numero") != null) {
+                gru = (String) rows.get(0).get("gru_numero");
+                break;
+            }
+            Thread.sleep(200);
+        }
+        assertThat(gru).isEqualTo("GRU-AUTO-123");
+
+        // cliente recebeu a notificação GRU_EMITIDA com o número (sem pedir pagamento)
+        mockMvc.perform(get("/v1/customers/notificacoes").with(cliente()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.itens[?(@.tipo=='GRU_EMITIDA')].mensagem",
+                org.hamcrest.Matchers.hasItem(
+                    org.hamcrest.Matchers.containsString("GRU-AUTO-123"))));
+    }
+
+    @Test
+    @DisplayName("Auto-GRU NÃO dispara p/ caminho CHA nem p/ reserva de balcão")
+    void testAutoGruNaoDispara() throws Exception {
+        // via CHA pré-existente
+        jdbc.update("""
+            INSERT INTO reserva_habilitacao (reserva_id, tenant_id, via, cha_numero, resolvida)
+            VALUES (?, ?, 'CHA', 'CHA-999', true)
+            """, RESERVA_ID, TENANT_ACME);
+        mockMvc.perform(post("/v1/tenants/{t}/reservas/{id}/confirmar-sinal", TENANT_ACME, RESERVA_ID)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content("{\"valorSinal\": 90.00, \"tipo\": \"SINAL\"}")
+                .with(staff()))
+            .andExpect(status().isOk());
+        Thread.sleep(1500);
+        var gru = jdbc.queryForList(
+            "SELECT gru_numero FROM reserva_habilitacao WHERE reserva_id = ?", RESERVA_ID);
+        assertThat(gru.get(0).get("gru_numero")).isNull();
     }
 
     @Test
