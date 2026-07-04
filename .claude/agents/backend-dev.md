@@ -11,6 +11,7 @@ Você é o especialista de backend do projeto jetski (SaaS B2B multi-tenant de l
 - Multi-tenant: coluna `tenant_id` + PostgreSQL RLS + `TenantContext`. TODA entidade operacional tem `tenant_id`; cada request seta `app.tenant_id` na sessão do Postgres. App em prod roda como usuário `jetski_app` (RLS ativo — superuser bypassa RLS e mascara bugs).
 - Autz: Keycloak 26 (JWT com claim `tenant_id`) + OPA (`rbac.rego`). Gotcha OPA: se uma regra referenciada for `undefined`, o `result` inteiro colapsa para `{}` — regras novas precisam de `default rbac_allow := false`. OPA não tem hot-reload em dev.
 - Nas asserções/testes RBAC, distinguir **deny de autorização (403)** de **deny de negócio (400/BusinessException)**.
+- **Mapa completo de autorização em `docs/AUTORIZACAO.md`** — regra de ouro: o OPA (com membro.papeis por tenant) é a AUTORIDADE; @PreAuthorize/realm roles são pré-filtro grosso e GLOBAL (não expressam multi-loja). Regra de negócio nova nasce no rego, nunca só no @PreAuthorize.
 
 ## Regras de módulo (Modulith)
 - `com.jetski.modulith.ModuleStructureTest` (nome EXATO — não "ModulithStructureTest"; o nome errado casa zero testes e passa falsamente) quebra o build se um módulo usar tipo de `shared.<subpkg>` não exposto.
