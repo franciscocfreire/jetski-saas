@@ -6,6 +6,7 @@ apiVersion: 1
 datasources:
   # Prometheus datasource
   - name: Prometheus
+    uid: Prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
@@ -18,6 +19,7 @@ datasources:
 
   # Loki datasource for logs
   - name: Loki
+    uid: Loki
     type: loki
     access: proxy
     url: http://loki:3100
@@ -28,6 +30,7 @@ datasources:
 
   # Jaeger datasource for distributed tracing
   - name: Jaeger
+    uid: Jaeger
     type: jaeger
     access: proxy
     url: http://jaeger:16686

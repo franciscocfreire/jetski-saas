@@ -86,7 +86,10 @@ services:
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
     volumes:
-      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      # provisioning próprio de prod (datasources sem Jaeger) + dashboards
+      # compartilhados com o stack de dev
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/provisioning/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     mem_limit: 320m
     networks:

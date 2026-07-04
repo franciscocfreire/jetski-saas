@@ -1,0 +1,35 @@
+# Datasources do Grafana de PRODUÇÃO — só o que existe no stack enxuto.
+# UIDs explícitos: os dashboards provisionados referenciam por uid
+# ("Prometheus"/"Loki"); sem isso o Grafana gera uid aleatório e os painéis
+# quebram com "datasource not found".
+
+apiVersion: 1
+
+# Remove o Jaeger se ficou registrado por um provisioning antigo
+# (não há Jaeger em prod nesta v1).
+deleteDatasources:
+  - name: Jaeger
+    orgId: 1
+
+datasources:
+  - name: Prometheus
+    uid: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"
+      queryTimeout: "60s"
+      httpMethod: "POST"
+
+  - name: Loki
+    uid: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true
+    jsonData:
+      maxLines: 1000
+      timeout: "60s"
