@@ -53,6 +53,17 @@ public class CustomerLocacaoController {
         return ResponseEntity.ok(customerLocacaoService.detalhe(jwt.getSubject(), id));
     }
 
+    @GetMapping("/{id}/recibo")
+    @Operation(summary = "Recibo da locação finalizada (PDF)")
+    public ResponseEntity<byte[]> recibo(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        byte[] pdf = customerLocacaoService.recibo(jwt.getSubject(), id);
+        return ResponseEntity.ok()
+            .header(org.springframework.http.HttpHeaders.CONTENT_TYPE, "application/pdf")
+            .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=recibo-" + id.toString().substring(0, 8) + ".pdf")
+            .body(pdf);
+    }
+
     @PostMapping("/{id}/avaliacao")
     @Operation(summary = "Avalia a locação finalizada (nota 1-5 + comentário; única)")
     public ResponseEntity<CustomerLocacaoService.LocacaoCliente> avaliar(

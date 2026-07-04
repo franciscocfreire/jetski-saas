@@ -64,8 +64,10 @@ class EmissaoServiceTest {
     private final com.jetski.creditos.CreditoService creditoService =
         mock(com.jetski.creditos.CreditoService.class);
 
+    private final ClienteNotificacaoService notificacaoService =
+        mock(ClienteNotificacaoService.class);
     private final EmissaoService service = new EmissaoService(
-        reservaRepo, clienteRepo, instrutorRepo, habRepo, aceiteRepo, docRepo, storage, email,
+        reservaRepo, notificacaoService, clienteRepo, instrutorRepo, habRepo, aceiteRepo, docRepo, storage, email,
         tenantQuery, pdfService, anexoService, creditoService, events, new ObjectMapper(),
         carimboService, padesService);
 

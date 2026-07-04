@@ -8,6 +8,8 @@ import com.jetski.locacoes.domain.LocacaoStatus;
 import com.jetski.locacoes.domain.Modelo;
 import com.jetski.locacoes.internal.repository.AvaliacaoRepository;
 import com.jetski.locacoes.internal.repository.JetskiRepository;
+import com.jetski.locacoes.internal.repository.ClienteRepository;
+import com.jetski.locacoes.internal.repository.LocacaoItemOpcionalRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
 import com.jetski.locacoes.internal.repository.ModeloRepository;
 import com.jetski.shared.exception.BusinessException;
@@ -44,6 +46,9 @@ public class CustomerLocacaoService {
     private final ModeloRepository modeloRepository;
     private final AvaliacaoRepository avaliacaoRepository;
     private final FotoService fotoService;
+    private final ReciboLocacaoPdfService reciboPdfService;
+    private final ClienteRepository clienteRepository;
+    private final LocacaoItemOpcionalRepository locacaoItemOpcionalRepository;
 
     // ============================ DTOs ============================
 
@@ -84,6 +89,47 @@ public class CustomerLocacaoService {
         Localizada l = localizar(sub, locacaoId);
         List<FotoResponse> fotos = fotoService.listFotosByLocacao(l.tenantId(), locacaoId);
         return new LocacaoClienteDetalhe(toDto(l.locacao(), l.loja()), fotos);
+    }
+
+    // ============================ Recibo (PDF) ============================
+
+    @Transactional(readOnly = true)
+    public byte[] recibo(String sub, UUID locacaoId) {
+        Localizada l = localizar(sub, locacaoId);
+        Locacao loc = l.locacao();
+        if (loc.getStatus() != LocacaoStatus.FINALIZADA) {
+            throw new BusinessException("O recibo fica disponível após a locação ser finalizada");
+        }
+
+        String modeloNome = null;
+        String jetskiSerie = null;
+        Optional<Jetski> jetski = jetskiRepository.findById(loc.getJetskiId());
+        if (jetski.isPresent()) {
+            jetskiSerie = jetski.get().getSerie();
+            modeloNome = modeloRepository.findById(jetski.get().getModeloId())
+                .map(Modelo::getNome).orElse(null);
+        }
+        var cliente = loc.getClienteId() != null
+            ? clienteRepository.findById(loc.getClienteId()).orElse(null) : null;
+
+        return reciboPdfService.gerar(new ReciboLocacaoPdfService.DadosRecibo(
+            l.loja().nome(), l.loja().cnpj(), l.loja().cidade(),
+            cliente != null ? cliente.getNome() : "—",
+            cliente != null ? mascararCpf(cliente.getDocumento()) : null,
+            loc.getId().toString().substring(0, 8).toUpperCase(),
+            modeloNome != null ? modeloNome : "Jet ski", jetskiSerie,
+            loc.getDataCheckIn(), loc.getDataCheckOut(),
+            loc.getMinutosUsados(), loc.getMinutosFaturaveis(),
+            loc.getValorBase(),
+            locacaoItemOpcionalRepository.sumValorCobradoByLocacaoId(loc.getId()),
+            loc.getCombustivelCusto(), loc.getValorTotal()));
+    }
+
+    private static String mascararCpf(String cpf) {
+        if (cpf == null) return null;
+        String d = cpf.replaceAll("\\D", "");
+        if (d.length() != 11) return null;
+        return "***.***." + d.substring(6, 9) + "-" + d.substring(9);
     }
 
     // ============================ Avaliação ============================

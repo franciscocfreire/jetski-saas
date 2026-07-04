@@ -47,6 +47,7 @@ import java.util.UUID;
 public class GruService {
 
     private final ReservaHabilitacaoRepository habilitacaoRepository;
+    private final ClienteNotificacaoService clienteNotificacaoService;
     private final ReservaRepository reservaRepository;
     private final ClienteRepository clienteRepository;
     private final GruClient gruClient;
@@ -233,6 +234,7 @@ public class GruService {
                 return new VerificacaoPagamento(false, st.situacao(), false);
             }
             hab.setGruPago(true);
+        notificarGruPaga(hab.getTenantId(), hab.getReservaId());
             hab.setGruPagoEm(st.dataPagamento() != null ? st.dataPagamento() : Instant.now());
             // EMA resolve quando a GRU é paga; CHA depende do número.
             hab.setResolvida(hab.getVia() == ReservaHabilitacao.Via.CHA
@@ -282,6 +284,7 @@ public class GruService {
 
         hab.setGruComprovanteS3Key(key);
         hab.setGruPago(true);
+        notificarGruPaga(hab.getTenantId(), hab.getReservaId());
         if (hab.getGruPagoEm() == null) {
             hab.setGruPagoEm(Instant.now());
         }
@@ -425,5 +428,15 @@ public class GruService {
 
     private static String soDigitos(String s) {
         return s == null ? "" : s.replaceAll("\\D", "");
+    }
+
+    /** Notifica o cliente que a GRU foi confirmada (best-effort). */
+    private void notificarGruPaga(java.util.UUID tenantId, java.util.UUID reservaId) {
+        reservaRepository.findById(reservaId).ifPresent(r ->
+            clienteNotificacaoService.notificar(tenantId, r.getClienteId(),
+                com.jetski.locacoes.domain.ClienteNotificacao.GRU_PAGA,
+                "Pagamento da GRU confirmado ✅",
+                "A taxa da Marinha foi confirmada — sua habilitação segue para a próxima etapa.",
+                "/conta/reservas/" + reservaId + "/habilitacao"));
     }
 }

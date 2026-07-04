@@ -71,6 +71,7 @@ public class ReservaService {
     private final JetskiRepository jetskiRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final TenantTimeService tenantTimeService;
+    private final ClienteNotificacaoService clienteNotificacaoService;
 
     /**
      * List all active reservations for current tenant.
@@ -765,6 +766,11 @@ public class ReservaService {
         log.info("Payment confirmed successfully: id={}, tipo={}, prioridade={}, valor={}",
                  saved.getId(), tipoPagamento, saved.getPrioridade(), saved.getValorSinal());
 
+        clienteNotificacaoService.notificar(saved.getTenantId(), saved.getClienteId(),
+            com.jetski.locacoes.domain.ClienteNotificacao.PAGAMENTO_CONFIRMADO,
+            "Pagamento confirmado 🎉",
+            "Seu pagamento foi confirmado pela loja — a reserva está garantida.",
+            "/conta/reservas/" + saved.getId());
         eventPublisher.publishEvent(PagamentoConfirmadoEvent.of(
             saved.getTenantId(), saved.getId(), tipoPagamento.name(), valorPago, usuarioId));
 
@@ -803,6 +809,13 @@ public class ReservaService {
         Reserva saved = reservaRepository.save(reserva);
         log.info("Payment rejected: id={}, motivo={}", saved.getId(), motivo);
 
+        clienteNotificacaoService.notificar(saved.getTenantId(), saved.getClienteId(),
+            com.jetski.locacoes.domain.ClienteNotificacao.PAGAMENTO_RECUSADO,
+            "Pagamento recusado",
+            (motivo != null && !motivo.isBlank()
+                ? "Motivo: " + motivo + ". "
+                : "") + "Reenvie o comprovante para garantir sua reserva.",
+            "/conta/reservas/" + saved.getId() + "/pagamento");
         eventPublisher.publishEvent(PagamentoRecusadoEvent.of(
             saved.getTenantId(), saved.getId(), motivo, usuarioId));
 

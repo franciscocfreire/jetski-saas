@@ -46,6 +46,7 @@ import java.util.UUID;
 public class EmissaoService {
 
     private final ReservaRepository reservaRepository;
+    private final ClienteNotificacaoService clienteNotificacaoService;
     private final ClienteRepository clienteRepository;
     private final com.jetski.locacoes.internal.repository.InstrutorRepository instrutorRepository;
     private final ReservaHabilitacaoRepository habilitacaoRepository;
@@ -189,6 +190,11 @@ public class EmissaoService {
             log.info("Marinha NÃO notificada (reserva {}): pendências {}", reservaId, pendencias);
         }
 
+        clienteNotificacaoService.notificar(reserva.getTenantId(), reserva.getClienteId(),
+            com.jetski.locacoes.domain.ClienteNotificacao.DOCUMENTOS_EMITIDOS,
+            "Seus documentos foram emitidos 🎉",
+            "A documentação da sua habilitação foi emitida pela loja e enviada por e-mail.",
+            "/conta/reservas/" + reservaId + "/habilitacao");
         eventPublisher.publishEvent(DocumentosEmitidosEvent.of(
             reserva.getTenantId(), reservaId, doc.getId(),
             destinosResumo(enviadoMarinha, enviadoCliente), TenantContext.getUsuarioId()));

@@ -69,6 +69,7 @@ public class CustomerReservaService {
     private final StorageService storageService;
     private final CustomerAccountService customerAccountService;
     private final CustomerProfileService customerProfileService;
+    private final ClienteNotificacaoService clienteNotificacaoService;
     private final org.springframework.transaction.support.TransactionTemplate transactionTemplate;
     private final AceiteService aceiteService;
     private final AceiteOtpService aceiteOtpService;
@@ -335,7 +336,9 @@ public class CustomerReservaService {
 
     private int expirarPreReservasPortalDoTenant(UUID tenantId, int horas) {
         fixarTenant(tenantId);
-        int n = entityManager.createNativeQuery("""
+        // RETURNING para notificar cada cliente afetado (in-app, best-effort)
+        @SuppressWarnings("unchecked")
+        List<Object[]> expiradas = entityManager.createNativeQuery("""
                 UPDATE reserva
                    SET status = 'EXPIRADA', updated_at = now()
                  WHERE tenant_id = :tenant
@@ -345,14 +348,22 @@ public class CustomerReservaService {
                    AND sinal_pago = false
                    AND pagamento_status = 'AGUARDANDO'
                    AND created_at < now() - make_interval(hours => :horas)
+                RETURNING id, cliente_id
                 """)
             .setParameter("tenant", tenantId)
             .setParameter("horas", horas)
-            .executeUpdate();
-        if (n > 0) {
-            log.info("Pré-reservas de portal expiradas: tenant={}, quantidade={}", tenantId, n);
+            .getResultList();
+        for (Object[] r : expiradas) {
+            clienteNotificacaoService.notificar(tenantId, (UUID) r[1],
+                com.jetski.locacoes.domain.ClienteNotificacao.RESERVA_EXPIRADA,
+                "Sua pré-reserva expirou",
+                "O prazo de 24h para envio do comprovante terminou — se ainda quiser o passeio, faça uma nova reserva.",
+                "/conta/reservas/" + r[0]);
         }
-        return n;
+        if (!expiradas.isEmpty()) {
+            log.info("Pré-reservas de portal expiradas: tenant={}, quantidade={}", tenantId, expiradas.size());
+        }
+        return expiradas.size();
     }
 
     // ============================ Termos / aceite (P2) ============================
