@@ -400,6 +400,160 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
     }
 
     // ===================================================================
+    // Folio (fase 3): cobranças do check-out, recebimento e extrato
+    // ===================================================================
+
+    @Autowired
+    private com.jetski.locacoes.internal.repository.ReservaLancamentoRepository reservaLancamentoRepository;
+
+    private Locacao locacaoFinalizadaViaCheckout() throws Exception {
+        Locacao locacao = Locacao.builder()
+            .tenantId(TENANT_ID)
+            .jetskiId(testJetski.getId())
+            .clienteId(testCliente.getId())
+            .dataCheckIn(LocalDateTime.now().minusMinutes(60))
+            .horimetroInicio(new BigDecimal("100.0"))
+            .duracaoPrevista(60)
+            .modalidadePreco(ModalidadePreco.DIARIA)
+            .status(LocacaoStatus.EM_CURSO)
+            .build();
+        locacao = locacaoRepository.save(locacao);
+        createCheckOutPhotos(locacao.getId());
+        testJetski.setStatus(JetskiStatus.LOCADO);
+        jetskiRepository.save(testJetski);
+
+        CheckOutRequest request = CheckOutRequest.builder()
+            .horimetroFim(new BigDecimal("101.0"))
+            .checklistEntradaJson("[\"motor_ok\"]")
+            .build();
+        mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/{id}/check-out", TENANT_ID, locacao.getId())
+                .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk());
+        return locacaoRepository.findById(locacao.getId()).orElseThrow();
+    }
+
+    @Test
+    @DisplayName("Check-out lança COBRANCA_ALUGUEL no folio (walk-in: só âncora de locação)")
+    void testCheckOut_LancaCobrancasNoFolio() throws Exception {
+        Locacao locacao = locacaoFinalizadaViaCheckout(); // reservaId null (walk-in)
+
+        var lancamentos = reservaLancamentoRepository.findByLocacaoIdOrderByCreatedAtAsc(locacao.getId());
+        org.assertj.core.api.Assertions.assertThat(lancamentos).isNotEmpty();
+        var aluguel = lancamentos.stream()
+            .filter(l -> l.getTipo() == com.jetski.locacoes.domain.ReservaLancamento.Tipo.COBRANCA_ALUGUEL)
+            .findFirst().orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(aluguel.getValor())
+            .isEqualByComparingTo(locacao.getValorNegociado() != null
+                ? locacao.getValorNegociado() : locacao.getValorBase());
+        org.assertj.core.api.Assertions.assertThat(aluguel.getForma()).isNull();
+        org.assertj.core.api.Assertions.assertThat(aluguel.getReservaId()).isNull();
+        org.assertj.core.api.Assertions.assertThat(aluguel.getLocacaoId()).isEqualTo(locacao.getId());
+    }
+
+    @Test
+    @DisplayName("Recebimento da locação FINALIZADA grava PAGAMENTO; em curso é rejeitado")
+    void testRegistrarPagamentoLocacao() throws Exception {
+        Locacao finalizada = locacaoFinalizadaViaCheckout();
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/{id}/registrar-pagamento", TENANT_ID, finalizada.getId())
+                .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR")))
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"forma\": \"PIX\", \"valor\": 150.00}"))
+            .andExpect(status().isOk());
+
+        var pagamentos = reservaLancamentoRepository.findByLocacaoIdOrderByCreatedAtAsc(finalizada.getId()).stream()
+            .filter(l -> l.getTipo() == com.jetski.locacoes.domain.ReservaLancamento.Tipo.PAGAMENTO)
+            .toList();
+        org.assertj.core.api.Assertions.assertThat(pagamentos).hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(pagamentos.get(0).getForma())
+            .isEqualTo(com.jetski.locacoes.domain.ReservaLancamento.Forma.PIX);
+
+        // Em curso → 400
+        Locacao emCurso = Locacao.builder()
+            .tenantId(TENANT_ID)
+            .jetskiId(testJetski.getId())
+            .clienteId(testCliente.getId())
+            .dataCheckIn(LocalDateTime.now().minusMinutes(10))
+            .horimetroInicio(new BigDecimal("102.0"))
+            .duracaoPrevista(30)
+            .status(LocacaoStatus.EM_CURSO)
+            .build();
+        emCurso = locacaoRepository.save(emCurso);
+        mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/{id}/registrar-pagamento", TENANT_ID, emCurso.getId())
+                .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR")))
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"forma\": \"PIX\", \"valor\": 50.00}"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Extrato da locação consolida cobranças e pagamentos com saldo")
+    void testExtratoLocacao() throws Exception {
+        Locacao finalizada = locacaoFinalizadaViaCheckout();
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/{id}/registrar-pagamento", TENANT_ID, finalizada.getId())
+                .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR")))
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"forma\": \"DINHEIRO\", \"valor\": 100.00}"))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/v1/tenants/{tenantId}/locacoes/{id}/extrato", TENANT_ID, finalizada.getId())
+                .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR")))
+                .header("X-Tenant-Id", TENANT_ID.toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalPagamentos").value(100.00))
+            .andExpect(jsonPath("$.totalCobrancas").value(finalizada.getValorTotal().doubleValue()))
+            .andExpect(jsonPath("$.saldo").value(finalizada.getValorTotal().subtract(new BigDecimal("100.00")).doubleValue()));
+    }
+
+    @Test
+    @DisplayName("Editar finalizada relança cobranças derivadas; PAGAMENTO fica intacto")
+    void testEditarFinalizada_RelancaCobrancas() throws Exception {
+        Locacao finalizada = locacaoFinalizadaViaCheckout();
+
+        // registra um pagamento (fato de caixa que NÃO pode ser tocado)
+        mockMvc.perform(post("/v1/tenants/{tenantId}/locacoes/{id}/registrar-pagamento", TENANT_ID, finalizada.getId())
+                .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR")))
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"forma\": \"PIX\", \"valor\": 80.00}"))
+            .andExpect(status().isOk());
+
+        // edita o valor total da locação
+        mockMvc.perform(patch("/v1/tenants/{tenantId}/locacoes/{id}/editar-finalizada", TENANT_ID, finalizada.getId())
+                .with(jwt().jwt(jwt -> jwt.claim("tenant_id", TENANT_ID.toString())
+                                         .claim("sub", USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN_TENANT")))
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"valorNegociado\": 999.00, \"motivoEdicao\": \"ajuste de teste\"}"))
+            .andExpect(status().isOk());
+
+        var lancamentos = reservaLancamentoRepository.findByLocacaoIdOrderByCreatedAtAsc(finalizada.getId());
+        var aluguel = lancamentos.stream()
+            .filter(l -> l.getTipo() == com.jetski.locacoes.domain.ReservaLancamento.Tipo.COBRANCA_ALUGUEL)
+            .toList();
+        var pagamentos = lancamentos.stream()
+            .filter(l -> l.getTipo() == com.jetski.locacoes.domain.ReservaLancamento.Tipo.PAGAMENTO)
+            .toList();
+        org.assertj.core.api.Assertions.assertThat(aluguel).hasSize(1); // relançada, não duplicada
+        org.assertj.core.api.Assertions.assertThat(aluguel.get(0).getValor()).isEqualByComparingTo("999.00");
+        org.assertj.core.api.Assertions.assertThat(pagamentos).hasSize(1); // caixa intacto
+        org.assertj.core.api.Assertions.assertThat(pagamentos.get(0).getValor()).isEqualByComparingTo("80.00");
+    }
+
+    // ===================================================================
     // Check-out Tests with RN01 Calculation
     // ===================================================================
 

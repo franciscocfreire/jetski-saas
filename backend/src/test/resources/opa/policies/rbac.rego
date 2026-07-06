@@ -46,6 +46,9 @@ role_permissions := {
         "reserva:recusar-pagamento",
         "reserva:registrar-pagamento",
         "reserva:no-show",
+        "reserva:extrato",
+        "locacao:registrar-pagamento",
+        "locacao:extrato",
         "reserva:emitir-documentos",
         "reserva:habilitacao",
         "reserva:aceite",
@@ -103,7 +106,11 @@ role_permissions := {
         "reserva:list",
         "reserva:confirmar-sinal",
         "reserva:recusar-pagamento",
-        "reserva:registrar-pagamento"
+        "reserva:registrar-pagamento",
+        "reserva:registrar-estorno",
+        "reserva:extrato",
+        "locacao:registrar-pagamento",
+        "locacao:extrato"
     ],
 
     "MECANICO": [

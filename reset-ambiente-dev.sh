@@ -283,19 +283,39 @@ ALTER TABLE public.cliente_identity_provider FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_cliente_identity_provider ON public.cliente_identity_provider;
 CREATE POLICY tenant_isolation_cliente_identity_provider ON public.cliente_identity_provider USING ((tenant_id = public.get_current_tenant_id()));
 
--- V035: conta financeira da reserva (folio) — pagamento presencial do balcão
+-- V035+V036: folio financeiro (reserva E/OU locação) — pagamentos, estornos e cobranças
 CREATE TABLE IF NOT EXISTS public.reserva_lancamento (
     id             uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     tenant_id      uuid NOT NULL,
-    reserva_id     uuid NOT NULL REFERENCES public.reserva(id) ON DELETE CASCADE,
-    tipo           varchar(20) NOT NULL CHECK (tipo IN ('PAGAMENTO', 'ESTORNO')),
-    forma          varchar(20) NOT NULL CHECK (forma IN ('DINHEIRO', 'PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'OUTRO')),
+    reserva_id     uuid REFERENCES public.reserva(id) ON DELETE CASCADE,
+    locacao_id     uuid REFERENCES public.locacao(id) ON DELETE CASCADE,
+    tipo           varchar(20) NOT NULL,
+    forma          varchar(20),
     valor          numeric(10,2) NOT NULL CHECK (valor > 0),
     observacao     text,
     registrado_por uuid,
     created_at     timestamptz NOT NULL DEFAULT now()
 );
+-- V036 (idempotente também para banco criado na forma V035)
+ALTER TABLE public.reserva_lancamento
+    ADD COLUMN IF NOT EXISTS locacao_id uuid REFERENCES public.locacao(id) ON DELETE CASCADE;
+ALTER TABLE public.reserva_lancamento ALTER COLUMN reserva_id DROP NOT NULL;
+ALTER TABLE public.reserva_lancamento ALTER COLUMN forma DROP NOT NULL;
+ALTER TABLE public.reserva_lancamento DROP CONSTRAINT IF EXISTS reserva_lancamento_tipo_check;
+ALTER TABLE public.reserva_lancamento ADD CONSTRAINT reserva_lancamento_tipo_check
+    CHECK (tipo IN ('PAGAMENTO', 'ESTORNO', 'COBRANCA_ALUGUEL', 'COBRANCA_COMBUSTIVEL', 'COBRANCA_EXTRAS'));
+ALTER TABLE public.reserva_lancamento DROP CONSTRAINT IF EXISTS reserva_lancamento_forma_check;
+ALTER TABLE public.reserva_lancamento ADD CONSTRAINT reserva_lancamento_forma_check
+    CHECK (
+        (tipo IN ('PAGAMENTO', 'ESTORNO') AND forma IN ('DINHEIRO', 'PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'OUTRO'))
+        OR (tipo IN ('COBRANCA_ALUGUEL', 'COBRANCA_COMBUSTIVEL', 'COBRANCA_EXTRAS') AND forma IS NULL)
+    );
+ALTER TABLE public.reserva_lancamento DROP CONSTRAINT IF EXISTS reserva_lancamento_ancora_check;
+ALTER TABLE public.reserva_lancamento ADD CONSTRAINT reserva_lancamento_ancora_check
+    CHECK (reserva_id IS NOT NULL OR locacao_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_reserva_lancamento_reserva ON public.reserva_lancamento (tenant_id, reserva_id);
+CREATE INDEX IF NOT EXISTS idx_reserva_lancamento_locacao ON public.reserva_lancamento (tenant_id, locacao_id) WHERE locacao_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_reserva_lancamento_dia ON public.reserva_lancamento (tenant_id, created_at);
 ALTER TABLE public.reserva_lancamento ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reserva_lancamento FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_reserva_lancamento ON public.reserva_lancamento;

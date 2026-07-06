@@ -17,6 +17,7 @@ import {
   Receipt,
   RefreshCw,
   Save,
+  Undo2,
   Upload,
   UserX,
   X,
@@ -184,6 +185,36 @@ export function ReservaDetailSheet({
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(msg ?? 'Falha ao registrar o pagamento.')
+    },
+  })
+
+  // Extrato do folio da reserva (pagamentos/estornos) — compacto
+  const { data: extratoReserva } = useQuery({
+    queryKey: ['reserva-extrato', reservaId],
+    queryFn: () => reservasService.extrato(reservaId!),
+    enabled: open && !!reservaId && reserva?.pagamentoStatus === 'CONFIRMADO',
+  })
+
+  // Estorno (devolução) de reserva paga — dialog forma+valor+justificativa
+  const [estornoOpen, setEstornoOpen] = useState(false)
+  const [estornoForma, setEstornoForma] = useState<FormaPagamento>('DINHEIRO')
+  const [estornoValor, setEstornoValor] = useState('')
+  const [estornoObs, setEstornoObs] = useState('')
+  const registrarEstorno = useMutation({
+    mutationFn: () =>
+      reservasService.registrarEstorno(reservaId!, {
+        forma: estornoForma,
+        valor: Number(estornoValor),
+        observacao: estornoObs.trim(),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reservas'] })
+      setEstornoOpen(false)
+      toast.success('Estorno registrado.')
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ?? 'Falha ao registrar o estorno.')
     },
   })
 
@@ -435,6 +466,89 @@ export function ReservaDetailSheet({
           </Dialog>
         )}
 
+        {extratoReserva && extratoReserva.lancamentos.length > 0 && (
+          <div className="mt-3 space-y-1 rounded-md border p-3 text-xs">
+            <p className="font-medium">Extrato</p>
+            {extratoReserva.lancamentos.map((l) => (
+              <div key={l.id} className="flex justify-between text-muted-foreground">
+                <span>
+                  {l.tipo === 'PAGAMENTO' ? 'Pagamento' : l.tipo === 'ESTORNO' ? 'Estorno' : l.tipo}
+                  {l.forma ? ` · ${l.forma}` : ''} · {formatDate(l.createdAt)}
+                </span>
+                <span className={l.tipo === 'ESTORNO' ? 'text-red-600' : ''}>
+                  {formatCurrency(l.valor)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {reserva.pagamentoStatus === 'CONFIRMADO' && (
+          <Dialog open={estornoOpen} onOpenChange={setEstornoOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="mt-2 w-full">
+                <Undo2 className="mr-2 h-4 w-4" />
+                Registrar estorno
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Registrar estorno (devolução)</DialogTitle>
+                <DialogDescription>
+                  Registre quando a loja devolver o valor ao cliente (cancelamento/não
+                  comparecimento). Nunca excede o recebido.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3">
+                <div>
+                  <Label className="text-xs">Forma da devolução</Label>
+                  <Select value={estornoForma} onValueChange={(v) => setEstornoForma(v as FormaPagamento)}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                      <SelectItem value="PIX">PIX</SelectItem>
+                      <SelectItem value="CARTAO_CREDITO">Cartão de crédito</SelectItem>
+                      <SelectItem value="CARTAO_DEBITO">Cartão de débito</SelectItem>
+                      <SelectItem value="OUTRO">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Valor devolvido (R$)</Label>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={estornoValor}
+                    onChange={(e) => setEstornoValor(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Justificativa (obrigatória)</Label>
+                  <Input
+                    value={estornoObs}
+                    onChange={(e) => setEstornoObs(e.target.value)}
+                    placeholder="Ex.: cancelou por chuva — devolução combinada"
+                    className="h-9"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  disabled={!(Number(estornoValor) > 0) || !estornoObs.trim() || registrarEstorno.isPending}
+                  onClick={() => registrarEstorno.mutate()}
+                >
+                  {registrarEstorno.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Confirmar estorno
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
         {(reserva.status === 'PENDENTE' || reserva.status === 'CONFIRMADA') &&
           new Date(reserva.dataInicio) < new Date() && (
             <Button
@@ -442,9 +556,13 @@ export function ReservaDetailSheet({
               className="mt-2 w-full"
               disabled={marcarNoShow.isPending}
               onClick={() => {
+                const paga = reserva.pagamentoStatus === 'CONFIRMADO'
                 if (
                   window.confirm(
-                    `Marcar não comparecimento de ${reserva.cliente?.nome ?? 'cliente'}? A reserva sai da agenda.`
+                    `Marcar não comparecimento de ${reserva.cliente?.nome ?? 'cliente'}? A reserva sai da agenda.` +
+                      (paga
+                        ? '\n\nATENÇÃO: esta reserva está PAGA — se a loja devolver o valor, registre o estorno depois.'
+                        : '')
                   )
                 )
                   marcarNoShow.mutate()
@@ -465,7 +583,15 @@ export function ReservaDetailSheet({
             className="mt-2 w-full border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:hover:bg-red-950/40"
             disabled={cancelar.isPending}
             onClick={() => {
-              if (window.confirm(`Cancelar a reserva de ${reserva.cliente?.nome ?? 'cliente'}? Esta ação não pode ser desfeita.`))
+              const paga = reserva.pagamentoStatus === 'CONFIRMADO'
+              if (
+                window.confirm(
+                  `Cancelar a reserva de ${reserva.cliente?.nome ?? 'cliente'}? Esta ação não pode ser desfeita.` +
+                    (paga
+                      ? '\n\nATENÇÃO: esta reserva está PAGA — se a loja devolver o valor, registre o estorno depois.'
+                      : '')
+                )
+              )
                 cancelar.mutate()
             }}
           >

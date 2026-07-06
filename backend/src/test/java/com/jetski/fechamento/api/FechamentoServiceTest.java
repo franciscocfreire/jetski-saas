@@ -7,10 +7,13 @@ import com.jetski.fechamento.domain.FechamentoDiario;
 import com.jetski.fechamento.domain.FechamentoMensal;
 import com.jetski.fechamento.internal.repository.FechamentoDiarioRepository;
 import com.jetski.fechamento.internal.repository.FechamentoMensalRepository;
+import com.jetski.locacoes.api.FolioQueryService;
 import com.jetski.locacoes.api.LocacaoQueryService;
 import com.jetski.locacoes.api.PresencaVendedorQueryService;
 import com.jetski.locacoes.domain.Locacao;
 import com.jetski.locacoes.domain.LocacaoStatus;
+import com.jetski.locacoes.domain.ReservaLancamento;
+import com.jetski.tenant.TenantTimeService;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,9 +25,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
@@ -67,6 +73,12 @@ class FechamentoServiceTest {
     @Mock
     private PresencaVendedorQueryService presencaVendedorQueryService;
 
+    @Mock
+    private FolioQueryService folioQueryService;
+
+    @Mock
+    private TenantTimeService tenantTimeService;
+
     @InjectMocks
     private FechamentoService fechamentoService;
 
@@ -74,11 +86,22 @@ class FechamentoServiceTest {
     private UUID operadorId;
     private LocalDate dataReferencia;
 
+    private static final ZoneId ZONE_SP = ZoneId.of("America/Sao_Paulo");
+
     @BeforeEach
     void setUp() {
         tenantId = UUID.randomUUID();
         operadorId = UUID.randomUUID();
         dataReferencia = LocalDate.of(2025, 10, 29);
+        // Folio por forma: default vazio (testes específicos sobrescrevem);
+        // lenient — nem todo teste chega na agregação (ex.: dia bloqueado)
+        org.mockito.Mockito.lenient()
+            .when(tenantTimeService.getZoneIdForTenant(org.mockito.ArgumentMatchers.any()))
+            .thenReturn(ZONE_SP);
+        org.mockito.Mockito.lenient()
+            .when(folioQueryService.totalRecebidoPorFormaNoDia(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(Collections.emptyList());
     }
 
     // ====================
@@ -112,6 +135,70 @@ class FechamentoServiceTest {
         assertThat(fechamento.getBloqueado()).isFalse();
 
         verify(fechamentoDiarioRepository).save(any(FechamentoDiario.class));
+    }
+
+    @Test
+    @DisplayName("Should populate payment method totals from folio ledger (cash basis)")
+    void consolidarDiaDevePopularTotaisPorFormaDoLedger() {
+        when(locacaoQueryService.findByTenantIdAndDateRange(any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(comissaoQueryService.findByPeriodo(any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(fechamentoDiarioRepository.findByTenantIdAndDtReferencia(tenantId, dataReferencia))
+                .thenReturn(Optional.empty());
+        when(fechamentoDiarioRepository.save(any(FechamentoDiario.class))).thenAnswer(i -> i.getArgument(0));
+        when(folioQueryService.totalRecebidoPorFormaNoDia(any(), any(), any())).thenReturn(List.of(
+                new FolioQueryService.TotalPorForma(ReservaLancamento.Forma.DINHEIRO, new BigDecimal("200.00")),
+                new FolioQueryService.TotalPorForma(ReservaLancamento.Forma.PIX, new BigDecimal("150.00")),
+                new FolioQueryService.TotalPorForma(ReservaLancamento.Forma.CARTAO_CREDITO, new BigDecimal("100.00")),
+                new FolioQueryService.TotalPorForma(ReservaLancamento.Forma.CARTAO_DEBITO, new BigDecimal("50.00"))
+        ));
+
+        FechamentoDiario fechamento = fechamentoService.consolidarDia(tenantId, dataReferencia, operadorId);
+
+        assertThat(fechamento.getTotalDinheiro()).isEqualByComparingTo("200.00");
+        assertThat(fechamento.getTotalPix()).isEqualByComparingTo("150.00");
+        // Crédito + débito consolidam em totalCartao
+        assertThat(fechamento.getTotalCartao()).isEqualByComparingTo("150.00");
+    }
+
+    @Test
+    @DisplayName("Should keep OUTRO out of the payment method split")
+    void consolidarDiaDeveIgnorarFormaOutro() {
+        when(locacaoQueryService.findByTenantIdAndDateRange(any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(comissaoQueryService.findByPeriodo(any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(fechamentoDiarioRepository.findByTenantIdAndDtReferencia(tenantId, dataReferencia))
+                .thenReturn(Optional.empty());
+        when(fechamentoDiarioRepository.save(any(FechamentoDiario.class))).thenAnswer(i -> i.getArgument(0));
+        when(folioQueryService.totalRecebidoPorFormaNoDia(any(), any(), any())).thenReturn(List.of(
+                new FolioQueryService.TotalPorForma(ReservaLancamento.Forma.OUTRO, new BigDecimal("999.00"))
+        ));
+
+        FechamentoDiario fechamento = fechamentoService.consolidarDia(tenantId, dataReferencia, operadorId);
+
+        assertThat(fechamento.getTotalDinheiro()).isEqualByComparingTo("0");
+        assertThat(fechamento.getTotalCartao()).isEqualByComparingTo("0");
+        assertThat(fechamento.getTotalPix()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("Should query folio with the day window in the tenant time zone")
+    void consolidarDiaDeveUsarJanelaDoDiaNoFusoDoTenant() {
+        when(locacaoQueryService.findByTenantIdAndDateRange(any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(comissaoQueryService.findByPeriodo(any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(fechamentoDiarioRepository.findByTenantIdAndDtReferencia(tenantId, dataReferencia))
+                .thenReturn(Optional.empty());
+        when(fechamentoDiarioRepository.save(any(FechamentoDiario.class))).thenAnswer(i -> i.getArgument(0));
+
+        fechamentoService.consolidarDia(tenantId, dataReferencia, operadorId);
+
+        Instant inicioEsperado = dataReferencia.atStartOfDay(ZONE_SP).toInstant();
+        Instant fimEsperado = dataReferencia.plusDays(1).atStartOfDay(ZONE_SP).toInstant();
+        verify(folioQueryService).totalRecebidoPorFormaNoDia(tenantId, inicioEsperado, fimEsperado);
     }
 
     @Test

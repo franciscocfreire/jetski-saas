@@ -8,13 +8,14 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Entity: lançamento financeiro da reserva (conta/folio da reserva — fase 2).
+ * Entity: lançamento do folio financeiro (fase 3 — apesar do nome, a tabela
+ * é o folio GERAL: lançamentos pendurados em reserva E/OU locação; walk-in
+ * não tem reserva).
  *
- * <p>Ledger append-only dos fatos financeiros: nesta fase, o pagamento
- * presencial integral do balcão (dinheiro/PIX/cartão). A fase 3 acrescenta
- * cobranças do check-out e alimenta o fechamento diário por forma de
- * pagamento. {@code reserva.pagamento_status} segue autoritativo — o
- * lançamento é gravado na mesma transação que o confirma.
+ * <p>Ledger append-only: PAGAMENTO/ESTORNO são fatos de caixa (forma
+ * obrigatória); COBRANCA_* são derivadas do sistema no check-out (sem forma)
+ * e podem ser relançadas quando a locação finalizada é editada.
+ * {@code reserva.pagamento_status} segue autoritativo para a reserva.
  */
 @Entity
 @Table(name = "reserva_lancamento")
@@ -32,15 +33,21 @@ public class ReservaLancamento {
     @Column(name = "tenant_id", nullable = false)
     private UUID tenantId;
 
-    @Column(name = "reserva_id", nullable = false)
+    /** Âncora opcional — obrigatória quando não há locação (CHECK no banco). */
+    @Column(name = "reserva_id")
     private UUID reservaId;
+
+    /** Âncora opcional — cobranças/recebimentos do check-out (walk-in só tem esta). */
+    @Column(name = "locacao_id")
+    private UUID locacaoId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Tipo tipo;
 
+    /** Obrigatória para PAGAMENTO/ESTORNO; nula para COBRANCA_* (CHECK no banco). */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(length = 20)
     private Forma forma;
 
     @Column(nullable = false, precision = 10, scale = 2)
@@ -63,10 +70,21 @@ public class ReservaLancamento {
     }
 
     public enum Tipo {
-        /** Valor recebido do cliente. */
+        /** Valor recebido do cliente (fato de caixa; forma obrigatória). */
         PAGAMENTO,
-        /** Devolução ao cliente (fase 3 — cancelamento/no-show de reserva paga). */
-        ESTORNO
+        /** Devolução ao cliente — cancelamento/no-show de reserva paga (fato de caixa). */
+        ESTORNO,
+        /** Débito do aluguel apurado no check-out (derivada; sem forma). */
+        COBRANCA_ALUGUEL,
+        /** Débito do combustível (RN03) apurado no check-out (derivada; sem forma). */
+        COBRANCA_COMBUSTIVEL,
+        /** Débito dos itens opcionais apurados no check-out (derivada; sem forma). */
+        COBRANCA_EXTRAS;
+
+        /** Cobranças são derivadas do sistema e relançáveis; caixa nunca é tocado. */
+        public boolean isCobranca() {
+            return this == COBRANCA_ALUGUEL || this == COBRANCA_COMBUSTIVEL || this == COBRANCA_EXTRAS;
+        }
     }
 
     public enum Forma {

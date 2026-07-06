@@ -5,6 +5,8 @@ import type {
   ReservaStatus,
   ConfirmarPagamentoRequest,
   RegistrarPagamentoReservaRequest,
+  RegistrarEstornoRequest,
+  FolioExtrato,
   ResultadoEmissao,
   PagamentoPendente,
   ReservaComprovante,
@@ -105,6 +107,18 @@ export const reservasService = {
   /** Marca não comparecimento (NO_SHOW) — reserva viva com início já passado. */
   async marcarNoShow(id: string): Promise<Reserva> {
     const { data } = await apiClient.post<Reserva>(`${getBasePath()}/${id}/no-show`)
+    return data
+  },
+
+  /** Registra estorno (devolução) de reserva paga — GERENTE/FINANCEIRO/ADMIN. */
+  async registrarEstorno(id: string, req: RegistrarEstornoRequest): Promise<Reserva> {
+    const { data } = await apiClient.post<Reserva>(`${getBasePath()}/${id}/registrar-estorno`, req)
+    return data
+  },
+
+  /** Extrato financeiro (folio) da reserva. */
+  async extrato(id: string): Promise<FolioExtrato> {
+    const { data } = await apiClient.get<FolioExtrato>(`${getBasePath()}/${id}/extrato`)
     return data
   },
 

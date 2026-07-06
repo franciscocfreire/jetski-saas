@@ -6,6 +6,8 @@ import type {
   CheckInWalkInRequest,
   CheckOutRequest,
   EditFinalizadaRequest,
+  FolioExtrato,
+  RegistrarPagamentoLocacaoRequest,
 } from '../types'
 
 const getBasePath = () => `/v1/tenants/${getTenantId()}/locacoes`
@@ -43,6 +45,21 @@ export const locacoesService = {
 
   async updateDataCheckIn(id: string, dataCheckIn: string): Promise<Locacao> {
     const { data } = await apiClient.patch<Locacao>(`${getBasePath()}/${id}/data-check-in`, { dataCheckIn })
+    return data
+  },
+
+  /** Extrato financeiro (folio) da locação: cobranças do check-out + pagamentos + saldo. */
+  async extrato(id: string): Promise<FolioExtrato> {
+    const { data } = await apiClient.get<FolioExtrato>(`${getBasePath()}/${id}/extrato`)
+    return data
+  },
+
+  /** Registra recebimento da locação (acerto do check-out / walk-in). */
+  async registrarPagamento(id: string, request: RegistrarPagamentoLocacaoRequest): Promise<Locacao> {
+    const { data } = await apiClient.post<Locacao>(
+      `${getBasePath()}/${id}/registrar-pagamento`,
+      request
+    )
     return data
   },
 

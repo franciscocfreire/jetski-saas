@@ -255,6 +255,46 @@ export interface RegistrarPagamentoReservaRequest {
   observacao?: string
 }
 
+/** Estorno (devolução ao cliente) de reserva paga — observação obrigatória. */
+export interface RegistrarEstornoRequest {
+  forma: FormaPagamento
+  valor: number
+  observacao: string
+}
+
+/** Recebimento no folio da locação (acerto do check-out / walk-in). */
+export interface RegistrarPagamentoLocacaoRequest {
+  forma: FormaPagamento
+  valor: number
+  observacao?: string
+}
+
+export type FolioTipo =
+  | 'PAGAMENTO'
+  | 'ESTORNO'
+  | 'COBRANCA_ALUGUEL'
+  | 'COBRANCA_COMBUSTIVEL'
+  | 'COBRANCA_EXTRAS'
+
+export interface FolioLancamento {
+  id: string
+  tipo: FolioTipo
+  forma?: FormaPagamento
+  valor: number
+  observacao?: string
+  registradoPor?: string
+  createdAt: string
+}
+
+/** Extrato do folio: saldo = cobranças − pagamentos + estornos (positivo = cliente deve). */
+export interface FolioExtrato {
+  lancamentos: FolioLancamento[]
+  totalCobrancas: number
+  totalPagamentos: number
+  totalEstornos: number
+  saldo: number
+}
+
 export interface RecusarPagamentoRequest {
   motivo: string
 }

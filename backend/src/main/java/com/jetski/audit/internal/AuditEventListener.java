@@ -8,7 +8,9 @@ import com.jetski.locacoes.event.DataCheckInAlteradaEvent;
 import com.jetski.locacoes.event.LocacaoEditadaEvent;
 import com.jetski.locacoes.event.PreContaCriadaEvent;
 import com.jetski.reservas.domain.event.DocumentosEmitidosEvent;
+import com.jetski.reservas.domain.event.EstornoRegistradoEvent;
 import com.jetski.reservas.domain.event.PagamentoConfirmadoEvent;
+import com.jetski.reservas.domain.event.PagamentoLocacaoRegistradoEvent;
 import com.jetski.reservas.domain.event.PagamentoPresencialRegistradoEvent;
 import com.jetski.reservas.domain.event.PagamentoRecusadoEvent;
 import com.jetski.reservas.domain.event.ReservaNoShowEvent;
@@ -416,6 +418,66 @@ public class AuditEventListener {
         } catch (Exception e) {
             log.error("Failed to audit PAGAMENTO_PRESENCIAL_REGISTRADO: reservaId={}, error={}",
                     event.reservaId(), e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onEstornoRegistrado(EstornoRegistradoEvent event) {
+        try {
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("forma", event.forma());
+            dadosNovos.put("valor", event.valor() != null ? event.valor().toString() : null);
+            dadosNovos.put("observacao", event.observacao());
+            dadosNovos.put("registradoPor", event.registradoPor() != null ? event.registradoPor().toString() : null);
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.registradoPor())
+                    .acao("ESTORNO_REGISTRADO")
+                    .entidade("RESERVA")
+                    .entidadeId(event.reservaId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: ESTORNO_REGISTRADO reservaId={}, auditId={}", event.reservaId(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit ESTORNO_REGISTRADO: reservaId={}, error={}",
+                    event.reservaId(), e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onPagamentoLocacaoRegistrado(PagamentoLocacaoRegistradoEvent event) {
+        try {
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("forma", event.forma());
+            dadosNovos.put("valor", event.valor() != null ? event.valor().toString() : null);
+            dadosNovos.put("observacao", event.observacao());
+            dadosNovos.put("reservaId", event.reservaId() != null ? event.reservaId().toString() : null);
+            dadosNovos.put("registradoPor", event.registradoPor() != null ? event.registradoPor().toString() : null);
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .usuarioId(event.registradoPor())
+                    .acao("PAGAMENTO_LOCACAO_REGISTRADO")
+                    .entidade("LOCACAO")
+                    .entidadeId(event.locacaoId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: PAGAMENTO_LOCACAO_REGISTRADO locacaoId={}, auditId={}",
+                    event.locacaoId(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit PAGAMENTO_LOCACAO_REGISTRADO: locacaoId={}, error={}",
+                    event.locacaoId(), e.getMessage(), e);
         }
     }
 

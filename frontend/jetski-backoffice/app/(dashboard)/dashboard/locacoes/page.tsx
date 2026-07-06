@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { locacoesService, jetskisService, clientesService, vendedoresService, itensOpcionaisService, modelosService } from '@/lib/api/services'
-import type { Locacao, LocacaoStatus, CheckInWalkInRequest, CheckOutRequest, ModalidadePreco, ItemOpcional, SelectedItemOpcional, EditFinalizadaRequest } from '@/lib/api/types'
+import type { Locacao, LocacaoStatus, CheckInWalkInRequest, CheckOutRequest, ModalidadePreco, ItemOpcional, SelectedItemOpcional, EditFinalizadaRequest, FormaPagamento, FolioExtrato } from '@/lib/api/types'
 import { formatDateTime, formatDuration, formatCurrency, cn } from '@/lib/utils'
 import { RentalCountdown } from '@/components/notifications/rental-countdown'
 import { RentalAlertBanner } from '@/components/notifications/rental-alert-banner'
@@ -652,6 +652,23 @@ function CheckInDialog({
   )
 }
 
+const FORMAS_PAGAMENTO: { value: FormaPagamento; label: string }[] = [
+  { value: 'DINHEIRO', label: 'Dinheiro' },
+  { value: 'PIX', label: 'PIX' },
+  { value: 'CARTAO_CREDITO', label: 'Cartão de crédito' },
+  { value: 'CARTAO_DEBITO', label: 'Cartão de débito' },
+  { value: 'OUTRO', label: 'Outro' },
+]
+
+/** Rótulos do extrato do folio. */
+const FOLIO_TIPO_LABEL: Record<string, string> = {
+  PAGAMENTO: 'Pagamento',
+  ESTORNO: 'Estorno',
+  COBRANCA_ALUGUEL: 'Aluguel',
+  COBRANCA_COMBUSTIVEL: 'Combustível',
+  COBRANCA_EXTRAS: 'Itens opcionais',
+}
+
 function CheckOutDialog({
   locacao,
   open,
@@ -670,6 +687,11 @@ function CheckOutDialog({
   const [observacoes, setObservacoes] = useState('')
   const [skipPhotos, setSkipPhotos] = useState(false)
 
+  // Passo 2 — Recebimento (após o check-out o backend conhece o valor final)
+  const [extrato, setExtrato] = useState<FolioExtrato | null>(null)
+  const [formaRecebimento, setFormaRecebimento] = useState<FormaPagamento>('DINHEIRO')
+  const [valorRecebimento, setValorRecebimento] = useState('')
+
   const toggleChecklistItem = (id: string) => {
     setChecklist(prev => ({ ...prev, [id]: !prev[id] }))
   }
@@ -678,9 +700,28 @@ function CheckOutDialog({
 
   const checkOutMutation = useMutation({
     mutationFn: (data: CheckOutRequest) => locacoesService.checkOut(locacao.id, data),
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['locacoes'] })
       queryClient.invalidateQueries({ queryKey: ['jetskis'] })
+      // Passo 2: buscar o extrato para cobrar o saldo exato
+      try {
+        const ex = await locacoesService.extrato(locacao.id)
+        setExtrato(ex)
+        setValorRecebimento(ex.saldo > 0 ? ex.saldo.toFixed(2) : '')
+      } catch {
+        onOpenChange(false) // extrato indisponível → fecha como antes
+      }
+    },
+  })
+
+  const receberMutation = useMutation({
+    mutationFn: () =>
+      locacoesService.registrarPagamento(locacao.id, {
+        forma: formaRecebimento,
+        valor: Number(valorRecebimento),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locacoes'] })
       onOpenChange(false)
     },
   })
@@ -704,6 +745,99 @@ function CheckOutDialog({
   const horasUsadas = horimetroFim > locacao.horimetroInicio
     ? (horimetroFim - locacao.horimetroInicio).toFixed(1)
     : '0'
+
+  // Passo 2 — Recebimento: check-out concluído, cobrar o saldo exato.
+  if (extrato) {
+    const saldo = extrato.saldo
+    const valorNum = Number(valorRecebimento)
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Recebimento</DialogTitle>
+            <DialogDescription>
+              Check-out concluído — registre o que foi recebido do cliente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-2">
+            <div className="rounded-lg border p-4 space-y-1 bg-muted/30 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total da locação:</span>
+                <span className="font-medium">{formatCurrency(extrato.totalCobrancas)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Já pago:</span>
+                <span>{formatCurrency(extrato.totalPagamentos - extrato.totalEstornos)}</span>
+              </div>
+              <div className="flex justify-between border-t pt-1 font-semibold">
+                <span>Saldo a receber:</span>
+                <span>{formatCurrency(Math.max(saldo, 0))}</span>
+              </div>
+            </div>
+
+            {saldo <= 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nada a receber — o pagamento antecipado cobre o valor final.
+              </p>
+            ) : (
+              <>
+                <div className="grid gap-2">
+                  <Label>Forma de pagamento</Label>
+                  <Select
+                    value={formaRecebimento}
+                    onValueChange={(v) => setFormaRecebimento(v as FormaPagamento)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FORMAS_PAGAMENTO.map((f) => (
+                        <SelectItem key={f.value} value={f.value}>
+                          {f.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Valor recebido (R$)</Label>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={valorRecebimento}
+                    onChange={(e) => setValorRecebimento(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            {saldo <= 0 ? (
+              <Button type="button" onClick={() => onOpenChange(false)}>
+                Concluir
+              </Button>
+            ) : (
+              <>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                  Receber depois
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!(valorNum > 0) || receberMutation.isPending}
+                  onClick={() => receberMutation.mutate()}
+                >
+                  {receberMutation.isPending ? 'Registrando…' : 'Registrar recebimento'}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -835,6 +969,28 @@ function LocacaoDetailDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const queryClient = useQueryClient()
+  const { data: extrato } = useQuery({
+    queryKey: ['locacao-extrato', locacao.id],
+    queryFn: () => locacoesService.extrato(locacao.id),
+    enabled: open && locacao.status === 'FINALIZADA',
+  })
+  const [recebendo, setRecebendo] = useState(false)
+  const [formaAcerto, setFormaAcerto] = useState<FormaPagamento>('DINHEIRO')
+  const [valorAcerto, setValorAcerto] = useState('')
+  const receberAcerto = useMutation({
+    mutationFn: () =>
+      locacoesService.registrarPagamento(locacao.id, {
+        forma: formaAcerto,
+        valor: Number(valorAcerto),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locacao-extrato', locacao.id] })
+      queryClient.invalidateQueries({ queryKey: ['locacoes'] })
+      setRecebendo(false)
+    },
+  })
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
@@ -964,6 +1120,75 @@ function LocacaoDetailDialog({
                 <p className="text-sm text-muted-foreground italic">
                   Motivo desconto: {locacao.motivoDesconto}
                 </p>
+              )}
+            </div>
+          )}
+
+          {/* Extrato do folio (cobranças do check-out + pagamentos + saldo) */}
+          {extrato && extrato.lancamentos.length > 0 && (
+            <div className="rounded-lg border p-4 space-y-2">
+              <h4 className="font-medium">Extrato financeiro</h4>
+              <div className="space-y-1 text-sm">
+                {extrato.lancamentos.map((l) => (
+                  <div key={l.id} className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      {FOLIO_TIPO_LABEL[l.tipo] ?? l.tipo}
+                      {l.forma ? ` (${FORMAS_PAGAMENTO.find((f) => f.value === l.forma)?.label ?? l.forma})` : ''}
+                    </span>
+                    <span className={l.tipo === 'PAGAMENTO' ? 'text-green-600' : l.tipo === 'ESTORNO' ? 'text-red-600' : ''}>
+                      {l.tipo === 'PAGAMENTO' ? '−' : ''}{formatCurrency(l.valor)}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex justify-between border-t pt-1 font-semibold">
+                  <span>Saldo a receber:</span>
+                  <span>{formatCurrency(Math.max(extrato.saldo, 0))}</span>
+                </div>
+              </div>
+
+              {extrato.saldo > 0 && !recebendo && (
+                <Button type="button" size="sm" variant="outline" onClick={() => {
+                  setValorAcerto(extrato.saldo.toFixed(2))
+                  setRecebendo(true)
+                }}>
+                  Registrar recebimento
+                </Button>
+              )}
+              {recebendo && (
+                <div className="grid gap-2 rounded-md border p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select value={formaAcerto} onValueChange={(v) => setFormaAcerto(v as FormaPagamento)}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FORMAS_PAGAMENTO.map((f) => (
+                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={valorAcerto}
+                      onChange={(e) => setValorAcerto(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setRecebendo(false)}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!(Number(valorAcerto) > 0) || receberAcerto.isPending}
+                      onClick={() => receberAcerto.mutate()}
+                    >
+                      Confirmar
+                    </Button>
+                  </div>
+                </div>
               )}
             </div>
           )}

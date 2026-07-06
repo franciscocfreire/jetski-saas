@@ -5,6 +5,7 @@ import com.jetski.locacoes.domain.Cliente;
 import com.jetski.locacoes.domain.Jetski;
 import com.jetski.locacoes.domain.Locacao;
 import com.jetski.locacoes.domain.LocacaoStatus;
+import com.jetski.locacoes.domain.ReservaLancamento;
 import com.jetski.locacoes.domain.Modelo;
 import com.jetski.locacoes.domain.Vendedor;
 import com.jetski.locacoes.internal.LocacaoService;
@@ -201,6 +202,58 @@ public class LocacaoController {
 
         log.info("Check-out completed: locacao={}, value={}", id, locacao.getValorTotal());
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * POST /v1/tenants/{tenantId}/locacoes/{id}/registrar-pagamento
+     *
+     * Registra o recebimento do acerto do check-out (saldo) ou o pagamento
+     * integral de walk-in — fato de caixa no folio da locação.
+     */
+    @PostMapping("/{id}/registrar-pagamento")
+    @Operation(summary = "Registrar recebimento da locação",
+               description = "Grava PAGAMENTO no folio da locação (acerto do check-out / walk-in), " +
+                             "com forma de pagamento — alimenta o fechamento diário por forma.")
+    public ResponseEntity<LocacaoResponse> registrarPagamento(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @Valid @RequestBody RegistrarPagamentoLocacaoRequest request
+    ) {
+        log.info("POST /v1/tenants/{}/locacoes/{}/registrar-pagamento - forma={}, valor={}",
+                 tenantId, id, request.getForma(), request.getValor());
+
+        validateTenantContext(tenantId);
+
+        ReservaLancamento.Forma forma = parseFormaPagamento(request.getForma());
+        Locacao locacao = locacaoService.registrarPagamento(
+            tenantId, id, forma, request.getValor(), request.getObservacao());
+        return ResponseEntity.ok(toResponse(locacao));
+    }
+
+    /**
+     * GET /v1/tenants/{tenantId}/locacoes/{id}/extrato
+     *
+     * Extrato do folio da locação (cobranças do check-out + pagamentos da
+     * locação e da reserva de origem) com saldo.
+     */
+    @GetMapping("/{id}/extrato")
+    @Operation(summary = "Extrato financeiro (folio) da locação")
+    public ResponseEntity<FolioExtratoResponse> extrato(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id
+    ) {
+        validateTenantContext(tenantId);
+        return ResponseEntity.ok(FolioExtratoResponse.from(locacaoService.extrato(tenantId, id)));
+    }
+
+    private ReservaLancamento.Forma parseFormaPagamento(String forma) {
+        try {
+            return ReservaLancamento.Forma.valueOf(forma.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new com.jetski.shared.exception.BusinessException(
+                "Forma de pagamento inválida: " + forma
+                + " (use DINHEIRO, PIX, CARTAO_CREDITO, CARTAO_DEBITO ou OUTRO)");
+        }
     }
 
     /**

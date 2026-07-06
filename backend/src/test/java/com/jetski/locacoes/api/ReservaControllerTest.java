@@ -593,6 +593,97 @@ class ReservaControllerTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.status").value("RASCUNHO"));
     }
 
+    private void pagarReserva(java.math.BigDecimal valor) throws Exception {
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/registrar-pagamento", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"forma\": \"PIX\", \"valor\": " + valor + "}")
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Should register estorno of paid+cancelled reservation (FINANCEIRO)")
+    void testRegistrarEstorno_Success() throws Exception {
+        pagarReserva(new java.math.BigDecimal("500.00"));
+        testReserva = reservaRepository.findById(testReserva.getId()).orElseThrow();
+        testReserva.setStatus(ReservaStatus.CANCELADA);
+        reservaRepository.save(testReserva);
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/registrar-estorno", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"forma\": \"PIX\", \"valor\": 300.00, \"observacao\": \"cancelou por chuva\"}")
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_FINANCEIRO"))))
+            .andExpect(status().isOk());
+
+        var lancamentos = reservaLancamentoRepository.findByReservaIdOrderByCreatedAtAsc(testReserva.getId());
+        org.assertj.core.api.Assertions.assertThat(lancamentos).hasSize(2);
+        org.assertj.core.api.Assertions.assertThat(lancamentos.get(1).getTipo())
+            .isEqualTo(com.jetski.locacoes.domain.ReservaLancamento.Tipo.ESTORNO);
+        org.assertj.core.api.Assertions.assertThat(lancamentos.get(1).getValor())
+            .isEqualByComparingTo("300.00");
+    }
+
+    @Test
+    @DisplayName("Should reject estorno greater than net received (parcial + excedente)")
+    void testRegistrarEstorno_ExcedeRecebido() throws Exception {
+        pagarReserva(new java.math.BigDecimal("500.00"));
+
+        // 1º estorno parcial ok
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/registrar-estorno", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"forma\": \"DINHEIRO\", \"valor\": 400.00, \"observacao\": \"parcial\"}")
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_GERENTE"))))
+            .andExpect(status().isOk());
+
+        // 2º excede o líquido restante (100) → 400
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/registrar-estorno", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"forma\": \"DINHEIRO\", \"valor\": 150.00, \"observacao\": \"excede\"}")
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_GERENTE"))))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Should reject estorno when no confirmed payment")
+    void testRegistrarEstorno_SemPagamento() throws Exception {
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/registrar-estorno", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"forma\": \"PIX\", \"valor\": 100.00, \"observacao\": \"nada pago\"}")
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_GERENTE"))))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Should reject estorno for OPERADOR (role sensível)")
+    void testRegistrarEstorno_ForbiddenForOperador() throws Exception {
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/registrar-estorno", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"forma\": \"PIX\", \"valor\": 100.00, \"observacao\": \"x\"}")
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Should return reservation folio extrato with saldo summary")
+    void testExtratoReserva() throws Exception {
+        pagarReserva(new java.math.BigDecimal("450.00"));
+
+        mockMvc.perform(get("/v1/tenants/{tenantId}/reservas/{id}/extrato", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.lancamentos", hasSize(1)))
+            .andExpect(jsonPath("$.lancamentos[0].tipo").value("PAGAMENTO"))
+            .andExpect(jsonPath("$.totalPagamentos").value(450.00))
+            .andExpect(jsonPath("$.saldo").value(-450.00));
+    }
+
     @Test
     @DisplayName("Should mark NO_SHOW for confirmed reservation with past start time")
     void testMarcarNoShow_Success() throws Exception {

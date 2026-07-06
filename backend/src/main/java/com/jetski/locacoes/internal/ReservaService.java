@@ -14,6 +14,7 @@ import com.jetski.locacoes.domain.ReservaLancamento;
 import com.jetski.locacoes.internal.repository.JetskiRepository;
 import com.jetski.locacoes.internal.repository.ReservaLancamentoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
+import com.jetski.reservas.domain.event.EstornoRegistradoEvent;
 import com.jetski.reservas.domain.event.PagamentoConfirmadoEvent;
 import com.jetski.reservas.domain.event.PagamentoPresencialRegistradoEvent;
 import com.jetski.reservas.domain.event.PagamentoRecusadoEvent;
@@ -823,9 +824,72 @@ public class ReservaService {
     }
 
     /**
+     * Registra ESTORNO (devolução ao cliente) de uma reserva paga — fato de
+     * caixa MANUAL: gravado quando a loja devolve o valor de fato (política de
+     * reembolso é da loja). Não altera status nem pagamentoStatus da reserva;
+     * o extrato do folio conta a história (funciona para CANCELADA/NO_SHOW).
+     */
+    @Transactional
+    public Reserva registrarEstorno(UUID id, ReservaLancamento.Forma forma,
+                                    BigDecimal valor, String observacao) {
+        if (forma == null) {
+            throw new BusinessException("Forma da devolução é obrigatória");
+        }
+        if (valor == null || valor.signum() <= 0) {
+            throw new BusinessException("Valor do estorno deve ser maior que zero");
+        }
+        if (observacao == null || observacao.isBlank()) {
+            throw new BusinessException("Observação é obrigatória no estorno (justificativa da devolução)");
+        }
+
+        Reserva reserva = findById(id);
+        if (reserva.getPagamentoStatus() != PagamentoStatus.CONFIRMADO) {
+            throw new BusinessException("Reserva sem pagamento confirmado — não há o que estornar");
+        }
+
+        // Nunca devolver mais do que entrou (permite estorno parcial e múltiplo)
+        BigDecimal saldoRecebido = BigDecimal.ZERO;
+        for (ReservaLancamento l : reservaLancamentoRepository.findByReservaIdOrderByCreatedAtAsc(id)) {
+            if (l.getTipo() == ReservaLancamento.Tipo.PAGAMENTO) {
+                saldoRecebido = saldoRecebido.add(l.getValor());
+            } else if (l.getTipo() == ReservaLancamento.Tipo.ESTORNO) {
+                saldoRecebido = saldoRecebido.subtract(l.getValor());
+            }
+        }
+        if (valor.compareTo(saldoRecebido) > 0) {
+            throw new BusinessException(String.format(
+                "Estorno de R$ %s excede o valor recebido líquido (R$ %s)", valor, saldoRecebido));
+        }
+
+        UUID usuarioId = TenantContext.getUsuarioId();
+        reservaLancamentoRepository.save(ReservaLancamento.builder()
+            .tenantId(reserva.getTenantId())
+            .reservaId(reserva.getId())
+            .tipo(ReservaLancamento.Tipo.ESTORNO)
+            .forma(forma)
+            .valor(valor)
+            .observacao(observacao)
+            .registradoPor(usuarioId)
+            .build());
+
+        eventPublisher.publishEvent(EstornoRegistradoEvent.of(
+            reserva.getTenantId(), reserva.getId(), forma.name(), valor, observacao, usuarioId));
+
+        log.info("Estorno registrado: reserva={}, forma={}, valor={}", id, forma, valor);
+        return reserva;
+    }
+
+    /** Extrato do folio da reserva (lançamentos ordenados). */
+    @Transactional(readOnly = true)
+    public List<ReservaLancamento> extrato(UUID id) {
+        findById(id); // 404 se não existe no tenant
+        return reservaLancamentoRepository.findByReservaIdOrderByCreatedAtAsc(id);
+    }
+
+    /**
      * Marca a reserva como NO_SHOW (cliente não compareceu) — ação manual do
      * staff, complementar à expiração automática (que só alcança reserva sem
-     * sinal). Não altera o estado de pagamento (estorno é fase 3).
+     * sinal). Não altera o estado de pagamento (estorno é manual/apartado).
      */
     @Transactional
     public Reserva marcarNoShow(UUID id) {

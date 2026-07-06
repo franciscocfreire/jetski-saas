@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Anchor, Loader2 } from 'lucide-react'
+import { Anchor, AlertTriangle, Loader2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -52,6 +52,14 @@ export function EmbarqueDialog({
   })
   const disponiveis = (jetskis ?? []).filter((j) => j.modeloId === modeloId)
 
+  // Pagamento é antes do uso — alerta (sem bloquear) se ainda não registrado.
+  const { data: reserva } = useQuery({
+    queryKey: ['reserva-embarque', reservaId],
+    queryFn: () => reservasService.getById(reservaId),
+    enabled: open && !!reservaId,
+  })
+  const semPagamento = !!reserva && reserva.pagamentoStatus !== 'CONFIRMADO'
+
   const escolher = (id: string) => {
     setJetskiId(id)
     const j = disponiveis.find((x) => x.id === id)
@@ -90,6 +98,15 @@ export function EmbarqueDialog({
           <DialogTitle>Embarcar — check-in</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          {semPagamento && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/30">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                <b>Pagamento não registrado.</b> O pagamento é feito antes do uso — combine o
+                recebimento no balcão (ou registre na devolução).
+              </span>
+            </div>
+          )}
           <div>
             <Label className="text-xs">Jetski</Label>
             <Select value={jetskiId} onValueChange={escolher}>

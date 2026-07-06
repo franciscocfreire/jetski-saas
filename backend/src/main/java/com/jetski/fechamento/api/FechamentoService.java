@@ -9,9 +9,11 @@ import com.jetski.fechamento.domain.FechamentoDiario;
 import com.jetski.fechamento.domain.FechamentoMensal;
 import com.jetski.fechamento.internal.repository.FechamentoDiarioRepository;
 import com.jetski.fechamento.internal.repository.FechamentoMensalRepository;
+import com.jetski.locacoes.api.FolioQueryService;
 import com.jetski.locacoes.api.LocacaoQueryService;
 import com.jetski.locacoes.domain.Locacao;
 import com.jetski.locacoes.api.PresencaVendedorQueryService;
+import com.jetski.tenant.TenantTimeService;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -55,9 +57,11 @@ public class FechamentoService {
     private final FechamentoDiarioRepository fechamentoDiarioRepository;
     private final FechamentoMensalRepository fechamentoMensalRepository;
     private final LocacaoQueryService locacaoQueryService;
+    private final FolioQueryService folioQueryService;
     private final ComissaoQueryService comissaoQueryService;
     private final DespesaOperacionalService despesaOperacionalService;
     private final PresencaVendedorQueryService presencaVendedorQueryService;
+    private final TenantTimeService tenantTimeService;
 
     // ====================
     // Fechamento Diário
@@ -92,9 +96,6 @@ public class FechamentoService {
         int totalLocacoes = locacoes.size();
         BigDecimal totalFaturado = BigDecimal.ZERO;
         BigDecimal totalCombustivel = BigDecimal.ZERO;
-        BigDecimal totalDinheiro = BigDecimal.ZERO;
-        BigDecimal totalCartao = BigDecimal.ZERO;
-        BigDecimal totalPix = BigDecimal.ZERO;
 
         for (Locacao locacao : locacoes) {
             if (locacao.getValorTotal() != null) {
@@ -104,7 +105,29 @@ public class FechamentoService {
             if (locacao.getCombustivelCusto() != null) {
                 totalCombustivel = totalCombustivel.add(locacao.getCombustivelCusto());
             }
-            // TODO: Adicionar campo formaPagamento quando implementar módulo de pagamentos
+        }
+
+        // Totais por forma de pagamento — REGIME DE CAIXA: soma o recebido
+        // líquido (PAGAMENTO − ESTORNO) do folio pela data do LANÇAMENTO, na
+        // janela do dia no fuso do tenant. Difere de totalFaturado, que é por
+        // data do check-out (competência) — a divergência no dia é correta por
+        // design (ex.: reserva paga ontem, passeio hoje). Forma OUTRO fica
+        // fora dos três campos (não corromper a conciliação de maquininha).
+        BigDecimal totalDinheiro = BigDecimal.ZERO;
+        BigDecimal totalCartao = BigDecimal.ZERO;
+        BigDecimal totalPix = BigDecimal.ZERO;
+
+        ZoneId tenantZone = tenantTimeService.getZoneIdForTenant(tenantId);
+        Instant inicioCaixa = data.atStartOfDay(tenantZone).toInstant();
+        Instant fimCaixa = data.plusDays(1).atStartOfDay(tenantZone).toInstant();
+        for (FolioQueryService.TotalPorForma t
+                : folioQueryService.totalRecebidoPorFormaNoDia(tenantId, inicioCaixa, fimCaixa)) {
+            switch (t.forma()) {
+                case DINHEIRO -> totalDinheiro = totalDinheiro.add(t.valor());
+                case PIX -> totalPix = totalPix.add(t.valor());
+                case CARTAO_CREDITO, CARTAO_DEBITO -> totalCartao = totalCartao.add(t.valor());
+                case OUTRO -> { /* fora do split — ver Javadoc acima */ }
+            }
         }
 
         // Buscar comissões do dia

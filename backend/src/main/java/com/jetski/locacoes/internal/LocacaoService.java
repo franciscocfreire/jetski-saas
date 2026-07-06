@@ -16,8 +16,10 @@ import com.jetski.comissoes.api.CommissionService;
 import com.jetski.locacoes.internal.repository.LocacaoItemOpcionalRepository;
 import com.jetski.locacoes.internal.repository.LocacaoRepository;
 import com.jetski.locacoes.internal.repository.PresencaVendedorRepository;
+import com.jetski.locacoes.internal.repository.ReservaLancamentoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
 import com.jetski.locacoes.internal.repository.VendedorRepository;
+import com.jetski.reservas.domain.event.PagamentoLocacaoRegistradoEvent;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -60,6 +62,7 @@ public class LocacaoService {
 
     private final LocacaoRepository locacaoRepository;
     private final ReservaRepository reservaRepository;
+    private final ReservaLancamentoRepository reservaLancamentoRepository;
     private final LocacaoItemOpcionalRepository locacaoItemOpcionalRepository;
     private final FechamentoLockChecker fechamentoLockChecker;
     private final PresencaVendedorRepository presencaVendedorRepository;
@@ -470,6 +473,10 @@ public class LocacaoService {
 
         locacao = locacaoRepository.save(locacao);
 
+        // Folio (fase 3): as cobranças apuradas viram lançamentos derivados
+        // (sem forma), ancorados na locação e — quando houver — na reserva.
+        lancarCobrancas(locacao, valorParaCobranca, combustivelCusto, valorItensOpcionais);
+
         log.info("Check-out completed: locacao={}, used={}min, billable={}min, base={}, fuel={}, optional_items={}, total={}",
                  locacaoId, minutosUsados, minutosFaturaveis, valorBase, combustivelCusto, valorItensOpcionais, valorTotal);
 
@@ -793,6 +800,10 @@ public class LocacaoService {
         // 8. Save
         locacao = locacaoRepository.save(locacao);
 
+        // 8.1 Folio: cobranças são DERIVADAS — relança para refletir os novos
+        // valores (PAGAMENTO/ESTORNO são fatos de caixa e nunca são tocados).
+        relancarCobrancas(locacao);
+
         // 9. Capture new state for audit
         Map<String, Object> dadosNovos = captureLocacaoState(locacao);
 
@@ -1013,5 +1024,122 @@ public class LocacaoService {
 
     private int calculateExpectedDuration(LocalDateTime dataInicio, LocalDateTime dataFimPrevista) {
         return (int) java.time.Duration.between(dataInicio, dataFimPrevista).toMinutes();
+    }
+
+    // ======================= Folio (fase 3) =======================
+
+    private static final List<ReservaLancamento.Tipo> TIPOS_COBRANCA = List.of(
+        ReservaLancamento.Tipo.COBRANCA_ALUGUEL,
+        ReservaLancamento.Tipo.COBRANCA_COMBUSTIVEL,
+        ReservaLancamento.Tipo.COBRANCA_EXTRAS);
+
+    /**
+     * Lança as cobranças apuradas no check-out como lançamentos DERIVADOS
+     * (sem forma), ancorados na locação e — quando houver — na reserva.
+     */
+    private void lancarCobrancas(Locacao locacao, BigDecimal aluguel,
+                                 BigDecimal combustivel, BigDecimal extras) {
+        UUID operadorId = TenantContext.getUsuarioId();
+        cobranca(locacao, ReservaLancamento.Tipo.COBRANCA_ALUGUEL, aluguel, operadorId);
+        cobranca(locacao, ReservaLancamento.Tipo.COBRANCA_COMBUSTIVEL, combustivel, operadorId);
+        cobranca(locacao, ReservaLancamento.Tipo.COBRANCA_EXTRAS, extras, operadorId);
+    }
+
+    private void cobranca(Locacao locacao, ReservaLancamento.Tipo tipo,
+                          BigDecimal valor, UUID operadorId) {
+        if (valor == null || valor.signum() <= 0) {
+            return; // CHECK valor > 0 — cobrança zerada não vira lançamento
+        }
+        reservaLancamentoRepository.save(ReservaLancamento.builder()
+            .tenantId(locacao.getTenantId())
+            .locacaoId(locacao.getId())
+            .reservaId(locacao.getReservaId())
+            .tipo(tipo)
+            .valor(valor)
+            .registradoPor(operadorId)
+            .build());
+    }
+
+    /**
+     * Relança as cobranças derivadas após edição de locação FINALIZADA — os
+     * valores mudaram e o extrato/saldo devem refletir o estado atual.
+     * PAGAMENTO/ESTORNO são fatos de caixa e nunca são tocados.
+     */
+    private void relancarCobrancas(Locacao locacao) {
+        reservaLancamentoRepository.deleteByLocacaoIdAndTipoIn(locacao.getId(), TIPOS_COBRANCA);
+        BigDecimal extras = locacaoItemOpcionalRepository.sumValorCobradoByLocacaoId(locacao.getId());
+        BigDecimal aluguel = locacao.getValorNegociado() != null
+            ? locacao.getValorNegociado()
+            : locacao.getValorBase();
+        lancarCobrancas(locacao, aluguel, locacao.getCombustivelCusto(), extras);
+    }
+
+    /**
+     * Registra um recebimento da locação (acerto do check-out / walk-in):
+     * fato de caixa com forma obrigatória, ancorado na locação e na reserva
+     * (quando houver). Complementa o pagamento antecipado da reserva.
+     */
+    @Transactional
+    public Locacao registrarPagamento(UUID tenantId, UUID locacaoId,
+                                      ReservaLancamento.Forma forma,
+                                      BigDecimal valor, String observacao) {
+        if (forma == null) {
+            throw new BusinessException("Forma de pagamento é obrigatória");
+        }
+        if (valor == null || valor.signum() <= 0) {
+            throw new BusinessException("Valor do pagamento deve ser maior que zero");
+        }
+
+        Locacao locacao = locacaoRepository.findByIdAndTenantId(locacaoId, tenantId)
+            .orElseThrow(() -> new NotFoundException("Locação não encontrada: " + locacaoId));
+        if (!locacao.isFinalizada()) {
+            throw new BusinessException(
+                "Recebimento é registrado no check-out — a locação ainda está em curso");
+        }
+
+        UUID usuarioId = TenantContext.getUsuarioId();
+        reservaLancamentoRepository.save(ReservaLancamento.builder()
+            .tenantId(locacao.getTenantId())
+            .locacaoId(locacao.getId())
+            .reservaId(locacao.getReservaId())
+            .tipo(ReservaLancamento.Tipo.PAGAMENTO)
+            .forma(forma)
+            .valor(valor)
+            .observacao(observacao)
+            .registradoPor(usuarioId)
+            .build());
+
+        eventPublisher.publishEvent(PagamentoLocacaoRegistradoEvent.of(
+            locacao.getTenantId(), locacao.getId(), locacao.getReservaId(),
+            forma.name(), valor, observacao, usuarioId));
+
+        log.info("Pagamento de locação registrado: locacao={}, forma={}, valor={}",
+            locacaoId, forma, valor);
+        return locacao;
+    }
+
+    /**
+     * Extrato do folio da locação: lançamentos da locação + os da reserva de
+     * origem (pagamento antecipado do balcão/portal), deduplicados por id —
+     * as cobranças do check-out carregam as duas âncoras.
+     */
+    @Transactional(readOnly = true)
+    public List<ReservaLancamento> extrato(UUID tenantId, UUID locacaoId) {
+        Locacao locacao = locacaoRepository.findByIdAndTenantId(locacaoId, tenantId)
+            .orElseThrow(() -> new NotFoundException("Locação não encontrada: " + locacaoId));
+
+        Map<UUID, ReservaLancamento> porId = new java.util.LinkedHashMap<>();
+        for (ReservaLancamento l : reservaLancamentoRepository.findByLocacaoIdOrderByCreatedAtAsc(locacaoId)) {
+            porId.put(l.getId(), l);
+        }
+        if (locacao.getReservaId() != null) {
+            for (ReservaLancamento l : reservaLancamentoRepository
+                    .findByReservaIdOrderByCreatedAtAsc(locacao.getReservaId())) {
+                porId.putIfAbsent(l.getId(), l);
+            }
+        }
+        return porId.values().stream()
+            .sorted(java.util.Comparator.comparing(ReservaLancamento::getCreatedAt))
+            .toList();
     }
 }

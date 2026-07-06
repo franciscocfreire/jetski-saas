@@ -58,6 +58,39 @@ class ActionExtractorTest {
         }
 
         @Test
+        @DisplayName("POST .../reservas/{id}/registrar-estorno → reserva:registrar-estorno")
+        void shouldExtractRegistrarEstornoAction() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setMethod("POST");
+            request.setContextPath("/api");
+            request.setRequestURI("/api/v1/tenants/123e4567-e89b-12d3-a456-426614174000/reservas/123e4567-e89b-12d3-a456-426614174000/registrar-estorno");
+
+            assertThat(actionExtractor.extractAction(request)).isEqualTo("reserva:registrar-estorno");
+        }
+
+        @Test
+        @DisplayName("POST .../locacoes/{id}/registrar-pagamento → locacao:registrar-pagamento")
+        void shouldExtractRegistrarPagamentoLocacaoAction() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setMethod("POST");
+            request.setContextPath("/api");
+            request.setRequestURI("/api/v1/tenants/123e4567-e89b-12d3-a456-426614174000/locacoes/123e4567-e89b-12d3-a456-426614174000/registrar-pagamento");
+
+            assertThat(actionExtractor.extractAction(request)).isEqualTo("locacao:registrar-pagamento");
+        }
+
+        @Test
+        @DisplayName("GET .../locacoes/{id}/extrato → locacao:extrato")
+        void shouldExtractExtratoAction() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setMethod("GET");
+            request.setContextPath("/api");
+            request.setRequestURI("/api/v1/tenants/123e4567-e89b-12d3-a456-426614174000/locacoes/123e4567-e89b-12d3-a456-426614174000/extrato");
+
+            assertThat(actionExtractor.extractAction(request)).isEqualTo("locacao:extrato");
+        }
+
+        @Test
         @DisplayName("POST /v1/locacoes → locacao:create")
         void shouldExtractCreateAction() {
             MockHttpServletRequest request = new MockHttpServletRequest();

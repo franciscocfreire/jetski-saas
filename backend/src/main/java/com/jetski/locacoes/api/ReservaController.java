@@ -3,7 +3,9 @@ package com.jetski.locacoes.api;
 import com.jetski.locacoes.api.dto.AlocarJetskiRequest;
 import com.jetski.locacoes.api.dto.ConfirmarSinalRequest;
 import com.jetski.locacoes.api.dto.DisponibilidadeResponse;
+import com.jetski.locacoes.api.dto.FolioExtratoResponse;
 import com.jetski.locacoes.api.dto.RecusarPagamentoRequest;
+import com.jetski.locacoes.api.dto.RegistrarEstornoRequest;
 import com.jetski.locacoes.api.dto.RegistrarPagamentoPresencialRequest;
 import com.jetski.locacoes.api.dto.ReservaCreateRequest;
 import com.jetski.locacoes.api.dto.ReservaResponse;
@@ -444,6 +446,49 @@ public class ReservaController {
 
         Reserva marcada = reservaService.marcarNoShow(id);
         return ResponseEntity.ok(toResponse(marcada));
+    }
+
+    /**
+     * Registra ESTORNO (devolução) de reserva paga — fato de caixa manual
+     * (cancelamento/no-show). Sensível: sem OPERADOR.
+     */
+    @PostMapping("/{id}/registrar-estorno")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'FINANCEIRO')")
+    @Operation(
+        summary = "Registrar estorno (devolução ao cliente)",
+        description = "Registra a devolução do valor de uma reserva paga (cancelamento/no-show). " +
+                      "Manual: gravar quando a loja devolver de fato. Nunca excede o recebido líquido."
+    )
+    public ResponseEntity<ReservaResponse> registrarEstorno(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID da reserva")
+        @PathVariable UUID id,
+        @Valid @RequestBody RegistrarEstornoRequest request
+    ) {
+        log.info("POST /v1/tenants/{}/reservas/{}/registrar-estorno - forma: {}, valor: {}",
+                 tenantId, id, request.getForma(), request.getValor());
+
+        validateTenantContext(tenantId);
+
+        ReservaLancamento.Forma forma = parseFormaPagamento(request.getForma());
+        Reserva reserva = reservaService.registrarEstorno(
+            id, forma, request.getValor(), request.getObservacao());
+        return ResponseEntity.ok(toResponse(reserva));
+    }
+
+    /** Extrato do folio da reserva (pagamentos, estornos e cobranças vinculadas). */
+    @GetMapping("/{id}/extrato")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
+    @Operation(summary = "Extrato financeiro (folio) da reserva")
+    public ResponseEntity<FolioExtratoResponse> extrato(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID da reserva")
+        @PathVariable UUID id
+    ) {
+        validateTenantContext(tenantId);
+        return ResponseEntity.ok(FolioExtratoResponse.from(reservaService.extrato(id)));
     }
 
     private ReservaLancamento.Forma parseFormaPagamento(String forma) {

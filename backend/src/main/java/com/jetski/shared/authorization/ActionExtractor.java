@@ -233,8 +233,8 @@ public class ActionExtractor {
             // Balcão / validação de pagamento (Fase 2)
             "recusar-pagamento", "emitir-documentos", "claim", "reenviar", "habilitacao", "aceite",
             "download",  // Download de documento emitido
-            // Folio da reserva / não comparecimento
-            "registrar-pagamento", "no-show"
+            // Folio (reserva/locação) / não comparecimento
+            "registrar-pagamento", "no-show", "registrar-estorno", "extrato"
         };
 
         for (String subAction : knownSubActions) {
