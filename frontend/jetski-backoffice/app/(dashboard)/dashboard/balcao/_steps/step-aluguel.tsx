@@ -155,9 +155,9 @@ export function StepAluguel({
 
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-4">
         <div>
-          <span className="text-sm text-muted-foreground">Valor do passeio (ilustrativo)</span>
+          <span className="text-sm text-muted-foreground">Valor do passeio (estimado)</span>
           <p className="text-[11px] text-muted-foreground">
-            Cobrado no fim da locação — não é pago agora.
+            Pagamento integral no balcão, antes do embarque — registrado no passo Pagamento.
           </p>
         </div>
         <span className="text-2xl font-bold">R$ {valorIlustrativo.toFixed(2)}</span>

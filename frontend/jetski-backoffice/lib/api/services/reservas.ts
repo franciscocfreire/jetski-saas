@@ -4,6 +4,7 @@ import type {
   ReservaCreateRequest,
   ReservaStatus,
   ConfirmarPagamentoRequest,
+  RegistrarPagamentoReservaRequest,
   ResultadoEmissao,
   PagamentoPendente,
   ReservaComprovante,
@@ -86,6 +87,24 @@ export const reservasService = {
       tipo: req.tipo,
       valorSinal: req.valorPago,
     })
+    return data
+  },
+
+  /**
+   * Registra o pagamento presencial INTEGRAL do balcão (dinheiro/PIX/cartão):
+   * confirma o pagamento e grava o lançamento financeiro da reserva.
+   */
+  async registrarPagamento(id: string, req: RegistrarPagamentoReservaRequest): Promise<Reserva> {
+    const { data } = await apiClient.post<Reserva>(
+      `${getBasePath()}/${id}/registrar-pagamento`,
+      req
+    )
+    return data
+  },
+
+  /** Marca não comparecimento (NO_SHOW) — reserva viva com início já passado. */
+  async marcarNoShow(id: string): Promise<Reserva> {
+    const { data } = await apiClient.post<Reserva>(`${getBasePath()}/${id}/no-show`)
     return data
   },
 

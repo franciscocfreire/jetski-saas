@@ -4,10 +4,12 @@ import com.jetski.locacoes.api.dto.AlocarJetskiRequest;
 import com.jetski.locacoes.api.dto.ConfirmarSinalRequest;
 import com.jetski.locacoes.api.dto.DisponibilidadeResponse;
 import com.jetski.locacoes.api.dto.RecusarPagamentoRequest;
+import com.jetski.locacoes.api.dto.RegistrarPagamentoPresencialRequest;
 import com.jetski.locacoes.api.dto.ReservaCreateRequest;
 import com.jetski.locacoes.api.dto.ReservaResponse;
 import com.jetski.locacoes.api.dto.ReservaUpdateRequest;
 import com.jetski.locacoes.domain.Reserva;
+import com.jetski.locacoes.domain.ReservaLancamento;
 import com.jetski.locacoes.domain.Reserva.ReservaStatus;
 import com.jetski.locacoes.internal.ReservaService;
 import com.jetski.shared.security.TenantContext;
@@ -389,6 +391,69 @@ public class ReservaController {
 
         Reserva recusada = reservaService.recusarPagamento(id, request.getMotivo());
         return ResponseEntity.ok(toResponse(recusada));
+    }
+
+    /**
+     * Registra o pagamento presencial INTEGRAL do balcão (dinheiro/PIX/cartão).
+     * Confirma o pagamento (TOTAL) e grava o lançamento no ledger da reserva.
+     */
+    @PostMapping("/{id}/registrar-pagamento")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
+    @Operation(
+        summary = "Registrar pagamento presencial (balcão)",
+        description = "Registra o pagamento integral recebido no balcão (dinheiro, PIX ou cartão): " +
+                      "confirma o pagamento da reserva e grava o lançamento financeiro (folio)."
+    )
+    public ResponseEntity<ReservaResponse> registrarPagamento(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID da reserva")
+        @PathVariable UUID id,
+        @Valid @RequestBody RegistrarPagamentoPresencialRequest request
+    ) {
+        log.info("POST /v1/tenants/{}/reservas/{}/registrar-pagamento - forma: {}, valor: {}",
+                 tenantId, id, request.getForma(), request.getValor());
+
+        validateTenantContext(tenantId);
+
+        ReservaLancamento.Forma forma = parseFormaPagamento(request.getForma());
+        Reserva paga = reservaService.registrarPagamentoPresencial(
+            id, forma, request.getValor(), request.getObservacao());
+        return ResponseEntity.ok(toResponse(paga));
+    }
+
+    /**
+     * Marca a reserva como NO_SHOW (cliente não compareceu) — ação manual do staff.
+     */
+    @PostMapping("/{id}/no-show")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Marcar não comparecimento (no-show)",
+        description = "Marca a reserva como NO_SHOW quando o cliente não comparece. " +
+                      "Exige status PENDENTE/CONFIRMADA e horário de início já passado."
+    )
+    public ResponseEntity<ReservaResponse> marcarNoShow(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID da reserva")
+        @PathVariable UUID id
+    ) {
+        log.info("POST /v1/tenants/{}/reservas/{}/no-show", tenantId, id);
+
+        validateTenantContext(tenantId);
+
+        Reserva marcada = reservaService.marcarNoShow(id);
+        return ResponseEntity.ok(toResponse(marcada));
+    }
+
+    private ReservaLancamento.Forma parseFormaPagamento(String forma) {
+        try {
+            return ReservaLancamento.Forma.valueOf(forma.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new com.jetski.shared.exception.BusinessException(
+                "Forma de pagamento inválida: " + forma
+                + " (use DINHEIRO, PIX, CARTAO_CREDITO, CARTAO_DEBITO ou OUTRO)");
+        }
     }
 
     private Reserva.PagamentoTipo parsePagamentoTipo(String tipo) {

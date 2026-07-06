@@ -7,7 +7,9 @@ import com.jetski.locacoes.event.ContaAtivadaEvent;
 import com.jetski.locacoes.event.PreContaCriadaEvent;
 import com.jetski.reservas.domain.event.DocumentosEmitidosEvent;
 import com.jetski.reservas.domain.event.PagamentoConfirmadoEvent;
+import com.jetski.reservas.domain.event.PagamentoPresencialRegistradoEvent;
 import com.jetski.reservas.domain.event.PagamentoRecusadoEvent;
+import com.jetski.reservas.domain.event.ReservaNoShowEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -47,6 +49,33 @@ class AuditEventListenerTest {
         assertThat(a.getEntidadeId()).isEqualTo(reserva);
         assertThat(a.getUsuarioId()).isEqualTo(user);
         assertThat(a.getTenantId()).isEqualTo(tenant);
+    }
+
+    @Test
+    @DisplayName("PagamentoPresencialRegistradoEvent → PAGAMENTO_PRESENCIAL_REGISTRADO/RESERVA")
+    void pagamentoPresencialRegistrado() {
+        UUID tenant = UUID.randomUUID(), reserva = UUID.randomUUID(), user = UUID.randomUUID();
+        listener.onPagamentoPresencialRegistrado(
+            PagamentoPresencialRegistradoEvent.of(
+                tenant, reserva, "DINHEIRO", new BigDecimal("600.00"), "balcão", user));
+        Auditoria a = capturarSalva();
+        assertThat(a.getAcao()).isEqualTo("PAGAMENTO_PRESENCIAL_REGISTRADO");
+        assertThat(a.getEntidade()).isEqualTo("RESERVA");
+        assertThat(a.getEntidadeId()).isEqualTo(reserva);
+        assertThat(a.getUsuarioId()).isEqualTo(user);
+        assertThat(a.getDadosNovos()).containsEntry("forma", "DINHEIRO");
+    }
+
+    @Test
+    @DisplayName("ReservaNoShowEvent → RESERVA_NO_SHOW/RESERVA")
+    void reservaNoShow() {
+        UUID tenant = UUID.randomUUID(), reserva = UUID.randomUUID(), user = UUID.randomUUID();
+        listener.onReservaNoShow(ReservaNoShowEvent.of(tenant, reserva, user));
+        Auditoria a = capturarSalva();
+        assertThat(a.getAcao()).isEqualTo("RESERVA_NO_SHOW");
+        assertThat(a.getEntidade()).isEqualTo("RESERVA");
+        assertThat(a.getEntidadeId()).isEqualTo(reserva);
+        assertThat(a.getUsuarioId()).isEqualTo(user);
     }
 
     @Test

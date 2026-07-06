@@ -20,6 +20,7 @@ import { StepDocumentos } from './_steps/step-documentos'
 import { StepAluguel } from './_steps/step-aluguel'
 import { StepHabilitacao } from './_steps/step-habilitacao'
 import { StepTermos } from './_steps/step-termos'
+import { StepPagamento } from './_steps/step-pagamento'
 import { StepEmissao } from './_steps/step-emissao'
 
 const VAZIO: Atendimento = {
@@ -27,11 +28,13 @@ const VAZIO: Atendimento = {
   temCha: false, // padrão: cliente NÃO tem CHA → emite temporária (EMA + GRU)
   habilitacaoResolvida: false,
   aceiteFeito: false,
+  pagamentoRegistrado: false,
 }
 
 // Persistência do progresso do wizard (sobrevive a F5 / recarregamento da aba —
 // ex.: iOS recarrega a página ao voltar do boleto). Por aba (sessionStorage).
-const STORAGE_KEY = 'balcao:wizard:v1'
+// v2: passo "Pagamento" inserido (índices mudaram — não hidratar estado v1).
+const STORAGE_KEY = 'balcao:wizard:v2'
 
 export default function BalcaoPage() {
   return (
@@ -107,6 +110,7 @@ function BalcaoWizard() {
         if (cancel) return
         const habilitacaoResolvida = !!hab?.resolvida
         const aceiteFeito = !!aceite
+        const pagamentoRegistrado = reserva.pagamentoStatus === 'CONFIRMADO'
         setAt({
           cliente,
           reserva,
@@ -116,9 +120,10 @@ function BalcaoWizard() {
           instrutorId: hab?.instrutorId,
           habilitacaoResolvida,
           aceiteFeito,
+          pagamentoRegistrado,
         })
-        // 1º passo pendente: habilitação (2) → termos (4) → emissão (5)
-        setStep(!habilitacaoResolvida ? 2 : !aceiteFeito ? 4 : 5)
+        // 1º passo pendente: habilitação (2) → termos (4) → pagamento (5) → emissão (6)
+        setStep(!habilitacaoResolvida ? 2 : !aceiteFeito ? 4 : !pagamentoRegistrado ? 5 : 6)
       } catch {
         toast.error('Não foi possível retomar o atendimento.')
       } finally {
@@ -239,7 +244,19 @@ function BalcaoWizard() {
           )}
 
           {step === 5 && (
-            <StepEmissao atendimento={at} onBack={() => setStep(4)} onReset={reset} />
+            <StepPagamento
+              atendimento={at}
+              onBack={() => setStep(4)}
+              onDone={(reserva) => {
+                setAt((a) => ({ ...a, reserva, pagamentoRegistrado: true }))
+                setStep(6)
+              }}
+              onSkip={() => setStep(6)}
+            />
+          )}
+
+          {step === 6 && (
+            <StepEmissao atendimento={at} onBack={() => setStep(5)} onReset={reset} />
           )}
         </CardContent>
       </Card>

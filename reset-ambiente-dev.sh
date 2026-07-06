@@ -204,10 +204,10 @@ ALTER TABLE public.reserva
     ADD COLUMN IF NOT EXISTS valor_total               numeric(10,2),
     ADD COLUMN IF NOT EXISTS documento_emitido_em      timestamptz;
 
--- V018: estado RASCUNHO no CHECK de status (idempotente).
+-- V018 + V035: estados RASCUNHO e NO_SHOW no CHECK de status (idempotente).
 ALTER TABLE public.reserva DROP CONSTRAINT IF EXISTS reserva_status_check;
 ALTER TABLE public.reserva ADD CONSTRAINT reserva_status_check
-    CHECK ((status)::text = ANY (ARRAY['RASCUNHO','PENDENTE','CONFIRMADA','CANCELADA','FINALIZADA','EXPIRADA']::varchar[]::text[]));
+    CHECK ((status)::text = ANY (ARRAY['RASCUNHO','PENDENTE','CONFIRMADA','CANCELADA','FINALIZADA','EXPIRADA','NO_SHOW']::varchar[]::text[]));
 
 ALTER TABLE public.cliente
     ADD COLUMN IF NOT EXISTS origem       varchar(20) NOT NULL DEFAULT 'PORTAL',
@@ -282,6 +282,24 @@ ALTER TABLE public.cliente_identity_provider ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cliente_identity_provider FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_cliente_identity_provider ON public.cliente_identity_provider;
 CREATE POLICY tenant_isolation_cliente_identity_provider ON public.cliente_identity_provider USING ((tenant_id = public.get_current_tenant_id()));
+
+-- V035: conta financeira da reserva (folio) — pagamento presencial do balcão
+CREATE TABLE IF NOT EXISTS public.reserva_lancamento (
+    id             uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id      uuid NOT NULL,
+    reserva_id     uuid NOT NULL REFERENCES public.reserva(id) ON DELETE CASCADE,
+    tipo           varchar(20) NOT NULL CHECK (tipo IN ('PAGAMENTO', 'ESTORNO')),
+    forma          varchar(20) NOT NULL CHECK (forma IN ('DINHEIRO', 'PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'OUTRO')),
+    valor          numeric(10,2) NOT NULL CHECK (valor > 0),
+    observacao     text,
+    registrado_por uuid,
+    created_at     timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_reserva_lancamento_reserva ON public.reserva_lancamento (tenant_id, reserva_id);
+ALTER TABLE public.reserva_lancamento ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reserva_lancamento FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_reserva_lancamento ON public.reserva_lancamento;
+CREATE POLICY tenant_isolation_reserva_lancamento ON public.reserva_lancamento USING ((tenant_id = public.get_current_tenant_id()));
 
 -- V025: metering de emissões por tenant (DOCUMENTO/GRU/PREVIA — base p/ cobrança futura)
 CREATE TABLE IF NOT EXISTS public.emissao_uso (

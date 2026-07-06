@@ -232,7 +232,9 @@ public class ActionExtractor {
             "editar-finalizada",  // Editar locação finalizada antes do fechamento
             // Balcão / validação de pagamento (Fase 2)
             "recusar-pagamento", "emitir-documentos", "claim", "reenviar", "habilitacao", "aceite",
-            "download"  // Download de documento emitido
+            "download",  // Download de documento emitido
+            // Folio da reserva / não comparecimento
+            "registrar-pagamento", "no-show"
         };
 
         for (String subAction : knownSubActions) {

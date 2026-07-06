@@ -82,6 +82,10 @@ class CustomerReservaIntegrationTest extends AbstractIntegrationTest {
         // Limpa artefatos deste teste (sub/e-mail fixos)
         jdbc.update("DELETE FROM reserva_comprovante WHERE tenant_id = ?", TENANT_ACME);
         jdbc.update("DELETE FROM reserva WHERE tenant_id = ? AND canal = 'PORTAL'", TENANT_ACME);
+        // Reservas de BALCÃO criadas pelo teste de pagamento presencial (FK → cliente)
+        jdbc.update("DELETE FROM reserva WHERE tenant_id = ? AND cliente_id IN " +
+                    "(SELECT id FROM cliente WHERE tenant_id = ? AND email = 'p1@test.com')",
+                    TENANT_ACME, TENANT_ACME);
         jdbc.update("DELETE FROM cliente_identity_provider WHERE provider_user_id = ?", SUB);
         jdbc.update("DELETE FROM cliente WHERE tenant_id = ? AND email = 'p1@test.com'", TENANT_ACME);
         jdbc.update("DELETE FROM cliente WHERE tenant_id = ? AND documento = '111.222.333-44'", TENANT_ACME);
@@ -253,6 +257,63 @@ class CustomerReservaIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.garantida").value(true))
             .andExpect(jsonPath("$.habilitacaoOk").value(false))
             .andExpect(jsonPath("$.prontaParaCheckin").value(false));
+    }
+
+    // ============================ Balcão × Portal (pagamento presencial) ============================
+
+    @Test
+    @DisplayName("Reserva de BALCÃO sem pagamento aparece como PRESENCIAL (pagamento na loja); paga vira CONFIRMADO; NO_SHOW passa no DTO")
+    void testReservaBalcaoPresencialNoDto() throws Exception {
+        // 1ª reserva de portal cria o Cliente + vínculo com o sub
+        String portalId = criarReserva();
+
+        UUID clienteId = jdbc.queryForObject(
+            "SELECT id FROM cliente WHERE tenant_id = ? AND email = 'p1@test.com'",
+            UUID.class, TENANT_ACME);
+        UUID balcaoId = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO reserva (id, tenant_id, modelo_id, cliente_id, data_inicio, data_fim_prevista,
+                                 status, canal)
+            VALUES (?, ?, ?, ?, now() + interval '1 day', now() + interval '1 day' + interval '2 hours',
+                    'CONFIRMADA', 'BALCAO')
+            """, balcaoId, TENANT_ACME, MODELO_ID, clienteId);
+
+        // Balcão não pago → PRESENCIAL (apresentação: "pagamento na loja")
+        mockMvc.perform(get("/v1/customers/reservas/{id}", balcaoId).with(cliente()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pagamento.status").value("PRESENCIAL"));
+        mockMvc.perform(get("/v1/customers/reservas/{id}/checklist", balcaoId).with(cliente()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pagamentoStatus").value("PRESENCIAL"))
+            .andExpect(jsonPath("$.pagamentoOk").value(false));
+
+        // Reserva de PORTAL não é afetada — segue AGUARDANDO
+        mockMvc.perform(get("/v1/customers/reservas/{id}", portalId).with(cliente()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pagamento.status").value("AGUARDANDO"));
+
+        // Pagamento presencial registrado pelo staff → CONFIRMADO
+        mockMvc.perform(post("/v1/tenants/{t}/reservas/{id}/registrar-pagamento", TENANT_ACME, balcaoId)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"forma\":\"DINHEIRO\",\"valor\":400.00}")
+                .with(admin()))
+            .andExpect(status().isOk());
+        mockMvc.perform(get("/v1/customers/reservas/{id}", balcaoId).with(cliente()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pagamento.status").value("CONFIRMADO"));
+
+        // NO_SHOW visível para o cliente
+        UUID noShowId = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO reserva (id, tenant_id, modelo_id, cliente_id, data_inicio, data_fim_prevista,
+                                 status, canal)
+            VALUES (?, ?, ?, ?, now() - interval '2 hours', now() - interval '1 hour',
+                    'NO_SHOW', 'BALCAO')
+            """, noShowId, TENANT_ACME, MODELO_ID, clienteId);
+        mockMvc.perform(get("/v1/customers/reservas/{id}", noShowId).with(cliente()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("NO_SHOW"));
     }
 
     // ============================ Expiração ============================

@@ -11,9 +11,11 @@ export type Atendimento = {
   temCha: boolean
   /** Instrutor (Atestado 5-B-1) — coletado no Passeio & Preço (EMA). */
   instrutorId?: string
-  // habilitação/aceite/emissão preenchidos nos passos seguintes
+  // habilitação/aceite/pagamento/emissão preenchidos nos passos seguintes
   habilitacaoResolvida: boolean
   aceiteFeito: boolean
+  /** Pagamento presencial integral registrado (ou pulado conscientemente). */
+  pagamentoRegistrado: boolean
 }
 
 export const BALCAO_STEPS = [
@@ -22,5 +24,6 @@ export const BALCAO_STEPS = [
   { key: 'habilitacao', label: 'Habilitação' },
   { key: 'documentos', label: 'Documentos' },
   { key: 'termos', label: 'Termos' },
+  { key: 'pagamento', label: 'Pagamento' },
   { key: 'emissao', label: 'Emissão' },
 ] as const

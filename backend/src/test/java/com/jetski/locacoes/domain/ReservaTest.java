@@ -557,6 +557,70 @@ class ReservaTest {
         assertThat(reserva.deveExpirar()).isFalse();
     }
 
+    // ==================== podeMarcarNoShow() Tests ====================
+
+    @Test
+    @DisplayName("podeMarcarNoShow should return true when CONFIRMADA with past start time")
+    void testPodeMarcarNoShow_True_WhenConfirmadaPassada() {
+        Reserva reserva = Reserva.builder()
+                .ativo(true)
+                .status(Reserva.ReservaStatus.CONFIRMADA)
+                .dataInicio(LocalDateTime.now().minusHours(2))
+                .build();
+
+        assertThat(reserva.podeMarcarNoShow()).isTrue();
+    }
+
+    @Test
+    @DisplayName("podeMarcarNoShow should return false when start time is in the future")
+    void testPodeMarcarNoShow_False_WhenDataFutura() {
+        Reserva reserva = Reserva.builder()
+                .ativo(true)
+                .status(Reserva.ReservaStatus.CONFIRMADA)
+                .dataInicio(LocalDateTime.now().plusHours(2))
+                .build();
+
+        assertThat(reserva.podeMarcarNoShow()).isFalse();
+    }
+
+    @Test
+    @DisplayName("podeMarcarNoShow should return false when CANCELADA")
+    void testPodeMarcarNoShow_False_WhenCancelada() {
+        Reserva reserva = Reserva.builder()
+                .ativo(true)
+                .status(Reserva.ReservaStatus.CANCELADA)
+                .dataInicio(LocalDateTime.now().minusHours(2))
+                .build();
+
+        assertThat(reserva.podeMarcarNoShow()).isFalse();
+    }
+
+    @Test
+    @DisplayName("podeMarcarNoShow should return false when already NO_SHOW")
+    void testPodeMarcarNoShow_False_WhenNoShow() {
+        Reserva reserva = Reserva.builder()
+                .ativo(true)
+                .status(Reserva.ReservaStatus.NO_SHOW)
+                .dataInicio(LocalDateTime.now().minusHours(2))
+                .build();
+
+        assertThat(reserva.podeMarcarNoShow()).isFalse();
+    }
+
+    // ==================== podeConfirmarSinal() — RASCUNHO (balcão) ====================
+
+    @Test
+    @DisplayName("podeConfirmarSinal should return true for RASCUNHO (pagamento presencial antes da emissão)")
+    void testPodeConfirmarSinal_True_WhenRascunho() {
+        Reserva reserva = Reserva.builder()
+                .ativo(true)
+                .sinalPago(false)
+                .status(Reserva.ReservaStatus.RASCUNHO)
+                .build();
+
+        assertThat(reserva.podeConfirmarSinal()).isTrue();
+    }
+
     // ==================== Builder and Defaults Tests ====================
 
     @Test

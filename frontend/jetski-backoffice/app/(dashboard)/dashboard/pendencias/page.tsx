@@ -34,6 +34,7 @@ const statusBadge: Record<ReservaStatus, 'success' | 'warning' | 'secondary'> = 
   CANCELADA: 'secondary',
   FINALIZADA: 'secondary',
   EXPIRADA: 'secondary',
+  NO_SHOW: 'secondary',
 }
 
 const fmtData = (iso: string) =>

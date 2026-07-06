@@ -66,6 +66,9 @@ class ReservaControllerTest extends AbstractIntegrationTest {
     private ReservaRepository reservaRepository;
 
     @Autowired
+    private com.jetski.locacoes.internal.repository.ReservaLancamentoRepository reservaLancamentoRepository;
+
+    @Autowired
     private JetskiRepository jetskiRepository;
 
     @Autowired
@@ -510,6 +513,120 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .content(requestBody)
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_MECANICO"))))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Should register presential payment: CONFIRMADO/TOTAL/ALTA + lançamento no ledger")
+    void testRegistrarPagamentoPresencial_Success() throws Exception {
+        String requestBody = "{\"forma\": \"DINHEIRO\", \"valor\": 600.00, \"observacao\": \"pago no balcão\"}";
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/registrar-pagamento", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody)
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pagamentoStatus").value("CONFIRMADO"))
+            .andExpect(jsonPath("$.pagamentoTipo").value("TOTAL"))
+            .andExpect(jsonPath("$.prioridade").value("ALTA"))
+            .andExpect(jsonPath("$.valorTotal").value(600.00));
+
+        var lancamentos = reservaLancamentoRepository.findByReservaIdOrderByCreatedAtAsc(testReserva.getId());
+        org.assertj.core.api.Assertions.assertThat(lancamentos).hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(lancamentos.get(0).getTipo())
+            .isEqualTo(com.jetski.locacoes.domain.ReservaLancamento.Tipo.PAGAMENTO);
+        org.assertj.core.api.Assertions.assertThat(lancamentos.get(0).getForma())
+            .isEqualTo(com.jetski.locacoes.domain.ReservaLancamento.Forma.DINHEIRO);
+        org.assertj.core.api.Assertions.assertThat(lancamentos.get(0).getValor())
+            .isEqualByComparingTo("600.00");
+    }
+
+    @Test
+    @DisplayName("Should reject invalid forma de pagamento (400)")
+    void testRegistrarPagamentoPresencial_FormaInvalida() throws Exception {
+        String requestBody = "{\"forma\": \"CHEQUE\", \"valor\": 600.00}";
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/registrar-pagamento", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody)
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Should reject presential payment when already paid")
+    void testRegistrarPagamentoPresencial_JaPago() throws Exception {
+        // CHECKs reserva_prioridade_sinal e reserva_sinal_consistency
+        testReserva.setSinalPago(true);
+        testReserva.setPrioridade(Reserva.ReservaPrioridade.ALTA);
+        testReserva.setValorSinal(new BigDecimal("150.00"));
+        testReserva.setSinalPagoEm(java.time.Instant.now());
+        testReserva.setPagamentoStatus(Reserva.PagamentoStatus.CONFIRMADO);
+        reservaRepository.save(testReserva);
+
+        String requestBody = "{\"forma\": \"PIX\", \"valor\": 600.00}";
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/registrar-pagamento", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody)
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Should register presential payment on RASCUNHO (wizard pays before emission)")
+    void testRegistrarPagamentoPresencial_RascunhoAllowed() throws Exception {
+        testReserva.setStatus(ReservaStatus.RASCUNHO);
+        reservaRepository.save(testReserva);
+
+        String requestBody = "{\"forma\": \"CARTAO_CREDITO\", \"valor\": 450.00}";
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/registrar-pagamento", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestBody)
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pagamentoStatus").value("CONFIRMADO"))
+            .andExpect(jsonPath("$.status").value("RASCUNHO"));
+    }
+
+    @Test
+    @DisplayName("Should mark NO_SHOW for confirmed reservation with past start time")
+    void testMarcarNoShow_Success() throws Exception {
+        testReserva.setDataInicio(LocalDateTime.now().minusHours(3));
+        testReserva.setDataFimPrevista(LocalDateTime.now().minusHours(1));
+        reservaRepository.save(testReserva);
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/no-show", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("NO_SHOW"));
+    }
+
+    @Test
+    @DisplayName("Should reject NO_SHOW when start time is in the future")
+    void testMarcarNoShow_DataFutura() throws Exception {
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/no-show", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Should reject NO_SHOW for cancelled reservation")
+    void testMarcarNoShow_Cancelada() throws Exception {
+        testReserva.setDataInicio(LocalDateTime.now().minusHours(3));
+        testReserva.setStatus(ReservaStatus.CANCELADA);
+        reservaRepository.save(testReserva);
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/no-show", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isBadRequest());
     }
 
     @Test

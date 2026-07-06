@@ -253,7 +253,7 @@ public class CustomerReservaService {
 
         return Checklist.builder()
             .emailVerified(emailVerified)
-            .pagamentoStatus(r.getPagamentoStatus() != null ? r.getPagamentoStatus().name() : "AGUARDANDO")
+            .pagamentoStatus(pagamentoStatusCliente(r))
             .pagamentoTipo(r.getPagamentoTipo() != null ? r.getPagamentoTipo().name() : null)
             .pagamentoOk(pagamentoOk)
             .habilitacaoOk(habilitacaoOk)
@@ -570,6 +570,19 @@ public class CustomerReservaService {
         LocalDateTime dataInicio, LocalDateTime dataFimPrevista,
         String status, String observacoes, Pagamento pagamento) {}
 
+    /**
+     * Status de pagamento na visão do CLIENTE. Reserva de balcão sem pagamento
+     * registrado não está "aguardando PIX" — o pagamento é presencial, na loja.
+     * Derivação de apresentação apenas; {@code pagamento_status} persiste intacto.
+     */
+    private String pagamentoStatusCliente(Reserva r) {
+        if (r.getCanal() == Reserva.Canal.BALCAO
+                && r.getPagamentoStatus() == Reserva.PagamentoStatus.AGUARDANDO) {
+            return "PRESENCIAL";
+        }
+        return r.getPagamentoStatus() != null ? r.getPagamentoStatus().name() : "AGUARDANDO";
+    }
+
     private ReservaCliente toDto(Reserva r, Loja loja) {
         Modelo modelo = modeloService.findById(r.getModeloId());
 
@@ -588,7 +601,7 @@ public class CustomerReservaService {
 
         Pagamento pagamento = new Pagamento(
             r.getPagamentoTipo() != null ? r.getPagamentoTipo().name() : null,
-            r.getPagamentoStatus() != null ? r.getPagamentoStatus().name() : "AGUARDANDO",
+            pagamentoStatusCliente(r),
             r.getPagamentoMotivoRecusa(),
             valorTotal, valorSinal, r.getPagamentoValorInformado(),
             loja.pixChave(), pixSinal, pixTotal);

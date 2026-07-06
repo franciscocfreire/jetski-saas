@@ -318,9 +318,25 @@ public class Reserva {
      * @return true if can accept deposit payment
      */
     public boolean podeConfirmarSinal() {
+        // RASCUNHO: o wizard de balcão registra o pagamento presencial ANTES da
+        // emissão (que promove a PENDENTE/CONFIRMADA). Rascunho pago não conta na
+        // capacidade (countReservasGarantidasForModelo só olha PENDENTE/CONFIRMADA);
+        // janela aceitável — a emissão ocorre logo em seguida no próprio wizard.
         return !Boolean.TRUE.equals(sinalPago) &&
                Boolean.TRUE.equals(ativo) &&
-               (status == ReservaStatus.PENDENTE || status == ReservaStatus.CONFIRMADA);
+               (status == ReservaStatus.RASCUNHO
+                   || status == ReservaStatus.PENDENTE
+                   || status == ReservaStatus.CONFIRMADA);
+    }
+
+    /**
+     * Não comparecimento pode ser marcado pelo staff quando a reserva ainda
+     * está viva (PENDENTE/CONFIRMADA) e o horário de início já passou.
+     */
+    public boolean podeMarcarNoShow() {
+        return Boolean.TRUE.equals(ativo) &&
+               (status == ReservaStatus.PENDENTE || status == ReservaStatus.CONFIRMADA) &&
+               dataInicio != null && dataInicio.isBefore(java.time.LocalDateTime.now());
     }
 
     /**
@@ -387,7 +403,15 @@ public class Reserva {
          * Expired due to no-show
          * Customer didn't check-in within grace period after start time
          */
-        EXPIRADA
+        EXPIRADA,
+
+        /**
+         * Cliente não compareceu — marcado MANUALMENTE pelo staff.
+         * Difere de EXPIRADA: a expiração é automática (job) e só alcança
+         * reserva SEM sinal ({@link #deveExpirar}); NO_SHOW cobre também as
+         * garantidas/pagas. Não altera pagamento_status (estorno é fase 3).
+         */
+        NO_SHOW
     }
 
     /**

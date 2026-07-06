@@ -178,6 +178,7 @@ export type ReservaStatus =
   | 'CANCELADA'
   | 'FINALIZADA'
   | 'EXPIRADA'
+  | 'NO_SHOW'
 export type ReservaPrioridade = 'ALTA' | 'BAIXA'
 export type PagamentoTipo = 'SINAL' | 'TOTAL'
 export type PagamentoStatus = 'AGUARDANDO' | 'EM_ANALISE' | 'CONFIRMADO' | 'RECUSADO'
@@ -242,6 +243,16 @@ export interface ReservaComprovante {
 export interface ConfirmarPagamentoRequest {
   tipo: PagamentoTipo
   valorPago?: number
+}
+
+/** Forma do pagamento presencial de reserva (balcão) — não confundir com TipoPagamento de vendedores. */
+export type FormaPagamento = 'DINHEIRO' | 'PIX' | 'CARTAO_CREDITO' | 'CARTAO_DEBITO' | 'OUTRO'
+
+/** Pagamento presencial de RESERVA (há um RegistrarPagamentoRequest de vendedores mais abaixo). */
+export interface RegistrarPagamentoReservaRequest {
+  forma: FormaPagamento
+  valor: number
+  observacao?: string
 }
 
 export interface RecusarPagamentoRequest {

@@ -126,7 +126,19 @@ export default function PagamentoPage() {
         confirma e sua reserva fica garantida.
       </p>
 
-      {pg.status === "CONFIRMADO" ? (
+      {pg.status === "PRESENCIAL" ? (
+        <Card className="mt-6 flex flex-col items-center gap-3 p-8 text-center">
+          <CheckCircle2 className="text-slate-400" size={44} />
+          <h2 className="text-lg font-semibold text-ink-900">Pagamento na loja</h2>
+          <p className="text-sm text-slate-500">
+            Esta reserva foi feita no balcão — o pagamento é feito diretamente na
+            loja (dinheiro, PIX ou cartão). Não há nada a pagar pelo portal.
+          </p>
+          <Button href={`/conta/reservas/${id}`} variant="outline">
+            Voltar para a reserva
+          </Button>
+        </Card>
+      ) : pg.status === "CONFIRMADO" ? (
         <Card className="mt-6 flex flex-col items-center gap-3 p-8 text-center">
           <CheckCircle2 className="text-emerald-500" size={44} />
           <h2 className="text-lg font-semibold text-ink-900">Pagamento confirmado</h2>

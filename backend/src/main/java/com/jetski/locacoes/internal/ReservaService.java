@@ -10,10 +10,14 @@ import com.jetski.locacoes.domain.Reserva.PagamentoTipo;
 import com.jetski.locacoes.domain.Reserva.ReservaPrioridade;
 import com.jetski.locacoes.domain.Reserva.ReservaStatus;
 import com.jetski.locacoes.domain.ReservaConfig;
+import com.jetski.locacoes.domain.ReservaLancamento;
 import com.jetski.locacoes.internal.repository.JetskiRepository;
+import com.jetski.locacoes.internal.repository.ReservaLancamentoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
 import com.jetski.reservas.domain.event.PagamentoConfirmadoEvent;
+import com.jetski.reservas.domain.event.PagamentoPresencialRegistradoEvent;
 import com.jetski.reservas.domain.event.PagamentoRecusadoEvent;
+import com.jetski.reservas.domain.event.ReservaNoShowEvent;
 import com.jetski.reservas.domain.event.ReservationCancelledEvent;
 import com.jetski.reservas.domain.event.ReservationConfirmedEvent;
 import com.jetski.reservas.domain.event.ReservationCreatedEvent;
@@ -64,6 +68,7 @@ import java.util.UUID;
 public class ReservaService {
 
     private final ReservaRepository reservaRepository;
+    private final ReservaLancamentoRepository reservaLancamentoRepository;
     private final JetskiService jetskiService;
     private final ClienteService clienteService;
     private final ModeloService modeloService;
@@ -778,6 +783,69 @@ public class ReservaService {
         eventPublisher.publishEvent(PagamentoConfirmadoEvent.of(
             saved.getTenantId(), saved.getId(), tipoPagamento.name(), valorPago, usuarioId));
 
+        return saved;
+    }
+
+    /**
+     * Registra o pagamento presencial INTEGRAL do balcão (dinheiro/PIX/cartão).
+     *
+     * <p>Delega os efeitos de estado a {@link #confirmarPagamento} (TOTAL) e,
+     * na mesma transação, grava o lançamento no ledger {@code reserva_lancamento}
+     * (forma de pagamento — base do fechamento por forma na fase 3) e publica
+     * {@link PagamentoPresencialRegistradoEvent} para auditoria.
+     */
+    @Transactional
+    public Reserva registrarPagamentoPresencial(UUID id, ReservaLancamento.Forma forma,
+                                                BigDecimal valor, String observacao) {
+        if (forma == null) {
+            throw new BusinessException("Forma de pagamento é obrigatória");
+        }
+
+        Reserva saved = confirmarPagamento(id, PagamentoTipo.TOTAL, valor);
+
+        UUID usuarioId = TenantContext.getUsuarioId();
+        reservaLancamentoRepository.save(ReservaLancamento.builder()
+            .tenantId(saved.getTenantId())
+            .reservaId(saved.getId())
+            .tipo(ReservaLancamento.Tipo.PAGAMENTO)
+            .forma(forma)
+            .valor(valor)
+            .observacao(observacao)
+            .registradoPor(usuarioId)
+            .build());
+
+        eventPublisher.publishEvent(PagamentoPresencialRegistradoEvent.of(
+            saved.getTenantId(), saved.getId(), forma.name(), valor, observacao, usuarioId));
+
+        log.info("Pagamento presencial registrado: reserva={}, forma={}, valor={}",
+            saved.getId(), forma, valor);
+        return saved;
+    }
+
+    /**
+     * Marca a reserva como NO_SHOW (cliente não compareceu) — ação manual do
+     * staff, complementar à expiração automática (que só alcança reserva sem
+     * sinal). Não altera o estado de pagamento (estorno é fase 3).
+     */
+    @Transactional
+    public Reserva marcarNoShow(UUID id) {
+        Reserva reserva = findById(id);
+
+        if (!reserva.podeMarcarNoShow()) {
+            throw new BusinessException(
+                String.format("Não é possível marcar não comparecimento (status=%s, início=%s)",
+                              reserva.getStatus(), reserva.getDataInicio())
+            );
+        }
+
+        reserva.setStatus(ReservaStatus.NO_SHOW);
+        Reserva saved = reservaRepository.save(reserva);
+
+        UUID usuarioId = TenantContext.getUsuarioId();
+        eventPublisher.publishEvent(ReservaNoShowEvent.of(
+            saved.getTenantId(), saved.getId(), usuarioId));
+
+        log.info("Reserva marcada como NO_SHOW: id={}, por={}", saved.getId(), usuarioId);
         return saved;
     }
 

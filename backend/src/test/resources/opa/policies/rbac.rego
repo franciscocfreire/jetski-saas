@@ -44,6 +44,8 @@ role_permissions := {
         "reserva:alocar-jetski",
         "reserva:confirmar-sinal",
         "reserva:recusar-pagamento",
+        "reserva:registrar-pagamento",
+        "reserva:no-show",
         "reserva:emitir-documentos",
         "reserva:habilitacao",
         "reserva:aceite",
@@ -100,7 +102,8 @@ role_permissions := {
         "reserva:view",
         "reserva:list",
         "reserva:confirmar-sinal",
-        "reserva:recusar-pagamento"
+        "reserva:recusar-pagamento",
+        "reserva:registrar-pagamento"
     ],
 
     "MECANICO": [

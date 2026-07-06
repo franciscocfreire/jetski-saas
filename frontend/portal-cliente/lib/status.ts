@@ -21,6 +21,8 @@ export function statusReserva(r: {
       return { label: "Cancelada", tone: "red" };
     case "EXPIRADA":
       return { label: "Expirada", tone: "slate" };
+    case "NO_SHOW":
+      return { label: "Não compareceu", tone: "slate" };
     case "FINALIZADA":
       return { label: "Concluída", tone: "slate" };
   }
@@ -31,6 +33,8 @@ export function statusReserva(r: {
       return { label: "Pagamento em análise", tone: "amber" };
     case "RECUSADO":
       return { label: "Pagamento recusado", tone: "red" };
+    case "PRESENCIAL":
+      return { label: "Pagamento na loja", tone: "slate" };
     default:
       return { label: "Aguardando pagamento", tone: "amber" };
   }

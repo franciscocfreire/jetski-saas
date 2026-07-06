@@ -108,11 +108,20 @@ export default function ReservaDetailPage() {
               {fmtDateTime(reserva.dataInicio)} · {horas}h
             </p>
             <p className="mt-1 text-sm">
-              <span className="text-slate-500">
-                {pg.tipo === "TOTAL" ? "Total: " : "Sinal: "}
-              </span>
-              <b>{brl(pg.tipo === "TOTAL" ? pg.valorTotal : pg.valorSinal)}</b>
-              <span className="text-slate-400"> · estimado {brl(pg.valorTotal)}</span>
+              {pg.status === "PRESENCIAL" ? (
+                <>
+                  <span className="text-slate-500">Pagamento na loja · </span>
+                  <span className="text-slate-400">estimado {brl(pg.valorTotal)}</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-slate-500">
+                    {pg.tipo === "TOTAL" ? "Total: " : "Sinal: "}
+                  </span>
+                  <b>{brl(pg.tipo === "TOTAL" ? pg.valorTotal : pg.valorSinal)}</b>
+                  <span className="text-slate-400"> · estimado {brl(pg.valorTotal)}</span>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -147,21 +156,29 @@ export default function ReservaDetailPage() {
             desc: `${reserva.modeloNome} · ${fmtDateTime(reserva.dataInicio)}`,
             estado: "ok",
           },
-          {
-            titulo: pg.tipo === "TOTAL" ? "Pagamento (valor total)" : "Pagamento (sinal 30%)",
-            desc:
-              pg.status === "RECUSADO"
-                ? `Recusado: ${pg.motivoRecusa ?? "confira o valor"} — reenvie o comprovante`
-                : pg.status === "EM_ANALISE"
-                  ? "Comprovante em análise pela loja"
-                  : pg.status === "CONFIRMADO"
-                    ? "Pagamento confirmado pela loja"
-                    : "PIX com QR de valor exato",
-            estado: estadoPagamento,
-            icone: <CreditCard size={16} />,
-            href: `/conta/reservas/${reserva.id}/pagamento`,
-            alerta: pg.status === "RECUSADO",
-          },
+          pg.status === "PRESENCIAL"
+            ? {
+                titulo: "Pagamento na loja",
+                desc: "Pague no balcão no dia do passeio — dinheiro, PIX ou cartão",
+                estado: "pendente" as const,
+                icone: <CreditCard size={16} />,
+                // sem href: não há nada a "resolver" pelo portal
+              }
+            : {
+                titulo: pg.tipo === "TOTAL" ? "Pagamento (valor total)" : "Pagamento (sinal 30%)",
+                desc:
+                  pg.status === "RECUSADO"
+                    ? `Recusado: ${pg.motivoRecusa ?? "confira o valor"} — reenvie o comprovante`
+                    : pg.status === "EM_ANALISE"
+                      ? "Comprovante em análise pela loja"
+                      : pg.status === "CONFIRMADO"
+                        ? "Pagamento confirmado pela loja"
+                        : "PIX com QR de valor exato",
+                estado: estadoPagamento,
+                icone: <CreditCard size={16} />,
+                href: `/conta/reservas/${reserva.id}/pagamento`,
+                alerta: pg.status === "RECUSADO",
+              },
           {
             titulo: "Termos e responsabilidade",
             desc: checklist.termosOk

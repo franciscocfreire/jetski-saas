@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Save,
   Upload,
+  UserX,
   X,
   Ban,
 } from 'lucide-react'
@@ -31,8 +32,24 @@ import {
 } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { habilitacaoService, aceiteService, reservasService, clientesService } from '@/lib/api/services'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
@@ -40,7 +57,7 @@ import { PixQrCode } from '@/components/pix-qrcode'
 import { waHref } from '@/components/whatsapp-link'
 import { abrirPdfBlob } from '@/lib/pdf'
 import { DocumentoPreviewButtons } from '@/components/documento-preview-buttons'
-import type { Reserva } from '@/lib/api/types'
+import type { FormaPagamento, Reserva } from '@/lib/api/types'
 
 /** Glifo da marca WhatsApp (lucide não traz ícones de marca). */
 function WhatsAppGlyph({ className }: { className?: string }) {
@@ -146,6 +163,40 @@ export function ReservaDetailSheet({
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
       toast.error(msg ?? 'Falha ao cancelar a reserva.')
+    },
+  })
+
+  // Pagamento presencial (balcão) — dialog forma+valor
+  const [pagOpen, setPagOpen] = useState(false)
+  const [pagForma, setPagForma] = useState<FormaPagamento>('DINHEIRO')
+  const [pagValor, setPagValor] = useState('')
+  const registrarPagamento = useMutation({
+    mutationFn: () =>
+      reservasService.registrarPagamento(reservaId!, {
+        forma: pagForma,
+        valor: Number(pagValor),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reservas'] })
+      setPagOpen(false)
+      toast.success('Pagamento registrado — reserva paga.')
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ?? 'Falha ao registrar o pagamento.')
+    },
+  })
+
+  const marcarNoShow = useMutation({
+    mutationFn: () => reservasService.marcarNoShow(reservaId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reservas'] })
+      toast.success('Reserva marcada como não comparecimento.')
+      onOpenChange(false)
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ?? 'Falha ao marcar não comparecimento.')
     },
   })
 
@@ -291,8 +342,23 @@ export function ReservaDetailSheet({
           <Badge variant={online ? 'default' : 'secondary'}>
             {online ? 'Portal' : 'Balcão'}
           </Badge>
-          <Badge variant={reserva.status === 'CONFIRMADA' ? 'success' : 'warning'}>
-            {reserva.status}
+          <Badge
+            variant={
+              reserva.status === 'CONFIRMADA'
+                ? 'success'
+                : reserva.status === 'NO_SHOW'
+                  ? 'secondary'
+                  : 'warning'
+            }
+          >
+            {reserva.status === 'NO_SHOW' ? 'Não compareceu' : reserva.status}
+          </Badge>
+          <Badge variant={reserva.pagamentoStatus === 'CONFIRMADO' ? 'success' : 'secondary'}>
+            {reserva.pagamentoStatus === 'CONFIRMADO'
+              ? 'Pago'
+              : online
+                ? 'Aguardando sinal'
+                : 'Pagamento na loja'}
           </Badge>
           {reserva.jetski?.serie && <Badge variant="outline">Jetski {reserva.jetski.serie}</Badge>}
         </div>
@@ -309,6 +375,89 @@ export function ReservaDetailSheet({
             Retomar atendimento
           </Button>
         )}
+
+        {!online && editavel && reserva.pagamentoStatus !== 'CONFIRMADO' && (
+          <Dialog open={pagOpen} onOpenChange={setPagOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="mt-2 w-full">
+                <Receipt className="mr-2 h-4 w-4" />
+                Registrar pagamento
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Registrar pagamento presencial</DialogTitle>
+                <DialogDescription>
+                  Pagamento integral recebido no balcão. O valor informado é o efetivamente
+                  cobrado.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3">
+                <div>
+                  <Label className="text-xs">Forma de pagamento</Label>
+                  <Select value={pagForma} onValueChange={(v) => setPagForma(v as FormaPagamento)}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                      <SelectItem value="PIX">PIX</SelectItem>
+                      <SelectItem value="CARTAO_CREDITO">Cartão de crédito</SelectItem>
+                      <SelectItem value="CARTAO_DEBITO">Cartão de débito</SelectItem>
+                      <SelectItem value="OUTRO">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Valor cobrado (R$)</Label>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={pagValor}
+                    onChange={(e) => setPagValor(e.target.value)}
+                    className="h-9"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  disabled={!(Number(pagValor) > 0) || registrarPagamento.isPending}
+                  onClick={() => registrarPagamento.mutate()}
+                >
+                  {registrarPagamento.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Confirmar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {(reserva.status === 'PENDENTE' || reserva.status === 'CONFIRMADA') &&
+          new Date(reserva.dataInicio) < new Date() && (
+            <Button
+              variant="outline"
+              className="mt-2 w-full"
+              disabled={marcarNoShow.isPending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Marcar não comparecimento de ${reserva.cliente?.nome ?? 'cliente'}? A reserva sai da agenda.`
+                  )
+                )
+                  marcarNoShow.mutate()
+              }}
+            >
+              {marcarNoShow.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <UserX className="mr-2 h-4 w-4" />
+              )}
+              Marcar não comparecimento
+            </Button>
+          )}
 
         {editavel && (
           <Button
