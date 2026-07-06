@@ -29,6 +29,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -167,6 +168,17 @@ class CustomerEmaIntegrationTest extends AbstractIntegrationTest {
                     """.formatted(PNG_B64))
                 .with(cliente()))
             .andExpect(status().isBadRequest());
+
+        // Preview: o cliente vê a imagem que enviou (GET /anexos/{tipo})
+        mockMvc.perform(get("/v1/customers/reservas/{id}/ema/anexos/IDENTIDADE", id)
+                .with(cliente()))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Content-Type", "image/png"));
+
+        // Tipo ainda não anexado → 404
+        mockMvc.perform(get("/v1/customers/reservas/{id}/ema/anexos/COMPROVANTE_RESIDENCIA", id)
+                .with(cliente()))
+            .andExpect(status().isNotFound());
     }
 
     @Test

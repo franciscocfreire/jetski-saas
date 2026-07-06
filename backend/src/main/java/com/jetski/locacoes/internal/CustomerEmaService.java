@@ -141,6 +141,27 @@ public class CustomerEmaService {
 
     @Transactional
     public List<String> uploadAnexo(String sub, UUID reservaId, String tipo, String conteudoBase64) {
+        ClienteAnexo.Tipo t = parseTipoAnexo(tipo);
+        Cliente c = clienteDaReserva(sub, reservaId);
+        clienteAnexoService.salvar(c.getId(), t, conteudoBase64);
+        log.info("Anexo {} enviado pelo cliente no portal: cliente={}", t, c.getId());
+        return anexos(sub, reservaId);
+    }
+
+    /** Imagem do anexo do PRÓPRIO cliente (preview no portal). */
+    public record AnexoImagem(byte[] bytes, String contentType) {}
+
+    @Transactional(readOnly = true)
+    public AnexoImagem lerAnexo(String sub, UUID reservaId, String tipo) {
+        ClienteAnexo.Tipo t = parseTipoAnexo(tipo);
+        Cliente c = clienteDaReserva(sub, reservaId);
+        ClienteAnexo anexo = clienteAnexoService.buscar(c.getId(), t)
+            .orElseThrow(() -> new com.jetski.shared.exception.NotFoundException(
+                "Documento ainda não anexado"));
+        return new AnexoImagem(clienteAnexoService.lerImagem(anexo), anexo.getContentType());
+    }
+
+    private static ClienteAnexo.Tipo parseTipoAnexo(String tipo) {
         ClienteAnexo.Tipo t;
         try {
             t = ClienteAnexo.Tipo.valueOf(tipo.trim().toUpperCase());
@@ -150,10 +171,7 @@ public class CustomerEmaService {
         if (!TIPOS_PERMITIDOS.contains(t)) {
             throw new BusinessException("Tipo de documento não permitido pelo portal");
         }
-        Cliente c = clienteDaReserva(sub, reservaId);
-        clienteAnexoService.salvar(c.getId(), t, conteudoBase64);
-        log.info("Anexo {} enviado pelo cliente no portal: cliente={}", t, c.getId());
-        return anexos(sub, reservaId);
+        return t;
     }
 
     // ============================ Flags EMA (videoaula/declarações) ============================

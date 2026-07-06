@@ -432,6 +432,18 @@ export async function uploadAnexoEma(
   return res.json();
 }
 
+/** Imagem do anexo já enviado (object URL para preview). */
+export async function getAnexoEma(
+  token: string, id: string,
+  tipo: "IDENTIDADE" | "SELFIE" | "COMPROVANTE_RESIDENCIA"
+): Promise<string> {
+  const res = await fetch(`${emaBase(id)}/anexos/${tipo}`, {
+    headers: authHeaders(token), cache: "no-store",
+  });
+  if (!res.ok) await parseError(res);
+  return URL.createObjectURL(await res.blob());
+}
+
 export async function putEmaFlags(token: string, id: string, flags: {
   videoaulaAssistida?: boolean; anexoSaude?: boolean; anexoRegras?: boolean;
   anexoResidencia?: boolean; usaLentes?: boolean; usaAparelho?: boolean;

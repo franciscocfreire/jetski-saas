@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { maskCpf } from "@/lib/masks";
 import { PhoneInput } from "@/components/PhoneInput";
 import { useSession } from "next-auth/react";
 import {
+  Camera,
   CheckCircle2,
   Circle,
   ChevronDown,
@@ -24,6 +25,7 @@ import {
   getDadosPessoais,
   putDadosPessoais,
   uploadAnexoEma,
+  getAnexoEma,
   putEmaFlags,
   gerarGruPix,
   verificarGru,
@@ -254,26 +256,60 @@ function PassoDados({ token, reservaId, onSalvo }:
 
 // ============================ Passo 2 — Documentos ============================
 
-function UploadTile({ rotulo, presente, onFile }:
-  { rotulo: string; presente: boolean; onFile: (dataUrl: string) => void }) {
+function UploadTile({ rotulo, presente, previewUrl, camera = "environment", onFile }: {
+  rotulo: string; presente: boolean; previewUrl?: string;
+  /** "user" = câmera frontal (selfie); "environment" = traseira (documentos). */
+  camera?: "user" | "environment";
+  onFile: (dataUrl: string) => void;
+}) {
   const [lendo, setLendo] = useState(false);
+  const arquivoRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  function lerArquivo(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = ""; // permite reescolher o mesmo arquivo
+    if (!f || f.size > 5 * 1024 * 1024) return;
+    setLendo(true);
+    const r = new FileReader();
+    r.onload = () => { onFile(r.result as string); setLendo(false); };
+    r.readAsDataURL(f);
+  }
+
   return (
-    <label className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border-2 border-dashed p-4 text-center text-sm ${
-      presente ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-slate-50 text-slate-600 hover:border-brand-400"
+    <div className={`flex flex-col items-center gap-1.5 rounded-xl border-2 border-dashed p-4 text-center text-sm ${
+      presente ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-slate-50 text-slate-600"
     }`}>
-      {presente ? <CheckCircle2 size={22} /> : lendo ? <Loader2 size={22} className="animate-spin" /> : <UploadCloud size={22} className="text-slate-400" />}
+      {previewUrl ? (
+        <img src={previewUrl} alt={rotulo}
+          className="h-28 w-full rounded-lg object-cover" />
+      ) : presente ? (
+        <CheckCircle2 size={22} />
+      ) : lendo ? (
+        <Loader2 size={22} className="animate-spin" />
+      ) : (
+        <UploadCloud size={22} className="text-slate-400" />
+      )}
       {rotulo}
-      <span className="text-xs opacity-70">{presente ? "Enviado — toque para substituir" : "JPEG/PNG até 5 MB"}</span>
-      <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (!f || f.size > 5 * 1024 * 1024) return;
-          setLendo(true);
-          const r = new FileReader();
-          r.onload = () => { onFile(r.result as string); setLendo(false); };
-          r.readAsDataURL(f);
-        }} />
-    </label>
+      <span className="text-xs opacity-70">
+        {presente ? "Enviado — tire ou envie outra para substituir" : "JPEG/PNG até 5 MB"}
+      </span>
+      <div className="mt-1 flex gap-2">
+        <button type="button" onClick={() => cameraRef.current?.click()}
+          className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-400">
+          <Camera size={13} /> Tirar foto
+        </button>
+        <button type="button" onClick={() => arquivoRef.current?.click()}
+          className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-400">
+          <UploadCloud size={13} /> Enviar arquivo
+        </button>
+      </div>
+      {/* capture abre a câmera direto no celular; no desktop cai no seletor de arquivo */}
+      <input ref={cameraRef} type="file" accept="image/*" capture={camera}
+        className="hidden" onChange={lerArquivo} />
+      <input ref={arquivoRef} type="file" accept="image/jpeg,image/png,image/webp"
+        className="hidden" onChange={lerArquivo} />
+    </div>
   );
 }
 
@@ -285,10 +321,25 @@ function PassoDocumentos({ token, reservaId, estado, onMudou, onConcluido }: {
     estado.anexosPresentes.includes("COMPROVANTE_RESIDENCIA") || !estado.anexoResidencia);
   const [erro, setErro] = useState<string | null>(null);
 
+  // Miniaturas dos documentos já enviados (o cliente vê o que anexou).
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+  useEffect(() => {
+    (["IDENTIDADE", "SELFIE", "COMPROVANTE_RESIDENCIA"] as const).forEach((tipo) => {
+      if (estado.anexosPresentes.includes(tipo) && !previews[tipo]) {
+        getAnexoEma(token, reservaId, tipo)
+          .then((url) => setPreviews((p) => ({ ...p, [tipo]: url })))
+          .catch(() => { /* sem preview — o tile mostra só o check */ });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estado.anexosPresentes]);
+
   async function enviar(tipo: "IDENTIDADE" | "SELFIE" | "COMPROVANTE_RESIDENCIA", dataUrl: string) {
     setErro(null);
     try {
       await uploadAnexoEma(token, reservaId, tipo, dataUrl);
+      // preview imediato com a própria imagem escolhida (sem refetch)
+      setPreviews((p) => ({ ...p, [tipo]: dataUrl }));
       onMudou();
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "Não foi possível enviar.");
@@ -309,8 +360,10 @@ function PassoDocumentos({ token, reservaId, estado, onMudou, onConcluido }: {
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <UploadTile rotulo="Identidade (RG/CNH)" presente={estado.anexosPresentes.includes("IDENTIDADE")}
+          previewUrl={previews.IDENTIDADE}
           onFile={(d) => enviar("IDENTIDADE", d)} />
         <UploadTile rotulo="Selfie segurando o documento" presente={estado.anexosPresentes.includes("SELFIE")}
+          previewUrl={previews.SELFIE} camera="user"
           onFile={(d) => enviar("SELFIE", d)} />
       </div>
 
@@ -330,6 +383,7 @@ function PassoDocumentos({ token, reservaId, estado, onMudou, onConcluido }: {
           <div className="mt-3">
             <UploadTile rotulo="Comprovante de residência"
               presente={estado.anexosPresentes.includes("COMPROVANTE_RESIDENCIA")}
+              previewUrl={previews.COMPROVANTE_RESIDENCIA}
               onFile={(d) => enviar("COMPROVANTE_RESIDENCIA", d)} />
           </div>
         ) : (

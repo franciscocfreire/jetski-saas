@@ -91,6 +91,17 @@ public class CustomerEmaController {
         return ResponseEntity.ok(customerEmaService.anexos(jwt.getSubject(), id));
     }
 
+    @GetMapping("/anexos/{tipo}")
+    @Operation(summary = "Imagem do documento anexado (preview do próprio cliente)")
+    public ResponseEntity<byte[]> anexoImagem(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @PathVariable String tipo) {
+        CustomerEmaService.AnexoImagem img = customerEmaService.lerAnexo(jwt.getSubject(), id, tipo);
+        return ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType(
+                img.contentType() != null ? img.contentType() : "image/jpeg"))
+            .body(img.bytes());
+    }
+
     @PostMapping("/anexos")
     @Operation(summary = "Anexa documento (IDENTIDADE | SELFIE | COMPROVANTE_RESIDENCIA)")
     public ResponseEntity<List<String>> uploadAnexo(
