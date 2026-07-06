@@ -43,6 +43,28 @@ export function StepEmissao({
     enabled: !atendimento.temCha,
   })
 
+  // O estado "emitido" vive na reserva (documento_emitido_em), não no wizard:
+  // ao sair e voltar (sessionStorage rehidrata reserva antiga), consulta fresca
+  // evita mostrar o form de novo — reemissão reenviaria à Marinha e debitaria crédito.
+  const reservaId = atendimento.reserva?.id
+  const { data: reservaAtual, isLoading: conferindoEmissao } = useQuery({
+    queryKey: ['reserva-emissao', reservaId],
+    queryFn: () => reservasService.getById(reservaId!),
+    enabled: !!reservaId && !resultado,
+  })
+  const jaEmitida = !resultado && !!reservaAtual?.documentoEmitidoEm
+  const { data: documentosCliente } = useQuery({
+    queryKey: ['documentos-reserva', reservaId],
+    queryFn: () => documentosService.list(atendimento.cliente!.id),
+    enabled: jaEmitida && !!atendimento.cliente?.id,
+  })
+  const docEmitido = documentosCliente?.find((d) => d.reservaId === reservaId)
+  const { data: habEmitida } = useQuery({
+    queryKey: ['habilitacao', reservaId],
+    queryFn: () => habilitacaoService.get(reservaId!),
+    enabled: jaEmitida,
+  })
+
   async function escolherInstrutor(id: string) {
     setInstrutorId(id)
     if (!atendimento.reserva) return
@@ -152,6 +174,62 @@ export function StepEmissao({
         </div>
       </div>
     )
+  }
+
+  // Reserva já emitida (retomada/volta ao wizard): mostra o estado concluído —
+  // sem oferecer nova emissão.
+  if (jaEmitida) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center gap-2 text-emerald-600">
+          <CheckCircle2 className="h-6 w-6" />
+          <span className="text-lg font-semibold">Documentos já emitidos</span>
+        </div>
+
+        <div className="space-y-2 rounded-lg border p-4 text-sm">
+          <p className="text-muted-foreground">
+            Emitidos em{' '}
+            <strong className="text-foreground">
+              {new Date(reservaAtual!.documentoEmitidoEm!).toLocaleString('pt-BR')}
+            </strong>
+            {atendimento.temCha && ' · habilitação por CHA — sem envio à Marinha'}
+          </p>
+          {habEmitida?.gruNumero && (
+            <p className="text-muted-foreground">
+              GRU {habEmitida.gruNumero}
+              {habEmitida.gruValor ? ` — R$ ${habEmitida.gruValor}` : ''}
+            </p>
+          )}
+        </div>
+
+        {docEmitido && (
+          <Button
+            type="button"
+            className="w-full"
+            disabled={baixando}
+            onClick={() => abrirPdf(docEmitido.id)}
+          >
+            <FileDown size={16} className="mr-2" /> {baixando ? 'Abrindo…' : 'Abrir / Baixar PDF'}
+          </Button>
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Ship size={16} className="text-primary" />
+            A reserva entrou na <strong className="text-foreground">fila de espera</strong>. O embarque
+            (check-in) é feito na Fila quando o jetski do modelo estiver livre.
+          </p>
+          <Button type="button" onClick={onReset}>
+            Concluir atendimento
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Evita piscar o form de emissão antes de saber se já foi emitida.
+  if (conferindoEmissao) {
+    return <div className="p-6 text-sm text-muted-foreground">Conferindo emissão…</div>
   }
 
   // Sem termos assinados não chega aqui no fluxo; guarda mesmo assim.
