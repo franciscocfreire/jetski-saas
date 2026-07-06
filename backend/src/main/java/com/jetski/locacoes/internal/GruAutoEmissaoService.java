@@ -91,10 +91,8 @@ public class GruAutoEmissaoService {
                 reservaId, numero, r.reaproveitada());
             clienteNotificacaoService.notificar(tenantId, reserva.getClienteId(),
                 ClienteNotificacao.GRU_EMITIDA,
-                "Taxa da Marinha emitida 📄",
-                (numero != null ? "A GRU nº " + numero + " foi emitida em seu nome"
-                    : "A taxa da Marinha foi emitida em seu nome")
-                    + " e a própria loja fará o pagamento — você não paga nada por ela.",
+                (numero != null ? "A GRU " + numero + " foi emitida 📄" : "A GRU foi emitida 📄"),
+                "Emitida em seu nome.",
                 "/conta/reservas/" + reservaId + "/habilitacao");
         } else {
             log.warn("Auto-emissão de GRU sem sucesso (reserva={}): {} {}",

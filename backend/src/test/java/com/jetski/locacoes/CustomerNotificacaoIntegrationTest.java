@@ -174,10 +174,10 @@ class CustomerNotificacaoIntegrationTest extends AbstractIntegrationTest {
         }
         assertThat(gru).isEqualTo("GRU-AUTO-123");
 
-        // cliente recebeu a notificação GRU_EMITIDA com o número (sem pedir pagamento)
+        // cliente recebeu a notificação GRU_EMITIDA com o número no TÍTULO
         mockMvc.perform(get("/v1/customers/notificacoes").with(cliente()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.itens[?(@.tipo=='GRU_EMITIDA')].mensagem",
+            .andExpect(jsonPath("$.itens[?(@.tipo=='GRU_EMITIDA')].titulo",
                 org.hamcrest.Matchers.hasItem(
                     org.hamcrest.Matchers.containsString("GRU-AUTO-123"))));
     }
