@@ -320,6 +320,20 @@ ALTER TABLE public.reserva_lancamento ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reserva_lancamento FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_reserva_lancamento ON public.reserva_lancamento;
 CREATE POLICY tenant_isolation_reserva_lancamento ON public.reserva_lancamento USING ((tenant_id = public.get_current_tenant_id()));
+-- V037: backfill de pagamentos confirmados antes do folio (idempotente via NOT EXISTS)
+INSERT INTO public.reserva_lancamento
+    (tenant_id, reserva_id, tipo, forma, valor, observacao, registrado_por, created_at)
+SELECT r.tenant_id, r.id, 'PAGAMENTO',
+       CASE WHEN r.canal = 'PORTAL' THEN 'PIX' ELSE 'OUTRO' END,
+       COALESCE(r.valor_sinal, r.valor_total),
+       'backfill V037 — pagamento confirmado antes do folio',
+       r.pagamento_validado_por,
+       COALESCE(r.sinal_pago_em, r.pagamento_validado_em, now())
+FROM public.reserva r
+WHERE r.pagamento_status = 'CONFIRMADO'
+  AND COALESCE(r.valor_sinal, r.valor_total) > 0
+  AND NOT EXISTS (SELECT 1 FROM public.reserva_lancamento l
+                  WHERE l.reserva_id = r.id AND l.tipo = 'PAGAMENTO');
 
 -- V025: metering de emissões por tenant (DOCUMENTO/GRU/PREVIA — base p/ cobrança futura)
 CREATE TABLE IF NOT EXISTS public.emissao_uso (

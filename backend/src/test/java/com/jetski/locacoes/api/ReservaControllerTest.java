@@ -603,6 +603,33 @@ class ReservaControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("confirmar-sinal (fluxo remoto/portal) lança PAGAMENTO PIX no folio — estorno funciona")
+    void testConfirmarSinal_LancaPagamentoNoFolio() throws Exception {
+        // Pagamento validado pela fila de sinais (não pelo balcão)
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/confirmar-sinal", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"valorSinal\": 700.00, \"tipo\": \"TOTAL\"}")
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_FINANCEIRO"))))
+            .andExpect(status().isOk());
+
+        var lancamentos = reservaLancamentoRepository.findByReservaIdOrderByCreatedAtAsc(testReserva.getId());
+        org.assertj.core.api.Assertions.assertThat(lancamentos).hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(lancamentos.get(0).getTipo())
+            .isEqualTo(com.jetski.locacoes.domain.ReservaLancamento.Tipo.PAGAMENTO);
+        org.assertj.core.api.Assertions.assertThat(lancamentos.get(0).getForma())
+            .isEqualTo(com.jetski.locacoes.domain.ReservaLancamento.Forma.PIX);
+
+        // O estorno agora encontra o recebido (bug: reserva do portal com folio vazio)
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/registrar-estorno", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"forma\": \"PIX\", \"valor\": 700.00, \"observacao\": \"cancelou por chuva\"}")
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_GERENTE"))))
+            .andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("Should register estorno of paid+cancelled reservation (FINANCEIRO)")
     void testRegistrarEstorno_Success() throws Exception {
         pagarReserva(new java.math.BigDecimal("500.00"));

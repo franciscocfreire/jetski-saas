@@ -710,7 +710,13 @@ public class ReservaService {
      * Confirma o pagamento de uma reserva (SINAL ou TOTAL).
      *
      * <p>Sobe a reserva para ALTA (garantida), grava o estado do pagamento,
-     * quem validou e quando, e publica {@link PagamentoConfirmadoEvent}.
+     * quem validou e quando, lança o PAGAMENTO no folio e publica
+     * {@link PagamentoConfirmadoEvent}.
+     *
+     * <p>Este caminho é o do pagamento REMOTO do portal (comprovante PIX
+     * validado na fila de sinais) — a forma no folio é PIX por construção.
+     * O caminho presencial usa {@link #registrarPagamentoPresencial}, que
+     * informa a forma real.
      *
      * @param id        Reserva UUID
      * @param tipo      SINAL (parcial) ou TOTAL (integral)
@@ -718,6 +724,11 @@ public class ReservaService {
      */
     @Transactional
     public Reserva confirmarPagamento(UUID id, PagamentoTipo tipo, BigDecimal valorPago) {
+        return confirmarPagamento(id, tipo, valorPago, ReservaLancamento.Forma.PIX, null);
+    }
+
+    private Reserva confirmarPagamento(UUID id, PagamentoTipo tipo, BigDecimal valorPago,
+                                       ReservaLancamento.Forma forma, String observacao) {
         PagamentoTipo tipoPagamento = (tipo != null) ? tipo : PagamentoTipo.SINAL;
         log.info("Confirming payment for reservation: id={}, tipo={}, valor={}", id, tipoPagamento, valorPago);
 
@@ -776,6 +787,19 @@ public class ReservaService {
         log.info("Payment confirmed successfully: id={}, tipo={}, prioridade={}, valor={}",
                  saved.getId(), tipoPagamento, saved.getPrioridade(), saved.getValorSinal());
 
+        // Folio: TODO pagamento confirmado é um fato de caixa — sem este
+        // lançamento, o estorno não encontra recebido e o fechamento por
+        // forma não enxerga o dinheiro do portal.
+        reservaLancamentoRepository.save(ReservaLancamento.builder()
+            .tenantId(saved.getTenantId())
+            .reservaId(saved.getId())
+            .tipo(ReservaLancamento.Tipo.PAGAMENTO)
+            .forma(forma)
+            .valor(valorPago)
+            .observacao(observacao)
+            .registradoPor(usuarioId)
+            .build());
+
         clienteNotificacaoService.notificar(saved.getTenantId(), saved.getClienteId(),
             com.jetski.locacoes.domain.ClienteNotificacao.PAGAMENTO_CONFIRMADO,
             "Pagamento confirmado 🎉",
@@ -790,9 +814,8 @@ public class ReservaService {
     /**
      * Registra o pagamento presencial INTEGRAL do balcão (dinheiro/PIX/cartão).
      *
-     * <p>Delega os efeitos de estado a {@link #confirmarPagamento} (TOTAL) e,
-     * na mesma transação, grava o lançamento no ledger {@code reserva_lancamento}
-     * (forma de pagamento — base do fechamento por forma na fase 3) e publica
+     * <p>Mesmos efeitos de {@link #confirmarPagamento} (TOTAL), com a forma
+     * REAL do recebimento no lançamento do folio, e publica adicionalmente
      * {@link PagamentoPresencialRegistradoEvent} para auditoria.
      */
     @Transactional
@@ -802,21 +825,11 @@ public class ReservaService {
             throw new BusinessException("Forma de pagamento é obrigatória");
         }
 
-        Reserva saved = confirmarPagamento(id, PagamentoTipo.TOTAL, valor);
-
-        UUID usuarioId = TenantContext.getUsuarioId();
-        reservaLancamentoRepository.save(ReservaLancamento.builder()
-            .tenantId(saved.getTenantId())
-            .reservaId(saved.getId())
-            .tipo(ReservaLancamento.Tipo.PAGAMENTO)
-            .forma(forma)
-            .valor(valor)
-            .observacao(observacao)
-            .registradoPor(usuarioId)
-            .build());
+        Reserva saved = confirmarPagamento(id, PagamentoTipo.TOTAL, valor, forma, observacao);
 
         eventPublisher.publishEvent(PagamentoPresencialRegistradoEvent.of(
-            saved.getTenantId(), saved.getId(), forma.name(), valor, observacao, usuarioId));
+            saved.getTenantId(), saved.getId(), forma.name(), valor, observacao,
+            TenantContext.getUsuarioId()));
 
         log.info("Pagamento presencial registrado: reserva={}, forma={}, valor={}",
             saved.getId(), forma, valor);
