@@ -38,7 +38,11 @@ export function StepCliente({
       setEncontrado(cliente)
       if (cliente) {
         if (cliente.statusConta === 'ATIVA') {
-          toast.warning('Cliente com conta ativa — verificação (OTP) necessária antes de vincular.')
+          // Anti-takeover (F2.2): conta ATIVA pertence ao cliente — o balcão pode
+          // usá-la em atendimentos, mas não recriar/editar a identidade dela.
+          toast.info(
+            'Este cliente já tem conta ativa no portal — pode usá-lo normalmente; os dados da conta são gerenciados pelo próprio cliente.'
+          )
         }
         setForm((f) => ({
           ...f,
