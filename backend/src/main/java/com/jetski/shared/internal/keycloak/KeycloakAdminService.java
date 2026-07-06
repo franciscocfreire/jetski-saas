@@ -274,6 +274,65 @@ public class KeycloakAdminService {
     }
 
     /**
+     * Busca usuário por e-mail EXATO.
+     *
+     * Não usar busca por username: após {@link #definirCpf} o username do
+     * cliente passa a ser o CPF — só o e-mail permanece estável.
+     *
+     * @return Keycloak user ID ou null se não existir (ou em erro)
+     */
+    public String findUserIdByEmail(String email) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            List<UserRepresentation> found =
+                keycloak.realm(targetRealm).users().searchByEmail(email, true);
+            return found.isEmpty() ? null : found.get(0).getId();
+        } catch (Exception e) {
+            log.error("Erro ao buscar usuário por e-mail no Keycloak: email={}, error={}",
+                email, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Verifica se o usuário tem a realm role diretamente atribuída
+     * (CLIENTE é atribuída direto tanto no self-signup quanto no claim).
+     */
+    public boolean userHasRealmRole(String keycloakUserId, String role) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            return keycloak.realm(targetRealm).users().get(keycloakUserId)
+                .roles().realmLevel().listAll().stream()
+                .anyMatch(r -> role.equals(r.getName()));
+        } catch (Exception e) {
+            log.error("Erro ao consultar roles no Keycloak: userId={}, error={}",
+                keycloakUserId, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Best-effort: marca o e-mail como verificado e remove a required action
+     * VERIFY_EMAIL (o claim de balcão — token + senha temporária recebidos por
+     * e-mail — provou a posse do endereço). Falha não interrompe o fluxo.
+     */
+    public void marcarEmailVerificado(String keycloakUserId) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            UserResource userResource = keycloak.realm(targetRealm).users().get(keycloakUserId);
+            UserRepresentation rep = userResource.toRepresentation();
+            rep.setEmailVerified(true);
+            if (rep.getRequiredActions() != null) {
+                rep.setRequiredActions(rep.getRequiredActions().stream()
+                    .filter(a -> !"VERIFY_EMAIL".equals(a))
+                    .toList());
+            }
+            userResource.update(rep);
+            log.info("E-mail marcado como verificado no Keycloak: userId={}", keycloakUserId);
+        } catch (Exception e) {
+            log.warn("Não foi possível marcar e-mail verificado no Keycloak: userId={}, err={}",
+                keycloakUserId, e.getMessage());
+        }
+    }
+
+    /**
      * Atribui roles realm-level ao usuário.
      *
      * @param realmResource Recurso do realm

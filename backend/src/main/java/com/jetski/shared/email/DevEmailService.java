@@ -143,6 +143,18 @@ public class DevEmailService implements EmailService {
     }
 
     @Override
+    public void sendClienteInvitationEmail(String to, String name, String activationLink, String temporaryPassword) {
+        String subject = EmailTemplates.CLIENTE_INVITATION_SUBJECT;
+
+        // Store last email data for E2E testing (token/senha do claim do cliente)
+        lastEmail = new LastEmailData(to, name, subject, activationLink, temporaryPassword);
+        log.info("📧 Last email data stored for E2E testing (cliente): to={}", to);
+
+        logAndSaveEmail(to, subject, buildClienteInvitationEmailBody(name, activationLink, temporaryPassword));
+        maybeSendViaSmtp(to, subject, EmailTemplates.clienteInvitationHtml(name, activationLink, temporaryPassword));
+    }
+
+    @Override
     public void sendPasswordResetEmail(String to, String name, String resetLink) {
         String subject = EmailTemplates.PASSWORD_RESET_SUBJECT;
 
@@ -294,6 +306,33 @@ public class DevEmailService implements EmailService {
             7. Usuário faz primeiro login com senha temporária
             8. Keycloak FORÇA troca de senha (gerenciado pelo Keycloak com políticas de senha!)
             9. Usuário define senha permanente e tem acesso completo
+            """, name, activationLink, temporaryPassword);
+    }
+
+    private String buildClienteInvitationEmailBody(String name, String activationLink, String temporaryPassword) {
+        return String.format("""
+            Olá %s,
+
+            A loja criou um cadastro para você no Meu Jet. Ativando sua conta,
+            você acompanha suas reservas, documentos e histórico pelo portal.
+
+            Link de ativação: %s
+
+            Senha temporária: %s
+
+            IMPORTANTE:
+            - Este link é válido por 7 dias
+            - A senha temporária serve para confirmar a ativação
+            - Primeiro acesso: entre com a senha temporária e crie sua nova senha
+            - Já tem conta no Meu Jet com este e-mail? Sua senha atual continua valendo
+
+            Se você não esperava este convite, ignore este email.
+
+            Atenciosamente,
+            Equipe Meu Jet
+
+            ---
+            [DEV MODE] Este email NÃO foi enviado. Apenas logado.
             """, name, activationLink, temporaryPassword);
     }
 

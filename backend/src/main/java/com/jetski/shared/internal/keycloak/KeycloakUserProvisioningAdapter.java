@@ -1,5 +1,6 @@
 package com.jetski.shared.internal.keycloak;
 
+import com.jetski.shared.security.IdentityConflictException;
 import com.jetski.shared.security.UserProvisioningService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,6 +65,35 @@ class KeycloakUserProvisioningAdapter implements UserProvisioningService {
         }
 
         return keycloakUserId;
+    }
+
+    @Override
+    public ClienteProvisionResult provisionOrReuseCliente(
+        UUID clienteId,
+        String email,
+        String nome,
+        UUID tenantId,
+        String senhaTemporaria
+    ) {
+        String existingId = keycloakAdminService.findUserIdByEmail(email);
+        if (existingId == null) {
+            String created = keycloakAdminService.createUserWithPassword(
+                clienteId, email, nome, tenantId, List.of("CLIENTE"), senhaTemporaria);
+            return created == null ? null : new ClienteProvisionResult(created, false);
+        }
+
+        // Populações staff × cliente nunca se cruzam: só reutiliza identidade CLIENTE.
+        if (!keycloakAdminService.userHasRealmRole(existingId, "CLIENTE")) {
+            log.warn("Claim recusado: e-mail já pertence a identidade não-cliente (keycloakId={})", existingId);
+            throw new IdentityConflictException(
+                "E-mail já pertence a uma conta que não é de cliente");
+        }
+
+        // Reuso (ex.: auto-cadastro no portal): senha/username/atributos intactos —
+        // cliente é multi-loja, o vínculo por loja fica em cliente_identity_provider.
+        keycloakAdminService.marcarEmailVerificado(existingId);
+        log.info("Identidade CLIENTE existente reutilizada no claim: keycloakId={}", existingId);
+        return new ClienteProvisionResult(existingId, true);
     }
 
     @Override

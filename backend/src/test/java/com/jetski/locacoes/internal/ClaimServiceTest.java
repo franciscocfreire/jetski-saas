@@ -10,6 +10,7 @@ import com.jetski.locacoes.internal.repository.ClienteIdentityProviderRepository
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.email.EmailService;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.security.IdentityConflictException;
 import com.jetski.shared.security.UserProvisioningService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -29,7 +30,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -66,8 +66,8 @@ class ClaimServiceTest {
         when(tokenRepo.save(any(ClienteClaimToken.class))).thenAnswer(i -> i.getArgument(0));
         when(identityRepo.existsByClienteId(clienteId)).thenReturn(false);
         when(identityRepo.save(any(ClienteIdentityProvider.class))).thenAnswer(i -> i.getArgument(0));
-        when(provisioning.provisionUserWithPassword(any(), anyString(), anyString(), any(), anyList(), anyString()))
-            .thenReturn("kc-sub-123");
+        when(provisioning.provisionOrReuseCliente(any(), anyString(), anyString(), any(), anyString()))
+            .thenReturn(new UserProvisioningService.ClienteProvisionResult("kc-sub-123", false));
 
         // fixarTenant(): set_config('app.tenant_id', ...) na conexão
         Query q = mock(Query.class);
@@ -82,15 +82,23 @@ class ClaimServiceTest {
             .statusConta(Cliente.StatusConta.PRE_CONTA).build();
     }
 
+    private ClienteClaimToken claimValido() {
+        ClienteClaimToken claim = ClienteClaimToken.builder()
+            .tenantId(tenant).clienteId(clienteId).token("tok").ativo(true)
+            .expiraEm(Instant.now().plus(7, ChronoUnit.DAYS)).build();
+        claim.setTemporaryPassword("Senha#123");
+        return claim;
+    }
+
     @Test
-    @DisplayName("gerar: emite token, marca CONVIDADA, envia e-mail e publica ClaimEnviadoEvent")
+    @DisplayName("gerar: emite token, marca CONVIDADA, envia e-mail (link do portal) e publica ClaimEnviadoEvent")
     void gerarEnviaEmail() {
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(preConta()));
 
         ClaimService.ClaimResult r = service.gerar(clienteId, "email,whatsapp");
 
         assertThat(r.getToken()).hasSize(40);
-        assertThat(r.getLink()).startsWith("http://portal.test/cliente/ativar?token=");
+        assertThat(r.getLink()).startsWith("http://portal.test/portal/ativar?token=");
         assertThat(r.isEnviado()).isTrue();
 
         ArgumentCaptor<Cliente> cli = ArgumentCaptor.forClass(Cliente.class);
@@ -98,7 +106,7 @@ class ClaimServiceTest {
         assertThat(cli.getValue().getStatusConta()).isEqualTo(Cliente.StatusConta.CONVIDADA);
 
         verify(tokenRepo).save(any(ClienteClaimToken.class));
-        verify(email).sendInvitationEmail(eq("maria@email.com"), eq("Maria Souza"), anyString(), anyString());
+        verify(email).sendClienteInvitationEmail(eq("maria@email.com"), eq("Maria Souza"), anyString(), anyString());
         verify(events).publishEvent(any(ClaimEnviadoEvent.class));
     }
 
@@ -110,26 +118,22 @@ class ClaimServiceTest {
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(ativa));
 
         assertThatThrownBy(() -> service.gerar(clienteId, null)).isInstanceOf(BusinessException.class);
-        verify(email, never()).sendInvitationEmail(anyString(), anyString(), anyString(), anyString());
+        verify(email, never()).sendClienteInvitationEmail(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
     @DisplayName("validar: provisiona Keycloak (CLIENTE), vincula identidade, ativa conta — sem Membro")
     void validarAtivaConta() {
-        ClienteClaimToken claim = ClienteClaimToken.builder()
-            .tenantId(tenant).clienteId(clienteId).token("tok").ativo(true)
-            .expiraEm(Instant.now().plus(7, ChronoUnit.DAYS)).build();
-        claim.setTemporaryPassword("Senha#123");
-        when(tokenRepo.findByToken("tok")).thenReturn(Optional.of(claim));
+        when(tokenRepo.findByToken("tok")).thenReturn(Optional.of(claimValido()));
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(preConta()));
 
         ClaimService.AtivacaoResult r = service.validar("tok", "Senha#123");
 
         assertThat(r.getProviderUserId()).isEqualTo("kc-sub-123");
+        assertThat(r.isContaExistente()).isFalse();
 
-        verify(provisioning).provisionUserWithPassword(
-            eq(clienteId), eq("maria@email.com"), eq("Maria Souza"), eq(tenant),
-            eq(List.of("CLIENTE")), eq("Senha#123"));
+        verify(provisioning).provisionOrReuseCliente(
+            eq(clienteId), eq("maria@email.com"), eq("Maria Souza"), eq(tenant), eq("Senha#123"));
 
         ArgumentCaptor<ClienteIdentityProvider> idp = ArgumentCaptor.forClass(ClienteIdentityProvider.class);
         verify(identityRepo).save(idp.capture());
@@ -140,31 +144,86 @@ class ClaimServiceTest {
         verify(clienteRepo).save(cli.capture());
         assertThat(cli.getValue().getStatusConta()).isEqualTo(Cliente.StatusConta.ATIVA);
 
-        assertThat(claim.isUsado()).isTrue();
-        assertThat(claim.getAtivo()).isFalse();
         verify(events).publishEvent(any(ContaAtivadaEvent.class));
+    }
+
+    @Test
+    @DisplayName("validar: reutiliza usuário Keycloak CLIENTE existente (auto-cadastro no portal) — senha intacta")
+    void validarReutilizaUsuarioClienteExistente() {
+        ClienteClaimToken claim = claimValido();
+        when(tokenRepo.findByToken("tok")).thenReturn(Optional.of(claim));
+        when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(preConta()));
+        when(provisioning.provisionOrReuseCliente(any(), anyString(), anyString(), any(), anyString()))
+            .thenReturn(new UserProvisioningService.ClienteProvisionResult("kc-existente", true));
+        when(identityRepo.findByTenantIdAndProviderAndProviderUserId(tenant, "keycloak", "kc-existente"))
+            .thenReturn(Optional.empty());
+
+        ClaimService.AtivacaoResult r = service.validar("tok", "Senha#123");
+
+        assertThat(r.getProviderUserId()).isEqualTo("kc-existente");
+        assertThat(r.isContaExistente()).isTrue();
+
+        ArgumentCaptor<ClienteIdentityProvider> idp = ArgumentCaptor.forClass(ClienteIdentityProvider.class);
+        verify(identityRepo).save(idp.capture());
+        assertThat(idp.getValue().getProviderUserId()).isEqualTo("kc-existente");
+
+        ArgumentCaptor<Cliente> cli = ArgumentCaptor.forClass(Cliente.class);
+        verify(clienteRepo).save(cli.capture());
+        assertThat(cli.getValue().getStatusConta()).isEqualTo(Cliente.StatusConta.ATIVA);
+
+        assertThat(claim.isUsado()).isTrue();
+    }
+
+    @Test
+    @DisplayName("validar: e-mail de staff é recusado (populações não se cruzam) — nada persiste, claim não consumido")
+    void validarRecusaEmailDeStaff() {
+        ClienteClaimToken claim = claimValido();
+        when(tokenRepo.findByToken("tok")).thenReturn(Optional.of(claim));
+        when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(preConta()));
+        when(provisioning.provisionOrReuseCliente(any(), anyString(), anyString(), any(), anyString()))
+            .thenThrow(new IdentityConflictException("staff"));
+
+        assertThatThrownBy(() -> service.validar("tok", "Senha#123"))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageNotContaining("staff"); // mensagem genérica: não vaza a natureza da conta
+
+        verify(identityRepo, never()).save(any());
+        verify(clienteRepo, never()).save(any());
+        assertThat(claim.isUsado()).isFalse();
+    }
+
+    @Test
+    @DisplayName("validar: sub reutilizado já vinculado a outro cadastro da loja é recusado (unique do vínculo)")
+    void validarRecusaSubJaVinculadoNaLoja() {
+        when(tokenRepo.findByToken("tok")).thenReturn(Optional.of(claimValido()));
+        when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(preConta()));
+        when(provisioning.provisionOrReuseCliente(any(), anyString(), anyString(), any(), anyString()))
+            .thenReturn(new UserProvisioningService.ClienteProvisionResult("kc-existente", true));
+        when(identityRepo.findByTenantIdAndProviderAndProviderUserId(tenant, "keycloak", "kc-existente"))
+            .thenReturn(Optional.of(ClienteIdentityProvider.builder()
+                .tenantId(tenant).clienteId(UUID.randomUUID())
+                .provider("keycloak").providerUserId("kc-existente").build()));
+
+        assertThatThrownBy(() -> service.validar("tok", "Senha#123")).isInstanceOf(BusinessException.class);
+        verify(identityRepo, never()).save(any());
     }
 
     @Test
     @DisplayName("validar: senha temporária incorreta é rejeitada (sem provisionar)")
     void validarSenhaErrada() {
-        ClienteClaimToken claim = ClienteClaimToken.builder()
-            .tenantId(tenant).clienteId(clienteId).token("tok").ativo(true)
-            .expiraEm(Instant.now().plus(7, ChronoUnit.DAYS)).build();
+        ClienteClaimToken claim = claimValido();
         claim.setTemporaryPassword("correta");
         when(tokenRepo.findByToken("tok")).thenReturn(Optional.of(claim));
 
         assertThatThrownBy(() -> service.validar("tok", "errada")).isInstanceOf(BusinessException.class);
-        verify(provisioning, never()).provisionUserWithPassword(any(), anyString(), anyString(), any(), anyList(), anyString());
+        verify(provisioning, never()).provisionOrReuseCliente(any(), anyString(), anyString(), any(), anyString());
     }
 
     @Test
     @DisplayName("validar: token expirado é rejeitado")
     void validarExpirado() {
-        ClienteClaimToken claim = ClienteClaimToken.builder()
-            .tenantId(tenant).clienteId(clienteId).token("tok").ativo(true)
-            .expiraEm(Instant.now().minus(1, ChronoUnit.DAYS)).build();
-        claim.setTemporaryPassword("Senha#123");
+        ClienteClaimToken claim = claimValido();
+        claim.setExpiraEm(Instant.now().minus(1, ChronoUnit.DAYS));
         when(tokenRepo.findByToken("tok")).thenReturn(Optional.of(claim));
 
         assertThatThrownBy(() -> service.validar("tok", "Senha#123")).isInstanceOf(BusinessException.class);

@@ -94,6 +94,39 @@ public interface UserProvisioningService {
     String provisionCustomer(String email, String nome, String senha);
 
     /**
+     * Resultado do provisionamento de cliente no fluxo de claim (balcão).
+     *
+     * @param providerUserId id do usuário no provedor (sub)
+     * @param reaproveitado  {@code true} se um usuário existente (role CLIENTE)
+     *                       foi reutilizado — a senha dele permanece a mesma
+     */
+    record ClienteProvisionResult(String providerUserId, boolean reaproveitado) {}
+
+    /**
+     * Provisiona OU reutiliza a identidade do CLIENTE no fluxo de claim (balcão).
+     *
+     * <ul>
+     *   <li>e-mail inexistente no provedor → cria com senha temporária
+     *       (UPDATE_PASSWORD no primeiro login), role {@code CLIENTE};</li>
+     *   <li>e-mail existente COM role {@code CLIENTE} (ex.: auto-cadastro no portal)
+     *       → reutiliza a conta sem tocar senha/username; o e-mail é marcado como
+     *       verificado — o claim (token + senha temporária) provou a posse;</li>
+     *   <li>e-mail existente SEM role {@code CLIENTE} (staff) →
+     *       {@link IdentityConflictException} — populações nunca se cruzam.</li>
+     * </ul>
+     *
+     * @return resultado com o provider user id, ou {@code null} em falha de infraestrutura
+     * @throws IdentityConflictException se o e-mail pertence a uma conta que não é de cliente
+     */
+    ClienteProvisionResult provisionOrReuseCliente(
+        UUID clienteId,
+        String email,
+        String nome,
+        UUID tenantId,
+        String senhaTemporaria
+    );
+
+    /**
      * Atualiza o nome (first/last) de um usuário já provisionado.
      *
      * @return {@code true} se atualizado com sucesso

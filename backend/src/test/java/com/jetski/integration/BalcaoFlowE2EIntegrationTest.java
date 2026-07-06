@@ -28,15 +28,14 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -107,9 +106,9 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
             ON CONFLICT (id) DO NOTHING
             """, MODELO_ID, TENANT_ID);
 
-        when(userProvisioningService.provisionUserWithPassword(
-                any(), anyString(), anyString(), any(), anyList(), anyString()))
-            .thenReturn("kc-sub-e2e");
+        when(userProvisioningService.provisionOrReuseCliente(
+                any(), anyString(), anyString(), any(), anyString()))
+            .thenReturn(new UserProvisioningService.ClienteProvisionResult("kc-sub-e2e", false));
     }
 
     @Test
@@ -129,6 +128,20 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
             .build());
         assertThat(cliente.getOrigem()).isEqualTo(Cliente.Origem.BALCAO);
         assertThat(cliente.getStatusConta()).isEqualTo(Cliente.StatusConta.PRE_CONTA);
+
+        // Auto-convite: a pré-conta com e-mail dispara o claim sozinha (async,
+        // AFTER_COMMIT) — captura o link e a senha temporária do e-mail mockado.
+        ArgumentCaptor<String> linkCap = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> senhaCap = ArgumentCaptor.forClass(String.class);
+        verify(emailService, timeout(5000)).sendClienteInvitationEmail(
+            eq("roberto.e2e@example.com"), eq("Roberto Lima"), linkCap.capture(), senhaCap.capture());
+        String senhaTemporaria = senhaCap.getValue();
+        assertThat(linkCap.getValue()).contains("/portal/ativar?token=");
+        String claimToken = linkCap.getValue()
+            .substring(linkCap.getValue().indexOf("token=") + "token=".length());
+        assertThat(claimToken).hasSize(40);
+        // aguarda o commit da transação assíncrona do claim (token visível no banco)
+        aguardarTokenPersistido(claimToken);
 
         // Anexos obrigatórios à Marinha por padrão (identidade + selfie).
         String pngDataUrl = "data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(pngValido());
@@ -172,28 +185,19 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
             "SELECT documento_emitido_em FROM reserva WHERE id = ?", Instant.class, reservaId);
         assertThat(emitidoEm).isNotNull();
 
-        // 6) Claim: gera token + senha temporária (capturada do e-mail mockado)
-        ClaimService.ClaimResult claim = claimService.gerar(cliente.getId(), "email,whatsapp");
-        assertThat(claim.getToken()).hasSize(40);
-
-        ArgumentCaptor<String> linkCap = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> senhaCap = ArgumentCaptor.forClass(String.class);
-        verify(emailService).sendInvitationEmail(
-            eq("roberto.e2e@example.com"), eq("Roberto Lima"), linkCap.capture(), senhaCap.capture());
-        String senhaTemporaria = senhaCap.getValue();
-        assertThat(linkCap.getValue()).contains("/cliente/ativar?token=" + claim.getToken());
-
-        // cliente passou a CONVIDADA
+        // 6) Claim já foi disparado pelo AUTO-convite no passo 1 (token/senha capturados lá);
+        // o cliente passou a CONVIDADA sem ação manual do staff.
         assertThat(reloadCliente(cliente.getId()).getStatusConta())
             .isEqualTo(Cliente.StatusConta.CONVIDADA);
 
         // 7) Validação pública: ativa a conta (provisiona Keycloak + vincula identidade)
-        ClaimService.AtivacaoResult ativacao = claimService.validar(claim.getToken(), senhaTemporaria);
+        ClaimService.AtivacaoResult ativacao = claimService.validar(claimToken, senhaTemporaria);
         assertThat(ativacao.getProviderUserId()).isEqualTo("kc-sub-e2e");
+        assertThat(ativacao.isContaExistente()).isFalse();
 
-        verify(userProvisioningService).provisionUserWithPassword(
+        verify(userProvisioningService).provisionOrReuseCliente(
             eq(cliente.getId()), eq("roberto.e2e@example.com"), eq("Roberto Lima"),
-            eq(TENANT_ID), eq(List.of("CLIENTE")), eq(senhaTemporaria));
+            eq(TENANT_ID), eq(senhaTemporaria));
 
         // estado final: ATIVA + identidade vinculada + token consumido
         assertThat(reloadCliente(cliente.getId()).getStatusConta())
@@ -201,7 +205,7 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
         assertThat(identityRepository.findByClienteId(cliente.getId()))
             .get().extracting("provider", "providerUserId")
             .containsExactly("keycloak", "kc-sub-e2e");
-        Optional<ClienteClaimToken> tok = claimTokenRepository.findByToken(claim.getToken());
+        Optional<ClienteClaimToken> tok = claimTokenRepository.findByToken(claimToken);
         assertThat(tok).get().extracting(ClienteClaimToken::getAtivo, ClienteClaimToken::isUsado)
             .containsExactly(false, true);
 
@@ -216,6 +220,22 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
 
     private Cliente reloadCliente(UUID id) {
         return clienteService.findById(id);
+    }
+
+    /** O e-mail sai DENTRO da tx assíncrona do claim — espera o commit (token no banco). */
+    private void aguardarTokenPersistido(String token) {
+        for (int i = 0; i < 50; i++) {
+            if (claimTokenRepository.findByToken(token).isPresent()) {
+                return;
+            }
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        throw new AssertionError("Claim token do auto-convite não foi persistido a tempo");
     }
 
     /** PNG 1x1 válido (o OpenPDF precisa parsear o header da imagem). */

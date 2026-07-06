@@ -33,13 +33,16 @@ public class ClaimPublicController {
         @NotBlank String senhaTemporaria
     ) {}
 
-    public record ValidarResponse(UUID clienteId, String providerUserId, boolean ativada) {}
+    /** contaExistente=true → o cliente já tinha conta no portal e a senha dele continua valendo. */
+    public record ValidarResponse(
+        UUID clienteId, String providerUserId, boolean ativada, boolean contaExistente) {}
 
     @PostMapping("/validar")
     @Operation(summary = "Validar claim-token e ativar a conta do cliente")
     public ResponseEntity<ValidarResponse> validar(@RequestBody ValidarRequest req) {
         log.info("POST /v1/public/clientes/claim/validar token=***");
         ClaimService.AtivacaoResult r = claimService.validar(req.token(), req.senhaTemporaria());
-        return ResponseEntity.ok(new ValidarResponse(r.getClienteId(), r.getProviderUserId(), true));
+        return ResponseEntity.ok(new ValidarResponse(
+            r.getClienteId(), r.getProviderUserId(), true, r.isContaExistente()));
     }
 }

@@ -11,6 +11,7 @@ import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.email.EmailService;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
+import com.jetski.shared.security.IdentityConflictException;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.shared.security.UserProvisioningService;
 import jakarta.persistence.EntityManager;
@@ -48,7 +49,6 @@ public class ClaimService {
     private static final int TOKEN_LEN = 40;
     private static final int TTL_DIAS = 7;
     private static final String PROVIDER = "keycloak";
-    private static final String ROLE_CLIENTE = "CLIENTE";
 
     private final ClienteRepository clienteRepository;
     private final ClienteClaimTokenRepository tokenRepository;
@@ -77,6 +77,8 @@ public class ClaimService {
     public static class AtivacaoResult {
         UUID clienteId;
         String providerUserId;
+        /** true se uma conta CLIENTE já existente foi reutilizada (senha do usuário intacta). */
+        boolean contaExistente;
     }
 
     /**
@@ -125,8 +127,9 @@ public class ClaimService {
         cliente.setStatusConta(Cliente.StatusConta.CONVIDADA);
         clienteRepository.save(cliente);
 
-        String link = String.format("%s/cliente/ativar?token=%s", frontendUrl, token);
-        emailService.sendInvitationEmail(cliente.getEmail(), cliente.getNome(), link, senhaTemporaria);
+        // Página de ativação vive no portal do cliente (nginx roteia {host}/portal).
+        String link = String.format("%s/portal/ativar?token=%s", frontendUrl, token);
+        emailService.sendClienteInvitationEmail(cliente.getEmail(), cliente.getNome(), link, senhaTemporaria);
 
         eventPublisher.publishEvent(ClaimEnviadoEvent.of(
             cliente.getTenantId(), clienteId, canaisResolvidos, TenantContext.getUsuarioId()));
@@ -170,17 +173,36 @@ public class ClaimService {
             throw new BusinessException("Conta do cliente já está ativa");
         }
 
-        // Provisiona no Keycloak: role CLIENTE, sem Usuario/Membro.
-        // O id do cliente é guardado como atributo (postgresql_user_id) no IdP.
-        String providerUserId = userProvisioningService.provisionUserWithPassword(
-            cliente.getId(),
-            cliente.getEmail(),
-            cliente.getNome(),
-            cliente.getTenantId(),
-            List.of(ROLE_CLIENTE),
-            senhaTemporaria);
-        if (providerUserId == null) {
+        // Provisiona (ou reutiliza, se o cliente já se auto-cadastrou no portal com
+        // este e-mail) a identidade no Keycloak: role CLIENTE, sem Usuario/Membro.
+        UserProvisioningService.ClienteProvisionResult prov;
+        try {
+            prov = userProvisioningService.provisionOrReuseCliente(
+                cliente.getId(),
+                cliente.getEmail(),
+                cliente.getNome(),
+                cliente.getTenantId(),
+                senhaTemporaria);
+        } catch (IdentityConflictException e) {
+            // Populações staff × cliente nunca se cruzam; mensagem genérica de propósito.
+            log.warn("Claim recusado (identidade não-cliente): clienteId={}", cliente.getId());
+            throw new BusinessException(
+                "Este e-mail não pode ser usado para ativar a conta de cliente. "
+                + "Procure o atendimento da loja.");
+        }
+        if (prov == null) {
             throw new BusinessException("Falha ao provisionar usuário no provedor de identidade");
+        }
+        String providerUserId = prov.providerUserId();
+
+        // Reuso: o sub pode já estar vinculado a OUTRO cliente desta loja
+        // (unique cliente_identity_provider (tenant_id, provider, provider_user_id)).
+        if (prov.reaproveitado() && identityRepository
+                .findByTenantIdAndProviderAndProviderUserId(cliente.getTenantId(), PROVIDER, providerUserId)
+                .isPresent()) {
+            throw new BusinessException(
+                "Este e-mail já está vinculado a um cadastro nesta loja. "
+                + "Entre no portal ou procure o atendimento.");
         }
 
         identityRepository.save(ClienteIdentityProvider.builder()
@@ -200,8 +222,13 @@ public class ClaimService {
         eventPublisher.publishEvent(ContaAtivadaEvent.of(
             cliente.getTenantId(), cliente.getId(), providerUserId));
 
-        log.info("Conta do cliente ativada: clienteId={}, providerUserId={}", cliente.getId(), providerUserId);
-        return AtivacaoResult.builder().clienteId(cliente.getId()).providerUserId(providerUserId).build();
+        log.info("Conta do cliente ativada: clienteId={}, providerUserId={}, reuso={}",
+            cliente.getId(), providerUserId, prov.reaproveitado());
+        return AtivacaoResult.builder()
+            .clienteId(cliente.getId())
+            .providerUserId(providerUserId)
+            .contaExistente(prov.reaproveitado())
+            .build();
     }
 
     /** Fixa app.tenant_id (transação-local) na conexão atual para satisfazer a RLS estrita. */

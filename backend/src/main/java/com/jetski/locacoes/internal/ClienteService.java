@@ -168,6 +168,10 @@ public class ClienteService {
                         "É necessária verificação (OTP) antes de vincular.");
                 }
                 log.info("Pré-conta: reutilizando cliente existente id={}, documento={}", c.getId(), documento);
+                // Reuso também dispara o auto-convite (o listener não reenvia se
+                // houver convite vigente) e fica registrado na auditoria.
+                eventPublisher.publishEvent(PreContaCriadaEvent.of(
+                    c.getTenantId(), c.getId(), "BALCAO_REUSO", TenantContext.getUsuarioId()));
                 return c;
             }
         }

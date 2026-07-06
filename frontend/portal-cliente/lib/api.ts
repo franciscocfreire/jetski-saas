@@ -68,6 +68,25 @@ export async function signup(nome: string, email: string, senha: string): Promis
   if (!res.ok) await parseError(res);
 }
 
+export interface ClaimAtivacao {
+  clienteId: string;
+  providerUserId: string;
+  ativada: boolean;
+  /** true → o cliente já tinha conta no Meu Jet; a senha dele continua valendo. */
+  contaExistente: boolean;
+}
+
+/** Ativação da conta criada no balcão (claim-token + senha temporária do e-mail). */
+export async function validarClaim(token: string, senhaTemporaria: string): Promise<ClaimAtivacao> {
+  const res = await fetch(`${API_URL}/v1/public/clientes/claim/validar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, senhaTemporaria }),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
 export async function getSelf(accessToken: string): Promise<CustomerSelf> {
   const res = await fetch(`${API_URL}/v1/customers/self`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -182,7 +201,8 @@ export async function getDisponibilidade(
 
 export interface PagamentoReserva {
   tipo?: "SINAL" | "TOTAL";
-  status: "AGUARDANDO" | "EM_ANALISE" | "CONFIRMADO" | "RECUSADO";
+  /** PRESENCIAL = reserva de balcão — pagamento é feito na loja, sem PIX pelo portal. */
+  status: "AGUARDANDO" | "EM_ANALISE" | "CONFIRMADO" | "RECUSADO" | "PRESENCIAL";
   motivoRecusa?: string;
   valorTotal: number;
   valorSinal: number;
