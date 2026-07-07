@@ -389,4 +389,23 @@ public interface ReservaRepository extends JpaRepository<Reserva, UUID> {
         @Param("notifyBefore") LocalDateTime notifyBefore,
         @Param("now") LocalDateTime now
     );
+
+    /** Busca do módulo Reservas: filtros opcionais, mais recente primeiro. */
+    @Query("""
+        SELECT r FROM Reserva r
+        WHERE (:status IS NULL OR r.status = :status)
+          AND (:canal IS NULL OR r.canal = :canal)
+          AND (:clienteId IS NULL OR r.clienteId = :clienteId)
+          AND (CAST(:de AS timestamp) IS NULL OR r.dataInicio >= :de)
+          AND (CAST(:ate AS timestamp) IS NULL OR r.dataInicio < :ate)
+        ORDER BY r.dataInicio DESC
+    """)
+    List<Reserva> buscar(
+        @Param("status") Reserva.ReservaStatus status,
+        @Param("canal") Reserva.Canal canal,
+        @Param("clienteId") UUID clienteId,
+        @Param("de") LocalDateTime de,
+        @Param("ate") LocalDateTime ate,
+        org.springframework.data.domain.Pageable page
+    );
 }

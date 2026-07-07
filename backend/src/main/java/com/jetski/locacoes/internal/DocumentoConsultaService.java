@@ -33,6 +33,21 @@ public class DocumentoConsultaService {
     private final ClienteRepository clienteRepository;
     private final StorageService storageService;
 
+    /** Documentos de UMA reserva (ficha da reserva), mais recente primeiro. */
+    @Transactional(readOnly = true)
+    public List<DocumentoConsultaResponse> listarPorReserva(UUID reservaId) {
+        List<DocumentoEmitido> docs =
+            documentoRepository.findByReservaIdOrderByEmitidoEmDesc(reservaId);
+        return docs.stream().map(d -> DocumentoConsultaResponse.builder()
+            .id(d.getId())
+            .reservaId(d.getReservaId())
+            .emitidoEm(d.getEmitidoEm())
+            .hashSha256(d.getHashSha256())
+            .downloadUrl(String.format("/v1/tenants/%s/documentos/%s/download",
+                d.getTenantId(), d.getId()))
+            .build()).collect(Collectors.toList());
+    }
+
     @Transactional(readOnly = true)
     public List<DocumentoConsultaResponse> listar(UUID clienteId) {
         List<DocumentoEmitido> docs;

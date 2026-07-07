@@ -93,7 +93,7 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
             .authorities(new SimpleGrantedAuthority("ROLE_CLIENTE"));
     }
 
-    private void seedVinculoAcmeComIdentidade() {
+    private UUID seedVinculoAcmeComIdentidade() {
         UUID clienteId = UUID.randomUUID();
         jdbc.update("""
             INSERT INTO cliente (id, tenant_id, nome, email, documento, rg, nacionalidade,
@@ -105,6 +105,7 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
             INSERT INTO cliente_identity_provider (tenant_id, cliente_id, provider, provider_user_id)
             VALUES (?, ?, 'keycloak', ?)
             """, TENANT_ACME, clienteId, SUB);
+        return clienteId;
     }
 
     @Test
@@ -166,22 +167,10 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
         return clienteId;
     }
 
-    /** Auditoria é @Async — espera limitada pela ação aparecer. */
-    private int aguardarAuditoria(String acao, int esperado) throws Exception {
-        int count = 0;
-        for (int i = 0; i < 50; i++) {
-            count = jdbc.queryForObject(
-                "SELECT count(*) FROM auditoria WHERE acao = ?", Integer.class, acao);
-            if (count >= esperado) return count;
-            Thread.sleep(100);
-        }
-        return count;
-    }
-
     @Test
     @DisplayName("Edição no perfil PROPAGA para o Cliente da loja vinculada (auditada sem valores)")
     void testPropagacaoIdentidadeParaLoja() throws Exception {
-        seedVinculoAcmeComIdentidade();
+        UUID clienteId = seedVinculoAcmeComIdentidade();
         // backfill do perfil global a partir do vínculo
         mockMvc.perform(get("/v1/customers/self").with(cliente(SUB, "perfil@test.com")))
             .andExpect(status().isOk());
@@ -200,11 +189,19 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
         assertThat(row.get("rg")).isEqualTo("RG-CORRIGIDO");
         assertThat(row.get("naturalidade")).isEqualTo("Sampa/SP");
 
-        // auditoria minimizada: só NOMES de campos, nunca valores
-        assertThat(aguardarAuditoria("CLIENTE_IDENTIDADE_ATUALIZADA", 1)).isGreaterThanOrEqualTo(1);
-        String dados = jdbc.queryForObject(
-            "SELECT dados_novos::text FROM auditoria WHERE acao = 'CLIENTE_IDENTIDADE_ATUALIZADA' " +
-            "ORDER BY created_at DESC LIMIT 1", String.class);
+        // auditoria minimizada: só NOMES de campos, nunca valores.
+        // Filtrada por ESTE cliente — o handler é @Async e outros testes da
+        // classe também geram CLIENTE_IDENTIDADE_ATUALIZADA (última global flakeia).
+        String dados = null;
+        for (int i = 0; i < 50 && dados == null; i++) {
+            var rows = jdbc.queryForList(
+                "SELECT dados_novos::text AS d FROM auditoria " +
+                "WHERE acao = 'CLIENTE_IDENTIDADE_ATUALIZADA' AND entidade_id = ? " +
+                "ORDER BY created_at DESC LIMIT 1", String.class, clienteId);
+            dados = rows.isEmpty() ? null : rows.get(0);
+            if (dados == null) Thread.sleep(100);
+        }
+        assertThat(dados).isNotNull();
         assertThat(dados).contains("rg").contains("naturalidade");
         assertThat(dados).doesNotContain("RG-CORRIGIDO").doesNotContain("Sampa/SP");
     }

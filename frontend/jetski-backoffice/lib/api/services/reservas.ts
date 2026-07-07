@@ -42,6 +42,33 @@ export const reservasService = {
     return data
   },
 
+  /** Busca do módulo Reservas: filtros server-side, nomes resolvidos, top 200. */
+  async buscar(params?: {
+    status?: string
+    canal?: 'BALCAO' | 'PORTAL'
+    clienteId?: string
+    de?: string
+    ate?: string
+  }): Promise<import('../types').ReservaBusca[]> {
+    const { data } = await apiClient.get<import('../types').ReservaBusca[]>(
+      `${getBasePath()}/busca`, { params })
+    return data
+  },
+
+  /** Ficha completa (página de detalhe): cliente, extrato, habilitação, aceite, docs. */
+  async ficha(id: string): Promise<import('../types').ReservaFicha> {
+    const { data } = await apiClient.get<import('../types').ReservaFicha>(
+      `${getBasePath()}/${id}/ficha`)
+    return data
+  },
+
+  /** Link temporário (uso único) do PDF da ficha — padrão iOS-safe. */
+  async fichaDownloadLink(id: string): Promise<{ url: string }> {
+    const { data } = await apiClient.get<{ url: string }>(
+      `${getBasePath()}/${id}/ficha/download-link`)
+    return data
+  },
+
   async create(request: ReservaCreateRequest): Promise<Reserva> {
     const { data } = await apiClient.post<Reserva>(getBasePath(), request)
     return data

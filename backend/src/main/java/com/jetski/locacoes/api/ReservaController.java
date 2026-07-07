@@ -54,6 +54,9 @@ import java.util.stream.Collectors;
 public class ReservaController {
 
     private final ReservaService reservaService;
+    private final com.jetski.locacoes.internal.ReservaFichaService reservaFichaService;
+    private final com.jetski.locacoes.internal.ReservaBuscaService reservaBuscaService;
+    private final com.jetski.locacoes.internal.PdfLinkService pdfLinkService;
 
     /**
      * List all reservations for a tenant.
@@ -489,6 +492,55 @@ public class ReservaController {
     ) {
         validateTenantContext(tenantId);
         return ResponseEntity.ok(FolioExtratoResponse.from(reservaService.extrato(id)));
+    }
+
+    /**
+     * Busca do módulo Reservas: filtros server-side + nomes resolvidos, top
+     * 200. OPA resolve como {@code reserva:list} (fallback — "busca" fora de
+     * knownSubActions), coerente com o list.
+     */
+    @GetMapping("/busca")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO', 'VENDEDOR')")
+    @Operation(summary = "Buscar reservas (status/canal/cliente/período), nomes resolvidos")
+    public ResponseEntity<List<com.jetski.locacoes.api.dto.ReservaBuscaResponse>> buscar(
+        @PathVariable UUID tenantId,
+        @RequestParam(required = false) ReservaStatus status,
+        @RequestParam(required = false) Reserva.Canal canal,
+        @RequestParam(required = false) UUID clienteId,
+        @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) LocalDateTime de,
+        @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) LocalDateTime ate
+    ) {
+        validateTenantContext(tenantId);
+        return ResponseEntity.ok(reservaBuscaService.buscar(status, canal, clienteId, de, ate));
+    }
+
+    /**
+     * Ficha completa da reserva (página de detalhe). OPA resolve estes paths
+     * como {@code reserva:list} (fallback do ActionExtractor — "ficha" fora de
+     * knownSubActions); a restrição real é o @PreAuthorize — mesmas roles do
+     * extrato, que a ficha embute.
+     */
+    @GetMapping("/{id}/ficha")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
+    @Operation(summary = "Ficha completa da reserva (cliente, financeiro, habilitação, termos, documentos)")
+    public ResponseEntity<com.jetski.locacoes.api.dto.ReservaFichaResponse> ficha(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id
+    ) {
+        validateTenantContext(tenantId);
+        return ResponseEntity.ok(reservaFichaService.ficha(id));
+    }
+
+    @GetMapping("/{id}/ficha/download-link")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
+    @Operation(summary = "Gera link temporário (uso único) do PDF da ficha da reserva")
+    public ResponseEntity<java.util.Map<String, String>> fichaDownloadLink(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id
+    ) {
+        validateTenantContext(tenantId);
+        return ResponseEntity.ok(java.util.Map.of(
+            "url", pdfLinkService.criarLink(reservaFichaService.gerarPdf(id))));
     }
 
     private ReservaLancamento.Forma parseFormaPagamento(String forma) {

@@ -59,4 +59,33 @@ public class ReservaResponse {
     private Boolean ativo;
     private Instant createdAt;
     private Instant updatedAt;
+
+    public static ReservaResponse from(com.jetski.locacoes.domain.Reserva reserva) {
+        return ReservaResponse.builder()
+            .id(reserva.getId())
+            .tenantId(reserva.getTenantId())
+            .modeloId(reserva.getModeloId())
+            .jetskiId(reserva.getJetskiId())
+            .clienteId(reserva.getClienteId())
+            .vendedorId(reserva.getVendedorId())
+            .dataInicio(reserva.getDataInicio())
+            .dataFimPrevista(reserva.getDataFimPrevista())
+            .expiraEm(reserva.getExpiraEm())
+            .status(reserva.getStatus())
+            .prioridade(reserva.getPrioridade())
+            .sinalPago(reserva.getSinalPago())
+            .valorSinal(reserva.getValorSinal())
+            .sinalPagoEm(reserva.getSinalPagoEm())
+            .pagamentoTipo(reserva.getPagamentoTipo() != null ? reserva.getPagamentoTipo().name() : null)
+            .pagamentoStatus(reserva.getPagamentoStatus() != null ? reserva.getPagamentoStatus().name() : null)
+            .pagamentoMotivoRecusa(reserva.getPagamentoMotivoRecusa())
+            .valorTotal(reserva.getValorTotal())
+            .documentoEmitidoEm(reserva.getDocumentoEmitidoEm())
+            .canal(reserva.getCanal() != null ? reserva.getCanal().name() : null)
+            .observacoes(reserva.getObservacoes())
+            .ativo(reserva.getAtivo())
+            .createdAt(reserva.getCreatedAt())
+            .updatedAt(reserva.getUpdatedAt())
+            .build();
+    }
 }
