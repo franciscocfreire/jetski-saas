@@ -16,6 +16,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,6 +39,7 @@ public class CustomerSelfController {
 
     private final CustomerAccountService customerAccountService;
     private final CustomerProfileService customerProfileService;
+    private final com.jetski.locacoes.internal.CustomerAnexoService customerAnexoService;
 
     public record AtualizarPerfilRequest(
         @NotBlank @Size(min = 3, max = 120) String nome,
@@ -101,6 +103,41 @@ public class CustomerSelfController {
             @Valid @RequestBody ContatoLojaRequest request) {
         return ResponseEntity.ok(customerAccountService.atualizarContato(
             jwt.getSubject(), tenantId, request.telefone(), request.whatsapp()));
+    }
+
+    // ==================== Documentos (anexos) POR LOJA ====================
+
+    public record UploadAnexoRequest(
+        @NotBlank String tipo,
+        @NotBlank String conteudoBase64
+    ) {}
+
+    @GetMapping("/lojas/{tenantId}/anexos")
+    @Operation(summary = "Tipos de documento já anexados NESTA loja")
+    public ResponseEntity<List<String>> anexos(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable java.util.UUID tenantId) {
+        return ResponseEntity.ok(customerAnexoService.listar(jwt.getSubject(), tenantId));
+    }
+
+    @GetMapping("/lojas/{tenantId}/anexos/{tipo}")
+    @Operation(summary = "Imagem do documento anexado (preview do próprio cliente)")
+    public ResponseEntity<byte[]> anexoImagem(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable java.util.UUID tenantId, @PathVariable String tipo) {
+        var img = customerAnexoService.ler(jwt.getSubject(), tenantId, tipo);
+        return ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.parseMediaType(
+                img.contentType() != null ? img.contentType() : "image/jpeg"))
+            .body(img.bytes());
+    }
+
+    @PostMapping("/lojas/{tenantId}/anexos")
+    @Operation(summary = "Anexa/substitui documento NESTA loja (IDENTIDADE | SELFIE | COMPROVANTE_RESIDENCIA)")
+    public ResponseEntity<List<String>> uploadAnexo(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable java.util.UUID tenantId,
+            @Valid @RequestBody UploadAnexoRequest request) {
+        return ResponseEntity.ok(customerAnexoService.upload(
+            jwt.getSubject(), tenantId, request.tipo(), request.conteudoBase64()));
     }
 
     @PutMapping

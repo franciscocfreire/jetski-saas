@@ -33,11 +33,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CustomerEmaService {
 
-    private static final Set<ClienteAnexo.Tipo> TIPOS_PERMITIDOS = Set.of(
-        ClienteAnexo.Tipo.IDENTIDADE,
-        ClienteAnexo.Tipo.SELFIE,
-        ClienteAnexo.Tipo.COMPROVANTE_RESIDENCIA);
-
     private final CustomerReservaService customerReservaService;
     private final ClienteRepository clienteRepository;
     private final ClienteAnexoService clienteAnexoService;
@@ -141,37 +136,23 @@ public class CustomerEmaService {
 
     @Transactional
     public List<String> uploadAnexo(String sub, UUID reservaId, String tipo, String conteudoBase64) {
-        ClienteAnexo.Tipo t = parseTipoAnexo(tipo);
+        ClienteAnexo.Tipo t = ClienteAnexoService.parseTipoPortal(tipo);
         Cliente c = clienteDaReserva(sub, reservaId);
-        clienteAnexoService.salvar(c.getId(), t, conteudoBase64);
+        clienteAnexoService.salvar(c.getId(), t, conteudoBase64, "PORTAL", sub);
         log.info("Anexo {} enviado pelo cliente no portal: cliente={}", t, c.getId());
         return anexos(sub, reservaId);
     }
 
     /** Imagem do anexo do PRÓPRIO cliente (preview no portal). */
-    public record AnexoImagem(byte[] bytes, String contentType) {}
-
     @Transactional(readOnly = true)
-    public AnexoImagem lerAnexo(String sub, UUID reservaId, String tipo) {
-        ClienteAnexo.Tipo t = parseTipoAnexo(tipo);
+    public ClienteAnexoService.AnexoImagem lerAnexo(String sub, UUID reservaId, String tipo) {
+        ClienteAnexo.Tipo t = ClienteAnexoService.parseTipoPortal(tipo);
         Cliente c = clienteDaReserva(sub, reservaId);
         ClienteAnexo anexo = clienteAnexoService.buscar(c.getId(), t)
             .orElseThrow(() -> new com.jetski.shared.exception.NotFoundException(
                 "Documento ainda não anexado"));
-        return new AnexoImagem(clienteAnexoService.lerImagem(anexo), anexo.getContentType());
-    }
-
-    private static ClienteAnexo.Tipo parseTipoAnexo(String tipo) {
-        ClienteAnexo.Tipo t;
-        try {
-            t = ClienteAnexo.Tipo.valueOf(tipo.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException("Tipo de documento inválido");
-        }
-        if (!TIPOS_PERMITIDOS.contains(t)) {
-            throw new BusinessException("Tipo de documento não permitido pelo portal");
-        }
-        return t;
+        return new ClienteAnexoService.AnexoImagem(
+            clienteAnexoService.lerImagem(anexo), anexo.getContentType());
     }
 
     // ============================ Flags EMA (videoaula/declarações) ============================

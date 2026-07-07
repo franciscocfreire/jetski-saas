@@ -433,6 +433,41 @@ Visão do **frontend**: o que já dá para consumir e o que o backend precisa ex
 - **Anti-takeover:** vínculo a `Cliente` pré-existente sempre com OTP; sem JIT por e-mail.
 - **Testes:** Playwright cobrindo os fluxos críticos (reserva → sinal → habilitação → termos → check-in pela loja → histórico → avaliação), espelhando o estilo de cobertura BDD do projeto.
 
+### 11.1 Privacidade e retenção de documentos (LGPD) — implementado em jul/2026
+
+**Finalidade e base legal.** Documentos com foto (identidade, selfie com documento,
+comprovante de residência) são coletados exclusivamente para a emissão da
+habilitação CHA-MTA-E (NORMAM-212/DPC) — execução de contrato + obrigação
+regulatória. Não são usados para nenhum outro fim.
+
+**Modelo de dados.** Anexos são **tenant-scoped** (`cliente_anexo`, RLS por
+tenant, `UNIQUE(cliente_id, tipo)` — uma imagem por tipo, substituição
+sobrescreve). A identidade textual (CPF/RG/nascimento) é global
+(`customer_profile`), com CPF define-once (correção só com verificação na
+loja) e propagação self-service para as lojas vinculadas.
+
+**Acesso.** Objetos no MinIO em bucket privado, servidos apenas por streaming
+autenticado (Bearer): o próprio cliente (portal — `/v1/customers/self/lojas/
+{tenantId}/anexos*` e fluxo EMA) e o staff da loja do vínculo (balcão). Sem
+URLs públicas.
+
+**Direitos do titular.** Ver (preview no perfil e no wizard), corrigir
+(re-upload substitui — a key antiga é removida do storage, sem acúmulo de
+cópias) e eliminar (staff via `DELETE /clientes/{id}/anexos/{tipo}`; remoção
+do cliente cascateia registro + objeto).
+
+**Auditoria minimizada.** Toda alteração gera trilha (`CLIENTE_ANEXO_ATUALIZADO`,
+`CLIENTE_IDENTIDADE_ATUALIZADA`) contendo apenas o tipo do documento / os NOMES
+dos campos alterados, origem e ator — nunca bytes, s3Key ou valores de dados
+pessoais.
+
+**Retenção.** Política declarada: os documentos são mantidos enquanto o
+cadastro do cliente na loja existir (suporte a novas emissões) e removidos em
+cascata com ele. **Expurgo automatizado por prazo** (ex.: N meses após a
+última locação/emissão, respeitando o prazo de guarda regulatório dos
+documentos enviados à Marinha) é evolução planejada — hoje não há job de
+expurgo; a exclusão é sob demanda.
+
 ---
 
 ## 12. Faseamento sugerido

@@ -142,6 +142,24 @@ public class CustomerAccountService {
             .build();
     }
 
+    /**
+     * Exige que o sub tenha vínculo com a loja e FIXA o tenant na transação
+     * corrente (participa da tx do chamador — Propagation.REQUIRED).
+     * Reusado por contato/anexos/perfil para não replicar posse+fixarTenant.
+     *
+     * @return o vínculo (tenantId + clienteId) validado
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public VinculoLoja exigirVinculo(String providerUserId, UUID tenantId) {
+        VinculoLoja v = vinculos(providerUserId).stream()
+            .filter(x -> x.getTenantId().equals(tenantId))
+            .findFirst()
+            .orElseThrow(() -> new com.jetski.shared.exception.NotFoundException(
+                "Você não tem cadastro nesta loja"));
+        fixarTenant(tenantId);
+        return v;
+    }
+
     /** Fixa app.tenant_id (transaction-local) — RLS estrita continua valendo. */
     private void fixarTenant(UUID tenantId) {
         entityManager.createNativeQuery("SELECT set_config('app.tenant_id', :tid, true)")

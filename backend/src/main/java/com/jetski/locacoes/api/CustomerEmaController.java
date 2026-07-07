@@ -95,7 +95,8 @@ public class CustomerEmaController {
     @Operation(summary = "Imagem do documento anexado (preview do próprio cliente)")
     public ResponseEntity<byte[]> anexoImagem(
             @AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @PathVariable String tipo) {
-        CustomerEmaService.AnexoImagem img = customerEmaService.lerAnexo(jwt.getSubject(), id, tipo);
+        com.jetski.locacoes.internal.ClienteAnexoService.AnexoImagem img =
+            customerEmaService.lerAnexo(jwt.getSubject(), id, tipo);
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(
                 img.contentType() != null ? img.contentType() : "image/jpeg"))

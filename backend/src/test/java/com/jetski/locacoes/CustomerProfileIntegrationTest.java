@@ -151,6 +151,111 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
                 org.hamcrest.Matchers.containsString("vinculado a outra conta")));
     }
 
+    private UUID seedVinculoMarina() {
+        UUID clienteId = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO cliente (id, tenant_id, nome, email, documento, rg,
+                                 origem, status_conta, ativo)
+            VALUES (?, ?, 'Cliente Perfil', 'perfil@test.com', '321.654.987-00', 'RG-11',
+                    'PORTAL', 'ATIVA', TRUE)
+            """, clienteId, TENANT_MARINA);
+        jdbc.update("""
+            INSERT INTO cliente_identity_provider (tenant_id, cliente_id, provider, provider_user_id)
+            VALUES (?, ?, 'keycloak', ?)
+            """, TENANT_MARINA, clienteId, SUB);
+        return clienteId;
+    }
+
+    /** Auditoria é @Async — espera limitada pela ação aparecer. */
+    private int aguardarAuditoria(String acao, int esperado) throws Exception {
+        int count = 0;
+        for (int i = 0; i < 50; i++) {
+            count = jdbc.queryForObject(
+                "SELECT count(*) FROM auditoria WHERE acao = ?", Integer.class, acao);
+            if (count >= esperado) return count;
+            Thread.sleep(100);
+        }
+        return count;
+    }
+
+    @Test
+    @DisplayName("Edição no perfil PROPAGA para o Cliente da loja vinculada (auditada sem valores)")
+    void testPropagacaoIdentidadeParaLoja() throws Exception {
+        seedVinculoAcmeComIdentidade();
+        // backfill do perfil global a partir do vínculo
+        mockMvc.perform(get("/v1/customers/self").with(cliente(SUB, "perfil@test.com")))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(put("/v1/customers/self")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nome\":\"Cliente Perfil\",\"rg\":\"RG-CORRIGIDO\",\"naturalidade\":\"Sampa/SP\"}")
+                .with(cliente(SUB, "perfil@test.com")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.rg").value("RG-CORRIGIDO"));
+
+        // o Cliente da loja reflete a correção
+        var row = jdbc.queryForMap(
+            "SELECT rg, naturalidade FROM cliente WHERE tenant_id = ? AND email = 'perfil@test.com'",
+            TENANT_ACME);
+        assertThat(row.get("rg")).isEqualTo("RG-CORRIGIDO");
+        assertThat(row.get("naturalidade")).isEqualTo("Sampa/SP");
+
+        // auditoria minimizada: só NOMES de campos, nunca valores
+        assertThat(aguardarAuditoria("CLIENTE_IDENTIDADE_ATUALIZADA", 1)).isGreaterThanOrEqualTo(1);
+        String dados = jdbc.queryForObject(
+            "SELECT dados_novos::text FROM auditoria WHERE acao = 'CLIENTE_IDENTIDADE_ATUALIZADA' " +
+            "ORDER BY created_at DESC LIMIT 1", String.class);
+        assertThat(dados).contains("rg").contains("naturalidade");
+        assertThat(dados).doesNotContain("RG-CORRIGIDO").doesNotContain("Sampa/SP");
+    }
+
+    @Test
+    @DisplayName("Propagação atinge TODAS as lojas vinculadas (flush por tenant × RLS)")
+    void testPropagacaoDuasLojas() throws Exception {
+        seedVinculoAcmeComIdentidade();
+        seedVinculoMarina();
+        mockMvc.perform(get("/v1/customers/self").with(cliente(SUB, "perfil@test.com")))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(put("/v1/customers/self")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nome\":\"Cliente Perfil\",\"rg\":\"RG-DUPLO\"}")
+                .with(cliente(SUB, "perfil@test.com")))
+            .andExpect(status().isOk());
+
+        // AMBAS as lojas refletem — pega o bug de UPDATE adiado filtrado pela
+        // RLS do último tenant fixado (exige saveAndFlush por tenant)
+        assertThat(jdbc.queryForObject(
+            "SELECT rg FROM cliente WHERE tenant_id = ? AND email = 'perfil@test.com'",
+            String.class, TENANT_ACME)).isEqualTo("RG-DUPLO");
+        assertThat(jdbc.queryForObject(
+            "SELECT rg FROM cliente WHERE tenant_id = ? AND email = 'perfil@test.com'",
+            String.class, TENANT_MARINA)).isEqualTo("RG-DUPLO");
+    }
+
+    @Test
+    @DisplayName("PUT sem mudança real não propaga nem audita")
+    void testPutSemMudancaNaoAudita() throws Exception {
+        seedVinculoAcmeComIdentidade();
+        mockMvc.perform(get("/v1/customers/self").with(cliente(SUB, "perfil@test.com")))
+            .andExpect(status().isOk());
+
+        int antes = jdbc.queryForObject(
+            "SELECT count(*) FROM auditoria WHERE acao = 'CLIENTE_IDENTIDADE_ATUALIZADA'", Integer.class);
+
+        // mesmos valores do seed/backfill — nenhum campo muda de fato
+        mockMvc.perform(put("/v1/customers/self")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nome\":\"Cliente Perfil\",\"rg\":\"RG-11\",\"nacionalidade\":\"Brasileira\",\"naturalidade\":\"Floripa/SC\"}")
+                .with(cliente(SUB, "perfil@test.com")))
+            .andExpect(status().isOk());
+
+        Thread.sleep(500); // janela p/ um eventual (indevido) handler async
+        int depois = jdbc.queryForObject(
+            "SELECT count(*) FROM auditoria WHERE acao = 'CLIENTE_IDENTIDADE_ATUALIZADA'", Integer.class);
+        assertThat(depois).isEqualTo(antes);
+    }
+
     @Test
     @DisplayName("Reserva em SEGUNDA loja herda a identidade; endereço NÃO segue")
     void testSegundaLojaHerdaIdentidade() throws Exception {
