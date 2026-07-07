@@ -26,7 +26,9 @@ import {
   Percent,
   Store,
   FileClock,
+  CalendarSearch,
   GraduationCap,
+  Landmark,
   ShieldCheck,
 } from 'lucide-react'
 import {
@@ -120,9 +122,19 @@ const managementItems = [
     icon: GraduationCap,
   },
   {
+    title: 'Reservas',
+    href: '/dashboard/reservas',
+    icon: CalendarSearch,
+  },
+  {
     title: 'Documentos',
     href: '/dashboard/documentos',
     icon: FileText,
+  },
+  {
+    title: 'GRUs',
+    href: '/dashboard/grus',
+    icon: Landmark,
   },
 ]
 

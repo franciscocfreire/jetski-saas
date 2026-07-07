@@ -373,6 +373,92 @@ export interface Habilitacao {
   resolvida: boolean
 }
 
+/** Linha do módulo GRUs: ciclo da GRU emitida via EMA. */
+export interface Gru {
+  reservaId: string
+  clienteId?: string
+  clienteNome?: string
+  gruNumero: string
+  gruValor?: number
+  gruPago?: boolean
+  gruPagoEm?: string
+  gruGeradaEm?: string
+  /** null enquanto a documentação não foi emitida (sem o que reenviar). */
+  documentoId?: string
+  documentoEmitidoEm?: string
+  /** null = não enviado, falha ou emissão anterior ao registro (V039). */
+  marinhaEnviadaEm?: string
+  marinhaConfirmadaEm?: string
+}
+
+/** Linha do módulo Reservas (busca). */
+export interface ReservaBusca {
+  id: string
+  clienteId?: string
+  clienteNome?: string
+  modeloNome?: string
+  dataInicio: string
+  dataFimPrevista: string
+  status: string
+  canal?: string
+  pagamentoStatus?: string
+  valorTotal?: number
+  documentoEmitido: boolean
+}
+
+/** Ficha completa da reserva (página de detalhe + PDF). */
+export interface ReservaFicha {
+  reserva: Reserva
+  cliente?: {
+    id: string
+    nome?: string
+    documentoMascarado?: string
+    email?: string
+    telefone?: string
+    whatsapp?: string
+  }
+  passeio?: {
+    modeloId?: string
+    modeloNome?: string
+    jetskiId?: string
+    jetskiSerie?: string
+  }
+  extrato?: {
+    lancamentos: {
+      id: string
+      tipo: string
+      forma?: string
+      valor: number
+      observacao?: string
+      registradoPor?: string
+      createdAt: string
+    }[]
+    totalCobrancas: number
+    totalPagamentos: number
+    totalEstornos: number
+    saldo: number
+  }
+  habilitacao?: Habilitacao | null
+  aceite?: {
+    id: string
+    metodo?: string
+    hashSha256?: string
+    origem?: string
+    aceitoEm?: string
+  } | null
+  ciclo?: {
+    gruNumero: string
+    gruValor?: number
+    gruGeradaEm?: string
+    gruPago?: boolean
+    gruPagoEm?: string
+    documentoEmitidoEm?: string
+    marinhaEnviadaEm?: string
+    marinhaConfirmadaEm?: string
+  } | null
+  documentos: { id: string; emitidoEm: string; hashSha256?: string; downloadUrl?: string }[]
+}
+
 /** Resposta da verificação de pagamento do PIX da GRU. */
 export interface HabilitacaoGruPagamentoResponse {
   pago: boolean

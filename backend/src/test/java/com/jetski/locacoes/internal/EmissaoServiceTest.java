@@ -120,8 +120,12 @@ class EmissaoServiceTest {
         verify(storage, times(2)).putObject(anyString(), any(), eq("application/pdf"));
         verify(docRepo).save(any(DocumentoEmitido.class));
         verify(reservaRepo).save(any(Reserva.class)); // documento_emitido_em
-        verify(email, times(2)).sendEmailComAnexo(anyString(), anyString(), anyString(), anyString(), any(), anyString());
         verify(events).publishEvent(any(DocumentosEmitidosEvent.class));
+
+        // Subject à Marinha carrega o nº da GRU (referência de consulta lá)
+        org.mockito.ArgumentCaptor<String> subjects = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(email, times(2)).sendEmailComAnexo(anyString(), subjects.capture(), anyString(), anyString(), any(), anyString());
+        assertThat(subjects.getAllValues()).anyMatch(s -> s.contains("GRU GRU-1"));
     }
 
     @Test

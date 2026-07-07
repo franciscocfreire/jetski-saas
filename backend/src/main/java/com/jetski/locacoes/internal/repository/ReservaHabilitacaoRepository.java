@@ -11,4 +11,13 @@ import java.util.UUID;
 public interface ReservaHabilitacaoRepository extends JpaRepository<ReservaHabilitacao, UUID> {
 
     Optional<ReservaHabilitacao> findByReservaId(UUID reservaId);
+
+    /** GRUs do tenant (via EMA com número), mais recente primeiro — módulo GRUs. */
+    @org.springframework.data.jpa.repository.Query("""
+        select h from ReservaHabilitacao h
+         where h.via = com.jetski.locacoes.domain.ReservaHabilitacao.Via.EMA
+           and h.gruNumero is not null
+         order by coalesce(h.gruGeradaEm, h.createdAt) desc
+        """)
+    java.util.List<ReservaHabilitacao> listarGrus(org.springframework.data.domain.Pageable page);
 }

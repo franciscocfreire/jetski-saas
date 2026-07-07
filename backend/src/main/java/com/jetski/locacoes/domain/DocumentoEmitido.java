@@ -45,6 +45,13 @@ public class DocumentoEmitido {
     @Column(name = "emitido_em", nullable = false)
     private Instant emitidoEm;
 
+    // Resultado do envio best-effort (V039): null = não enviado, falha ou
+    // emissão anterior ao registro — o remédio em todos os casos é reenviar.
+    @Column(name = "marinha_enviado_em")
+    private Instant marinhaEnviadoEm;
+    @Column(name = "cliente_enviado_em")
+    private Instant clienteEnviadoEm;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

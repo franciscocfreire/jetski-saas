@@ -567,6 +567,10 @@ ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS marinha_confirma
 ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS marinha_confirmada_por uuid;
 ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS cha_mtae_s3_key        text;
 
+-- V039: resultado do envio dos e-mails da emissão (Marinha/cliente)
+ALTER TABLE public.documento_emitido ADD COLUMN IF NOT EXISTS marinha_enviado_em timestamptz;
+ALTER TABLE public.documento_emitido ADD COLUMN IF NOT EXISTS cliente_enviado_em timestamptz;
+
 -- F3 instrutores (V011): cadastro p/ o Atestado de Demonstração 5-B-1
 CREATE TABLE IF NOT EXISTS public.instrutor (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,

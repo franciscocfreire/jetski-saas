@@ -69,7 +69,9 @@ role_permissions := {
         "documento:list",
         "documento:view",
         "documento:download",
-        "documento:reenviar"
+        "documento:reenviar",
+        "gru:list",   # Módulo GRUs (ciclo Marinha)
+        "gru:view"
     ],
 
     "GERENTE": [
@@ -83,6 +85,7 @@ role_permissions := {
         "reserva:*",
         "instrutor:*",  # Cadastro de instrutores (EAMA) — Anexo 5-B-1
         "documento:*",  # Consulta de documentos emitidos
+        "gru:*",  # Módulo GRUs (ciclo Marinha)
         "item-opcional:*",  # Itens opcionais (coletes, equipamentos, etc)
 
         # Permissões específicas de GERENTE
@@ -157,7 +160,9 @@ role_permissions := {
         "documento:list",
         "documento:view",
         "documento:download",
-        "documento:reenviar"
+        "documento:reenviar",
+        "gru:list",   # Módulo GRUs (ciclo Marinha)
+        "gru:view"
     ],
 
     "MECANICO": [

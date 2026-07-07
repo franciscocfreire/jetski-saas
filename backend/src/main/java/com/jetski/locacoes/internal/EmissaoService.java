@@ -183,12 +183,16 @@ public class EmissaoService {
 
         // E-mail à Marinha só quando aplicável (EMA) e a documentação está completa.
         boolean enviadoMarinha = marinhaAplicavel && docCompleta && enviar(marinhaEmail,
-            "Documentos NORMAM-212 — reserva " + reservaId, corpoMarinha(cliente), pdfMarinha.conteudo());
+            assuntoMarinha(hab, reservaId), corpoMarinha(cliente), pdfMarinha.conteudo());
         boolean enviadoCliente = enviar(clienteEmail,
             "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente, hab), pdfCliente.conteudo());
         if (!docCompleta) {
             log.info("Marinha NÃO notificada (reserva {}): pendências {}", reservaId, pendencias);
         }
+        // Resultado do envio persiste no documento (V039) — é o que o módulo
+        // GRUs usa para responder "o e-mail à Marinha saiu?".
+        if (enviadoMarinha) doc.setMarinhaEnviadoEm(Instant.now());
+        if (enviadoCliente) doc.setClienteEnviadoEm(Instant.now());
 
         clienteNotificacaoService.notificar(reserva.getTenantId(), reserva.getClienteId(),
             com.jetski.locacoes.domain.ClienteNotificacao.DOCUMENTOS_EMITIDOS,
@@ -550,7 +554,7 @@ public class EmissaoService {
      * Reenvia por e-mail um documento JÁ emitido (não regenera o PDF — lê do
      * storage). Útil quando o envio inicial falhou (ex.: SMTP não configurado).
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public ResultadoReenvio reenviarEmail(UUID documentoId) {
         DocumentoEmitido doc = documentoRepository.findById(documentoId)
             .orElseThrow(() -> new NotFoundException("Documento não encontrado: " + documentoId));
@@ -578,15 +582,29 @@ public class EmissaoService {
             }
         }
         boolean enviadoMarinha = pdfMarinha != null && enviar(tenant.getMarinhaEmail(),
-            "Documentos NORMAM-212 — reserva " + reserva.getId(), corpoMarinha(cliente), pdfMarinha);
+            assuntoMarinha(hab, reserva.getId()), corpoMarinha(cliente), pdfMarinha);
         boolean enviadoCliente = enviar(cliente.getEmail(),
             "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente, hab), pdfCliente);
+        if (enviadoMarinha) doc.setMarinhaEnviadoEm(Instant.now());
+        if (enviadoCliente) doc.setClienteEnviadoEm(Instant.now());
+        documentoRepository.save(doc);
         log.info("Reenvio de documento: docId={}, marinha={}, cliente={}",
             documentoId, enviadoMarinha, enviadoCliente);
         return ResultadoReenvio.builder()
             .enviadoMarinha(enviadoMarinha)
             .enviadoCliente(enviadoCliente)
             .build();
+    }
+
+    /**
+     * Subject do e-mail à Marinha COM o nº da GRU — é a referência que a
+     * Marinha usa para correlacionar o pedido (o UUID da reserva é interno).
+     */
+    private static String assuntoMarinha(ReservaHabilitacao hab, UUID reservaId) {
+        String gru = hab != null ? hab.getGruNumero() : null;
+        return gru != null && !gru.isBlank()
+            ? "Documentos NORMAM-212 — GRU " + gru + " — reserva " + reservaId
+            : "Documentos NORMAM-212 — reserva " + reservaId;
     }
 
     private boolean enviar(String to, String subject, String htmlBody, byte[] pdf) {

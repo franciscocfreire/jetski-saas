@@ -56,7 +56,9 @@ role_permissions := {
         "cliente:claim",
         "cliente:reenviar",
         "item-opcional:view",
-        "item-opcional:list"
+        "item-opcional:list",
+        "gru:list",
+        "gru:view"
     ],
 
     "GERENTE": [
@@ -69,6 +71,7 @@ role_permissions := {
         "cliente:*",
         "reserva:*",
         "item-opcional:*",
+        "gru:*",
 
         # Permissões específicas de GERENTE
         "desconto:aplicar",
@@ -110,7 +113,9 @@ role_permissions := {
         "reserva:registrar-estorno",
         "reserva:extrato",
         "locacao:registrar-pagamento",
-        "locacao:extrato"
+        "locacao:extrato",
+        "gru:list",
+        "gru:view"
     ],
 
     "MECANICO": [
