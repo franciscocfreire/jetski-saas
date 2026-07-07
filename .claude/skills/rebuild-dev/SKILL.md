@@ -36,10 +36,12 @@ Rebuild NÃO aplica migrations (Flyway desativado em dev). Aplicar o bloco idemp
 Containers foram recriados sem as vars do túnel. Corrigir:
 ```bash
 NEXTAUTH_URL="https://www.pegaojet.com.br" \
+PORTAL_PUBLIC_URL="https://cliente.pegaojet.com.br" \
+PORTAL_NEXTAUTH_URL="https://cliente.pegaojet.com.br" \
 KEYCLOAK_ISSUER="https://www.pegaojet.com.br/realms/jetski-saas" \
 JETSKI_FRONTEND_URL="https://www.pegaojet.com.br" \
 JETSKI_EXTERNAL_URL="https://www.pegaojet.com.br" \
-docker compose up -d --force-recreate frontend backend
+docker compose up -d --force-recreate frontend backend portal
 ```
 Sintomas: redirect para `http://nginx/...` (DNS_PROBE_FINISHED_NXDOMAIN) ou "nenhuma empresa" no backoffice (JWT rejeitado por issuer mismatch, 401 em `/v1/users/me/tenants`).
 

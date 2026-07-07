@@ -64,6 +64,8 @@ openssl rand -base64 24   # senhas de banco/MinIO
 2. Copie o **token** e cole em `CLOUDFLARE_TUNNEL_TOKEN` no `.env`.
 3. Em **Public Hostnames** do tunnel, adicione:
    - Hostname: `meujet.com.br` (e/ou `www`) → Service: `http://nginx:80`
+   - Hostname: `cliente.meujet.com.br` → Service: `http://nginx:80` (portal do
+     cliente no subdomínio próprio — fase 1; exige `PORTAL_PUBLIC_URL` no `.env`)
 4. O DNS (CNAME) é criado automaticamente pelo Cloudflare.
 
 ## 4. Primeiro deploy

@@ -117,6 +117,8 @@ else
     JETSKI_FRONTEND_URL="${BASE_URL}"
     JETSKI_EXTERNAL_URL="${BASE_URL}"
 fi
+# Portal no subdomínio próprio (fase 1): deriva cliente.* do host www se não setada
+PORTAL_PUBLIC_URL="${PORTAL_PUBLIC_URL:-$(echo "$BASE_URL" | sed 's#//www\.#//cliente.#')}"
 
 echo -e "${BLUE}========================================"
 echo "  REBUILD - Jetski SaaS"
@@ -216,7 +218,8 @@ fi
 # --force-recreate ensures containers are recreated with new env vars
 echo -e "${BLUE}[6/6] Iniciando serviços...${NC}"
 NEXTAUTH_URL="$BASE_URL" \
-PORTAL_NEXTAUTH_URL="${BASE_URL}/portal" \
+PORTAL_NEXTAUTH_URL="$PORTAL_PUBLIC_URL" \
+PORTAL_PUBLIC_URL="$PORTAL_PUBLIC_URL" \
 STORAGE_MINIO_PUBLIC_URL="$BASE_URL" \
 KEYCLOAK_ISSUER="$KEYCLOAK_ISSUER" \
 JETSKI_FRONTEND_URL="$BASE_URL" \

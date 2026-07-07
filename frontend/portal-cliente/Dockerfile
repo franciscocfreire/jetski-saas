@@ -3,9 +3,10 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Env públicas do Next embutidas no build:
-# - basePath /portal: o portal vive sob o mesmo host do backoffice (nginx roteia)
+# - basePath VAZIO: o portal vive na RAIZ do subdomínio cliente.* (fase 1);
+#   o caminho legado www/portal/* recebe 301 do nginx
 # - API relativa /api: mesmo host via nginx → sem CORS
-ARG NEXT_PUBLIC_BASE_PATH=/portal
+ARG NEXT_PUBLIC_BASE_PATH=""
 ARG NEXT_PUBLIC_API_URL=/api
 ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL

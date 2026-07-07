@@ -116,6 +116,7 @@ services:
 
       JETSKI_FRONTEND_URL: ${PUBLIC_URL}
       JETSKI_EXTERNAL_URL: ${PUBLIC_URL}
+      JETSKI_PORTAL_URL: ${PORTAL_PUBLIC_URL}
       JETSKI_ALLOWED_ORIGINS: ${PUBLIC_URL}
       # Super admin de plataforma (emails separados por vírgula) — promovidos no boot
       PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
@@ -127,7 +128,8 @@ services:
   portal:
     environment:
       API_INTERNAL_URL: http://backend:8090/api
-      NEXTAUTH_URL: ${PUBLIC_URL}/portal
+      # Portal na RAIZ do subdomínio próprio (fase 1)
+      NEXTAUTH_URL: ${PORTAL_PUBLIC_URL}
       # pode ser o mesmo do backoffice (cookies têm nomes distintos: portal.*)
       NEXTAUTH_SECRET: ${PORTAL_NEXTAUTH_SECRET:-${NEXTAUTH_SECRET}}
       AUTH_TRUST_HOST: "true"

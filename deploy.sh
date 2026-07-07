@@ -38,6 +38,7 @@ set -a; . ./.env; set +a
 : "${JETSKI_APP_DB_PASSWORD:?defina JETSKI_APP_DB_PASSWORD no .env}"
 : "${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}"
 : "${PUBLIC_URL:?defina PUBLIC_URL no .env}"
+: "${PORTAL_PUBLIC_URL:?defina PORTAL_PUBLIC_URL no .env (ex.: https://cliente.meujet.com.br)}"
 
 # Criptografia de segredos (senha SMTP por tenant): se não houver chave, gera uma
 # e grava no .env (uma única vez). NUNCA sobrescreve uma chave já existente —

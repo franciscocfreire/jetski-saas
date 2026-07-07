@@ -98,6 +98,7 @@ class ClaimServiceTest {
         ClaimService.ClaimResult r = service.gerar(clienteId, "email,whatsapp");
 
         assertThat(r.getToken()).hasSize(40);
+        // sem jetski.portal.url configurada: fallback legado {frontend}/portal
         assertThat(r.getLink()).startsWith("http://portal.test/portal/ativar?token=");
         assertThat(r.isEnviado()).isTrue();
 
@@ -108,6 +109,17 @@ class ClaimServiceTest {
         verify(tokenRepo).save(any(ClienteClaimToken.class));
         verify(email).sendClienteInvitationEmail(eq("maria@email.com"), eq("Maria Souza"), anyString(), anyString());
         verify(events).publishEvent(any(ClaimEnviadoEvent.class));
+    }
+
+    @Test
+    @DisplayName("gerar: com jetski.portal.url o link aponta ao SUBDOMÍNIO do portal (raiz, sem /portal)")
+    void gerarLinkSubdominio() {
+        ReflectionTestUtils.setField(service, "portalUrl", "https://cliente.pegaojet.com.br");
+        when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(preConta()));
+
+        ClaimService.ClaimResult r = service.gerar(clienteId, "email");
+
+        assertThat(r.getLink()).startsWith("https://cliente.pegaojet.com.br/ativar?token=");
     }
 
     @Test

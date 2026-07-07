@@ -132,6 +132,9 @@ jetski:
     # BOLETO, que não passa pelo PagTesouro. O PIX sempre sobrescreve com o valor real.
     valor: ${JETSKI_GRU_VALOR:60.32}
   portal:
+    # Base pública do portal do cliente (subdomínio próprio, fase 1) — usada
+    # nos links de e-mail ao cliente (ativação). Vazio ⇒ {frontend.url}/portal.
+    url: ${JETSKI_PORTAL_URL:}
     # Percentual do sinal sobre o valor estimado (spec portal §5.2)
     sinal-percentual: ${JETSKI_PORTAL_SINAL_PERCENTUAL:30}
     # Prazo (horas) p/ pagar a pré-reserva do portal antes de expirar

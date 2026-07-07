@@ -84,7 +84,8 @@ echo -e "${YELLOW}3. Iniciando containers (com rebuild)...${NC}"
 if [ -n "$PUBLIC_URL" ]; then
     # Iniciar com variaveis do ngrok
     NEXTAUTH_URL="$PUBLIC_URL" \
-    PORTAL_NEXTAUTH_URL="${PUBLIC_URL}/portal" \
+    PORTAL_PUBLIC_URL="${PORTAL_PUBLIC_URL:-$(echo "$PUBLIC_URL" | sed 's#//www\.#//cliente.#')}" \
+    PORTAL_NEXTAUTH_URL="${PORTAL_PUBLIC_URL:-$(echo "$PUBLIC_URL" | sed 's#//www\.#//cliente.#')}" \
     KEYCLOAK_ISSUER="$PUBLIC_URL/realms/jetski-saas" \
     JETSKI_FRONTEND_URL="$PUBLIC_URL" \
     JETSKI_EXTERNAL_URL="$PUBLIC_URL" \

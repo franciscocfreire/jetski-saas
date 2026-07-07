@@ -61,6 +61,10 @@ public class ClaimService {
     @org.springframework.beans.factory.annotation.Value("${jetski.frontend.url:http://localhost:3000}")
     private String frontendUrl;
 
+    /** Base do PORTAL do cliente (subdomínio próprio); vazio ⇒ {frontend}/portal (legado). */
+    @org.springframework.beans.factory.annotation.Value("${jetski.portal.url:}")
+    private String portalUrl;
+
     @Value
     @Builder
     public static class ClaimResult {
@@ -127,8 +131,11 @@ public class ClaimService {
         cliente.setStatusConta(Cliente.StatusConta.CONVIDADA);
         clienteRepository.save(cliente);
 
-        // Página de ativação vive no portal do cliente (nginx roteia {host}/portal).
-        String link = String.format("%s/portal/ativar?token=%s", frontendUrl, token);
+        // Página de ativação vive no portal do cliente — subdomínio próprio
+        // (jetski.portal.url); sem a var, cai no caminho legado {host}/portal.
+        String basePortal = portalUrl != null && !portalUrl.isBlank()
+            ? portalUrl : frontendUrl + "/portal";
+        String link = String.format("%s/ativar?token=%s", basePortal, token);
         emailService.sendClienteInvitationEmail(cliente.getEmail(), cliente.getNome(), link, senhaTemporaria);
 
         eventPublisher.publishEvent(ClaimEnviadoEvent.of(
