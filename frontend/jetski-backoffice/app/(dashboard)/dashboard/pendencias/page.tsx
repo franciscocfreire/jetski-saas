@@ -133,6 +133,15 @@ function etapasDe(
           ? 'gerada; Marinha aguarda pendências'
           : 'a emitir',
     })
+    // Devolutiva manual da Marinha (e-mail à loja) — anexada no detalhe da reserva
+    if (emitido) {
+      etapas.push({
+        chave: 'marinha-confirmada',
+        label: 'Confirmada pela Marinha',
+        ok: !!hab?.marinhaConfirmadaEm,
+        hint: hab?.marinhaConfirmadaEm ? 'devolutiva anexada' : 'aguardando e-mail da Marinha',
+      })
+    }
   } else {
     etapas.push({
       chave: 'cha',

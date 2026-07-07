@@ -5,6 +5,7 @@ import com.jetski.locacoes.domain.ReservaHabilitacao;
 import com.jetski.locacoes.domain.ReservaHabilitacao.Via;
 import com.jetski.locacoes.internal.repository.ReservaHabilitacaoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
+import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,12 +25,94 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class HabilitacaoService {
 
+    /**
+     * Validade da CHA-MTA-E temporária, contada da EMISSÃO do documento
+     * (reserva.documento_emitido_em) — mesma regra impressa no PDF (5-B-2).
+     * Vigência comparada em Instant; exibição em America/Sao_Paulo.
+     */
+    public static final int VALIDADE_TEMPORARIA_DIAS = 30;
+
+    /**
+     * Marcador em {@code chaCategoria} de habilitação derivada do REUSO de uma
+     * temporária vigente (chaNumero = nº da GRU de origem). A temporária É uma
+     * CHA — o reuso passa pela via CHA (sem GRU nova, sem envio à Marinha,
+     * sem débito de créditos).
+     */
+    public static final String CHA_CATEGORIA_TEMPORARIA = "MTA-E TEMPORÁRIA";
+
     private final ReservaHabilitacaoRepository repository;
     private final ReservaRepository reservaRepository;
+    private final com.jetski.shared.storage.StorageService storageService;
+    private final DocumentoPdfService documentoPdfService;
+    private final ClienteNotificacaoService clienteNotificacaoService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public Optional<ReservaHabilitacao> getByReserva(UUID reservaId) {
         return repository.findByReservaId(reservaId);
+    }
+
+    /**
+     * Anexa a devolutiva da Marinha (CHA-MTA-E confirmada) — a resposta chega
+     * MANUALMENTE por e-mail à loja; este registro é o que torna a temporária
+     * elegível para reuso em novas reservas.
+     *
+     * <p>Re-upload substitui o PDF, mas preserva o instante/autor da
+     * confirmação original; a notificação ao cliente sai só na primeira.
+     */
+    @Transactional
+    public ReservaHabilitacao registrarDevolutivaMarinha(
+            UUID reservaId, byte[] conteudo, boolean ehImagem, UUID usuarioId) {
+        ReservaHabilitacao hab = repository.findByReservaId(reservaId)
+            .orElseThrow(() -> new NotFoundException("Habilitação não encontrada: " + reservaId));
+        Reserva reserva = reservaRepository.findById(reservaId)
+            .orElseThrow(() -> new NotFoundException("Reserva não encontrada: " + reservaId));
+
+        if (conteudo == null || conteudo.length == 0) {
+            throw new BusinessException("Devolutiva vazia");
+        }
+        if (hab.getVia() != ReservaHabilitacao.Via.EMA) {
+            throw new BusinessException(
+                "A devolutiva da Marinha só se aplica a habilitações emitidas via EMA.");
+        }
+        if (!Boolean.TRUE.equals(hab.getGruPago()) || reserva.getDocumentoEmitidoEm() == null) {
+            throw new BusinessException(
+                "A devolutiva pressupõe a emissão concluída (GRU paga e documentação enviada à Marinha).");
+        }
+
+        byte[] pdf = ehImagem
+            ? documentoPdfService.imagemParaPdf(conteudo, "CHA-MTA-E CONFIRMADA PELA MARINHA").conteudo()
+            : conteudo;
+        String key = String.format("%s/reserva/%s/cha-mtae-confirmada.pdf", hab.getTenantId(), reservaId);
+        storageService.putObject(key, pdf, "application/pdf");
+
+        boolean substituicao = hab.getMarinhaConfirmadaEm() != null;
+        hab.setChaMtaeS3Key(key);
+        if (!substituicao) {
+            hab.setMarinhaConfirmadaEm(Instant.now());
+            hab.setMarinhaConfirmadaPor(usuarioId);
+            clienteNotificacaoService.notificar(hab.getTenantId(), reserva.getClienteId(),
+                com.jetski.locacoes.domain.ClienteNotificacao.CHA_CONFIRMADA,
+                "Sua CHA-MTA-E foi confirmada pela Marinha ✅",
+                "A confirmação oficial já está disponível para download em Minhas habilitações.",
+                "/conta/perfil");
+        }
+        ReservaHabilitacao salvo = repository.save(hab);
+        eventPublisher.publishEvent(com.jetski.locacoes.event.ChaMtaeConfirmadaEvent.of(
+            hab.getTenantId(), reservaId, usuarioId, substituicao));
+        log.info("Devolutiva da Marinha registrada: reserva={}, substituicao={}", reservaId, substituicao);
+        return salvo;
+    }
+
+    /** Bytes do PDF da devolutiva já anexada (stream autenticado). */
+    @Transactional(readOnly = true)
+    public byte[] baixarDevolutivaPdf(UUID reservaId) {
+        ReservaHabilitacao hab = repository.findByReservaId(reservaId)
+            .orElseThrow(() -> new NotFoundException("Habilitação não encontrada: " + reservaId));
+        if (hab.getChaMtaeS3Key() == null) {
+            throw new NotFoundException("Devolutiva da Marinha ainda não anexada para a reserva " + reservaId);
+        }
+        return storageService.getObject(hab.getChaMtaeS3Key());
     }
 
     @Transactional

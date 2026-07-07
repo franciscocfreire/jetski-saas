@@ -101,6 +101,15 @@ public class ReservaHabilitacao {
     @Column(name = "gru_comprovante_s3_key", columnDefinition = "text")
     private String gruComprovanteS3Key;
 
+    // Devolutiva da Marinha (resposta manual por e-mail à loja): enquanto
+    // não anexada, a temporária é "aguardando confirmação" e não é reusável.
+    @Column(name = "marinha_confirmada_em")
+    private Instant marinhaConfirmadaEm;
+    @Column(name = "marinha_confirmada_por")
+    private UUID marinhaConfirmadaPor;
+    @Column(name = "cha_mtae_s3_key", columnDefinition = "text")
+    private String chaMtaeS3Key;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean resolvida = false;

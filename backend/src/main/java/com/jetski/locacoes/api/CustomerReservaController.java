@@ -52,7 +52,12 @@ public class CustomerReservaController {
         @Size(max = 20) String cpf,
         @Size(max = 30) String telefone,
         /** true = cliente já tem CHA (sem GRU); false = loja emite via EMA. */
-        Boolean possuiCha
+        Boolean possuiCha,
+        /**
+         * Quando possuiCha=false e há temporária CONFIRMADA vigente:
+         * null/true = reusa (default, retrocompat); false = emite nova via EMA.
+         */
+        Boolean usarTemporaria
     ) {}
 
     public record AnexarComprovanteRequest(
@@ -75,7 +80,7 @@ public class CustomerReservaController {
             request.observacoes(),
             parseTipo(request.pagamentoTipo()),
             request.cpf(),
-            request.telefone(), request.possuiCha());
+            request.telefone(), request.possuiCha(), request.usarTemporaria());
         CustomerReservaService.ReservaCliente criada = customerReservaService.criar(
             jwt.getSubject(),
             jwt.getClaimAsString("email"),
@@ -189,6 +194,20 @@ public class CustomerReservaController {
         CustomerReservaService.EnviarChaCmd cmd = new CustomerReservaService.EnviarChaCmd(
             request.categoria(), request.numero(), request.validade(), request.fotoBase64());
         return ResponseEntity.ok(customerReservaService.enviarCha(jwt.getSubject(), id, cmd));
+    }
+
+    @PostMapping("/{id}/habilitacao/usar-temporaria")
+    @Operation(summary = "Usa a temporária confirmada vigente nesta reserva (sem nova GRU)")
+    public ResponseEntity<CustomerReservaService.HabilitacaoCliente> usarTemporaria(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return ResponseEntity.ok(customerReservaService.usarTemporaria(jwt.getSubject(), id));
+    }
+
+    @PostMapping("/{id}/habilitacao/emitir-nova")
+    @Operation(summary = "Desfaz o reuso da temporária — a reserva volta ao fluxo EMA")
+    public ResponseEntity<CustomerReservaService.HabilitacaoCliente> emitirNova(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return ResponseEntity.ok(customerReservaService.emitirNova(jwt.getSubject(), id));
     }
 
     private Reserva.PagamentoTipo parseTipo(String tipo) {

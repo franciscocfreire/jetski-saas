@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
 import {
+  BadgeCheck,
   CalendarRange,
   ClipboardList,
   CheckCircle2,
@@ -19,8 +20,11 @@ import {
   getModeloPublico,
   criarReserva,
   getSelf,
+  getHabilitacoes,
   ApiError,
   type MarketplaceModelo,
+  type HabilitacaoTemporaria,
+  type CustomerSelf,
 } from "@/lib/api";
 import { brl } from "@/lib/cn";
 import { Button, Card, Field, inputCls } from "@/components/ui";
@@ -66,6 +70,7 @@ function Wizard() {
   }, [modeloId]);
 
   // CPF do cadastro (identidade global): a reserva sempre usa ele
+  const [lojasVinculadas, setLojasVinculadas] = useState<CustomerSelf["lojas"]>([]);
   useEffect(() => {
     if (status === "authenticated" && session?.accessToken) {
       getSelf(session.accessToken)
@@ -75,7 +80,33 @@ function Wizard() {
             setCpfCadastro(doc);
             setCpf(doc);
           }
+          setLojasVinculadas(s.lojas ?? []);
         })
+        .catch(() => {});
+    }
+  }, [status, session?.accessToken]);
+
+  // Telefone já cadastrado (é POR LOJA): pré-preenche com o da loja desta
+  // reserva; sem vínculo nela, usa o de outra loja — mesmo padrão do CPF.
+  useEffect(() => {
+    if (!m || lojasVinculadas.length === 0) return;
+    setTelefone((atual) => {
+      if (atual) return atual; // não sobrescreve o que o cliente digitou
+      const daLoja = lojasVinculadas.find((l) => l.slug === m.lojaSlug);
+      const fone = (l?: { telefone?: string; whatsapp?: string }) =>
+        l?.whatsapp || l?.telefone || "";
+      return fone(daLoja) || fone(lojasVinculadas.find((l) => fone(l)));
+    });
+  }, [m, lojasVinculadas]);
+
+  // Habilitação temporária ELEGÍVEL (vigente + confirmada pela Marinha): se
+  // existir, o cliente escolhe entre usá-la (pré-selecionado) ou emitir nova.
+  const [temporariaVigente, setTemporariaVigente] = useState<HabilitacaoTemporaria | null>(null);
+  const [usarTemporaria, setUsarTemporaria] = useState(true);
+  useEffect(() => {
+    if (status === "authenticated" && session?.accessToken) {
+      getHabilitacoes(session.accessToken)
+        .then((hs) => setTemporariaVigente(hs.find((h) => h.vigente && h.confirmada) ?? null))
         .catch(() => {});
     }
   }, [status, session?.accessToken]);
@@ -116,6 +147,8 @@ function Wizard() {
         cpf: cpf || undefined,
         telefone: telefone || undefined,
         possuiCha: possuiCha ?? undefined,
+        usarTemporaria:
+          possuiCha === false && temporariaVigente ? usarTemporaria : undefined,
       });
       router.push(`/conta/reservas/${reserva.id}/pagamento?tipo=${tipo}`);
     } catch (e) {
@@ -240,6 +273,44 @@ function Wizard() {
               </div>
             </Field>
 
+            {possuiCha === false && temporariaVigente && (
+              <Field label="Você tem uma habilitação temporária confirmada — como prefere?">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setUsarTemporaria(true)}
+                    className={`rounded-xl border px-4 py-3 text-left text-sm font-medium transition ${
+                      usarTemporaria
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                        : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1">
+                      <BadgeCheck size={14} className="shrink-0" /> Usar minha temporária
+                    </span>
+                    <span className="mt-0.5 block text-[11px] font-normal opacity-80">
+                      Válida até {new Date(temporariaVigente.validaAte + "T12:00:00").toLocaleDateString("pt-BR")}{" "}
+                      (GRU nº {temporariaVigente.gruNumero}) — sem nova taxa da Marinha
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUsarTemporaria(false)}
+                    className={`rounded-xl border px-4 py-3 text-left text-sm font-medium transition ${
+                      !usarTemporaria
+                        ? "border-brand-500 bg-brand-50 text-brand-800"
+                        : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    Emitir nova CHA-MTA-E
+                    <span className="mt-0.5 block text-[11px] font-normal opacity-80">
+                      A loja emite e paga a taxa da Marinha por você
+                    </span>
+                  </button>
+                </div>
+              </Field>
+            )}
+
             <Field label="Observações (opcional)">
               <textarea
                 className={`${inputCls} min-h-20`}
@@ -271,7 +342,9 @@ function Wizard() {
               Habilitação:{" "}
               {possuiCha
                 ? "CHA própria (você envia a carteira depois)"
-                : "CHA-MTA-E — a loja emite e paga a taxa da Marinha por você"}
+                : temporariaVigente && usarTemporaria
+                  ? `sua habilitação temporária confirmada será usada (GRU nº ${temporariaVigente.gruNumero})`
+                  : "CHA-MTA-E — a loja emite e paga a taxa da Marinha por você"}
             </p>
           )}
           <div className="mt-3 space-y-1.5 text-sm">

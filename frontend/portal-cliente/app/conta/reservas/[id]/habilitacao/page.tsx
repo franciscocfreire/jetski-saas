@@ -15,8 +15,12 @@ import {
 import {
   getHabilitacao,
   enviarCha,
+  getHabilitacoes,
+  usarTemporariaReserva,
+  emitirNovaReserva,
   ApiError,
   type HabilitacaoCliente,
+  type HabilitacaoTemporaria,
 } from "@/lib/api";
 import { Button, Card, Field, inputCls } from "@/components/ui";
 import { EmaWizard } from "@/components/EmaWizard";
@@ -43,6 +47,19 @@ export default function HabilitacaoPage() {
   const [foto, setFoto] = useState<{ nome: string; dataUrl: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [trocando, setTrocando] = useState(false);
+  // temporária confirmada+vigente de OUTRA reserva — opção de reuso tardio
+  const [temporariaElegivel, setTemporariaElegivel] = useState<HabilitacaoTemporaria | null>(null);
+
+  useEffect(() => {
+    if (status === "authenticated" && session?.accessToken) {
+      getHabilitacoes(session.accessToken)
+        .then((hs) => setTemporariaElegivel(
+          hs.find((h) => h.vigente && h.confirmada && h.reservaId !== id) ?? null))
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, session?.accessToken, id]);
 
   const carregar = useCallback(async (token: string) => {
     try {
@@ -118,7 +135,43 @@ export default function HabilitacaoPage() {
         <IdCard className="text-brand-600" /> Habilitação náutica
       </h1>
 
-      {hab.resolvida ? (
+      {hab.resolvida && hab.chaCategoria === "MTA-E TEMPORÁRIA" ? (
+        <Card className="mt-6 flex flex-col items-center gap-3 p-8 text-center">
+          <Award className="text-emerald-500" size={44} />
+          <h2 className="text-lg font-semibold text-ink-900">Habilitação temporária vigente</h2>
+          <p className="text-sm text-slate-500">
+            Usando sua habilitação temporária
+            {hab.chaValidade &&
+              ` válida até ${new Date(hab.chaValidade + "T12:00:00").toLocaleDateString("pt-BR")}`}{" "}
+            (GRU nº {hab.chaNumero}) — sem nova taxa da Marinha nesta reserva. Use o
+            número da GRU para consultar o estado junto à Marinha.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button href={`/conta/reservas/${id}`} variant="outline">
+              Voltar para a reserva
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={trocando}
+              onClick={async () => {
+                if (!session?.accessToken) return;
+                setTrocando(true);
+                try {
+                  await emitirNovaReserva(session.accessToken, id);
+                  setVia("nao");
+                  await carregar(session.accessToken);
+                } catch (e) {
+                  setErro(e instanceof ApiError ? e.message : "Não foi possível trocar.");
+                } finally {
+                  setTrocando(false);
+                }
+              }}
+            >
+              {trocando ? "Trocando…" : "Emitir nova CHA-MTA-E"}
+            </Button>
+          </div>
+        </Card>
+      ) : hab.resolvida ? (
         <Card className="mt-6 flex flex-col items-center gap-3 p-8 text-center">
           <Award className="text-emerald-500" size={44} />
           <h2 className="text-lg font-semibold text-ink-900">Habilitação registrada</h2>
@@ -243,6 +296,33 @@ export default function HabilitacaoPage() {
                 Complete os 4 passos — a demonstração prática de segurança acontece no
                 embarque, com o instrutor da loja.
               </p>
+              {temporariaElegivel && (
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                  <span>
+                    Você tem uma <b>temporária confirmada válida até{" "}
+                    {new Date(temporariaElegivel.validaAte + "T12:00:00").toLocaleDateString("pt-BR")}</b>{" "}
+                    (GRU nº {temporariaElegivel.gruNumero}) — pode usá-la aqui, sem nova taxa.
+                  </span>
+                  <Button
+                    size="sm"
+                    disabled={trocando}
+                    onClick={async () => {
+                      if (!session?.accessToken) return;
+                      setTrocando(true);
+                      try {
+                        await usarTemporariaReserva(session.accessToken, id);
+                        await carregar(session.accessToken);
+                      } catch (e) {
+                        setErro(e instanceof ApiError ? e.message : "Não foi possível usar a temporária.");
+                      } finally {
+                        setTrocando(false);
+                      }
+                    }}
+                  >
+                    {trocando ? "Aplicando…" : "Usar minha temporária"}
+                  </Button>
+                </div>
+              )}
               <EmaWizard reservaId={id} />
             </div>
           )}

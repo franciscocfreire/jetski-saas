@@ -367,6 +367,9 @@ export interface Habilitacao {
   gruPixExpiracao?: string
   gruBoletoDisponivel?: boolean
   gruComprovanteDisponivel?: boolean
+  /** Devolutiva da Marinha (CHA-MTA-E confirmada) anexada pela loja */
+  marinhaConfirmadaEm?: string
+  devolutivaDisponivel?: boolean
   resolvida: boolean
 }
 

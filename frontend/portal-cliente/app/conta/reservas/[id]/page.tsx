@@ -190,15 +190,19 @@ export default function ReservaDetailPage() {
           },
           {
             titulo: "Habilitação náutica",
-            desc: checklist.habilitacaoOk
-              ? checklist.habilitacaoVia === "CHA"
-                ? "CHA enviada e registrada"
-                : "CHA-MTA-E encaminhada"
-              : checklist.habilitacaoVia === "CHA"
-                ? "Envie os dados e a foto da sua CHA"
-                : checklist.habilitacaoVia === "EMA"
-                  ? "Complete os passos da CHA-MTA-E — a taxa da Marinha fica com a loja"
-                  : "Envie sua CHA ou emita a CHA-MTA-E",
+            desc: checklist.habilitacaoTemporaria
+              ? `Habilitação temporária vigente até ${new Date(
+                  checklist.habilitacaoTemporaria.validaAte + "T12:00:00"
+                ).toLocaleDateString("pt-BR")} (GRU nº ${checklist.habilitacaoTemporaria.gruNumero})`
+              : checklist.habilitacaoOk
+                ? checklist.habilitacaoVia === "CHA"
+                  ? "CHA enviada e registrada"
+                  : "CHA-MTA-E encaminhada"
+                : checklist.habilitacaoVia === "CHA"
+                  ? "Envie os dados e a foto da sua CHA"
+                  : checklist.habilitacaoVia === "EMA"
+                    ? "Complete os passos da CHA-MTA-E — a taxa da Marinha fica com a loja"
+                    : "Envie sua CHA ou emita a CHA-MTA-E",
             estado: checklist.habilitacaoOk ? "ok" : "pendente",
             icone: <IdCard size={16} />,
             href: `/conta/reservas/${reserva.id}/habilitacao`,

@@ -77,4 +77,23 @@ export const habilitacaoService = {
     })
     return res.data as Blob
   },
+
+  /**
+   * Anexa a devolutiva da Marinha (CHA-MTA-E confirmada) — a resposta chega
+   * por e-mail à loja; anexar aqui é o que torna a temporária reusável.
+   */
+  async registrarDevolutiva(reservaId: string, conteudoBase64: string): Promise<Habilitacao> {
+    const { data } = await apiClient.put<Habilitacao>(`${path(reservaId)}/devolutiva`, {
+      conteudoBase64,
+    })
+    return data
+  },
+
+  /** Baixa a devolutiva da Marinha (PDF, stream autenticado). */
+  async baixarDevolutiva(reservaId: string): Promise<Blob> {
+    const res = await apiClient.get(`${path(reservaId)}/devolutiva/download`, {
+      responseType: 'blob',
+    })
+    return res.data as Blob
+  },
 }

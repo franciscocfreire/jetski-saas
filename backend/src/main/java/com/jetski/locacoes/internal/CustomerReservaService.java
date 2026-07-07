@@ -2,6 +2,7 @@ package com.jetski.locacoes.internal;
 
 import com.jetski.locacoes.domain.Cliente;
 import com.jetski.locacoes.domain.CustomerProfile;
+import com.jetski.locacoes.event.HabilitacaoTemporariaReusadaEvent;
 import com.jetski.locacoes.domain.ClienteIdentityProvider;
 import com.jetski.locacoes.api.ModeloService;
 import com.jetski.locacoes.domain.Modelo;
@@ -75,6 +76,8 @@ public class CustomerReservaService {
     private final AceiteOtpService aceiteOtpService;
     private final HabilitacaoService habilitacaoService;
     private final ClienteAnexoService clienteAnexoService;
+    private final CustomerHabilitacaoService customerHabilitacaoService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     /** Percentual do sinal sobre o valor estimado da reserva (spec §5.2: ex. 30%). */
     @Value("${jetski.portal.sinal-percentual:30}")
@@ -86,10 +89,21 @@ public class CustomerReservaService {
         String lojaSlug, UUID modeloId,
         LocalDateTime dataInicio, LocalDateTime dataFimPrevista,
         String observacoes, Reserva.PagamentoTipo pagamentoTipo,
-        String cpf, String telefone, Boolean possuiCha) {}
+        String cpf, String telefone, Boolean possuiCha,
+        /** false = cliente optou por emitir nova mesmo com temporária elegível. */
+        Boolean usarTemporaria) {}
 
     @Transactional
     public ReservaCliente criar(String sub, String email, String nome, CriarCmd cmd) {
+        // REUSO da CHA-MTA-E temporária vigente (qualquer loja vinculada).
+        // A busca alterna set_config por vínculo e é 100% read-only — TEM que
+        // rodar ANTES de qualquer write e do fixarTenant da loja (um auto-flush
+        // no meio gravaria sob o tenant errado, filtrado pela RLS).
+        Optional<CustomerHabilitacaoService.HabilitacaoTemporaria> temporaria =
+            Boolean.FALSE.equals(cmd.possuiCha()) && !Boolean.FALSE.equals(cmd.usarTemporaria())
+                ? customerHabilitacaoService.vigenteMaisRecente(sub)
+                : Optional.empty();
+
         Loja loja = lojaBySlug(cmd.lojaSlug())
             .orElseThrow(() -> new NotFoundException("Loja não encontrada: " + cmd.lojaSlug()));
         fixarTenant(loja.tenantId());
@@ -115,20 +129,33 @@ public class CustomerReservaService {
         Reserva criada = reservaService.createReserva(reserva);
 
         // Triagem de habilitação JÁ na reserva (pergunta feita antes do PIX):
-        // com CHA própria → via CHA (a loja NÃO emite GRU); sem CHA → via EMA
-        // (a loja emite e paga a GRU quando confirmar o pagamento).
+        // com CHA própria → via CHA; sem CHA mas com TEMPORÁRIA VIGENTE → via
+        // CHA derivada (reuso: nº da GRU + validade, sem nova GRU/emissão);
+        // senão → via EMA (a loja emite e paga a GRU).
+        HabilitacaoReaproveitada reaproveitada = null;
         if (cmd.possuiCha() != null) {
-            habilitacaoService.registrar(criada.getId(),
-                com.jetski.locacoes.domain.ReservaHabilitacao.builder()
-                    .via(cmd.possuiCha()
-                        ? com.jetski.locacoes.domain.ReservaHabilitacao.Via.CHA
-                        : com.jetski.locacoes.domain.ReservaHabilitacao.Via.EMA)
-                    .build());
+            var b = com.jetski.locacoes.domain.ReservaHabilitacao.builder();
+            if (Boolean.TRUE.equals(cmd.possuiCha())) {
+                b.via(com.jetski.locacoes.domain.ReservaHabilitacao.Via.CHA);
+            } else if (temporaria.isPresent()) {
+                var t = temporaria.get();
+                b.via(com.jetski.locacoes.domain.ReservaHabilitacao.Via.CHA)
+                    .chaCategoria(HabilitacaoService.CHA_CATEGORIA_TEMPORARIA)
+                    .chaNumero(t.gruNumero())
+                    .chaValidade(t.validaAte());
+                reaproveitada = new HabilitacaoReaproveitada(
+                    t.gruNumero(), t.validaAte(), t.lojaNome());
+                eventPublisher.publishEvent(HabilitacaoTemporariaReusadaEvent.of(
+                    loja.tenantId(), criada.getId(), t.tenantId(), t.reservaId(), t.gruNumero()));
+            } else {
+                b.via(com.jetski.locacoes.domain.ReservaHabilitacao.Via.EMA);
+            }
+            habilitacaoService.registrar(criada.getId(), b.build());
         }
 
-        log.info("Reserva de portal criada: reserva={}, tenant={}, cliente={}, possuiCha={}",
-            criada.getId(), loja.tenantId(), cliente.getId(), cmd.possuiCha());
-        return toDto(criada, loja);
+        log.info("Reserva de portal criada: reserva={}, tenant={}, cliente={}, possuiCha={}, temporariaReusada={}",
+            criada.getId(), loja.tenantId(), cliente.getId(), cmd.possuiCha(), reaproveitada != null);
+        return toDto(criada, loja, reaproveitada);
     }
 
     /**
@@ -246,6 +273,11 @@ public class CustomerReservaService {
         String habilitacaoVia = hab
             .map(h -> h.getVia() != null ? h.getVia().name() : null)
             .orElse(null);
+        HabilitacaoReaproveitada habilitacaoTemporaria = hab
+            .filter(h -> h.getVia() == com.jetski.locacoes.domain.ReservaHabilitacao.Via.CHA
+                && HabilitacaoService.CHA_CATEGORIA_TEMPORARIA.equals(h.getChaCategoria()))
+            .map(h -> new HabilitacaoReaproveitada(h.getChaNumero(), h.getChaValidade(), null))
+            .orElse(null);
         boolean termosOk = aceiteRepository
             .findFirstByReservaIdOrderByAceitoEmDesc(r.getId())
             .isPresent();
@@ -258,6 +290,7 @@ public class CustomerReservaService {
             .pagamentoOk(pagamentoOk)
             .habilitacaoOk(habilitacaoOk)
             .habilitacaoVia(habilitacaoVia)
+            .habilitacaoTemporaria(habilitacaoTemporaria)
             .termosOk(termosOk)
             .garantida(garantida)
             .prontaParaCheckin(garantida && habilitacaoOk && termosOk)
@@ -467,6 +500,72 @@ public class CustomerReservaService {
         return habilitacao(sub, reservaId);
     }
 
+    /**
+     * Cliente opta por usar a temporária confirmada vigente numa reserva JÁ
+     * criada (triagem tardia ou troca antes da GRU ser paga).
+     */
+    @Transactional
+    public HabilitacaoCliente usarTemporaria(String sub, UUID reservaId) {
+        // Busca cross-loja PRIMEIRO (read-only) — mesma armadilha de RLS do criar:
+        // alternar set_config depois de writes flusharia sob o tenant errado.
+        CustomerHabilitacaoService.HabilitacaoTemporaria t =
+            customerHabilitacaoService.vigenteMaisRecente(sub)
+                .orElseThrow(() -> new BusinessException(
+                    "Você não tem habilitação temporária confirmada e vigente para usar."));
+
+        Localizada l = localizar(sub, reservaId);
+        if (l.reserva().getDocumentoEmitidoEm() != null) {
+            throw new BusinessException("A documentação desta reserva já foi emitida.");
+        }
+        if (t.reservaId().equals(reservaId)) {
+            throw new BusinessException("Esta é a reserva de origem da própria temporária.");
+        }
+        var atual = habilitacaoService.getByReserva(reservaId).orElse(null);
+        if (atual != null && atual.getVia() == com.jetski.locacoes.domain.ReservaHabilitacao.Via.EMA
+                && Boolean.TRUE.equals(atual.getGruPago())) {
+            throw new BusinessException(
+                "A GRU desta reserva já foi paga — não é possível trocar para a temporária.");
+        }
+        if (atual != null && atual.getVia() == com.jetski.locacoes.domain.ReservaHabilitacao.Via.CHA
+                && !HabilitacaoService.CHA_CATEGORIA_TEMPORARIA.equals(atual.getChaCategoria())) {
+            throw new BusinessException("Esta reserva já usa uma CHA própria.");
+        }
+
+        habilitacaoService.registrar(reservaId,
+            com.jetski.locacoes.domain.ReservaHabilitacao.builder()
+                .via(com.jetski.locacoes.domain.ReservaHabilitacao.Via.CHA)
+                .chaCategoria(HabilitacaoService.CHA_CATEGORIA_TEMPORARIA)
+                .chaNumero(t.gruNumero())
+                .chaValidade(t.validaAte())
+                .build());
+        eventPublisher.publishEvent(HabilitacaoTemporariaReusadaEvent.of(
+            l.reserva().getTenantId(), reservaId, t.tenantId(), t.reservaId(), t.gruNumero()));
+        log.info("Temporária aplicada em reserva existente: reserva={}, gru={}", reservaId, t.gruNumero());
+        return habilitacao(sub, reservaId);
+    }
+
+    /** Desfaz o reuso da temporária — a reserva volta ao fluxo EMA (nova emissão). */
+    @Transactional
+    public HabilitacaoCliente emitirNova(String sub, UUID reservaId) {
+        Localizada l = localizar(sub, reservaId);
+        if (l.reserva().getDocumentoEmitidoEm() != null) {
+            throw new BusinessException("A documentação desta reserva já foi emitida.");
+        }
+        var atual = habilitacaoService.getByReserva(reservaId)
+            .orElseThrow(() -> new NotFoundException("Habilitação não registrada para esta reserva"));
+        if (!HabilitacaoService.CHA_CATEGORIA_TEMPORARIA.equals(atual.getChaCategoria())) {
+            throw new BusinessException(
+                "Só é possível trocar para nova emissão quando a reserva usa uma temporária reaproveitada.");
+        }
+
+        habilitacaoService.registrar(reservaId,
+            com.jetski.locacoes.domain.ReservaHabilitacao.builder()
+                .via(com.jetski.locacoes.domain.ReservaHabilitacao.Via.EMA)
+                .build());
+        log.info("Reuso desfeito — reserva volta ao fluxo EMA: reserva={}", reservaId);
+        return habilitacao(sub, reservaId);
+    }
+
     private static String soDigitos(String cpf) {
         return cpf == null ? "" : cpf.replaceAll("\\D", "");
     }
@@ -554,10 +653,16 @@ public class CustomerReservaService {
         boolean habilitacaoOk;
         /** CHA | EMA | null — decisão tomada na reserva (triagem do wizard). */
         String habilitacaoVia;
+        /** Presente quando a habilitação veio do REUSO de uma temporária vigente. */
+        HabilitacaoReaproveitada habilitacaoTemporaria;
         boolean termosOk;
         boolean garantida;
         boolean prontaParaCheckin;
     }
+
+    /** Reuso de CHA-MTA-E temporária vigente (nº da GRU de origem + validade). */
+    public record HabilitacaoReaproveitada(
+        String gruNumero, java.time.LocalDate validaAte, String lojaOrigemNome) {}
 
     public record Pagamento(
         String tipo, String status, String motivoRecusa,
@@ -568,7 +673,8 @@ public class CustomerReservaService {
         UUID id, String lojaSlug, String lojaNome, String lojaCnpj,
         UUID modeloId, String modeloNome,
         LocalDateTime dataInicio, LocalDateTime dataFimPrevista,
-        String status, String observacoes, Pagamento pagamento) {}
+        String status, String observacoes, Pagamento pagamento,
+        HabilitacaoReaproveitada habilitacaoReaproveitada) {}
 
     /**
      * Status de pagamento na visão do CLIENTE. Reserva de balcão sem pagamento
@@ -584,6 +690,10 @@ public class CustomerReservaService {
     }
 
     private ReservaCliente toDto(Reserva r, Loja loja) {
+        return toDto(r, loja, null);
+    }
+
+    private ReservaCliente toDto(Reserva r, Loja loja, HabilitacaoReaproveitada reaproveitada) {
         Modelo modelo = modeloService.findById(r.getModeloId());
 
         BigDecimal valorTotal = valorEstimado(modelo, r.getDataInicio(), r.getDataFimPrevista());
@@ -611,7 +721,7 @@ public class CustomerReservaService {
             modelo.getId(), modelo.getNome(),
             r.getDataInicio(), r.getDataFimPrevista(),
             r.getStatus() != null ? r.getStatus().name() : null,
-            r.getObservacoes(), pagamento);
+            r.getObservacoes(), pagamento, reaproveitada);
     }
 
     /** Valor estimado = preço base/hora × duração (frações de hora proporcionais). */

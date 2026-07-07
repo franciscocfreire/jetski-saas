@@ -13,8 +13,9 @@ import {
   inputCls,
   Badge,
 } from "@/components/ui";
-import { getSelf, updateSelf, updateContatoLoja, ApiError, type CustomerSelf, type IdentidadeCliente, type VinculoLoja } from "@/lib/api";
-import { Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard, Briefcase, ExternalLink } from "lucide-react";
+import { getSelf, updateSelf, updateContatoLoja, getAnexosLoja, getAnexoLoja, uploadAnexoLoja, getHabilitacoes, getHabilitacaoDocumento, ApiError, type CustomerSelf, type IdentidadeCliente, type VinculoLoja, type HabilitacaoTemporaria } from "@/lib/api";
+import { UploadTile } from "@/components/UploadTile";
+import { Award, Copy, FileDown, Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard, Briefcase, ExternalLink } from "lucide-react";
 import { maskCpf } from "@/lib/masks";
 import { PhoneInput } from "@/components/PhoneInput";
 import { useToast } from "@/components/Toast";
@@ -210,6 +211,32 @@ export default function PerfilPage() {
         </label>
       </Card>
 
+      {session?.accessToken && (
+        <MinhasHabilitacoes token={session.accessToken} />
+      )}
+
+      {self && self.lojas.length > 0 && session?.accessToken && (
+        <Card className="mt-4 p-6">
+          <h3 className="flex items-center gap-2 font-semibold text-ink-900">
+            <IdCard size={18} /> Meus documentos
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            Estas fotos são usadas apenas para a emissão da sua habilitação
+            (NORMAM-212/DPC) e ficam visíveis só para você e para a loja.
+          </p>
+          <div className="mt-3 space-y-4">
+            {self.lojas.map((loja) => (
+              <DocumentosLoja
+                key={loja.tenantId}
+                loja={loja}
+                token={session.accessToken}
+                mostrarCabecalho={self.lojas.length > 1}
+              />
+            ))}
+          </div>
+        </Card>
+      )}
+
       <Card className="mt-4 p-6">
         <h3 className="flex items-center gap-2 font-semibold text-ink-900">
           <Store size={18} /> Lojas vinculadas
@@ -310,5 +337,144 @@ function LojaRow({ loja, token }: { loja: VinculoLoja; token?: string }) {
         {okTel && <span className="text-xs text-emerald-600">Salvo ✓</span>}
       </div>
     </div>
+  );
+}
+
+/** Documentos (fotos) do cliente NESTA loja — anexos são tenant-scoped. */
+function DocumentosLoja({ loja, token, mostrarCabecalho }: {
+  loja: VinculoLoja; token: string; mostrarCabecalho: boolean;
+}) {
+  const { toast } = useToast();
+  const [presentes, setPresentes] = useState<string[]>([]);
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    getAnexosLoja(token, loja.tenantId)
+      .then(setPresentes)
+      .catch(() => { /* sem lista — tiles ficam vazios */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loja.tenantId]);
+
+  useEffect(() => {
+    (["IDENTIDADE", "SELFIE", "COMPROVANTE_RESIDENCIA"] as const).forEach((tipo) => {
+      if (presentes.includes(tipo) && !previews[tipo]) {
+        getAnexoLoja(token, loja.tenantId, tipo)
+          .then((url) => setPreviews((p) => ({ ...p, [tipo]: url })))
+          .catch(() => { /* sem preview — o tile mostra só o check */ });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presentes]);
+
+  async function enviar(tipo: "IDENTIDADE" | "SELFIE" | "COMPROVANTE_RESIDENCIA", dataUrl: string) {
+    try {
+      const tipos = await uploadAnexoLoja(token, loja.tenantId, tipo, dataUrl);
+      setPresentes(tipos);
+      setPreviews((p) => ({ ...p, [tipo]: dataUrl }));
+      toast("Documento atualizado.");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Não foi possível enviar.", "erro");
+    }
+  }
+
+  return (
+    <div>
+      {mostrarCabecalho && (
+        <p className="mb-2 text-sm font-medium text-slate-700">{loja.nome}</p>
+      )}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <UploadTile rotulo="Identidade (RG/CNH)" presente={presentes.includes("IDENTIDADE")}
+          previewUrl={previews.IDENTIDADE}
+          onFile={(d) => enviar("IDENTIDADE", d)} />
+        <UploadTile rotulo="Selfie com documento" presente={presentes.includes("SELFIE")}
+          previewUrl={previews.SELFIE} camera="user"
+          onFile={(d) => enviar("SELFIE", d)} />
+        <UploadTile rotulo="Comprovante de residência"
+          presente={presentes.includes("COMPROVANTE_RESIDENCIA")}
+          previewUrl={previews.COMPROVANTE_RESIDENCIA}
+          onFile={(d) => enviar("COMPROVANTE_RESIDENCIA", d)} />
+      </div>
+    </div>
+  );
+}
+
+/** Habilitações temporárias (CHA-MTA-E) emitidas — validade 30 dias, GRU como referência na Marinha. */
+function MinhasHabilitacoes({ token }: { token: string }) {
+  const { toast } = useToast();
+  const [itens, setItens] = useState<HabilitacaoTemporaria[]>([]);
+
+  useEffect(() => {
+    getHabilitacoes(token)
+      .then(setItens)
+      .catch(() => { /* sem lista — card não renderiza */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (itens.length === 0) return null;
+
+  const fmt = (iso: string) =>
+    new Date(iso.length === 10 ? iso + "T12:00:00" : iso).toLocaleDateString("pt-BR");
+
+  return (
+    <Card className="mt-4 p-6">
+      <h3 className="flex items-center gap-2 font-semibold text-ink-900">
+        <Award size={18} /> Minhas habilitações
+      </h3>
+      <p className="mt-1 text-sm text-slate-500">
+        Habilitações temporárias (CHA-MTA-E) valem 30 dias a partir da emissão.
+        Use o número da GRU para consultar o estado junto à Marinha.
+      </p>
+      <div className="mt-3 space-y-2">
+        {itens.map((h) => (
+          <div key={h.reservaId}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-ink-900">{h.lojaNome}</p>
+              <p className="text-xs text-slate-500">
+                Emitida em {fmt(h.emitidaEm)} ·{" "}
+                {h.vigente ? `válida até ${fmt(h.validaAte)}` : `expirou em ${fmt(h.validaAte)}`}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(h.gruNumero);
+                    toast("Número da GRU copiado");
+                  }}
+                  className="flex items-center gap-1 text-xs font-medium text-brand-600"
+                >
+                  <Copy size={12} /> GRU {h.gruNumero}
+                </button>
+                {h.confirmada && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const url = await getHabilitacaoDocumento(token, h.reservaId);
+                        window.open(url, "_blank");
+                      } catch {
+                        toast("Não foi possível baixar a confirmação.", "erro");
+                      }
+                    }}
+                    className="flex items-center gap-1 text-xs font-medium text-brand-600"
+                  >
+                    <FileDown size={12} /> Baixar confirmação (PDF)
+                  </button>
+                )}
+              </div>
+              {h.vigente && !h.confirmada && (
+                <p className="mt-1 text-xs text-amber-600">
+                  A loja ainda aguarda a confirmação da Marinha — quando chegar, esta
+                  habilitação poderá ser usada em novas reservas.
+                </p>
+              )}
+            </div>
+            <Badge tone={!h.vigente ? "slate" : h.confirmada ? "green" : "amber"}>
+              {!h.vigente ? "Expirada" : h.confirmada ? "Confirmada · Vigente" : "Aguardando confirmação"}
+            </Badge>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }

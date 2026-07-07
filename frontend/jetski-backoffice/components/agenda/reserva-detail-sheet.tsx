@@ -15,6 +15,7 @@ import {
   PlayCircle,
   QrCode,
   Receipt,
+  FileText,
   RefreshCw,
   Save,
   Undo2,
@@ -105,6 +106,8 @@ export function ReservaDetailSheet({
   const reservaId = reserva?.id
   const [compModo, setCompModo] = useState(false)
   const [compFile, setCompFile] = useState<string | undefined>(undefined)
+  const [devModo, setDevModo] = useState(false)
+  const [devFile, setDevFile] = useState<string | undefined>(undefined)
 
   // Fase 2 — visualizar → editar → salvar. Abrir = somente leitura; só vira edição
   // quando o operador clica "Editar". Sem estado persistido EM_EDICAO: é modo de tela.
@@ -270,7 +273,7 @@ export function ReservaDetailSheet({
   })
 
   // Abertura de PDF: a aba é aberta no clique (abrirPdfBlob) p/ funcionar no iOS.
-  const [pdfBusy, setPdfBusy] = useState<'gerarBoleto' | 'baixarBoleto' | 'comprovante' | null>(null)
+  const [pdfBusy, setPdfBusy] = useState<'gerarBoleto' | 'baixarBoleto' | 'comprovante' | 'devolutiva' | null>(null)
 
   const gerarBoleto = () => {
     setPdfBusy('gerarBoleto')
@@ -324,6 +327,24 @@ export function ReservaDetailSheet({
     },
     onError: () => toast.error('Falha ao registrar o comprovante.'),
   })
+
+  const enviarDevolutiva = useMutation({
+    mutationFn: () => habilitacaoService.registrarDevolutiva(reservaId!, devFile!),
+    onSuccess: () => {
+      invalidar()
+      setDevModo(false)
+      setDevFile(undefined)
+      toast.success('Devolutiva anexada — CHA-MTA-E confirmada pela Marinha.')
+    },
+    onError: () => toast.error('Falha ao anexar a devolutiva.'),
+  })
+
+  const baixarDevolutiva = () => {
+    setPdfBusy('devolutiva')
+    abrirPdfBlob(() => habilitacaoService.baixarDevolutiva(reservaId!), 'cha-mtae-confirmada.pdf')
+      .catch(() => toast.error('Falha ao baixar a devolutiva.'))
+      .finally(() => setPdfBusy(null))
+  }
 
   const enviarEmailGru = useMutation({
     mutationFn: () => habilitacaoService.enviarEmailGru(reservaId!),
@@ -735,6 +756,90 @@ export function ReservaDetailSheet({
               <Etapa ok={!!hab.anexoResidencia} label="Comprovante/Declaração de residência" />
               <Etapa ok={!!hab.instrutorId} label="Instrutor (atestado de demonstração)" />
             </div>
+
+            {/* Devolutiva da Marinha — resposta manual por e-mail à loja após a emissão */}
+            {!!reserva.documentoEmitidoEm && (
+              <>
+                <Separator className="my-4" />
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Confirmação da Marinha</h4>
+                  <Etapa
+                    ok={!!hab.marinhaConfirmadaEm}
+                    label="CHA-MTA-E confirmada pela Marinha"
+                    hint={
+                      hab.marinhaConfirmadaEm
+                        ? formatDateTime(hab.marinhaConfirmadaEm)
+                        : 'aguardando devolutiva (e-mail da Marinha à loja)'
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    A confirmação chega por e-mail à loja. Anexá-la libera o reuso da
+                    temporária pelo cliente por 30 dias.
+                  </p>
+                  {!devModo ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-auto w-full whitespace-normal py-2"
+                      onClick={() => setDevModo(true)}
+                    >
+                      <Upload className="mr-2 h-4 w-4 shrink-0" />
+                      {hab.devolutivaDisponivel
+                        ? 'Substituir devolutiva da Marinha'
+                        : 'Anexar devolutiva da Marinha'}
+                    </Button>
+                  ) : (
+                    <div className="space-y-2 rounded-md border border-dashed p-3">
+                      <p className="text-xs font-medium">Documento devolvido pela Marinha (PDF ou foto)</p>
+                      <FileUpload
+                        label="Enviar/tirar foto da devolutiva"
+                        accept="image/*,application/pdf"
+                        onChange={(f) => setDevFile(f?.dataUrl)}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!devFile || enviarDevolutiva.isPending}
+                          onClick={() => enviarDevolutiva.mutate()}
+                        >
+                          {enviarDevolutiva.isPending ? 'Enviando…' : 'Confirmar CHA-MTA-E'}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setDevModo(false)
+                            setDevFile(undefined)
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {hab.devolutivaDisponivel && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={pdfBusy === 'devolutiva'}
+                      onClick={baixarDevolutiva}
+                    >
+                      {pdfBusy === 'devolutiva' ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileText className="mr-2 h-4 w-4" />
+                      )}
+                      Baixar devolutiva (PDF)
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
 
             <Separator className="my-4" />
             <div className="space-y-2">

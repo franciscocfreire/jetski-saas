@@ -3,8 +3,12 @@ package com.jetski.audit.internal;
 import com.jetski.locacoes.event.CheckInEvent;
 import com.jetski.locacoes.event.CheckOutEvent;
 import com.jetski.locacoes.event.ClaimEnviadoEvent;
+import com.jetski.locacoes.event.ClienteAnexoAtualizadoEvent;
+import com.jetski.locacoes.event.ClienteIdentidadeSincronizadaEvent;
 import com.jetski.locacoes.event.ContaAtivadaEvent;
 import com.jetski.locacoes.event.DataCheckInAlteradaEvent;
+import com.jetski.locacoes.event.ChaMtaeConfirmadaEvent;
+import com.jetski.locacoes.event.HabilitacaoTemporariaReusadaEvent;
 import com.jetski.locacoes.event.LocacaoEditadaEvent;
 import com.jetski.locacoes.event.PreContaCriadaEvent;
 import com.jetski.reservas.domain.event.DocumentosEmitidosEvent;
@@ -418,6 +422,128 @@ public class AuditEventListener {
         } catch (Exception e) {
             log.error("Failed to audit PAGAMENTO_PRESENCIAL_REGISTRADO: reservaId={}, error={}",
                     event.reservaId(), e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onChaMtaeConfirmada(ChaMtaeConfirmadaEvent event) {
+        try {
+            com.jetski.shared.security.TenantContext.setTenantId(event.tenantId());
+
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("substituicao", event.substituicao());
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .acao("CHA_MTAE_CONFIRMADA")
+                    .entidade("RESERVA")
+                    .entidadeId(event.reservaId())
+                    .usuarioId(event.usuarioId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: CHA_MTAE_CONFIRMADA reservaId={}, substituicao={}, auditId={}",
+                    event.reservaId(), event.substituicao(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit CHA_MTAE_CONFIRMADA: reservaId={}, error={}",
+                    event.reservaId(), e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onHabilitacaoTemporariaReusada(HabilitacaoTemporariaReusadaEvent event) {
+        try {
+            com.jetski.shared.security.TenantContext.setTenantId(event.tenantId());
+
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("gruNumero", event.gruNumero());
+            dadosNovos.put("tenantOrigem", event.tenantOrigem() != null ? event.tenantOrigem().toString() : null);
+            dadosNovos.put("reservaOrigem", event.reservaOrigem() != null ? event.reservaOrigem().toString() : null);
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .acao("HABILITACAO_TEMPORARIA_REUSADA")
+                    .entidade("RESERVA")
+                    .entidadeId(event.reservaId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: HABILITACAO_TEMPORARIA_REUSADA reservaId={}, gru={}, auditId={}",
+                    event.reservaId(), event.gruNumero(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit HABILITACAO_TEMPORARIA_REUSADA: reservaId={}, error={}",
+                    event.reservaId(), e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onClienteAnexoAtualizado(ClienteAnexoAtualizadoEvent event) {
+        try {
+            // handler async — garante o tenant p/ a RLS do insert
+            com.jetski.shared.security.TenantContext.setTenantId(event.tenantId());
+
+            // LGPD: só o FATO (tipo/origem/ator) — nunca bytes, s3Key ou conteúdo
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("tipo", event.tipo());
+            dadosNovos.put("origem", event.origem());
+            dadosNovos.put("registradoPor", event.registradoPor());
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .acao("CLIENTE_ANEXO_ATUALIZADO")
+                    .entidade("CLIENTE")
+                    .entidadeId(event.clienteId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: CLIENTE_ANEXO_ATUALIZADO clienteId={}, tipo={}, auditId={}",
+                    event.clienteId(), event.tipo(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit CLIENTE_ANEXO_ATUALIZADO: clienteId={}, error={}",
+                    event.clienteId(), e.getMessage(), e);
+        }
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onClienteIdentidadeSincronizada(ClienteIdentidadeSincronizadaEvent event) {
+        try {
+            com.jetski.shared.security.TenantContext.setTenantId(event.tenantId());
+
+            // LGPD: só os NOMES dos campos alterados — nunca os valores
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("campos", event.camposAlterados());
+            dadosNovos.put("origem", "PORTAL");
+            dadosNovos.put("sub", event.sub());
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(event.tenantId())
+                    .acao("CLIENTE_IDENTIDADE_ATUALIZADA")
+                    .entidade("CLIENTE")
+                    .entidadeId(event.clienteId())
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: CLIENTE_IDENTIDADE_ATUALIZADA clienteId={}, campos={}, auditId={}",
+                    event.clienteId(), event.camposAlterados(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit CLIENTE_IDENTIDADE_ATUALIZADA: clienteId={}, error={}",
+                    event.clienteId(), e.getMessage(), e);
         }
     }
 

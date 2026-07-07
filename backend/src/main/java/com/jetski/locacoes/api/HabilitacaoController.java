@@ -101,6 +101,42 @@ public class HabilitacaoController {
     /** Corpo do upload do comprovante manual (imagem ou PDF em base64/dataURL). */
     public record ComprovanteRequest(String conteudoBase64) {}
 
+    @PutMapping("/devolutiva")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Anexar a devolutiva da Marinha (CHA-MTA-E confirmada)",
+        description = "A Marinha responde manualmente por e-mail à loja. Anexar o documento devolvido " +
+                      "confirma a habilitação temporária — só então ela fica elegível para reuso em " +
+                      "novas reservas (30 dias da emissão). Re-upload substitui o PDF."
+    )
+    public ResponseEntity<HabilitacaoResponse> registrarDevolutiva(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @RequestBody ComprovanteRequest request
+    ) {
+        validateTenantContext(tenantId);
+        byte[] conteudo = decodeBase64(request.conteudoBase64());
+        return ResponseEntity.ok(toResponse(habilitacaoService.registrarDevolutivaMarinha(
+            id, conteudo, !ehPdf(conteudo),
+            com.jetski.shared.security.TenantContext.getUsuarioId())));
+    }
+
+    @GetMapping("/devolutiva/download")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Baixar a devolutiva da Marinha (PDF, streaming)")
+    public ResponseEntity<byte[]> baixarDevolutiva(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id
+    ) {
+        validateTenantContext(tenantId);
+        byte[] pdf = habilitacaoService.baixarDevolutivaPdf(id);
+        return ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+            .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                "inline; filename=\"cha-mtae-confirmada.pdf\"")
+            .body(pdf);
+    }
+
     private static byte[] decodeBase64(String conteudo) {
         String b64 = conteudo == null ? "" : conteudo.trim();
         if (b64.startsWith("data:")) {
@@ -264,6 +300,8 @@ public class HabilitacaoController {
             .gruPixExpiracao(h.getGruPixExpiracao())
             .gruBoletoDisponivel(h.getGruPdfS3Key() != null)
             .gruComprovanteDisponivel(h.getGruComprovanteS3Key() != null)
+            .marinhaConfirmadaEm(h.getMarinhaConfirmadaEm())
+            .devolutivaDisponivel(h.getChaMtaeS3Key() != null)
             .resolvida(h.getResolvida())
             .createdAt(h.getCreatedAt())
             .updatedAt(h.getUpdatedAt())

@@ -224,6 +224,15 @@ export interface ReservaCliente {
   status: string;
   observacoes?: string;
   pagamento: PagamentoReserva;
+  /** Presente quando a reserva reusou uma CHA temporária vigente. */
+  habilitacaoReaproveitada?: HabilitacaoReaproveitada;
+}
+
+/** Reuso de CHA-MTA-E temporária vigente (nº da GRU de origem + validade). */
+export interface HabilitacaoReaproveitada {
+  gruNumero: string;
+  validaAte: string;
+  lojaOrigemNome?: string;
 }
 
 export interface ChecklistReserva {
@@ -234,9 +243,64 @@ export interface ChecklistReserva {
   habilitacaoOk: boolean;
   /** CHA | EMA | null — decisão tomada na reserva. */
   habilitacaoVia?: "CHA" | "EMA";
+  /** Presente quando a habilitação veio do reuso de temporária vigente. */
+  habilitacaoTemporaria?: HabilitacaoReaproveitada;
   termosOk: boolean;
   garantida: boolean;
   prontaParaCheckin: boolean;
+}
+
+// ============ Habilitações temporárias (CHA-MTA-E, 30 dias) ============
+
+export interface HabilitacaoTemporaria {
+  lojaSlug: string;
+  lojaNome: string;
+  tenantId: string;
+  reservaId: string;
+  /** Nº da GRU — referência para consultar o estado na Marinha. */
+  gruNumero: string;
+  emitidaEm: string;
+  validaAte: string;
+  vigente: boolean;
+  /** Devolutiva da Marinha anexada pela loja — só confirmada é reusável. */
+  confirmada: boolean;
+  confirmadaEm?: string;
+}
+
+/** Habilitações temporárias emitidas (todas as lojas vinculadas). */
+export async function getHabilitacoes(token: string): Promise<HabilitacaoTemporaria[]> {
+  const res = await fetch(`${API_URL}/v1/customers/habilitacoes`, {
+    headers: authHeaders(token), cache: "no-store",
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+/** PDF da confirmação da Marinha (object URL para abrir/baixar). */
+export async function getHabilitacaoDocumento(token: string, reservaId: string): Promise<string> {
+  const res = await fetch(`${API_URL}/v1/customers/habilitacoes/${reservaId}/documento`, {
+    headers: authHeaders(token), cache: "no-store",
+  });
+  if (!res.ok) await parseError(res);
+  return URL.createObjectURL(await res.blob());
+}
+
+/** Aplica a temporária confirmada vigente numa reserva já criada. */
+export async function usarTemporariaReserva(token: string, reservaId: string): Promise<HabilitacaoCliente> {
+  const res = await fetch(`${API_URL}/v1/customers/reservas/${reservaId}/habilitacao/usar-temporaria`, {
+    method: "POST", headers: authHeaders(token),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+/** Desfaz o reuso — a reserva volta ao fluxo EMA (nova emissão). */
+export async function emitirNovaReserva(token: string, reservaId: string): Promise<HabilitacaoCliente> {
+  const res = await fetch(`${API_URL}/v1/customers/reservas/${reservaId}/habilitacao/emitir-nova`, {
+    method: "POST", headers: authHeaders(token),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
 }
 
 function authHeaders(token: string) {
@@ -248,6 +312,8 @@ export async function criarReserva(token: string, req: {
   observacoes?: string; pagamentoTipo?: "SINAL" | "TOTAL"; cpf?: string; telefone?: string;
   /** true = já tem CHA (sem GRU); false = loja emite via EMA. */
   possuiCha?: boolean;
+  /** false = emitir nova mesmo com temporária confirmada vigente. */
+  usarTemporaria?: boolean;
 }): Promise<ReservaCliente> {
   const res = await fetch(`${API_URL}/v1/customers/reservas`, {
     method: "POST", headers: authHeaders(token), body: JSON.stringify(req),
@@ -425,6 +491,45 @@ export async function uploadAnexoEma(
   tipo: "IDENTIDADE" | "SELFIE" | "COMPROVANTE_RESIDENCIA", conteudoBase64: string
 ): Promise<string[]> {
   const res = await fetch(`${emaBase(id)}/anexos`, {
+    method: "POST", headers: authHeaders(token),
+    body: JSON.stringify({ tipo, conteudoBase64 }),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+// ============ Documentos por LOJA (perfil) ============
+
+const lojaAnexosBase = (tenantId: string) =>
+  `${API_URL}/v1/customers/self/lojas/${tenantId}/anexos`;
+
+/** Tipos de documento já anexados nesta loja. */
+export async function getAnexosLoja(token: string, tenantId: string): Promise<string[]> {
+  const res = await fetch(lojaAnexosBase(tenantId), {
+    headers: authHeaders(token), cache: "no-store",
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+/** Imagem do anexo desta loja (object URL para preview). */
+export async function getAnexoLoja(
+  token: string, tenantId: string,
+  tipo: "IDENTIDADE" | "SELFIE" | "COMPROVANTE_RESIDENCIA"
+): Promise<string> {
+  const res = await fetch(`${lojaAnexosBase(tenantId)}/${tipo}`, {
+    headers: authHeaders(token), cache: "no-store",
+  });
+  if (!res.ok) await parseError(res);
+  return URL.createObjectURL(await res.blob());
+}
+
+/** Anexa/substitui documento desta loja. */
+export async function uploadAnexoLoja(
+  token: string, tenantId: string,
+  tipo: "IDENTIDADE" | "SELFIE" | "COMPROVANTE_RESIDENCIA", conteudoBase64: string
+): Promise<string[]> {
+  const res = await fetch(lojaAnexosBase(tenantId), {
     method: "POST", headers: authHeaders(token),
     body: JSON.stringify({ tipo, conteudoBase64 }),
   });

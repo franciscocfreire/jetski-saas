@@ -26,7 +26,11 @@ class HabilitacaoServiceTest {
 
     private final ReservaHabilitacaoRepository repo = mock(ReservaHabilitacaoRepository.class);
     private final ReservaRepository reservaRepo = mock(ReservaRepository.class);
-    private final HabilitacaoService service = new HabilitacaoService(repo, reservaRepo);
+    private final HabilitacaoService service = new HabilitacaoService(repo, reservaRepo,
+        mock(com.jetski.shared.storage.StorageService.class),
+        mock(DocumentoPdfService.class),
+        mock(ClienteNotificacaoService.class),
+        mock(org.springframework.context.ApplicationEventPublisher.class));
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID reservaId = UUID.randomUUID();

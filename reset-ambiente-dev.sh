@@ -562,6 +562,11 @@ ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS usa_lentes boole
 ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS usa_aparelho boolean DEFAULT false NOT NULL;
 ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS instrutor_id uuid;
 
+-- V038: devolutiva da Marinha (CHA-MTA-E confirmada)
+ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS marinha_confirmada_em  timestamptz;
+ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS marinha_confirmada_por uuid;
+ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS cha_mtae_s3_key        text;
+
 -- F3 instrutores (V011): cadastro p/ o Atestado de Demonstração 5-B-1
 CREATE TABLE IF NOT EXISTS public.instrutor (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,

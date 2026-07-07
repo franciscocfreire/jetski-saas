@@ -43,6 +43,10 @@ public class HabilitacaoResponse {
     private Boolean gruBoletoDisponivel;
     private Boolean gruComprovanteDisponivel;
 
+    // Devolutiva da Marinha (CHA-MTA-E confirmada) — anexada manualmente pela loja
+    private Instant marinhaConfirmadaEm;
+    private Boolean devolutivaDisponivel;
+
     private Boolean resolvida;
     private Instant createdAt;
     private Instant updatedAt;
