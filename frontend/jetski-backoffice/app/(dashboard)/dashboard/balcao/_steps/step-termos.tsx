@@ -153,6 +153,14 @@ export function StepTermos({
             <Checkbox checked={videoaula} onCheckedChange={(v) => setVideoaula(!!v)} /> Assisti à
             videoaula de orientação
           </label>
+          <p className="pl-6 text-xs text-muted-foreground">
+            Videoaulas oficiais:{' '}
+            <a className="text-primary hover:underline" href="https://youtu.be/Tjoj0eb-yj8" target="_blank" rel="noreferrer">Português</a>
+            {' · '}
+            <a className="text-primary hover:underline" href="https://youtu.be/W3rextGEmKM" target="_blank" rel="noreferrer">English</a>
+            {' · '}
+            <a className="text-primary hover:underline" href="https://youtu.be/xbYgwNqBpys" target="_blank" rel="noreferrer">Español</a>
+          </p>
           <div className="space-y-2 pt-1">
             <p className="text-xs font-medium text-muted-foreground">
               Autodeclaração de saúde (Anexo 5-C)

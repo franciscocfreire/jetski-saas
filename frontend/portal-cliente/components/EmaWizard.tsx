@@ -41,8 +41,12 @@ import { AddressForm, type Address } from "@/components/AddressForm";
 import { PixQr } from "@/components/PixQr";
 import { brl } from "@/lib/cn";
 
-const VIDEOAULA_URL =
-  "https://www.marinha.mil.br/dpc/sites/www.marinha.mil.br.dpc/files/videoaula-moto-aquatica.mp4";
+/** Videoaulas oficiais obrigatórias da CHA-MTA-E (YouTube), por idioma. */
+const VIDEOAULAS = [
+  { id: "Tjoj0eb-yj8", rotulo: "Português" },
+  { id: "W3rextGEmKM", rotulo: "English" },
+  { id: "xbYgwNqBpys", rotulo: "Español" },
+] as const;
 
 /**
  * Caminho B — emissão da CHA-MTA-E pelo cliente (P3): dados pessoais,
@@ -353,6 +357,7 @@ function PassoVideoaula({ token, reservaId, assistida, onSalvo }:
   { token: string; reservaId: string; assistida: boolean; onSalvo: () => void }) {
   const [marcada, setMarcada] = useState(assistida);
   const [salvando, setSalvando] = useState(false);
+  const [idioma, setIdioma] = useState(0);
 
   async function salvar() {
     setSalvando(true);
@@ -364,15 +369,43 @@ function PassoVideoaula({ token, reservaId, assistida, onSalvo }:
     }
   }
 
+  const video = VIDEOAULAS[idioma];
+
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-600">
-        Assista à videoaula oficial da Marinha sobre condução de motos aquáticas
-        (obrigatória para a CHA-MTA-E).
+        Assista à videoaula oficial obrigatória para a CHA-MTA-E — disponível em
+        três idiomas.
       </p>
-      <a href={VIDEOAULA_URL} target="_blank" rel="noreferrer"
-        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-brand-700 hover:border-brand-400">
-        <PlayCircle size={18} /> Abrir videoaula da Marinha
+      <div className="flex gap-2">
+        {VIDEOAULAS.map((v, i) => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => setIdioma(i)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+              i === idioma
+                ? "bg-brand-600 text-white"
+                : "border border-slate-300 bg-white text-slate-600 hover:border-brand-400"
+            }`}
+          >
+            {v.rotulo}
+          </button>
+        ))}
+      </div>
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-black">
+        <iframe
+          key={video.id}
+          className="aspect-video w-full"
+          src={`https://www.youtube-nocookie.com/embed/${video.id}?rel=0`}
+          title={`Videoaula CHA-MTA-E (${video.rotulo})`}
+          allow="accelerometer; encrypted-media; picture-in-picture; fullscreen"
+          allowFullScreen
+        />
+      </div>
+      <a href={`https://youtu.be/${video.id}`} target="_blank" rel="noreferrer"
+        className="flex items-center gap-2 text-xs font-medium text-brand-600 hover:underline">
+        <PlayCircle size={14} /> Abrir no YouTube (tela cheia no celular)
       </a>
       <label className="flex items-start gap-2 text-sm text-slate-700">
         <input type="checkbox" className="mt-0.5" checked={marcada}
@@ -485,14 +518,7 @@ function PassoGru({ estado }: { estado: EmaEstado }) {
   return (
     <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
       <Landmark size={18} className="mt-0.5 shrink-0" />
-      <div>
-        <b className="text-ink-900">A loja cuida da taxa da Marinha</b>
-        <p className="mt-1">
-          Assim que o pagamento da sua reserva for confirmado, a loja emite e
-          paga a GRU em seu nome — você recebe o número por aqui. Nada a fazer
-          neste passo.
-        </p>
-      </div>
+      <p>A loja emite a GRU em seu nome — você recebe o número por aqui.</p>
     </div>
   );
 }
