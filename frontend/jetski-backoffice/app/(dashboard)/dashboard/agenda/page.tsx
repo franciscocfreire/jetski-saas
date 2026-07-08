@@ -8,6 +8,7 @@ import { reservasService, clientesService, modelosService, jetskisService } from
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ReservaDetailSheet } from '@/components/agenda/reserva-detail-sheet'
+import { AgendaGradeDia } from '@/components/agenda/agenda-grade-dia'
 import type { Reserva, ReservaStatus } from '@/lib/api/types'
 
 const statusConfig: Record<ReservaStatus, { label: string; color: string }> = {
@@ -25,8 +26,6 @@ const ymd = (d: Date) =>
 
 const horaDe = (iso: string) =>
   new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-
-const origemLabel = (r: Reserva) => (r.cliente?.origem === 'PORTAL' ? 'Online' : 'Balcão')
 
 export default function AgendaPage() {
   const { currentTenant } = useTenantStore()
@@ -75,12 +74,24 @@ export default function AgendaPage() {
     setSheetOpen(true)
   }
 
-  const reservasDoDia = useMemo(() => {
-    const key = ymd(currentDate)
-    return enriched
-      .filter((r) => r.status !== 'RASCUNHO' && r.dataInicio.startsWith(key))
-      .sort((a, b) => a.dataInicio.localeCompare(b.dataInicio))
-  }, [enriched, currentDate])
+  // Grade do dia: reservas com PRONTIDÃO (pagamento/habilitação/termo) em lote
+  const { data: agendaDia, isLoading: agendaLoading } = useQuery({
+    queryKey: ['agenda-dia', currentTenant?.id, ymd(currentDate)],
+    queryFn: () => reservasService.agendaDoDia(ymd(currentDate)),
+    enabled: !!currentTenant && view === 'dia',
+  })
+
+  const jetskisComModelo = useMemo(() => {
+    const mMap = new Map((modelos ?? []).map((m) => [m.id, m.nome]))
+    return (jetskis ?? [])
+      .filter((j) => j.ativo !== false)
+      .map((j) => ({ ...j, modeloNome: mMap.get(j.modeloId) }))
+  }, [jetskis, modelos])
+
+  const abrirPorId = (id: string) => {
+    const r = enriched.find((x) => x.id === id)
+    if (r) abrir(r)
+  }
 
   const stepDay = (delta: number) =>
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + delta))
@@ -143,11 +154,24 @@ export default function AgendaPage() {
       </div>
 
       {view === 'dia' ? (
-        <DayView
-          loading={isLoading}
-          reservas={reservasDoDia}
-          onSelect={abrir}
-        />
+        agendaLoading ? (
+          <p className="py-10 text-center text-muted-foreground">Carregando…</p>
+        ) : (agendaDia ?? []).length === 0 ? (
+          <div className="rounded-xl border py-16 text-center">
+            <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
+            <p className="mt-4 font-medium">Nenhuma reserva — 100% de disponibilidade</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Boa hora para chamar a fila de espera ou aceitar walk-ins.
+            </p>
+          </div>
+        ) : (
+          <AgendaGradeDia
+            reservas={agendaDia ?? []}
+            jetskis={jetskisComModelo}
+            dataEhHoje={ymd(currentDate) === ymd(new Date())}
+            onReservaClick={abrirPorId}
+          />
+        )
       ) : (
         <MonthView
           currentDate={currentDate}
@@ -161,56 +185,6 @@ export default function AgendaPage() {
       )}
 
       <ReservaDetailSheet reserva={detail} open={sheetOpen} onOpenChange={setSheetOpen} />
-    </div>
-  )
-}
-
-function DayView({
-  loading,
-  reservas,
-  onSelect,
-}: {
-  loading: boolean
-  reservas: Reserva[]
-  onSelect: (r: Reserva) => void
-}) {
-  if (loading) {
-    return <p className="py-10 text-center text-muted-foreground">Carregando…</p>
-  }
-  if (reservas.length === 0) {
-    return (
-      <div className="rounded-xl border py-16 text-center">
-        <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-        <p className="mt-4 text-muted-foreground">Nenhuma reserva para este dia</p>
-      </div>
-    )
-  }
-  return (
-    <div className="divide-y rounded-xl border">
-      {reservas.map((r) => (
-        <button
-          key={r.id}
-          onClick={() => onSelect(r)}
-          className="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-accent/50"
-        >
-          <div className="w-16 shrink-0 text-center">
-            <div className="text-lg font-semibold tabular-nums">{horaDe(r.dataInicio)}</div>
-            <div className="text-[11px] text-muted-foreground">{horaDe(r.dataFimPrevista)}</div>
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-medium">{r.cliente?.nome || 'Cliente não informado'}</p>
-            <p className="truncate text-sm text-muted-foreground">{r.modelo?.nome}</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Badge variant={r.cliente?.origem === 'PORTAL' ? 'default' : 'secondary'}>
-              {origemLabel(r)}
-            </Badge>
-            <Badge variant={r.status === 'CONFIRMADA' ? 'success' : 'warning'}>
-              {statusConfig[r.status].label}
-            </Badge>
-          </div>
-        </button>
-      ))}
     </div>
   )
 }

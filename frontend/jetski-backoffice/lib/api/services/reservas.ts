@@ -42,6 +42,13 @@ export const reservasService = {
     return data
   },
 
+  /** Reservas do dia com prontidão (grade da agenda). */
+  async agendaDoDia(data: string): Promise<import('../types').AgendaReserva[]> {
+    const { data: rows } = await apiClient.get<import('../types').AgendaReserva[]>(
+      `${getBasePath()}/agenda`, { params: { data } })
+    return rows
+  },
+
   /** Busca do módulo Reservas: filtros server-side, nomes resolvidos, top 200. */
   async buscar(params?: {
     status?: string

@@ -391,6 +391,27 @@ export interface Gru {
   marinhaConfirmadaEm?: string
 }
 
+/** Reserva na visão AGENDA (grade por jetski) com o trio de prontidão. */
+export interface AgendaReserva {
+  id: string
+  clienteId?: string
+  clienteNome?: string
+  modeloId?: string
+  modeloNome?: string
+  jetskiId?: string | null
+  jetskiSerie?: string | null
+  dataInicio: string
+  dataFimPrevista: string
+  status: string
+  canal?: string
+  valorTotal?: number
+  pagamentoOk: boolean
+  habilitacaoOk: boolean
+  habilitacaoVia?: 'CHA' | 'EMA' | null
+  termoOk: boolean
+  prontaParaCheckin: boolean
+}
+
 /** Linha do módulo Reservas (busca). */
 export interface ReservaBusca {
   id: string

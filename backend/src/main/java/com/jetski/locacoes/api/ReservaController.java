@@ -56,6 +56,7 @@ public class ReservaController {
     private final ReservaService reservaService;
     private final com.jetski.locacoes.internal.ReservaFichaService reservaFichaService;
     private final com.jetski.locacoes.internal.ReservaBuscaService reservaBuscaService;
+    private final com.jetski.locacoes.internal.ReservaAgendaService reservaAgendaService;
     private final com.jetski.locacoes.internal.PdfLinkService pdfLinkService;
 
     /**
@@ -492,6 +493,21 @@ public class ReservaController {
     ) {
         validateTenantContext(tenantId);
         return ResponseEntity.ok(FolioExtratoResponse.from(reservaService.extrato(id)));
+    }
+
+    /**
+     * Visão AGENDA do dia (grade por jetski): reservas com nomes + trio de
+     * prontidão em lote. OPA resolve como {@code reserva:list} (fallback).
+     */
+    @GetMapping("/agenda")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO', 'VENDEDOR')")
+    @Operation(summary = "Reservas do dia com prontidão (pagamento/habilitação/termo)")
+    public ResponseEntity<List<com.jetski.locacoes.api.dto.AgendaReservaResponse>> agenda(
+        @PathVariable UUID tenantId,
+        @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate data
+    ) {
+        validateTenantContext(tenantId);
+        return ResponseEntity.ok(reservaAgendaService.doDia(data));
     }
 
     /**

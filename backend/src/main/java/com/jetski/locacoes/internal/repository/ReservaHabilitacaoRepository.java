@@ -12,6 +12,9 @@ public interface ReservaHabilitacaoRepository extends JpaRepository<ReservaHabil
 
     Optional<ReservaHabilitacao> findByReservaId(UUID reservaId);
 
+    /** Batch p/ a agenda (evita N+1 na prontidão). */
+    java.util.List<ReservaHabilitacao> findByReservaIdIn(java.util.Collection<UUID> reservaIds);
+
     /** GRUs do tenant (via EMA com número), mais recente primeiro — módulo GRUs. */
     @org.springframework.data.jpa.repository.Query("""
         select h from ReservaHabilitacao h
