@@ -107,7 +107,11 @@ fi
 # 7. OPA (recarrega policies — não tem --watch) e ingress
 log "recarregando OPA e subindo nginx/cloudflared..."
 $COMPOSE restart opa
-$COMPOSE up -d nginx cloudflared
+# nginx SEMPRE recriado: o bind mount de arquivo único prende o inode — após
+# um git pull que troque o nginx.conf, restart/reload continuam servindo o
+# arquivo ANTIGO silenciosamente (mordeu no cutover do subdomínio do portal).
+$COMPOSE up -d --force-recreate --no-deps nginx
+$COMPOSE up -d cloudflared
 
 # 7.5 Keycloak: converge o client jetski-backoffice (público + PKCE S256) +
 # redirects de produção, idempotente. Num realm NOVO o realm.json já nasce certo
