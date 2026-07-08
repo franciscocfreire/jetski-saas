@@ -501,13 +501,14 @@ public class ReservaController {
      */
     @GetMapping("/agenda")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO', 'VENDEDOR')")
-    @Operation(summary = "Reservas do dia com prontidão (pagamento/habilitação/termo)")
+    @Operation(summary = "Reservas do dia (ou período, com ?ate=) com prontidão")
     public ResponseEntity<List<com.jetski.locacoes.api.dto.AgendaReservaResponse>> agenda(
         @PathVariable UUID tenantId,
-        @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate data
+        @RequestParam @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate data,
+        @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate ate
     ) {
         validateTenantContext(tenantId);
-        return ResponseEntity.ok(reservaAgendaService.doDia(data));
+        return ResponseEntity.ok(reservaAgendaService.doPeriodo(data, ate != null ? ate : data));
     }
 
     /**

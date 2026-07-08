@@ -44,10 +44,16 @@ public class ReservaAgendaService {
 
     @Transactional(readOnly = true)
     public List<AgendaReservaResponse> doDia(LocalDate data) {
+        return doPeriodo(data, data);
+    }
+
+    /** Período inclusivo (visão Semana) — mesmo batch anti-N+1 do dia. */
+    @Transactional(readOnly = true)
+    public List<AgendaReservaResponse> doPeriodo(LocalDate de, LocalDate ate) {
         List<Reserva> reservas = reservaRepository.buscar(
                 null, null, null,
-                data.atStartOfDay(), data.plusDays(1).atStartOfDay(),
-                PageRequest.of(0, 500)).stream()
+                de.atStartOfDay(), ate.plusDays(1).atStartOfDay(),
+                PageRequest.of(0, 1000)).stream()
             .filter(r -> r.getStatus() != Reserva.ReservaStatus.RASCUNHO)
             .sorted(Comparator.comparing(Reserva::getDataInicio))
             .toList();

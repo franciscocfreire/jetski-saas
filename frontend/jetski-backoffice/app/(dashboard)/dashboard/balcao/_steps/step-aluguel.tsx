@@ -50,7 +50,7 @@ export function StepAluguel({
     : 60
 
   const [modeloId, setModeloId] = useState(
-    reservaExistente?.modeloId ?? atendimento.modelo?.id ?? ''
+    reservaExistente?.modeloId ?? atendimento.modelo?.id ?? atendimento.prefillModeloId ?? ''
   )
   const [duracaoMin, setDuracaoMin] = useState(duracaoInicial)
 
@@ -63,12 +63,18 @@ export function StepAluguel({
   const modelo = modelos?.find((m) => m.id === modeloId) ?? atendimento.modelo
   const valorIlustrativo = modelo ? (modelo.precoBaseHora * duracaoMin) / 60 : 0
 
+  // Slot clicado na Agenda: usa o horário escolhido em vez do provisório
+  const prefillInicio = atendimento.prefillInicio
+    ? new Date(atendimento.prefillInicio)
+    : null
+
   const salvar = useMutation({
     mutationFn: async (): Promise<Reserva> => {
-      // O horário real é definido no embarque (fila). Aqui só um início provisório.
+      // O horário real é definido no embarque (fila) — salvo quando veio do
+      // slot da Agenda, que já traz o horário escolhido pelo operador.
       const inicio = reservaExistente
         ? new Date(reservaExistente.dataInicio)
-        : new Date(Date.now() + 30 * 60_000)
+        : prefillInicio ?? new Date(Date.now() + 30 * 60_000)
       const fim = new Date(inicio.getTime() + duracaoMin * 60_000)
 
       // NÃO há cobrança do passeio aqui — o passeio é pago no fim da locação.
@@ -152,6 +158,16 @@ export function StepAluguel({
           <span className="text-xs text-muted-foreground">min ({formatDuracao(duracaoMin)})</span>
         </div>
       </div>
+
+      {prefillInicio && !reservaExistente && (
+        <p className="flex items-center gap-1.5 rounded-md bg-primary/5 px-3 py-2 text-sm text-primary">
+          Horário do slot escolhido na Agenda:{' '}
+          <b>
+            {prefillInicio.toLocaleDateString('pt-BR')}{' '}
+            {prefillInicio.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </b>
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-4">
         <div>

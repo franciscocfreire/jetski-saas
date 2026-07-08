@@ -16,6 +16,9 @@ export type Atendimento = {
   aceiteFeito: boolean
   /** Pagamento presencial integral registrado (ou pulado conscientemente). */
   pagamentoRegistrado: boolean
+  /** Prefill do slot clicado na Agenda (consumido no passo Passeio & Preço). */
+  prefillModeloId?: string
+  prefillInicio?: string
 }
 
 export const BALCAO_STEPS = [

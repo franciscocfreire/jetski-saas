@@ -42,10 +42,10 @@ export const reservasService = {
     return data
   },
 
-  /** Reservas do dia com prontidão (grade da agenda). */
-  async agendaDoDia(data: string): Promise<import('../types').AgendaReserva[]> {
+  /** Reservas do dia (ou período com `ate`) com prontidão — grade/semana. */
+  async agendaDoDia(data: string, ate?: string): Promise<import('../types').AgendaReserva[]> {
     const { data: rows } = await apiClient.get<import('../types').AgendaReserva[]>(
-      `${getBasePath()}/agenda`, { params: { data } })
+      `${getBasePath()}/agenda`, { params: { data, ate } })
     return rows
   },
 

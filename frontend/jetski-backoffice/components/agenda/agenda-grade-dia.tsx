@@ -61,11 +61,13 @@ function Prontidao({ r, clara }: { r: AgendaReserva; clara?: boolean }) {
  * horas 07–20, blocos = reservas com prontidão. Reservas sem jet (portal)
  * ficam na faixa "A alocar". Responde "qual jet está livre às 14h?" de graça.
  */
-export function AgendaGradeDia({ reservas, jetskis, dataEhHoje, onReservaClick }: {
+export function AgendaGradeDia({ reservas, jetskis, dataEhHoje, onReservaClick, onSlotClick }: {
   reservas: AgendaReserva[]
   jetskis: (Jetski & { modeloNome?: string })[]
   dataEhHoje: boolean
   onReservaClick: (id: string) => void
+  /** Clique num horário livre → nova reserva com modelo/horário pré-preenchidos. */
+  onSlotClick?: (jetski: { modeloId: string; serie: string }, hora: number) => void
 }) {
   const [agoraMin, setAgoraMin] = useState(() => minutosDesdeInicio(new Date().toISOString()))
   useEffect(() => {
@@ -162,6 +164,19 @@ export function AgendaGradeDia({ reservas, jetskis, dataEhHoje, onReservaClick }
                     {horas.slice(1).map((h) => (
                       <div key={h} className="absolute inset-x-0 border-t border-dashed border-border/60"
                         style={{ top: (h - HORA_INICIO) * HORA_PX }} />
+                    ))}
+                    {/* slots clicáveis (atrás dos blocos): horário livre → nova reserva */}
+                    {onSlotClick && !emManutencao && horas.map((h) => (
+                      <button
+                        key={`slot-${h}`}
+                        type="button"
+                        aria-label={`Nova reserva às ${String(h).padStart(2, '0')}:00 no ${j.serie}`}
+                        onClick={() => onSlotClick({ modeloId: j.modeloId, serie: j.serie }, h)}
+                        className="group absolute inset-x-0 z-[1] flex items-center justify-center text-transparent transition hover:bg-primary/5 hover:text-primary/60"
+                        style={{ top: (h - HORA_INICIO) * HORA_PX, height: HORA_PX }}
+                      >
+                        <span className="text-lg font-light">+</span>
+                      </button>
                     ))}
                     {/* linha do agora */}
                     {mostrarAgora && (

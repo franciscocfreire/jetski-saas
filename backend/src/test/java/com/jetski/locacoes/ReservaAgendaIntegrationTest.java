@@ -165,4 +165,31 @@ class ReservaAgendaIntegrationTest extends AbstractIntegrationTest {
         assertThat(c.get("jetskiId")).isNull();
         assertThat(c.get("modeloNome")).isEqualTo("Agenda Modelo");
     }
+
+    @Test
+    @DisplayName("Período (?ate=): visão semana devolve dias distintos; sem ate continua um dia")
+    void testPeriodo() throws Exception {
+        seedReserva("10:00:00", "CONFIRMADA", true, "CONFIRMADO");
+        UUID depois = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO reserva (id, tenant_id, modelo_id, cliente_id, data_inicio, data_fim_prevista,
+                                 status, canal)
+            VALUES (?, ?, ?, ?, ?::timestamp, ?::timestamp + interval '1 hour', 'CONFIRMADA', 'BALCAO')
+            """, depois, TENANT_ACME, MODELO, clienteId,
+            DIA.plusDays(3) + "T09:00:00", DIA.plusDays(3) + "T09:00:00");
+
+        // só o dia: 1 reserva
+        assertThat(agenda()).hasSize(1);
+
+        // semana: as duas
+        String body = mockMvc.perform(get("/v1/tenants/{t}/reservas/agenda", TENANT_ACME)
+                .param("data", DIA.toString())
+                .param("ate", DIA.plusDays(6).toString())
+                .header("X-Tenant-Id", TENANT_ACME.toString()).with(staff()))
+            .andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString();
+        List<Map<String, Object>> semana = com.jayway.jsonpath.JsonPath.read(body, "$");
+        assertThat(semana).hasSize(2);
+        assertThat(semana.get(1).get("id")).isEqualTo(depois.toString());
+    }
 }

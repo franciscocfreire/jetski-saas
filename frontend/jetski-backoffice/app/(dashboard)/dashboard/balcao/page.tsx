@@ -48,9 +48,17 @@ function BalcaoWizard() {
   const router = useRouter()
   const search = useSearchParams()
   const reservaId = search.get('reserva')
+  // Prefill do slot clicado na Agenda: começa atendimento NOVO com modelo/horário
+  const prefillModeloId = search.get('modeloId')
+  const prefillInicio = search.get('inicio')
+  const temPrefill = !!(prefillModeloId || prefillInicio)
 
   const [step, setStep] = useState(0)
-  const [at, setAt] = useState<Atendimento>(VAZIO)
+  const [at, setAt] = useState<Atendimento>(() =>
+    temPrefill
+      ? { ...VAZIO, prefillModeloId: prefillModeloId ?? undefined, prefillInicio: prefillInicio ?? undefined }
+      : VAZIO
+  )
   const [resuming, setResuming] = useState(!!reservaId)
   // Maior passo já alcançado — permite navegar livremente (ida e volta) entre os
   // passos já visitados, inclusive ao retomar uma reserva direto num passo avançado.
@@ -59,10 +67,16 @@ function BalcaoWizard() {
     setMaxStep((m) => Math.max(m, step))
   }, [step])
 
-  // Restaura o progresso salvo na aba (a menos que esteja retomando via ?reserva=).
+  // Restaura o progresso salvo na aba (a menos que esteja retomando via
+  // ?reserva= ou chegando com PREFILL do slot da Agenda — aí começa novo).
   const [hidratado, setHidratado] = useState(false)
   useEffect(() => {
-    if (reservaId) {
+    if (reservaId || temPrefill) {
+      if (temPrefill) {
+        try { sessionStorage.removeItem(STORAGE_KEY) } catch { /* ok */ }
+        // limpa a URL p/ um F5 não re-semear o prefill sobre o progresso
+        router.replace('/dashboard/balcao')
+      }
       setHidratado(true)
       return
     }
