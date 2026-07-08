@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Mail, Phone, MapPin, Instagram, Facebook, Linkedin } from 'lucide-react'
 import { Logo } from '@/components/logo'
+import { PortalLink } from '@/components/public/portal-link'
 
 export function Footer() {
   return (
@@ -60,6 +61,11 @@ export function Footer() {
                 <Link href="#como-funciona" className="text-sm text-white/40 hover:text-gold transition-colors duration-300">
                   Como Funciona
                 </Link>
+              </li>
+              <li>
+                <PortalLink className="text-sm text-gold/70 hover:text-gold transition-colors duration-300">
+                  Portal do Cliente
+                </PortalLink>
               </li>
             </ul>
           </div>
