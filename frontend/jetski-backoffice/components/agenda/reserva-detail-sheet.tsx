@@ -54,7 +54,7 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { habilitacaoService, aceiteService, reservasService, clientesService } from '@/lib/api/services'
-import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
+import { formatCurrency, formatDate, formatDateTime, toLocalDateTime } from '@/lib/utils'
 import { PixQrCode } from '@/components/pix-qrcode'
 import { waHref } from '@/components/whatsapp-link'
 import { abrirPdfBlob } from '@/lib/pdf'
@@ -143,7 +143,7 @@ export function ReservaDetailSheet({
       const fim = new Date(inicio.getTime() + dur * 3_600_000)
       return reservasService.atualizar(reservaId!, {
         observacoes: obs,
-        dataFimPrevista: fim.toISOString(),
+        dataFimPrevista: toLocalDateTime(fim),
       })
     },
     onSuccess: () => {

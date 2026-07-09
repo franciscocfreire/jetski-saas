@@ -5,6 +5,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { toLocalDateTime } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -83,8 +84,8 @@ export function StepAluguel({
         return reservasService.criarRascunho({
           modeloId,
           clienteId: atendimento.cliente!.id,
-          dataInicio: inicio.toISOString(),
-          dataFimPrevista: fim.toISOString(),
+          dataInicio: toLocalDateTime(inicio),
+          dataFimPrevista: toLocalDateTime(fim),
           prioridade: 'BAIXA',
         })
       }
@@ -94,7 +95,7 @@ export function StepAluguel({
       if (mudouModelo || mudouDuracao) {
         return reservasService.atualizar(reservaExistente.id, {
           modeloId,
-          dataFimPrevista: fim.toISOString(),
+          dataFimPrevista: toLocalDateTime(fim),
         })
       }
       return reservaExistente

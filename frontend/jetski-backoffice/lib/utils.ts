@@ -48,3 +48,13 @@ export function formatDuracao(minutes: number): string {
   const hp = `${h} ${h === 1 ? 'hora' : 'horas'}`
   return r === 0 ? hp : `${hp} e ${r} min`
 }
+
+/**
+ * Data/hora LOCAL sem zona ("YYYY-MM-DDTHH:mm:ss") para payloads de campos
+ * LocalDateTime do backend. NUNCA use Date.toISOString() nesses campos: ele
+ * converte para UTC (sufixo Z) e o backend descarta o Z — grava +3h errado.
+ */
+export function toLocalDateTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
