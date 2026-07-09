@@ -7,11 +7,49 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { FileUpload } from '@/components/file-upload'
 import { AddressForm, type Address } from '@/components/address-form'
 import { clientesService, habilitacaoService } from '@/lib/api/services'
 import type { Cliente } from '@/lib/api/types'
 import type { Atendimento } from '../types'
+
+/** UFs com a capital (a capital vai para o topo da lista de cidades). */
+const UFS: { uf: string; capital: string }[] = [
+  { uf: 'SP', capital: 'São Paulo' },
+  { uf: 'RJ', capital: 'Rio de Janeiro' },
+  { uf: 'MG', capital: 'Belo Horizonte' },
+  { uf: 'PR', capital: 'Curitiba' },
+  { uf: 'SC', capital: 'Florianópolis' },
+  { uf: 'RS', capital: 'Porto Alegre' },
+  { uf: 'ES', capital: 'Vitória' },
+  { uf: 'BA', capital: 'Salvador' },
+  { uf: 'DF', capital: 'Brasília' },
+  { uf: 'GO', capital: 'Goiânia' },
+  { uf: 'MS', capital: 'Campo Grande' },
+  { uf: 'MT', capital: 'Cuiabá' },
+  { uf: 'PE', capital: 'Recife' },
+  { uf: 'CE', capital: 'Fortaleza' },
+  { uf: 'RN', capital: 'Natal' },
+  { uf: 'PB', capital: 'João Pessoa' },
+  { uf: 'AL', capital: 'Maceió' },
+  { uf: 'SE', capital: 'Aracaju' },
+  { uf: 'PI', capital: 'Teresina' },
+  { uf: 'MA', capital: 'São Luís' },
+  { uf: 'PA', capital: 'Belém' },
+  { uf: 'AM', capital: 'Manaus' },
+  { uf: 'TO', capital: 'Palmas' },
+  { uf: 'RO', capital: 'Porto Velho' },
+  { uf: 'AC', capital: 'Rio Branco' },
+  { uf: 'RR', capital: 'Boa Vista' },
+  { uf: 'AP', capital: 'Macapá' },
+]
 
 /** Endereço salvo do cliente (enderecoJson) → Address, para reaproveitar. */
 function parseEnderecoSalvo(json?: string): Address | undefined {
@@ -53,7 +91,33 @@ export function StepDocumentos({
   const [rg, setRg] = useState(c.rg ?? '')
   const [orgaoEmissor, setOrgaoEmissor] = useState(c.orgaoEmissor ?? '')
   const [nacionalidade, setNacionalidade] = useState(c.nacionalidade ?? 'Brasileira')
-  const [naturalidade, setNaturalidade] = useState(c.naturalidade ?? '')
+  // Naturalidade guardada como "Cidade/UF" (formato dos anexos NORMAM) —
+  // na UI é um par de selects encadeados: UF → cidades (IBGE), capital no topo
+  const partesNat = (c.naturalidade ?? '').split('/')
+  const [natUf, setNatUf] = useState(partesNat.length === 2 ? partesNat[1].trim().toUpperCase() : 'SP')
+  const [natCidade, setNatCidade] = useState(partesNat.length >= 1 ? partesNat[0].trim() : '')
+  const naturalidade = natCidade && natUf ? `${natCidade}/${natUf}` : ''
+
+  // Municípios do estado escolhido — API pública do IBGE, cacheada por UF
+  const { data: cidadesUf, isError: cidadesErro } = useQuery({
+    queryKey: ['ibge-municipios', natUf],
+    queryFn: async (): Promise<string[]> => {
+      const res = await fetch(
+        `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${natUf}/municipios?orderBy=nome`
+      )
+      if (!res.ok) throw new Error('IBGE indisponível')
+      const rows = (await res.json()) as { nome: string }[]
+      const nomes = rows.map((r) => r.nome)
+      // capital primeiro (o caso mais comum), demais em ordem alfabética
+      const capital = UFS.find((u) => u.uf === natUf)?.capital
+      return capital && nomes.includes(capital)
+        ? [capital, ...nomes.filter((n) => n !== capital)]
+        : nomes
+    },
+    enabled: !!natUf,
+    staleTime: 24 * 60 * 60 * 1000, // lista de municípios não muda — cache de 1 dia
+    retry: 1,
+  })
   const [estrangeiro, setEstrangeiro] = useState(c.estrangeiro ?? false)
   // Anexos capturados (dataURL) p/ incluir no PDF: identidade, comprovante, selfie.
   const [anexos, setAnexos] = useState<{
@@ -175,7 +239,51 @@ export function StepDocumentos({
             <Label className="text-xs">
               Naturalidade <span className="text-red-500">*</span>
             </Label>
-            <Input value={naturalidade} onChange={(e) => setNaturalidade(e.target.value)} placeholder="Cidade/UF" />
+            <div className="flex gap-2">
+              <Select
+                value={natUf}
+                onValueChange={(uf) => {
+                  setNatUf(uf)
+                  setNatCidade('') // estado mudou → escolher a cidade de novo
+                }}
+              >
+                <SelectTrigger className="w-24 shrink-0">
+                  <SelectValue placeholder="UF" />
+                </SelectTrigger>
+                <SelectContent>
+                  {UFS.map(({ uf }) => (
+                    <SelectItem key={uf} value={uf}>
+                      {uf}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {cidadesErro ? (
+                // IBGE fora do ar → não trava o atendimento: cidade em texto livre
+                <Input
+                  value={natCidade}
+                  onChange={(e) => setNatCidade(e.target.value)}
+                  placeholder="Cidade"
+                />
+              ) : (
+                <Select value={natCidade} onValueChange={setNatCidade}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={cidadesUf ? 'Cidade' : 'Carregando…'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* cidade vinda do cadastro pode não estar na lista (grafia antiga) */}
+                    {natCidade && !(cidadesUf ?? []).includes(natCidade) && (
+                      <SelectItem value={natCidade}>{natCidade}</SelectItem>
+                    )}
+                    {(cidadesUf ?? []).map((nome) => (
+                      <SelectItem key={nome} value={nome}>
+                        {nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </div>
         </div>
         <label className="flex items-center gap-2 pt-1 text-sm">
