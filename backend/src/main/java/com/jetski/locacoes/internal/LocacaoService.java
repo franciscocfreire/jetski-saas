@@ -734,6 +734,102 @@ public class LocacaoService {
     }
 
     /**
+     * PRORROGAR: altera a duração prevista de uma locação EM_CURSO.
+     *
+     * <p>A volta prevista é derivada (dataCheckIn + duracaoPrevista); alterar a
+     * duração é a forma de estender/encurtar o passeio na prancheta do dia.
+     *
+     * <p>Guards (BusinessException → 400, deny de negócio):
+     * <ul>
+     *   <li>locação deve existir no tenant (NotFoundException → 404)</li>
+     *   <li>status deve ser EM_CURSO</li>
+     *   <li>nova duração mínima de 5 minutos</li>
+     * </ul>
+     *
+     * @param tenantId Tenant ID
+     * @param locacaoId Locacao ID
+     * @param duracaoPrevista Nova duração prevista TOTAL, em minutos (substitui a atual)
+     * @return Locacao atualizada
+     */
+    @Transactional
+    public Locacao alterarDuracao(UUID tenantId, UUID locacaoId, Integer duracaoPrevista) {
+        if (duracaoPrevista == null || duracaoPrevista < 5) {
+            throw new BusinessException("Duração prevista mínima é de 5 minutos");
+        }
+
+        Locacao locacao = locacaoRepository.findByIdAndTenantId(locacaoId, tenantId)
+            .orElseThrow(() -> new NotFoundException("Locação não encontrada: " + locacaoId));
+
+        if (locacao.getStatus() != LocacaoStatus.EM_CURSO) {
+            throw new BusinessException(
+                String.format("Só é possível prorrogar locações em curso (status atual: %s)",
+                              locacao.getStatus())
+            );
+        }
+
+        Integer duracaoAnterior = locacao.getDuracaoPrevista();
+        locacao.setDuracaoPrevista(duracaoPrevista);
+        locacao = locacaoRepository.save(locacao);
+
+        log.info("Duração prevista alterada (prorrogação): locacao={}, de {}min para {}min, operador={}",
+                 locacaoId, duracaoAnterior, duracaoPrevista, TenantContext.getUsuarioId());
+
+        return locacao;
+    }
+
+    /**
+     * Altera (ou remove) o vendedor de uma locação EM_CURSO.
+     *
+     * <p>Correção operacional na prancheta do dia: o operador esqueceu de
+     * apontar o vendedor no check-in ou apontou o errado. A comissão é
+     * calculada só no check-out/fechamento, então trocar o vendedor durante o
+     * passeio é seguro — locação FINALIZADA deve usar editar-finalizada (que
+     * recalcula comissão e audita).
+     *
+     * <p>Guards:
+     * <ul>
+     *   <li>locação deve existir no tenant (NotFoundException → 404)</li>
+     *   <li>status deve ser EM_CURSO (BusinessException → 400)</li>
+     *   <li>vendedor, quando informado, deve existir NO TENANT (filtro
+     *       explícito — testes bypassam RLS)</li>
+     * </ul>
+     *
+     * @param tenantId Tenant ID
+     * @param locacaoId Locacao ID
+     * @param vendedorId Novo vendedor; null desassocia (locação sem vendedor)
+     * @return Locacao atualizada
+     */
+    @Transactional
+    public Locacao alterarVendedor(UUID tenantId, UUID locacaoId, UUID vendedorId) {
+        Locacao locacao = locacaoRepository.findByIdAndTenantId(locacaoId, tenantId)
+            .orElseThrow(() -> new NotFoundException("Locação não encontrada: " + locacaoId));
+
+        if (locacao.getStatus() != LocacaoStatus.EM_CURSO) {
+            throw new BusinessException(
+                String.format("Só é possível alterar o vendedor de locações em curso " +
+                              "(status atual: %s); para locação FINALIZADA use editar-finalizada",
+                              locacao.getStatus())
+            );
+        }
+
+        // Vendedor deve existir no tenant (filtro explícito, nunca só RLS)
+        if (vendedorId != null) {
+            vendedorRepository.findById(vendedorId)
+                .filter(v -> tenantId.equals(v.getTenantId()))
+                .orElseThrow(() -> new BusinessException("Vendedor não encontrado: " + vendedorId));
+        }
+
+        UUID vendedorAnterior = locacao.getVendedorId();
+        locacao.setVendedorId(vendedorId);
+        locacao = locacaoRepository.save(locacao);
+
+        log.info("Vendedor da locação alterado: locacao={}, de {} para {}, operador={}",
+                 locacaoId, vendedorAnterior, vendedorId, TenantContext.getUsuarioId());
+
+        return locacao;
+    }
+
+    /**
      * Edit a finalized rental (FINALIZADA status).
      *
      * <p>Business Rules:

@@ -755,6 +755,7 @@ public class ReservaController {
             .dataInicio(request.getDataInicio())
             .dataFimPrevista(request.getDataFimPrevista())
             .observacoes(request.getObservacoes())
+            .vendedorId(request.getVendedorId())
             .build();
     }
 }

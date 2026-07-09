@@ -225,6 +225,52 @@ public class CommissionService {
     /**
      * Obtém a configuração de comissão do tenant
      */
+    /**
+     * SIMULA a comissão de uma locação sem persistir nada — mesma hierarquia
+     * RN04 e mesmos percentuais do cálculo oficial (que roda no fechamento).
+     * Usada para "expectativa de comissão" em telas operacionais (Controle do
+     * dia). Retorna null quando não há política nem config aplicável (o
+     * cálculo oficial lançaria BusinessException).
+     *
+     * @param duracaoMinutos duração faturável (ou prevista, como aproximação)
+     * @param valorCombustivel não-comissionável (RN03)
+     */
+    @Transactional(readOnly = true)
+    public BigDecimal simularComissao(
+            UUID tenantId,
+            UUID vendedorId,
+            UUID modeloId,
+            int duracaoMinutos,
+            BigDecimal valorTotalLocacao,
+            BigDecimal valorCombustivel,
+            BigDecimal valorBaseLocacao
+    ) {
+        ComissaoConfig tenantConfig = getTenantComissaoConfig(tenantId);
+        BigDecimal valorComissionavel = valorTotalLocacao
+                .subtract(valorCombustivel != null ? valorCombustivel : BigDecimal.ZERO);
+        if (valorComissionavel.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+        boolean vendaAcimaPrecoBase = determinarVendaAcimaBase(valorComissionavel, valorBaseLocacao);
+        PoliticaComissao politica = selecionarPoliticaAplicavel(
+                tenantId, vendedorId, modeloId, duracaoMinutos, null);
+        if (politica == null && tenantConfig == null) {
+            return null; // sem política — não inventa expectativa
+        }
+        if (tenantConfig != null && tenantConfig.percentualPadrao() != null) {
+            BigDecimal percentual = vendaAcimaPrecoBase || tenantConfig.percentualAbaixoBase() == null
+                    ? tenantConfig.percentualPadrao()
+                    : tenantConfig.percentualAbaixoBase();
+            return valorComissionavel.multiply(percentual)
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        }
+        if (politica != null) {
+            return calcularValorComissao(politica, valorComissionavel, duracaoMinutos);
+        }
+        return valorComissionavel.multiply(new BigDecimal("10.0"))
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+    }
+
     private ComissaoConfig getTenantComissaoConfig(UUID tenantId) {
         Tenant tenant = tenantQueryService.findById(tenantId);
         return tenant != null ? tenant.getComissaoConfig() : null;

@@ -20,6 +20,9 @@ public interface ReservaLancamentoRepository extends JpaRepository<ReservaLancam
 
     List<ReservaLancamento> findByLocacaoIdOrderByCreatedAtAsc(UUID locacaoId);
 
+    /** Lote (anti-N+1) — formas de pagamento por locação no Controle do Dia. */
+    List<ReservaLancamento> findByLocacaoIdIn(Collection<UUID> locacaoIds);
+
     /** Relançamento de cobranças derivadas (edição de locação finalizada). */
     void deleteByLocacaoIdAndTipoIn(UUID locacaoId, Collection<ReservaLancamento.Tipo> tipos);
 

@@ -8,6 +8,7 @@ import com.jetski.locacoes.domain.LocacaoStatus;
 import com.jetski.locacoes.domain.ReservaLancamento;
 import com.jetski.locacoes.domain.Modelo;
 import com.jetski.locacoes.domain.Vendedor;
+import com.jetski.locacoes.internal.ControleDoDiaService;
 import com.jetski.locacoes.internal.LocacaoService;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.locacoes.internal.repository.JetskiRepository;
@@ -21,11 +22,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -58,6 +61,7 @@ import java.util.stream.Collectors;
 public class LocacaoController {
 
     private final LocacaoService locacaoService;
+    private final ControleDoDiaService controleDoDiaService;
     private final LocacaoItemOpcionalRepository locacaoItemOpcionalRepository;
     private final JetskiRepository jetskiRepository;
     private final ModeloRepository modeloRepository;
@@ -341,6 +345,71 @@ public class LocacaoController {
     }
 
     /**
+     * PATCH /v1/tenants/{tenantId}/locacoes/{id}/duracao
+     *
+     * PRORROGAR: altera a duração prevista de uma locação EM_CURSO (a volta
+     * prevista é derivada — dataCheckIn + duracaoPrevista).
+     *
+     * <p>Autorização: mesmo caminho do PATCH data-check-in deste controller
+     * (sem @PreAuthorize; a decisão é do OPA no filtro).
+     *
+     * @param tenantId Tenant ID from path
+     * @param id Locacao ID from path
+     * @param request UpdateDuracaoRequest com a nova duração total (minutos)
+     * @return 200 OK com LocacaoResponse atualizada
+     */
+    @PatchMapping("/{id}/duracao")
+    @Operation(summary = "Prorrogar locação (alterar duração prevista)",
+               description = "Altera a duração prevista de uma locação EM_CURSO — " +
+                             "estende/encurta a volta prevista na prancheta do dia")
+    public ResponseEntity<LocacaoResponse> alterarDuracao(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @Valid @RequestBody UpdateDuracaoRequest request
+    ) {
+        log.info("PATCH /v1/tenants/{}/locacoes/{}/duracao - duracaoPrevista={}",
+                 tenantId, id, request.getDuracaoPrevista());
+
+        validateTenantContext(tenantId);
+
+        Locacao locacao = locacaoService.alterarDuracao(tenantId, id, request.getDuracaoPrevista());
+        return ResponseEntity.ok(toResponse(locacao));
+    }
+
+    /**
+     * PATCH /v1/tenants/{tenantId}/locacoes/{id}/vendedor
+     *
+     * Altera (ou remove, com vendedorId null) o vendedor de uma locação
+     * EM_CURSO — correção operacional na prancheta do dia. Para locação
+     * FINALIZADA, use editar-finalizada (recalcula comissão + auditoria).
+     *
+     * <p>Autorização: mesmo caminho dos demais PATCH deste controller
+     * (sem @PreAuthorize; o OPA decide no filtro — fallback {@code locacao:update}).
+     *
+     * @param tenantId Tenant ID from path
+     * @param id Locacao ID from path
+     * @param request UpdateVendedorRequest com o novo vendedor (null desassocia)
+     * @return 200 OK com LocacaoResponse atualizada
+     */
+    @PatchMapping("/{id}/vendedor")
+    @Operation(summary = "Alterar vendedor da locação",
+               description = "Altera ou remove o vendedor de uma locação EM_CURSO — " +
+                             "correção operacional; comissão é apurada no check-out/fechamento")
+    public ResponseEntity<LocacaoResponse> alterarVendedor(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @Valid @RequestBody UpdateVendedorRequest request
+    ) {
+        log.info("PATCH /v1/tenants/{}/locacoes/{}/vendedor - vendedorId={}",
+                 tenantId, id, request.getVendedorId());
+
+        validateTenantContext(tenantId);
+
+        Locacao locacao = locacaoService.alterarVendedor(tenantId, id, request.getVendedorId());
+        return ResponseEntity.ok(toResponse(locacao));
+    }
+
+    /**
      * PATCH /v1/tenants/{tenantId}/locacoes/{id}/editar-finalizada
      *
      * Edit a finalized rental.
@@ -422,6 +491,39 @@ public class LocacaoController {
             .collect(Collectors.toList());
 
         return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * GET /v1/tenants/{tenantId}/locacoes/controle-do-dia?data=YYYY-MM-DD
+     *
+     * CONTROLE DO DIA — a prancheta digital do operador: linhas do dia
+     * (check-ins do dia + todas as EM_CURSO, vencidas no topo), totais
+     * recebidos por forma (regime de caixa, igual ao fechamento diário) e
+     * produção por vendedor (competência).
+     *
+     * <p>Autorização: sem @PreAuthorize, igual ao GET list deste controller.
+     * O OPA resolve como fallback {@code locacao:list} ("controle-do-dia"
+     * fica fora de knownSubActions e não é hex) — mesmo padrão do
+     * {@code /reservas/busca}.
+     *
+     * @param tenantId Tenant ID from path
+     * @param data Dia de referência (ISO, ex.: 2026-07-08)
+     * @return 200 OK com ControleDoDiaResponse
+     */
+    @GetMapping("/controle-do-dia")
+    @Operation(summary = "Controle do Dia (prancheta do operador)",
+               description = "Linhas do dia (check-ins do dia + EM_CURSO, vencidas primeiro), " +
+                             "totais por forma de pagamento (caixa) e por vendedor (competência)")
+    public ResponseEntity<ControleDoDiaResponse> controleDoDia(
+        @PathVariable UUID tenantId,
+        @Parameter(description = "Dia de referência (YYYY-MM-DD)")
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data
+    ) {
+        log.debug("GET /v1/tenants/{}/locacoes/controle-do-dia - data={}", tenantId, data);
+
+        validateTenantContext(tenantId);
+
+        return ResponseEntity.ok(controleDoDiaService.doDia(tenantId, data));
     }
 
     // ===================================================================

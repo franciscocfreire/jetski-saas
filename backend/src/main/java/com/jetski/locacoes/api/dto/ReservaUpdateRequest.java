@@ -50,4 +50,11 @@ public class ReservaUpdateRequest {
 
     @Size(max = 1000, message = "Observações devem ter no máximo 1000 caracteres")
     private String observacoes;
+
+    /**
+     * Novo vendedor da reserva (opcional). Semântica dos demais campos deste
+     * update: SÓ aplica quando vier não-nulo — null/omitido NÃO remove o
+     * vendedor atual (chamadas existentes omitem o campo sem efeito colateral).
+     */
+    private UUID vendedorId;
 }

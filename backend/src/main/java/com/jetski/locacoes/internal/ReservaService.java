@@ -14,6 +14,7 @@ import com.jetski.locacoes.domain.ReservaLancamento;
 import com.jetski.locacoes.internal.repository.JetskiRepository;
 import com.jetski.locacoes.internal.repository.ReservaLancamentoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
+import com.jetski.locacoes.internal.repository.VendedorRepository;
 import com.jetski.reservas.domain.event.EstornoRegistradoEvent;
 import com.jetski.reservas.domain.event.PagamentoConfirmadoEvent;
 import com.jetski.reservas.domain.event.PagamentoPresencialRegistradoEvent;
@@ -75,6 +76,7 @@ public class ReservaService {
     private final ModeloService modeloService;
     private final ReservaConfigService reservaConfigService;
     private final JetskiRepository jetskiRepository;
+    private final VendedorRepository vendedorRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final TenantTimeService tenantTimeService;
     private final ClienteNotificacaoService clienteNotificacaoService;
@@ -499,6 +501,17 @@ public class ReservaService {
         // Update observacoes if provided
         if (updates.getObservacoes() != null) {
             existing.setObservacoes(updates.getObservacoes());
+        }
+
+        // Vendedor: só aplica quando vier preenchido (null/omitido NÃO remove —
+        // mesma semântica dos demais campos deste update). Existência validada
+        // com filtro explícito de tenant (nunca só RLS — testes bypassam).
+        if (updates.getVendedorId() != null) {
+            vendedorRepository.findById(updates.getVendedorId())
+                .filter(v -> existing.getTenantId().equals(v.getTenantId()))
+                .orElseThrow(() -> new BusinessException(
+                    "Vendedor não encontrado: " + updates.getVendedorId()));
+            existing.setVendedorId(updates.getVendedorId());
         }
 
         Reserva saved = reservaRepository.save(existing);
