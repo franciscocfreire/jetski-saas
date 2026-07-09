@@ -79,6 +79,11 @@ const mainNavItems = [
     icon: ListOrdered,
   },
   {
+    title: 'Controle do dia',
+    href: '/dashboard/controle-do-dia',
+    icon: ClipboardList,
+  },
+  {
     title: 'Locações',
     href: '/dashboard/locacoes',
     icon: Anchor,

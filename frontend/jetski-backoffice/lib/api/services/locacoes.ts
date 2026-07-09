@@ -8,6 +8,7 @@ import type {
   EditFinalizadaRequest,
   FolioExtrato,
   RegistrarPagamentoLocacaoRequest,
+  ControleDoDia,
 } from '../types'
 
 const getBasePath = () => `/v1/tenants/${getTenantId()}/locacoes`
@@ -43,6 +44,22 @@ export const locacoesService = {
     return data
   },
 
+  /** Prancheta do dia: saídas, voltas e caixa (data = YYYY-MM-DD). */
+  async controleDoDia(data: string): Promise<ControleDoDia> {
+    const { data: res } = await apiClient.get<ControleDoDia>(`${getBasePath()}/controle-do-dia`, {
+      params: { data },
+    })
+    return res
+  },
+
+  /** Prorroga a volta prevista de uma locação em curso (duração total em minutos). */
+  async prorrogar(id: string, duracaoPrevista: number): Promise<Locacao> {
+    const { data } = await apiClient.patch<Locacao>(`${getBasePath()}/${id}/duracao`, {
+      duracaoPrevista,
+    })
+    return data
+  },
+
   async updateDataCheckIn(id: string, dataCheckIn: string): Promise<Locacao> {
     const { data } = await apiClient.patch<Locacao>(`${getBasePath()}/${id}/data-check-in`, { dataCheckIn })
     return data
@@ -60,6 +77,14 @@ export const locacoesService = {
       `${getBasePath()}/${id}/registrar-pagamento`,
       request
     )
+    return data
+  },
+
+  /** Troca (ou remove, com null) o vendedor de uma locação em curso. */
+  async alterarVendedor(id: string, vendedorId: string | null): Promise<Locacao> {
+    const { data } = await apiClient.patch<Locacao>(`${getBasePath()}/${id}/vendedor`, {
+      vendedorId,
+    })
     return data
   },
 

@@ -683,6 +683,52 @@ export interface EditFinalizadaRequest {
   motivoEdicao: string  // Required - audit trail
 }
 
+// Controle do dia — a "prancheta" da operação: saídas, voltas e caixa do dia.
+// v2: além das locações, a prancheta lista as RESERVAS confirmadas do dia
+// (futuras saídas) — linhas RESERVA vêm com status CONFIRMADA, dataCheckIn =
+// saída PREVISTA, dataCheckOut null e formas [].
+export interface ControleDoDiaLinha {
+  /** LOCACAO = jet já saiu (ou voltou); RESERVA = futura saída confirmada. */
+  tipo: 'LOCACAO' | 'RESERVA'
+  reservaId?: string | null
+  locacaoId?: string | null
+  /** Nulo em linha RESERVA sem jet alocado (alocação só no check-in). */
+  jetskiId?: string | null
+  jetskiSerie?: string
+  /** Reserva ainda não tem jet alocado — o modelo é a referência da linha. */
+  modeloId?: string | null
+  modeloNome?: string
+  clienteNome?: string
+  vendedorNome?: string
+  dataCheckIn: string
+  duracaoPrevista?: number // minutos
+  dataCheckOut?: string
+  status: LocacaoStatus | 'CONFIRMADA' | 'PENDENTE'
+  valorTotal?: number
+  formas: string[] // formas de pagamento já recebidas (FormaPagamento)
+  // Prontidão (só linhas RESERVA) — mesmo trio da agenda: $ / CHA / termo
+  pagamentoOk?: boolean | null
+  habilitacaoOk?: boolean | null
+  termoOk?: boolean | null
+  prontaParaCheckin?: boolean | null
+}
+
+export interface ControleDoDiaVendedorTotal {
+  vendedorId: string
+  vendedorNome: string
+  /** Produção bruta (soma de valorTotal) — não exibir como se fosse comissão. */
+  total: number
+  /** Simulação RN04 (mesma régua do fechamento); null = sem política configurada. */
+  expectativaComissao?: number | null
+}
+
+export interface ControleDoDia {
+  linhas: ControleDoDiaLinha[]
+  totalPorForma: Record<string, number>
+  totalPorVendedor: ControleDoDiaVendedorTotal[]
+  totalDia: number
+}
+
 // Manutencao Module
 export type ManutencaoTipo = 'PREVENTIVA' | 'CORRETIVA'
 export type ManutencaoStatus = 'ABERTA' | 'EM_ANDAMENTO' | 'AGUARDANDO_PECAS' | 'CONCLUIDA' | 'CANCELADA'

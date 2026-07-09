@@ -87,10 +87,16 @@ export const reservasService = {
     return data
   },
 
-  /** Atualiza a reserva (modelo/duração só enquanto RASCUNHO). */
+  /** Atualiza a reserva (modelo/duração só enquanto RASCUNHO; vendedorId aceita null p/ remover). */
   async atualizar(
     id: string,
-    request: { modeloId?: string; dataInicio?: string; dataFimPrevista?: string; observacoes?: string }
+    request: {
+      modeloId?: string
+      dataInicio?: string
+      dataFimPrevista?: string
+      observacoes?: string
+      vendedorId?: string | null
+    }
   ): Promise<Reserva> {
     const { data } = await apiClient.put<Reserva>(`${getBasePath()}/${id}`, request)
     return data
