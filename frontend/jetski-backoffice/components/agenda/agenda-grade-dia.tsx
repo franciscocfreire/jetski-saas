@@ -95,8 +95,11 @@ export function AgendaGradeDia({ reservas, jetskis, dataEhHoje, onReservaClick, 
         {/* Faixa "A alocar" — reservas do portal sem jetski (fila de trabalho) */}
         {semJet.length > 0 && (
           <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900 dark:bg-amber-950/30">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-              A alocar ({semJet.length}) — jetski definido no check-in
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+              Aguardando alocação ({semJet.length})
+            </p>
+            <p className="mb-2 text-xs text-amber-700/80 dark:text-amber-400/80">
+              Reservas do portal chegam sem jetski — escolha o jet no check-in; até lá elas ficam aqui, fora da grade.
             </p>
             <div className="flex flex-wrap gap-2">
               {semJet.map((r) => (

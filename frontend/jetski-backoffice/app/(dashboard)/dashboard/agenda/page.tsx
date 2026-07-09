@@ -114,11 +114,20 @@ export default function AgendaPage() {
     enabled: !!currentTenant && view === 'semana',
   })
 
+  // Canceladas/expiradas/no-show são ruído na operação do dia: fora da grade,
+  // da faixa "aguardando alocação" e do resumo (continuam no módulo Reservas).
+  const agendaDiaAtivas = useMemo(
+    () => (agendaDia ?? []).filter((r) => !['CANCELADA', 'EXPIRADA', 'NO_SHOW'].includes(r.status)),
+    [agendaDia]
+  )
+  const agendaSemanaAtivas = useMemo(
+    () => (agendaSemana ?? []).filter((r) => !['CANCELADA', 'EXPIRADA', 'NO_SHOW'].includes(r.status)),
+    [agendaSemana]
+  )
+
   // Resumo do dia — a conta do "aceito walk-in?" feita de graça
   const resumo = useMemo(() => {
-    const ativas = (agendaDia ?? []).filter(
-      (r) => !['CANCELADA', 'EXPIRADA', 'NO_SHOW'].includes(r.status)
-    )
+    const ativas = agendaDiaAtivas
     const precoHora = new Map((modelos ?? []).map((m) => [m.id, m.precoBaseHora]))
     const horasReservadas = ativas.reduce((acc, r) => {
       const h = (new Date(r.dataFimPrevista).getTime() - new Date(r.dataInicio).getTime()) / 3_600_000
@@ -135,7 +144,7 @@ export default function AgendaPage() {
       }, 0),
       recebido: ativas.reduce((acc, r) => acc + (r.valorTotal ?? 0), 0),
     }
-  }, [agendaDia, modelos, jetskisComModelo])
+  }, [agendaDiaAtivas, modelos, jetskisComModelo])
 
   // Slot livre clicado → balcão com modelo/horário pré-preenchidos
   const novaReservaNoSlot = (jet: { modeloId: string }, hora: number) => {
@@ -207,7 +216,7 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      {view === 'dia' && !agendaLoading && (agendaDia ?? []).length > 0 && (
+      {view === 'dia' && !agendaLoading && agendaDiaAtivas.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border bg-muted/30 px-4 py-2 text-sm">
           <span><b className="tabular-nums">{resumo.total}</b> reserva{resumo.total !== 1 ? 's' : ''}</span>
           <span title="Pagamento + habilitação + termo OK" className="text-emerald-700 dark:text-emerald-400">
@@ -228,7 +237,7 @@ export default function AgendaPage() {
       {view === 'dia' ? (
         agendaLoading ? (
           <p className="py-10 text-center text-muted-foreground">Carregando…</p>
-        ) : (agendaDia ?? []).length === 0 ? (
+        ) : agendaDiaAtivas.length === 0 ? (
           <div className="rounded-xl border py-16 text-center">
             <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
             <p className="mt-4 font-medium">Nenhuma reserva — 100% de disponibilidade</p>
@@ -238,7 +247,7 @@ export default function AgendaPage() {
           </div>
         ) : (
           <AgendaGradeDia
-            reservas={agendaDia ?? []}
+            reservas={agendaDiaAtivas}
             jetskis={jetskisComModelo}
             dataEhHoje={ymd(currentDate) === ymd(new Date())}
             onReservaClick={abrirPorId}
@@ -251,7 +260,7 @@ export default function AgendaPage() {
         ) : (
           <AgendaSemana
             segunda={segunda}
-            reservas={agendaSemana ?? []}
+            reservas={agendaSemanaAtivas}
             onPickDay={(d) => {
               setCurrentDate(d)
               setView('dia')
