@@ -24,22 +24,22 @@ import {
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { jetskisService, reservasService, locacoesService } from '@/lib/api/services'
 
-type Membro = { reservaId: string; nome: string }
+// Cada membro carrega o PRÓPRIO modelo: o grupo pode ser cross-modelo
+// (ex.: um Spark + um Ultra saindo juntos) — o loop de check-in é agnóstico.
+type Membro = { reservaId: string; nome: string; modeloId: string; modeloNome: string }
 
 /**
  * Embarque de um grupo (andam juntos) em 1 clique: aloca um jetski distinto para
- * cada membro e faz o check-in de todos. Idempotente por membro (confirma se
- * PENDENTE; pula quem já embarcou).
+ * cada membro — do modelo daquele membro — e faz o check-in de todos.
+ * Idempotente por membro (confirma se PENDENTE; pula quem já embarcou).
  */
 export function EmbarqueGrupoDialog({
   membros,
-  modeloId,
   open,
   onOpenChange,
   onEmbarcado,
 }: {
   membros: Membro[]
-  modeloId?: string
   open: boolean
   onOpenChange: (v: boolean) => void
   onEmbarcado?: () => void
@@ -52,9 +52,9 @@ export function EmbarqueGrupoDialog({
     queryFn: () => jetskisService.list({ status: 'DISPONIVEL' }),
     enabled: open && !!currentTenant,
   })
-  const disponiveis = (jetskis ?? []).filter((j) => j.modeloId === modeloId)
+  const disponiveis = jetskis ?? []
 
-  // Auto-aloca jets distintos aos membros ao abrir.
+  // Auto-aloca jets distintos aos membros ao abrir — cada um do SEU modelo.
   useEffect(() => {
     if (!open) {
       setAloc({})
@@ -63,12 +63,14 @@ export function EmbarqueGrupoDialog({
     if (disponiveis.length === 0) return
     setAloc((prev) => {
       const usados = new Set(Object.values(prev).map((a) => a.jetskiId).filter(Boolean))
-      const livres = disponiveis.filter((j) => !usados.has(j.id))
       const next = { ...prev }
       for (const m of membros) {
         if (next[m.reservaId]?.jetskiId) continue
-        const j = livres.shift()
-        if (j) next[m.reservaId] = { jetskiId: j.id, horimetro: String(j.horimetroAtual ?? '') }
+        const j = disponiveis.find((x) => x.modeloId === m.modeloId && !usados.has(x.id))
+        if (j) {
+          usados.add(j.id)
+          next[m.reservaId] = { jetskiId: j.id, horimetro: String(j.horimetroAtual ?? '') }
+        }
       }
       return next
     })
@@ -81,7 +83,26 @@ export function EmbarqueGrupoDialog({
   const escolhidos = membros.map((m) => aloc[m.reservaId]?.jetskiId).filter(Boolean)
   const distintos = new Set(escolhidos).size === escolhidos.length
   const completo = membros.every((m) => aloc[m.reservaId]?.jetskiId && aloc[m.reservaId]?.horimetro)
-  const semFrota = disponiveis.length < membros.length
+
+  // Frota insuficiente é avaliada POR MODELO (grupo pode ser cross-modelo):
+  // aponta qual modelo falta e para quem, ex. "Sem Kawasaki Ultra 310 livre para Regis".
+  const faltas: string[] = []
+  {
+    const porModelo = new Map<string, Membro[]>()
+    for (const m of membros) porModelo.set(m.modeloId, [...(porModelo.get(m.modeloId) ?? []), m])
+    for (const [mid, ms] of porModelo) {
+      const disp = disponiveis.filter((j) => j.modeloId === mid).length
+      if (disp < ms.length) {
+        // Os primeiros `disp` membros do modelo conseguem jet; os demais ficam sem.
+        const semJet = ms.slice(disp)
+        faltas.push(
+          `Sem ${ms[0].modeloNome} livre para ${semJet
+            .map((x) => x.nome.split(' ')[0])
+            .join(', ')} (${disp} disponível(is), ${ms.length} no grupo).`
+        )
+      }
+    }
+  }
 
   const embarcar = useMutation({
     mutationFn: async () => {
@@ -118,11 +139,13 @@ export function EmbarqueGrupoDialog({
         <DialogHeader>
           <DialogTitle>Embarcar grupo ({membros.length} jets)</DialogTitle>
         </DialogHeader>
-        {semFrota && (
-          <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-            Apenas {disponiveis.length} jetski(s) deste modelo disponível(is) — são necessários{' '}
-            {membros.length}. Aguarde liberar mais ou embarque parte do grupo.
-          </p>
+        {faltas.length > 0 && (
+          <div className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            {faltas.map((f) => (
+              <p key={f}>{f}</p>
+            ))}
+            <p>Aguarde liberar mais ou embarque parte do grupo.</p>
+          </div>
         )}
         <div className="space-y-3">
           {membros.map((m) => {
@@ -130,10 +153,15 @@ export function EmbarqueGrupoDialog({
             const usadosPorOutros = new Set(
               membros.filter((x) => x.reservaId !== m.reservaId).map((x) => aloc[x.reservaId]?.jetskiId)
             )
-            const opcoes = disponiveis.filter((j) => !usadosPorOutros.has(j.id))
+            // Só jets do modelo DESTE membro (grupo pode misturar modelos).
+            const opcoes = disponiveis.filter(
+              (j) => j.modeloId === m.modeloId && !usadosPorOutros.has(j.id)
+            )
             return (
               <div key={m.reservaId} className="rounded-md border p-3">
-                <p className="mb-2 text-sm font-medium">{m.nome}</p>
+                <p className="mb-2 text-sm font-medium">
+                  {m.nome} <span className="font-normal text-muted-foreground">— {m.modeloNome}</span>
+                </p>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <Label className="text-xs">Jetski</Label>

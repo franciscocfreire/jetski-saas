@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { jetskisService, reservasService, locacoesService } from '@/lib/api/services'
+import { toLocalDateTime } from '@/lib/utils'
 
 /**
  * Diálogo de embarque (check-in) a partir da fila: aloca o jetski escolhido e
@@ -44,6 +45,11 @@ export function EmbarqueDialog({
   const { currentTenant } = useTenantStore()
   const [jetskiId, setJetskiId] = useState('')
   const [horimetro, setHorimetro] = useState('')
+  // Horário da saída — default agora; editável p/ registrar embarque retroativo
+  // (o operador anota no papel e digita depois)
+  const [horaSaida, setHoraSaida] = useState(() =>
+    new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  )
 
   const { data: jetskis } = useQuery({
     queryKey: ['jetskis-disponiveis', currentTenant?.id],
@@ -75,7 +81,21 @@ export function EmbarqueDialog({
       }
       if (r.status === 'PENDENTE') await reservasService.confirmar(reservaId)
       if (!r.jetskiId) await reservasService.alocarJetski(reservaId, jetskiId)
-      await locacoesService.checkInFromReserva({ reservaId, horimetroInicio: Number(horimetro) })
+      const locacao = await locacoesService.checkInFromReserva({
+        reservaId,
+        horimetroInicio: Number(horimetro),
+      })
+      // Saída retroativa: o check-in nasce "agora"; se o operador escolheu outro
+      // horário (hoje), corrigimos em seguida pelo endpoint auditado
+      const [hh, mm] = horaSaida.split(':').map(Number)
+      if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
+        const escolhido = new Date()
+        escolhido.setHours(hh, mm, 0, 0)
+        const drift = Math.abs(escolhido.getTime() - Date.now())
+        if (drift > 60_000 && escolhido.getTime() <= Date.now()) {
+          await locacoesService.updateDataCheckIn(locacao.id, toLocalDateTime(escolhido))
+        }
+      }
       return { jaEmbarcado: false }
     },
     onSuccess: ({ jaEmbarcado }) => {
@@ -127,14 +147,27 @@ export function EmbarqueDialog({
               </p>
             )}
           </div>
-          <div>
-            <Label className="text-xs">Horímetro inicial</Label>
-            <Input
-              type="number"
-              step="0.1"
-              value={horimetro}
-              onChange={(e) => setHorimetro(e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Horímetro inicial</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={horimetro}
+                onChange={(e) => setHorimetro(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Horário da saída</Label>
+              <Input
+                type="time"
+                value={horaSaida}
+                onChange={(e) => setHoraSaida(e.target.value)}
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Ajuste se a saída já aconteceu (retroativo)
+              </p>
+            </div>
           </div>
         </div>
         <DialogFooter>

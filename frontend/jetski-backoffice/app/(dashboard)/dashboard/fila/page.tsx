@@ -50,8 +50,27 @@ const LIMITE_KEY = 'fila.limiteEspera'
 const durMin = (r: Reserva) =>
   Math.max(1, Math.round((new Date(r.dataFimPrevista).getTime() - new Date(r.dataInicio).getTime()) / 60_000))
 
+/** Minutos aguardando na fila; fallback updatedAt/createdAt evita new Date(null)=1970. */
+const esperaDe = (r: Reserva, now: number) => {
+  const t = new Date(r.documentoEmitidoEm || r.updatedAt || r.createdAt || r.dataInicio).getTime()
+  return Math.max(0, (now - (Number.isFinite(t) ? t : now)) / 60_000)
+}
+
 /** Jet da frota de um modelo, com o tempo até ficar pronto. */
 type JetFrota = JetEstado & { livre: boolean; retornoMin: number }
+
+type ReservaFila = Reserva & { cliente?: Cliente }
+
+/** Membro passado ao EmbarqueGrupoDialog — cada um carrega o próprio modelo. */
+type GrupoMembro = { reservaId: string; nome: string; modeloId: string; modeloNome: string }
+
+/** Grupo "andam juntos" com membros de modelos DIFERENTES, exibido fora dos blocos. */
+type GrupoCross = {
+  /** 'g:' + ids ORIGINAIS do grupo (para desagrupar() casar com o estado `grupos`). */
+  key: string
+  membros: { reserva: ReservaFila; modeloNome: string; esperaMin: number }[]
+  modelosNomes: string[]
+}
 
 type Bloco = {
   modeloId: string
@@ -61,7 +80,7 @@ type Bloco = {
   plano: Alocacao[]
   ganhoJetMin: number
   reordena: boolean
-  reservasNaFila: Reserva[]
+  reservasNaFila: ReservaFila[]
 }
 
 export default function FilaPage() {
@@ -69,10 +88,7 @@ export default function FilaPage() {
   const qc = useQueryClient()
   const [alvo, setAlvo] = useState<Reserva | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [grupoAlvo, setGrupoAlvo] = useState<{
-    membros: { reservaId: string; nome: string }[]
-    modeloId?: string
-  } | null>(null)
+  const [grupoAlvo, setGrupoAlvo] = useState<GrupoMembro[] | null>(null)
   const [grupoOpen, setGrupoOpen] = useState(false)
   const [clienteAlvo, setClienteAlvo] = useState<Cliente | null>(null)
   const [clienteOpen, setClienteOpen] = useState(false)
@@ -146,8 +162,15 @@ export default function FilaPage() {
     enabled: !!currentTenant,
   })
 
-  const blocos = useMemo<Bloco[]>(() => {
-    if (!reservas) return []
+  // Fila derivada: blocos por modelo + grupos cross-modelo "hoistados".
+  // Grupos cujos membros são de modelos DIFERENTES não entram nos blocos: o
+  // otimizador trabalha por modelo (frota de um modelo só) e o bloco só monta
+  // parties com membros do próprio modelo — um grupo cross teria membros
+  // "sumindo" da tela. Eles viram cards na seção "Grupos" do topo e cada bloco
+  // calcula seu plano SEM esses membros. Grupos de um modelo só continuam como
+  // party dentro do bloco (comportamento atual, integrado ao otimizador).
+  const { blocos, gruposCross } = useMemo(() => {
+    if (!reservas) return { blocos: [] as Bloco[], gruposCross: [] as GrupoCross[] }
     const cMap = new Map((clientes ?? []).map((c) => [c.id, c]))
     const mMap = new Map((modelos ?? []).map((m) => [m.id, m]))
 
@@ -159,17 +182,41 @@ export default function FilaPage() {
       retornoPorJet.set(l.jetskiId, Math.max(0, (fim - now) / 60_000))
     }
 
-    const naFila = reservas
+    const naFila: ReservaFila[] = reservas
       // Embarcável após os Termos: PENDENTE/CONFIRMADA (a emissão dos docs/GRU pode
       // ser feita depois — não trava o embarque). CANCELADA/terminais saem daqui.
       .filter((r) => r.status === 'PENDENTE' || r.status === 'CONFIRMADA')
       .map((r) => ({ ...r, cliente: cMap.get(r.clienteId) }))
       .sort((a, b) => a.dataInicio.localeCompare(b.dataInicio))
 
-    const modelosNaFila = [...new Set(naFila.map((r) => r.modeloId))]
+    const porId = new Map(naFila.map((r) => [r.id, r]))
 
-    return modelosNaFila.map((modeloId) => {
-      const fila = naFila.filter((r) => r.modeloId === modeloId)
+    // Detecta grupos cross-modelo (>=2 membros vivos na fila, >1 modelo entre eles).
+    const gruposCross: GrupoCross[] = []
+    const idsCross = new Set<string>()
+    for (const g of grupos) {
+      const vivos = g.map((id) => porId.get(id)).filter((r): r is ReservaFila => !!r)
+      if (vivos.length < 2) continue
+      const modeloIds = [...new Set(vivos.map((r) => r.modeloId))]
+      if (modeloIds.length < 2) continue // mesmo modelo: segue como party do bloco
+      vivos.forEach((r) => idsCross.add(r.id))
+      gruposCross.push({
+        key: 'g:' + g.join(','),
+        membros: vivos.map((r) => ({
+          reserva: r,
+          modeloNome: mMap.get(r.modeloId)?.nome ?? 'Modelo',
+          esperaMin: esperaDe(r, now),
+        })),
+        modelosNomes: modeloIds.map((id) => mMap.get(id)?.nome ?? 'Modelo'),
+      })
+    }
+
+    // Membros de grupo cross saem da fila individual do modelo (não duplicar).
+    const naFilaBlocos = naFila.filter((r) => !idsCross.has(r.id))
+    const modelosNaFila = [...new Set(naFilaBlocos.map((r) => r.modeloId))]
+
+    const blocos: Bloco[] = modelosNaFila.map((modeloId) => {
+      const fila = naFilaBlocos.filter((r) => r.modeloId === modeloId)
       const ordemDe = new Map(fila.map((r, i) => [r.id, i]))
 
       // Frota do modelo (livre ou em uso); ignora manutenção/inativo.
@@ -234,6 +281,8 @@ export default function FilaPage() {
         reservasNaFila: fila,
       }
     })
+
+    return { blocos, gruposCross }
   }, [reservas, clientes, modelos, jetskis, emCurso, grupos, turnaround, now])
 
   const fmtClock = (min: number) =>
@@ -249,10 +298,13 @@ export default function FilaPage() {
       total: jets.length,
       livres,
       emUso: jets.length - livres,
-      naFila: blocos.reduce((s, b) => s + b.reservasNaFila.length, 0),
+      // Membros de grupos cross não estão nos blocos, mas continuam na fila.
+      naFila:
+        blocos.reduce((s, b) => s + b.reservasNaFila.length, 0) +
+        gruposCross.reduce((s, g) => s + g.membros.length, 0),
       proxLivreMin,
     }
-  }, [blocos])
+  }, [blocos, gruposCross])
 
   const embarcar = (reservaId: string) => {
     const r = reservas?.find((x) => x.id === reservaId) ?? null
@@ -268,8 +320,10 @@ export default function FilaPage() {
       return n
     })
 
-  const agrupar = (idsDoModelo: string[]) => {
-    const escolhidos = idsDoModelo.filter((id) => sel.has(id))
+  // Agrupa os selecionados SEM filtro de modelo: grupo cross-modelo é válido
+  // (vira card na seção "Grupos"; mesmo modelo vira party dentro do bloco).
+  const agrupar = (ids: string[]) => {
+    const escolhidos = ids.filter((id) => sel.has(id))
     if (escolhidos.length < 2) return
     setGrupos((g) => [...g, escolhidos])
     setSel((s) => {
@@ -289,7 +343,7 @@ export default function FilaPage() {
     )
   }
 
-  const vazia = blocos.length === 0
+  const vazia = blocos.length === 0 && gruposCross.length === 0
 
   return (
     <div className="space-y-6">
@@ -374,10 +428,89 @@ export default function FilaPage() {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* Grupos cross-modelo: hoistados para cá porque o otimizador/plano é
+              por modelo e não sabe alocar um grupo que precisa de jets de frotas
+              diferentes. Os membros NÃO aparecem nos blocos abaixo. */}
+          {gruposCross.map((g) => (
+            <div key={g.key} className="overflow-hidden rounded-xl border border-primary/30">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-primary/5 px-4 py-2">
+                <h3 className="flex items-center gap-2 font-semibold">
+                  <Users className="h-4 w-4 text-primary" />
+                  Grupo ({g.membros.length}) — andam juntos
+                </h3>
+                <Badge variant="secondary">modelos diferentes</Badge>
+              </div>
+              <div className="divide-y">
+                {g.membros.map((m) => {
+                  const c = m.reserva.cliente
+                  const esperaLonga = m.esperaMin > limiteEspera
+                  return (
+                    <div key={m.reserva.id} className="px-4 py-2">
+                      <p className="flex flex-wrap items-center gap-2 font-medium">
+                        <button
+                          type="button"
+                          onClick={() => abrirCliente(c)}
+                          className="hover:text-primary hover:underline"
+                        >
+                          {c?.nome ?? 'Cliente'}
+                        </button>
+                        <WhatsAppLink phone={c?.telefone || c?.whatsapp} nome={c?.nome} />
+                      </p>
+                      <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                        <span>
+                          {m.modeloNome} · {formatDuracao(durMin(m.reserva))} · reserva{' '}
+                          {new Date(m.reserva.dataInicio).toLocaleTimeString('pt-BR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1',
+                            esperaLonga && 'font-medium text-red-600 dark:text-red-400'
+                          )}
+                        >
+                          <Clock className="h-3 w-3" /> aguardando há {formatDuracao(m.esperaMin)}
+                        </span>
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-4 py-2">
+                {/* Grupo cross fica FORA do otimizador por bloco: só sai quando
+                    todos os modelos envolvidos tiverem jet livre ao mesmo tempo. */}
+                <p className="text-xs text-muted-foreground">
+                  Sai junto quando houver jet livre de: {g.modelosNomes.join(' e ')}.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => desagrupar(g.key)}>
+                    <Unlink className="mr-1 h-3.5 w-3.5" /> Desfazer
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setGrupoAlvo(
+                        g.membros.map((m) => ({
+                          reservaId: m.reserva.id,
+                          nome: m.reserva.cliente?.nome ?? 'Cliente',
+                          modeloId: m.reserva.modeloId,
+                          modeloNome: m.modeloNome,
+                        }))
+                      )
+                      setGrupoOpen(true)
+                    }}
+                  >
+                    <Anchor className="mr-1 h-4 w-4" /> Embarcar grupo ({g.membros.length})
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+
           {blocos.map((b) => {
             const proxima = b.plano[0]
-            const idsModelo = b.reservasNaFila.map((r) => r.id)
-            const selNoModelo = idsModelo.filter((id) => sel.has(id)).length
             const cliDe = new Map(b.reservasNaFila.map((r) => [r.id, r.cliente]))
             const resDe = new Map(b.reservasNaFila.map((r) => [r.id, r]))
             const inicioDe = new Map(b.plano.map((a) => [a.party.id, a.inicio]))
@@ -613,13 +746,14 @@ export default function FilaPage() {
                                 type="button"
                                 size="sm"
                                 onClick={() => {
-                                  setGrupoAlvo({
-                                    membros: p.reservaIds.map((rid) => ({
+                                  setGrupoAlvo(
+                                    p.reservaIds.map((rid) => ({
                                       reservaId: rid,
                                       nome: cliDe.get(rid)?.nome ?? 'Cliente',
-                                    })),
-                                    modeloId: b.modeloId,
-                                  })
+                                      modeloId: b.modeloId,
+                                      modeloNome: b.modeloNome,
+                                    }))
+                                  )
                                   setGrupoOpen(true)
                                 }}
                               >
@@ -638,20 +772,25 @@ export default function FilaPage() {
                   })}
                 </div>
 
-                {/* Ação de agrupar (quando há ≥2 selecionados neste modelo) */}
-                {selNoModelo >= 2 && (
-                  <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-2">
-                    <span className="text-xs text-muted-foreground">
-                      {selNoModelo} selecionados — andar juntos usa {selNoModelo} jets ao mesmo tempo
-                    </span>
-                    <Button type="button" size="sm" onClick={() => agrupar(idsModelo)}>
-                      <Link2 className="mr-1 h-3.5 w-3.5" /> Andam juntos
-                    </Button>
-                  </div>
-                )}
               </div>
             )
           })}
+
+          {/* Barra GLOBAL "Andam juntos": vale para seleção em qualquer bloco,
+              inclusive de MODELOS DIFERENTES (a antiga barra por bloco filtrava
+              por modelo e descartava seleção cross). Sticky para ficar visível
+              enquanto o operador marca clientes em blocos distantes. */}
+          {sel.size >= 2 && (
+            <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-background px-4 py-3 shadow-lg">
+              <span className="text-sm text-muted-foreground">
+                {sel.size} selecionados — Andam juntos? Usa {sel.size} jets ao mesmo tempo (podem ser
+                de modelos diferentes).
+              </span>
+              <Button type="button" size="sm" onClick={() => agrupar([...sel])}>
+                <Link2 className="mr-1 h-3.5 w-3.5" /> Andam juntos
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -664,8 +803,7 @@ export default function FilaPage() {
       />
 
       <EmbarqueGrupoDialog
-        membros={grupoAlvo?.membros ?? []}
-        modeloId={grupoAlvo?.modeloId}
+        membros={grupoAlvo ?? []}
         open={grupoOpen}
         onOpenChange={setGrupoOpen}
         onEmbarcado={invalidarFila}
