@@ -76,6 +76,7 @@ public class TenantAwareDataSourceConfig {
 
         private void setTenantContext(Connection connection) {
             UUID tenantId = TenantContext.getTenantId();
+            boolean unrestricted = TenantContext.isUnrestricted();
             log.debug("TenantAwareDataSource.setTenantContext called, tenantId={}", tenantId);
             try (Statement statement = connection.createStatement()) {
                 if (tenantId != null) {
@@ -92,6 +93,13 @@ public class TenantAwareDataSourceConfig {
                     statement.execute("RESET app.tenant_id");
                     log.debug("RLS tenant context cleared for public access");
                 }
+                // Superadmin de plataforma: a policy da tabela tenant (V042) libera
+                // todas as linhas quando app.unrestricted = 'true' (opera com
+                // X-Tenant-Id mas lista/gerencia todos os tenants). Sempre setar/
+                // limpar — HikariCP reusa conexões.
+                statement.execute(String.format(
+                    "SELECT set_config('app.unrestricted', '%s', false)",
+                    unrestricted ? "true" : ""));
             } catch (SQLException e) {
                 log.warn("Failed to set/reset RLS tenant context: {}", e.getMessage());
             }

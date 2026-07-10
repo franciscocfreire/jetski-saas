@@ -490,9 +490,22 @@ ALTER TABLE public.avaliacao FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_avaliacao ON public.avaliacao;
 CREATE POLICY tenant_isolation_avaliacao ON public.avaliacao
     USING (tenant_id = public.get_current_tenant_id());
+-- V041: leitura pública ESCOPADA à vitrine (policy permissiva soma com OR —
+-- USING (true) derrotava a tenant_isolation da tabela inteira)
 DROP POLICY IF EXISTS avaliacao_public_read ON public.avaliacao;
 CREATE POLICY avaliacao_public_read ON public.avaliacao
-    FOR SELECT USING (true);
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1
+              FROM public.modelo m
+              JOIN public.tenant t ON t.id = m.tenant_id
+             WHERE m.id = avaliacao.modelo_id
+               AND m.ativo = true
+               AND m.exibir_no_marketplace = true
+               AND t.status = 'ATIVO'
+               AND t.exibir_no_marketplace = true
+        )
+    );
 
 -- V030: portal do cliente — canal de origem da reserva (BALCAO | PORTAL)
 ALTER TABLE public.reserva ADD COLUMN IF NOT EXISTS canal varchar(20) NOT NULL DEFAULT 'BALCAO';
@@ -584,6 +597,20 @@ ALTER TABLE public.cliente DROP CONSTRAINT IF EXISTS cliente_origem_check;
 ALTER TABLE public.cliente
     ADD CONSTRAINT cliente_origem_check
         CHECK ((origem)::text = ANY (ARRAY['PORTAL'::text, 'BALCAO'::text, 'LEAD'::text]));
+
+-- V042: RLS na tabela tenant (backstop p/ segredos por loja: smtp_password etc.)
+-- Contexto nulo (signup/login/marketplace/jobs) = liberado; tenant-scoped = só a
+-- própria linha; superadmin = GUC app.unrestricted (TenantAwareDataSource).
+-- A marketplace_public_read sai: vitrine roda sem contexto (ramo nulo).
+DROP POLICY IF EXISTS marketplace_public_read ON public.tenant;
+ALTER TABLE public.tenant ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_tenant ON public.tenant;
+CREATE POLICY tenant_isolation_tenant ON public.tenant
+    USING (
+        public.get_current_tenant_id() IS NULL
+        OR id = public.get_current_tenant_id()
+        OR current_setting('app.unrestricted', true) = 'true'
+    );
 
 -- F3 instrutores (V011): cadastro p/ o Atestado de Demonstração 5-B-1
 CREATE TABLE IF NOT EXISTS public.instrutor (
