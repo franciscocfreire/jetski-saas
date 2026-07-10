@@ -1,5 +1,5 @@
-import { apiClient } from '../client'
-import type { DashboardMetrics } from '../types'
+import { apiClient, getTenantId } from '../client'
+import type { DashboardMetrics, OnboardingChecklist } from '../types'
 
 /**
  * Dashboard Service
@@ -29,5 +29,13 @@ export const dashboardService = {
    */
   async invalidateCache(): Promise<void> {
     await apiClient.delete('/v1/frota/metrics/cache')
+  },
+
+  /** Checklist "primeiros passos" — cada flag auto-detectada dos dados reais do tenant. */
+  async getOnboarding(): Promise<OnboardingChecklist> {
+    const { data } = await apiClient.get<OnboardingChecklist>(
+      `/v1/tenants/${getTenantId()}/dashboard/onboarding`
+    )
+    return data
   },
 }

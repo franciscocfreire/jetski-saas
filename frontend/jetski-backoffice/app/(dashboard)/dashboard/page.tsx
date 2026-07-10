@@ -17,6 +17,7 @@ import { useTenantStore } from '@/lib/store/tenant-store'
 import { jetskisService, locacoesService, clientesService, dashboardService } from '@/lib/api/services'
 import { formatCurrency } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PrimeirosPassosCard } from '@/components/dashboard/primeiros-passos-card'
 
 interface StatCardProps {
   title: string
@@ -191,6 +192,9 @@ export default function DashboardPage() {
           Visão geral das operações de {currentTenant.razaoSocial}
         </p>
       </div>
+
+      {/* Primeiros passos (empresa nova) — some sozinho quando o setup completa */}
+      <PrimeirosPassosCard />
 
       {/* Main Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

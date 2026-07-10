@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { configuracoesService } from '@/lib/api/services'
 import type {
@@ -25,8 +26,22 @@ import { Logo } from '@/components/logo'
 import { PlanoUsoTab } from '@/components/configuracoes/plano-uso-tab'
 
 export default function ConfiguracoesPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Carregando…</div>}>
+      <ConfiguracoesConteudo />
+    </Suspense>
+  )
+}
+
+const TABS_VALIDAS = ['comissoes', 'empresa', 'documentos', 'assinatura', 'marca', 'plano']
+
+function ConfiguracoesConteudo() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  // Deep-link p/ uma aba (?tab=empresa) — usado pelo checklist "Primeiros passos"
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const abaInicial = tabParam && TABS_VALIDAS.includes(tabParam) ? tabParam : 'comissoes'
 
   // Form state
   const [percentualPadrao, setPercentualPadrao] = useState<string>('10')
@@ -47,6 +62,7 @@ export default function ConfiguracoesPage() {
   const [cidade, setCidade] = useState('')
   const [marinhaEmail, setMarinhaEmail] = useState('')
   const [emailRemetente, setEmailRemetente] = useState('')
+  const [pixChave, setPixChave] = useState('')
   // SMTP por tenant
   const [smtpHost, setSmtpHost] = useState('')
   const [smtpPort, setSmtpPort] = useState('587')
@@ -66,6 +82,7 @@ export default function ConfiguracoesPage() {
       setCidade(geral.cidade ?? '')
       setMarinhaEmail(geral.marinhaEmail ?? '')
       setEmailRemetente(geral.emailRemetente ?? '')
+      setPixChave(geral.pixChave ?? '')
       setSmtpHost(geral.smtpHost ?? '')
       setSmtpPort(geral.smtpPort?.toString() ?? '587')
       setSmtpUsername(geral.smtpUsername ?? '')
@@ -93,6 +110,7 @@ export default function ConfiguracoesPage() {
       cidade,
       marinhaEmail,
       emailRemetente,
+      pixChave,
       smtpHost,
       smtpPort: smtpPort ? Number(smtpPort) : undefined,
       smtpUsername,
@@ -349,7 +367,7 @@ export default function ConfiguracoesPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="comissoes" className="space-y-6">
+      <Tabs defaultValue={abaInicial} className="space-y-6">
         <TabsList>
           <TabsTrigger value="comissoes" className="gap-2">
             <Percent className="h-4 w-4" />
@@ -414,6 +432,18 @@ export default function ConfiguracoesPage() {
                   />
                   <p className="text-sm text-muted-foreground">
                     Recebe o PDF consolidado quando a documentação está completa.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pixChave">Chave PIX da empresa</Label>
+                  <Input
+                    id="pixChave"
+                    placeholder="CNPJ, e-mail, telefone ou chave aleatória"
+                    value={pixChave}
+                    onChange={(e) => setPixChave(e.target.value)}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Destino do sinal PIX das reservas feitas pelo portal do cliente.
                   </p>
                 </div>
                 <div className="space-y-2">

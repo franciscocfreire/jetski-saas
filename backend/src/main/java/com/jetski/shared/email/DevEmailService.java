@@ -59,6 +59,9 @@ public class DevEmailService implements EmailService {
     @Value("${jetski.email.from:noreply@pegaojet.com.br}")
     private String fromEmail;
 
+    @Value("${jetski.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
+
     @Value("${jetski.email.from-name:Meu Jet}")
     private String fromName;
 
@@ -188,7 +191,8 @@ public class DevEmailService implements EmailService {
             "Mudança de status da empresa:%n  Empresa: %s%n  Ação: %s%n  Motivo: %s%n",
             razaoSocial, acao, motivo == null ? "-" : motivo);
         logAndSaveEmail(to, subject, body);
-        maybeSendViaSmtp(to, subject, EmailTemplates.tenantStatusHtml(acao, razaoSocial, motivo));
+        maybeSendViaSmtp(to, subject,
+            EmailTemplates.tenantStatusHtml(acao, razaoSocial, motivo, frontendUrl + "/dashboard"));
     }
 
     @Override

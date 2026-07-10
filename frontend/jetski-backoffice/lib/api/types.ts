@@ -920,6 +920,17 @@ export interface DashboardMetrics {
   calculatedAt: string
 }
 
+/** Checklist "primeiros passos" da empresa — flags auto-detectadas dos dados reais. */
+export interface OnboardingChecklist {
+  temModelo: boolean
+  temJetski: boolean
+  marinhaEmailConfigurado: boolean
+  pixConfigurado: boolean
+  equipeConvidada: boolean
+  primeiraLocacaoFeita: boolean
+  completo: boolean
+}
+
 // Pagination
 export interface Page<T> {
   content: T[]
@@ -1413,6 +1424,7 @@ export interface TenantGeralConfig {
   cidade?: string
   marinhaEmail?: string
   emailRemetente?: string
+  pixChave?: string
   smtpHost?: string
   smtpPort?: number
   smtpUsername?: string
@@ -1426,6 +1438,7 @@ export interface TenantGeralConfigRequest {
   cidade?: string
   marinhaEmail?: string
   emailRemetente?: string
+  pixChave?: string
   smtpHost?: string
   smtpPort?: number
   smtpUsername?: string

@@ -28,6 +28,10 @@ public class TenantGeralConfigRequest {
     @Size(max = 255)
     private String emailRemetente;
 
+    /** Chave PIX da empresa — destino do sinal das reservas do portal. */
+    @Size(max = 140)
+    private String pixChave;
+
     // SMTP próprio da empresa (envio "from" real). Senha só é gravada se enviada.
     @Size(max = 255)
     private String smtpHost;

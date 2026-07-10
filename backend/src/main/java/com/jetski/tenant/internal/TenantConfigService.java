@@ -52,6 +52,7 @@ public class TenantConfigService {
             .cidade(t.getCidade())
             .marinhaEmail(t.getMarinhaEmail())
             .emailRemetente(t.getEmailRemetente())
+            .pixChave(t.getPixChave())
             .smtpHost(t.getSmtpHost())
             .smtpPort(t.getSmtpPort())
             .smtpUsername(t.getSmtpUsername())
@@ -71,6 +72,7 @@ public class TenantConfigService {
         if (req.getCidade() != null) t.setCidade(blankToNull(req.getCidade()));
         if (req.getMarinhaEmail() != null) t.setMarinhaEmail(blankToNull(req.getMarinhaEmail()));
         if (req.getEmailRemetente() != null) t.setEmailRemetente(blankToNull(req.getEmailRemetente()));
+        if (req.getPixChave() != null) t.setPixChave(blankToNull(req.getPixChave()));
         // SMTP por tenant: host/usuário/from/porta/tls sempre que enviados; senha SÓ se
         // não-branca (preserva a existente quando o form não reenvia o segredo).
         if (req.getSmtpHost() != null) t.setSmtpHost(blankToNull(req.getSmtpHost()));

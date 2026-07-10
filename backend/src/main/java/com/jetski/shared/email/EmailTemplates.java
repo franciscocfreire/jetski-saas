@@ -129,6 +129,11 @@ public final class EmailTemplates {
     }
 
     public static String tenantStatusHtml(String acao, String razaoSocial, String motivo) {
+        return tenantStatusHtml(acao, razaoSocial, motivo, null);
+    }
+
+    /** @param ctaUrl link "Comece por aqui" — só renderizado na aprovação (pode ser null). */
+    public static String tenantStatusHtml(String acao, String razaoSocial, String motivo, String ctaUrl) {
         String titulo;
         String mensagem;
         switch (acao) {
@@ -154,6 +159,20 @@ public final class EmailTemplates {
                         <p style="margin: 5px 0;"><strong>Motivo:</strong> %s</p>
                     </div>
             """, motivo);
+        String blocoCta = (!"TENANT_APPROVED".equals(acao) || ctaUrl == null || ctaUrl.isBlank())
+            ? "" : String.format("""
+                    <p style="text-align: center; margin: 30px 0;">
+                        <a href="%s"
+                           style="background-color: #1E4266; color: white; padding: 12px 24px;
+                                  text-decoration: none; border-radius: 4px; display: inline-block;">
+                            Comece por aqui
+                        </a>
+                    </p>
+                    <p style="text-align: center; color: #999; font-size: 12px; margin-top: -10px;">
+                        O painel mostra os primeiros passos: cadastrar seus modelos e jetskis,
+                        configurar a empresa e fazer a primeira locação.
+                    </p>
+            """, ctaUrl);
         return String.format("""
             <!DOCTYPE html>
             <html>
@@ -167,6 +186,7 @@ public final class EmailTemplates {
 
                     <p>%s</p>
             %s
+            %s
                     <p>Em caso de dúvidas, responda este e-mail ou fale com o suporte do Meu Jet.</p>
 
                     <hr style="border: none; border-top: 1px solid #E3D9C2; margin: 30px 0;">
@@ -177,7 +197,7 @@ public final class EmailTemplates {
                 </div>
             </body>
             </html>
-            """, BRAND_HEADER, titulo, String.format(mensagem, razaoSocial), blocoMotivo);
+            """, BRAND_HEADER, titulo, String.format(mensagem, razaoSocial), blocoMotivo, blocoCta);
     }
 
     public static String invitationHtml(String name, String activationLink, String temporaryPassword) {

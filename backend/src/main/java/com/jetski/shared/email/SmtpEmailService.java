@@ -35,6 +35,9 @@ public class SmtpEmailService implements EmailService {
     @Value("${jetski.email.from:noreply@pegaojet.com.br}")
     private String fromEmail;
 
+    @Value("${jetski.frontend.url:http://localhost:3000}")
+    private String frontendUrl;
+
     @Value("${jetski.email.from-name:Meu Jet}")
     private String fromName;
 
@@ -65,7 +68,7 @@ public class SmtpEmailService implements EmailService {
     @Override
     public void sendTenantStatusNotification(String to, String acao, String razaoSocial, String motivo) {
         sendEmail(to, EmailTemplates.tenantStatusSubject(acao),
-            EmailTemplates.tenantStatusHtml(acao, razaoSocial, motivo));
+            EmailTemplates.tenantStatusHtml(acao, razaoSocial, motivo, frontendUrl + "/dashboard"));
     }
 
     @Override
