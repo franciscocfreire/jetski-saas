@@ -133,4 +133,25 @@ public interface MembroRepository extends JpaRepository<Membro, Integer> {
         @Param("role") String role,
         @Param("ativo") Boolean ativo
     );
+
+    /**
+     * E-mails dos membros ativos com um papel (ex.: ADMIN_TENANT) — destinatários dos
+     * avisos de plataforma. Tenant-scoped explícito (nunca só RLS — regra 1 do projeto).
+     *
+     * @param tenantId Tenant UUID
+     * @param role Papel procurado no array papeis
+     * @return e-mails distintos de usuários ativos
+     */
+    @Query(value = """
+        SELECT DISTINCT u.email FROM membro m
+        JOIN usuario u ON u.id = m.usuario_id
+        WHERE m.tenant_id = :tenantId
+          AND :role = ANY(m.papeis)
+          AND m.ativo = true
+          AND u.ativo = true
+    """, nativeQuery = true)
+    List<String> findActiveMemberEmailsByTenantIdAndRole(
+        @Param("tenantId") UUID tenantId,
+        @Param("role") String role
+    );
 }

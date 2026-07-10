@@ -79,7 +79,8 @@ public class PlatformTenantService {
         createTrialSubscription(tenantId);
         UUID actor = actor();
         eventPublisher.publishEvent(TenantStatusChangedEvent.of(
-            tenantId, "TENANT_APPROVED", "PENDENTE_APROVACAO", "ATIVO", actor, null));
+            tenantId, "TENANT_APPROVED", "PENDENTE_APROVACAO", "ATIVO", actor, null,
+            tenant.getRazaoSocial(), tenant.getSlug()));
         log.info("[PLATFORM] Tenant aprovado: tenant={}, por={}", tenantId, actor);
         return new TenantStatusResult(tenantId, tenant.getStatus().name(),
             "Empresa aprovada e ativada (trial de " + TRIAL_DAYS + " dias iniciado).");
@@ -99,7 +100,8 @@ public class PlatformTenantService {
         tenantRepository.save(tenant);
         UUID actor = actor();
         eventPublisher.publishEvent(TenantStatusChangedEvent.of(
-            tenantId, "TENANT_SUSPENDED", from, "SUSPENSO", actor, motivo));
+            tenantId, "TENANT_SUSPENDED", from, "SUSPENSO", actor, motivo,
+            tenant.getRazaoSocial(), tenant.getSlug()));
         log.info("[PLATFORM] Tenant suspenso: tenant={}, por={}, motivo={}", tenantId, actor, motivo);
         return new TenantStatusResult(tenantId, tenant.getStatus().name(), "Empresa suspensa.");
     }
@@ -117,7 +119,8 @@ public class PlatformTenantService {
         tenantRepository.save(tenant);
         UUID actor = actor();
         eventPublisher.publishEvent(TenantStatusChangedEvent.of(
-            tenantId, "TENANT_REACTIVATED", "SUSPENSO", "ATIVO", actor, null));
+            tenantId, "TENANT_REACTIVATED", "SUSPENSO", "ATIVO", actor, null,
+            tenant.getRazaoSocial(), tenant.getSlug()));
         log.info("[PLATFORM] Tenant reativado: tenant={}, por={}", tenantId, actor);
         return new TenantStatusResult(tenantId, tenant.getStatus().name(), "Empresa reativada.");
     }

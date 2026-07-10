@@ -74,6 +74,17 @@ public interface EmailService {
      */
     void sendNewTenantNotification(String to, String razaoSocial, String slug);
 
+    /**
+     * Avisa um administrador da empresa sobre a mudança de status feita pela plataforma
+     * (aprovada/suspensa/reativada). Best-effort — falha de envio nunca propaga.
+     *
+     * @param to          email do admin da empresa
+     * @param acao        TENANT_APPROVED / TENANT_SUSPENDED / TENANT_REACTIVATED
+     * @param razaoSocial razão social da empresa
+     * @param motivo      motivo opcional (usado na suspensão; pode ser null)
+     */
+    void sendTenantStatusNotification(String to, String acao, String razaoSocial, String motivo);
+
     /** Envia um e-mail HTML simples (sem anexo). */
     void sendEmail(String to, String subject, String htmlBody);
 }

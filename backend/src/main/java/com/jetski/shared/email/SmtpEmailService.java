@@ -63,6 +63,12 @@ public class SmtpEmailService implements EmailService {
     }
 
     @Override
+    public void sendTenantStatusNotification(String to, String acao, String razaoSocial, String motivo) {
+        sendEmail(to, EmailTemplates.tenantStatusSubject(acao),
+            EmailTemplates.tenantStatusHtml(acao, razaoSocial, motivo));
+    }
+
+    @Override
     public void sendEmailComAnexo(String to, String subject, String htmlBody,
                                   String attachmentName, byte[] attachment, String attachmentContentType) {
         try {

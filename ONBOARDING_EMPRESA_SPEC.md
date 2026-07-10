@@ -1,12 +1,14 @@
 # Onboarding de Empresa — Aprovação e Platform Admin (SPEC)
 
-> Status: **proposta** (planejamento) — 21/jun/2026
+> Status: **IMPLEMENTADO** (v1 completo + além: god-mode do super admin, `GET /v1/platform/tenants`
+> e painel `dashboard/plataforma` — itens que eram §9). Em 09/jul/2026 entraram os e-mails à
+> empresa na mudança de status (`TenantStatusEmailListener`/`SignupTenantApprovedListener`) e o
+> teste E2E do fluxo (`SignupApprovalFlowIntegrationTest`).
 > Escopo **v1** (enxuto): ciclo de aprovação de tenants + um superadmin que aprova/bloqueia
 > operando **dentro da sessão de cada tenant** (sem bypass de RLS), + correção da autogestão
 > para usuários já existentes.
-> **Futuro (§9):** bypass de RLS, listagem cross-tenant, painel de plataforma, múltiplos
-> superadmins via painel, estado `REJEITADO`. Fora de escopo: billing/pagamentos, wizard
-> de setup, grupos por tenant no Keycloak.
+> **Futuro (§9):** bypass de RLS, múltiplos superadmins via painel, estado `REJEITADO`.
+> Fora de escopo: billing/pagamentos, wizard de setup, grupos por tenant no Keycloak.
 
 ## 1. Contexto e objetivo
 

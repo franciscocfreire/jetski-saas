@@ -88,11 +88,14 @@ class PlatformTenantServiceTest {
         verify(tenantRepository).save(t);
         verify(query).executeUpdate();  // assinatura Trial criada
 
-        // evento de auditoria publicado
+        // evento de auditoria/notificação publicado — carrega razão social e slug
+        // para os listeners de e-mail (que não leem o repositório do módulo tenant)
         ArgumentCaptor<TenantStatusChangedEvent> ev = ArgumentCaptor.forClass(TenantStatusChangedEvent.class);
         verify(eventPublisher).publishEvent(ev.capture());
         assertThat(ev.getValue().acao()).isEqualTo("TENANT_APPROVED");
         assertThat(ev.getValue().toStatus()).isEqualTo("ATIVO");
+        assertThat(ev.getValue().razaoSocial()).isEqualTo("ACME Ltda");
+        assertThat(ev.getValue().slug()).isEqualTo("acme");
     }
 
     @Test

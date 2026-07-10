@@ -39,6 +39,7 @@ Estrutura de pacotes por módulo: `api/` (controllers, DTOs) · `domain/` (entid
 ### ✅ tenant / tenants / signup
 - `Tenant`, `TenantStatus`, `ComissaoConfig` (config de comissão por tenant), `TenantConfigController`.
 - `signup` — onboarding self-service (`TenantSignup`, `SignupStatus`, `TenantSignupController`).
+- **Onboarding com aprovação** (ver `ONBOARDING_EMPRESA_SPEC.md`): signup cria tenant `PENDENTE_APROVACAO` (trial só na aprovação); gate de status no `TenantFilter`; super admin (`usuario_global_roles.unrestricted_access` → OPA god-mode) aprova/suspende/reativa via `PlatformTenantController` + painel `dashboard/plataforma`; auditoria via `TenantStatusChangedEvent`; e-mails best-effort — super admin avisado no signup, empresa avisada na mudança de status (`TenantStatusEmailListener` p/ ADMIN_TENANT, `SignupTenantApprovedListener` p/ signup ainda não ativado).
 
 ### ✅ usuarios
 - Entidades: `Usuario`, `Membro` (relação usuário-tenant + papéis), `Convite`, `UsuarioIdentityProvider`.

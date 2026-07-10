@@ -172,6 +172,16 @@ public class DevEmailService implements EmailService {
     }
 
     @Override
+    public void sendTenantStatusNotification(String to, String acao, String razaoSocial, String motivo) {
+        String subject = EmailTemplates.tenantStatusSubject(acao);
+        String body = String.format(
+            "Mudança de status da empresa:%n  Empresa: %s%n  Ação: %s%n  Motivo: %s%n",
+            razaoSocial, acao, motivo == null ? "-" : motivo);
+        logAndSaveEmail(to, subject, body);
+        maybeSendViaSmtp(to, subject, EmailTemplates.tenantStatusHtml(acao, razaoSocial, motivo));
+    }
+
+    @Override
     public void sendEmailComAnexo(String to, String subject, String htmlBody,
                                   String attachmentName, byte[] attachment, String attachmentContentType) {
         int size = attachment == null ? 0 : attachment.length;
