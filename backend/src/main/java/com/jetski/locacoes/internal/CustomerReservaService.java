@@ -694,7 +694,8 @@ public class CustomerReservaService {
     }
 
     private ReservaCliente toDto(Reserva r, Loja loja, HabilitacaoReaproveitada reaproveitada) {
-        Modelo modelo = modeloService.findById(r.getModeloId());
+        // escopo customer: sem TenantContext na thread — tenant da loja explícito
+        Modelo modelo = modeloService.findById(r.getModeloId(), r.getTenantId());
 
         BigDecimal valorTotal = valorEstimado(modelo, r.getDataInicio(), r.getDataFimPrevista());
         BigDecimal valorSinal = valorTotal

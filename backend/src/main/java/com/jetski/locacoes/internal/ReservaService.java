@@ -222,7 +222,10 @@ public class ReservaService {
             throw new BusinessException("Modelo é obrigatório para criar reserva");
         }
 
-        Modelo modelo = modeloService.findById(reserva.getModeloId());
+        // Tenant explícito da reserva: o fluxo do portal alterna set_config/
+        // TenantContext por vínculo (herança de identidade cross-loja), então o
+        // ambient TenantContext não é fonte confiável aqui — reserva.tenantId é.
+        Modelo modelo = modeloService.findById(reserva.getModeloId(), reserva.getTenantId());
         if (!Boolean.TRUE.equals(modelo.getAtivo())) {
             throw new BusinessException("Modelo não está ativo");
         }

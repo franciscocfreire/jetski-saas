@@ -3,6 +3,7 @@ package com.jetski.locacoes.api;
 import com.jetski.locacoes.domain.Modelo;
 import com.jetski.locacoes.internal.repository.ModeloRepository;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,30 +37,31 @@ public class ModeloService {
 
     /**
      * List all active models for current tenant.
-     * RLS automatically filters by tenant_id.
+     * Filtro de tenant EXPLÍCITO — a policy marketplace_public_read torna a RLS
+     * insuficiente para isolamento de modelo (ver javadoc do ModeloRepository).
      *
      * @return List of active Modelo records
      */
     @Transactional(readOnly = true)
     public List<Modelo> listActiveModels() {
         log.debug("Listing all active models");
-        return modeloRepository.findAllActive();
+        return modeloRepository.findAllActive(TenantContext.getTenantId());
     }
 
     /**
      * List all models for current tenant (including inactive).
-     * RLS automatically filters by tenant_id.
      *
      * @return List of all Modelo records
      */
     @Transactional(readOnly = true)
     public List<Modelo> listAllModels() {
         log.debug("Listing all models (including inactive)");
-        return modeloRepository.findAllByTenant();
+        return modeloRepository.findAllByTenant(TenantContext.getTenantId());
     }
 
     /**
-     * Find model by ID within current tenant.
+     * Find model by ID within current tenant — modelo de OUTRO tenant (mesmo
+     * visível via marketplace) é tratado como inexistente.
      *
      * @param id Modelo UUID
      * @return Modelo entity
@@ -68,7 +70,16 @@ public class ModeloService {
     @Transactional(readOnly = true)
     public Modelo findById(UUID id) {
         log.debug("Finding model by id: {}", id);
-        return modeloRepository.findById(id)
+        return findById(id, TenantContext.getTenantId());
+    }
+
+    /**
+     * Variante para fluxos customer-scoped (portal): sem TenantContext na thread,
+     * o tenant da LOJA vem explícito (ex.: {@code reserva.getTenantId()}).
+     */
+    @Transactional(readOnly = true)
+    public Modelo findById(UUID id, UUID tenantId) {
+        return modeloRepository.findByIdAndTenantId(id, tenantId)
             .orElseThrow(() -> new BusinessException("Modelo não encontrado"));
     }
 
@@ -88,8 +99,8 @@ public class ModeloService {
     public Modelo createModelo(Modelo modelo) {
         log.info("Creating new model: {}", modelo.getNome());
 
-        // Validate name uniqueness
-        if (modeloRepository.existsByNome(modelo.getNome())) {
+        // Validate name uniqueness (por tenant)
+        if (modeloRepository.existsByNomeAndTenantId(modelo.getNome(), TenantContext.getTenantId())) {
             throw new BusinessException("Já existe um modelo com este nome");
         }
 
@@ -127,9 +138,9 @@ public class ModeloService {
 
         Modelo existing = findById(id);
 
-        // Check name uniqueness if changed
+        // Check name uniqueness if changed (por tenant)
         if (updates.getNome() != null && !updates.getNome().equals(existing.getNome())) {
-            if (modeloRepository.existsByNome(updates.getNome())) {
+            if (modeloRepository.existsByNomeAndTenantId(updates.getNome(), TenantContext.getTenantId())) {
                 throw new BusinessException("Já existe um modelo com este nome");
             }
             existing.setNome(updates.getNome());
