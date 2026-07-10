@@ -56,6 +56,22 @@ function hintGru(hab: Habilitacao | null | undefined): string {
   return 'gerar e pagar a GRU'
 }
 
+/** Pagamento do passeio (balcão integral / sinal do portal) — "Registrar depois" fica pendente. */
+function hintPagamento(r: Reserva): string {
+  switch (r.pagamentoStatus) {
+    case 'CONFIRMADO':
+      return 'pago'
+    case 'EM_ANALISE':
+      return 'comprovante em análise'
+    case 'RECUSADO':
+      return 'recusado — cobrar novamente'
+    default:
+      return (r.canal ?? r.cliente?.origem) === 'PORTAL'
+        ? 'aguardando PIX do cliente'
+        : 'registrar na loja'
+  }
+}
+
 /** Dados pessoais (anexos NORMAM-212) — necessários só para emitir os documentos. */
 function faltaDadosPessoais(c: Reserva['cliente']): string {
   const falta: string[] = []
@@ -75,6 +91,12 @@ function etapasDe(
   const ema = hab?.via === 'EMA'
   const emitido = !!r.documentoEmitidoEm
   const req = (b?: boolean) => b !== false // null/undefined = exigido (padrão estrito)
+  const pagamento: Etapa = {
+    chave: 'pagamento',
+    label: 'Pagamento',
+    ok: r.pagamentoStatus === 'CONFIRMADO',
+    hint: hintPagamento(r),
+  }
   const etapas: Etapa[] = [
     { chave: 'termos', label: 'Termos', ok: !!aceite, hint: aceite ? 'assinados' : 'pendentes' },
   ]
@@ -121,6 +143,7 @@ function etapasDe(
       (!req(obrig?.residencia) || !!hab?.anexoResidencia) &&
       (!req(obrig?.instrutor) || !!hab?.instrutorId) &&
       dadosOk
+    etapas.push(pagamento)
     etapas.push({
       chave: 'emissao',
       label: 'Emissão (Marinha)',
@@ -149,6 +172,7 @@ function etapasDe(
       ok: !!hab?.resolvida,
       hint: hab?.chaNumero ? `nº ${hab.chaNumero}` : 'informar CHA',
     })
+    etapas.push(pagamento)
     // CHA não tem envio à Marinha — "Emissão" aqui é só a geração do comprovante.
     etapas.push({
       chave: 'emissao',
@@ -229,9 +253,14 @@ export default function PendenciasPage() {
     const mMap = new Map((modelos ?? []).map((m) => [m.id, m]))
     const jMap = new Map((jetskis ?? []).map((j) => [j.id, j]))
     return reservas
-      // Pendência = reserva PENDENTE (finalizada com algo faltando, ou portal aguardando).
-      // RASCUNHO (atendimento em aberto) e CONFIRMADA (completa) ficam fora.
-      .filter((r) => r.status === 'PENDENTE')
+      // Pendência = reserva PENDENTE (finalizada com algo faltando, ou portal aguardando)
+      // ou CONFIRMADA com pagamento em aberto ("Registrar depois" do balcão — a emissão
+      // confirma a reserva sem exigir pagamento). RASCUNHO (atendimento em aberto) fica fora.
+      .filter(
+        (r) =>
+          r.status === 'PENDENTE' ||
+          (r.status === 'CONFIRMADA' && r.pagamentoStatus !== 'CONFIRMADO')
+      )
       .map((r) => ({
         ...r,
         cliente: cMap.get(r.clienteId),

@@ -719,8 +719,6 @@ export function ReservaDetailSheet({
           ) : (
             <Etapa ok={false} label="Habilitação" hint="não registrada" />
           )}
-          {/* O passeio é pago no fim da locação; aqui o pagamento relevante é a GRU.
-              Sinaliza quem já tem o comprovante anexado. */}
           {ema && (
             <Etapa
               ok={!!hab?.gruComprovanteDisponivel}
@@ -734,6 +732,24 @@ export function ReservaDetailSheet({
               }
             />
           )}
+          {/* Pagamento do passeio (balcão integral / sinal do portal) — "Registrar depois" fica pendente aqui. */}
+          <Etapa
+            ok={reserva.pagamentoStatus === 'CONFIRMADO'}
+            label="Pagamento do passeio"
+            hint={
+              reserva.pagamentoStatus === 'CONFIRMADO'
+                ? reserva.valorTotal != null
+                  ? `pago — R$ ${reserva.valorTotal.toFixed(2)}`
+                  : 'pago'
+                : reserva.pagamentoStatus === 'EM_ANALISE'
+                  ? 'comprovante em análise'
+                  : reserva.pagamentoStatus === 'RECUSADO'
+                    ? 'recusado — cobrar novamente'
+                    : online
+                      ? 'aguardando PIX do cliente'
+                      : 'pendente — registrar na loja'
+            }
+          />
           <Etapa
             ok={!!reserva.documentoEmitidoEm}
             label="Documentos emitidos"
