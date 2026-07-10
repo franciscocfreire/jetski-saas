@@ -104,8 +104,38 @@ manualmente em **Actions → CD → Run workflow** (com opção de pular o rebui
 C="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 $C ps                       # status
 $C logs -f backend          # logs
-$C exec -T postgres pg_dump -U jetski jetski_prod | gzip > backup-$(date +%F).sql.gz   # backup DB
-# MinIO: dados em volume jetski_minio_data; backup via `mc mirror` ou snapshot do volume
+```
+
+## Backup e restore
+
+**Automatizado**: o `deploy.sh` instala um cron diário (03:30) que roda
+`infra/prod/backup.sh` — `pg_dump` do `jetski_prod` (formato custom; **inclui o
+schema `keycloak`**, ou seja, realm/usuários) + tar do volume do MinIO
+(fotos/documentos), com retenção de 14 dias em `~/backups/meujet/` e marcador
+`last-success`. Log: `~/backups/meujet/backup.log`.
+
+**Off-site (IMPORTANTE)**: por padrão o backup fica na MESMA VM — perda da VM =
+perda dos backups. Instale o `rclone`, configure um remoto (ex.: Oracle Object
+Storage) e defina `BACKUP_RCLONE_REMOTE=meu-remoto:meujet-backup` no `.env`;
+o script sincroniza automaticamente a cada execução.
+
+**Restore do Postgres** (testado em 10/jul/2026 — dump de dev restaurado íntegro):
+```bash
+C="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+$C stop backend keycloak                      # nada escrevendo no banco
+$C exec -T postgres dropdb -U jetski jetski_prod
+$C exec -T postgres createdb -U jetski jetski_prod
+$C exec -T postgres pg_restore -U jetski -d jetski_prod --no-owner \
+    < ~/backups/meujet/postgres/jetski_prod-DATA.dump
+./deploy.sh   # re-aplica grants/RLS/verificações e sobe tudo
+```
+
+**Restore do MinIO**:
+```bash
+$C stop minio
+docker run --rm -v jetski_minio_data:/data -v ~/backups/meujet/minio:/backup alpine \
+    sh -c 'rm -rf /data/* && tar xzf /backup/minio-DATA.tgz -C /data'
+$C start minio
 ```
 
 ### Gotchas (aprendidos no dev)

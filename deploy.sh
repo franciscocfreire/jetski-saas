@@ -52,6 +52,17 @@ if [ -z "${JETSKI_SECRET_KEY:-}" ]; then
   warn "Chave gerada e salva no .env. Faça um BACKUP seguro dela (perdê-la = perder os segredos cifrados)."
 fi
 
+# HMAC dos tokens de ativação (magic-link): o default do application.yml está no
+# repo (público) — em prod é obrigatório um segredo próprio. Gera uma vez e grava
+# no .env; trocar a chave só invalida magic-links ainda não usados (inofensivo).
+if [ -z "${JWT_MAGIC_LINK_SECRET:-}" ]; then
+  log "JWT_MAGIC_LINK_SECRET ausente — gerando segredo do magic-link e gravando no .env..."
+  JWT_MAGIC_LINK_SECRET="$(openssl rand -base64 48)"
+  export JWT_MAGIC_LINK_SECRET
+  printf '\n# Segredo HMAC dos tokens de ativação magic-link (gerado pelo deploy).\nJWT_MAGIC_LINK_SECRET=%s\n' \
+    "$JWT_MAGIC_LINK_SECRET" >> .env
+fi
+
 # 1. Atualiza o código
 if [ "${NO_PULL:-0}" != "1" ]; then
   log "git pull..."
@@ -143,6 +154,19 @@ for i in $(seq 1 30); do
   sleep 3
 done
 [ "$code" = "200" ] && log "backend healthy (200)" || warn "backend health=$code após ~90s (verifique: $COMPOSE logs backend)"
+
+# 9. Backup diário (cron do usuário, idempotente). Off-site: defina
+#    BACKUP_RCLONE_REMOTE no .env e instale o rclone — ver DEPLOY.md.
+if command -v crontab >/dev/null 2>&1; then
+  mkdir -p "$HOME/backups/meujet"
+  if ! crontab -l 2>/dev/null | grep -q 'infra/prod/backup.sh'; then
+    ( crontab -l 2>/dev/null || true
+      echo "30 3 * * * cd $(pwd) && ./infra/prod/backup.sh >> \$HOME/backups/meujet/backup.log 2>&1" ) | crontab -
+    log "cron de backup diário instalado (03:30 — infra/prod/backup.sh)."
+  fi
+else
+  warn "crontab indisponível — agende ./infra/prod/backup.sh manualmente (diário)."
+fi
 
 log "deploy concluído. Público: ${PUBLIC_URL}"
 $COMPOSE ps

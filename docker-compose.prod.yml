@@ -24,11 +24,15 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: jetski_prod
     mem_limit: 1g
+    # Serviços de estado precisam voltar sozinhos após crash/reboot da VM —
+    # sem isto o backend reinicia mas o banco/login ficam caídos.
+    restart: unless-stopped
 
   redis:
     ports: !override
       - "127.0.0.1:6379:6379"
     mem_limit: 256m
+    restart: unless-stopped
 
   keycloak:
     # start-dev por trás do tunnel (proxy=edge via headers) — comprovado com ngrok.
@@ -62,6 +66,14 @@ services:
     ports: !override
       - "127.0.0.1:8080:8080"
     mem_limit: 1200m
+    restart: unless-stopped
+    # Imagem sem curl/wget: checa a porta HTTP via /dev/tcp do bash.
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
 
   opa:
     # imagem multi-arch (arm64) — a :1.1.0 padrão é amd64-only
@@ -69,6 +81,7 @@ services:
     ports: !override
       - "127.0.0.1:8181:8181"
     mem_limit: 256m
+    restart: unless-stopped
 
   minio:
     ports: !override
@@ -111,8 +124,13 @@ services:
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
 
       # Chave-mestra p/ cifrar segredos em repouso (senha SMTP do tenant).
-      JETSKI_SECRET_KEY: ${JETSKI_SECRET_KEY:-}
+      # Sem fallback vazio: cipher no-op silencioso guardaria segredos em texto
+      # puro — falha a subida se ausente (o deploy.sh gera e grava no .env).
+      JETSKI_SECRET_KEY: ${JETSKI_SECRET_KEY:?ausente - o deploy.sh gera no .env}
       JETSKI_SECRET_KEY_PREVIOUS: ${JETSKI_SECRET_KEY_PREVIOUS:-}
+      # HMAC dos tokens de ativação (magic-link). Sem fallback: o default de dev
+      # está no repo (público) — falha a subida se ausente (deploy.sh gera).
+      JWT_MAGIC_LINK_SECRET: ${JWT_MAGIC_LINK_SECRET:?ausente - o deploy.sh gera no .env}
 
       JETSKI_FRONTEND_URL: ${PUBLIC_URL}
       JETSKI_EXTERNAL_URL: ${PUBLIC_URL}
@@ -124,6 +142,12 @@ services:
       - "127.0.0.1:8090:8090"
     mem_limit: 1500m
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8090/api/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
 
   portal:
     environment:
