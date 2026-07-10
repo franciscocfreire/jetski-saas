@@ -32,6 +32,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -75,6 +76,21 @@ public class TenantSignupService {
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&*";
 
     /**
+     * Slugs reservados: o slug é usado em URLs públicas (/loja/{slug}) e é candidato a
+     * virar subdomínio ({slug}.meujet.com.br) — nomes de infraestrutura/produto não podem
+     * ser registrados por empresas.
+     */
+    private static final Set<String> SLUGS_RESERVADOS = Set.of(
+        "www", "api", "app", "portal", "admin", "auth", "keycloak", "login", "signup",
+        "mail", "smtp", "email", "webmail", "ftp", "cdn", "static", "assets",
+        "grafana", "prometheus", "alertmanager", "minio", "storage", "mailpit",
+        "docs", "blog", "status", "suporte", "support", "ajuda", "help", "contato",
+        "dev", "test", "teste", "staging", "homolog", "demo",
+        "dashboard", "plataforma", "platform", "marketplace", "loja", "lojas",
+        "meujet", "jetski", "marinha"
+    );
+
+    /**
      * Signup a new tenant with new admin user.
      * Used for public signup (user doesn't have an account yet).
      *
@@ -90,7 +106,8 @@ public class TenantSignupService {
     public TenantSignupResponse signupNewTenant(TenantSignupRequest request) {
         log.info("Processing tenant signup for: {} ({})", request.razaoSocial(), request.adminEmail());
 
-        // 1. Validate slug is unique
+        // 1. Validate slug is unique (and not reserved)
+        validateSlugNaoReservado(request.slug());
         if (tenantProvisioningService.existsBySlug(request.slug())) {
             throw new ConflictException("Este slug já está em uso. Escolha outro identificador.");
         }
@@ -186,7 +203,8 @@ public class TenantSignupService {
     public TenantSignupResponse createTenantForExistingUser(CreateTenantRequest request, UUID usuarioId) {
         log.info("Creating tenant for existing user: {} ({})", request.razaoSocial(), usuarioId);
 
-        // 1. Validate slug is unique
+        // 1. Validate slug is unique (and not reserved)
+        validateSlugNaoReservado(request.slug());
         if (tenantProvisioningService.existsBySlug(request.slug())) {
             throw new ConflictException("Este slug já está em uso. Escolha outro identificador.");
         }
@@ -383,6 +401,14 @@ public class TenantSignupService {
             password.append(TEMP_PASSWORD_CHARS.charAt(SECURE_RANDOM.nextInt(TEMP_PASSWORD_CHARS.length())));
         }
         return password.toString();
+    }
+
+    /** Rejeita slugs reservados (nomes de infraestrutura/produto) — 400 de negócio. */
+    private void validateSlugNaoReservado(String slug) {
+        if (slug != null && SLUGS_RESERVADOS.contains(slug.toLowerCase())) {
+            throw new BusinessException(
+                "Este identificador é reservado pela plataforma. Escolha outro.");
+        }
     }
 
     /**
