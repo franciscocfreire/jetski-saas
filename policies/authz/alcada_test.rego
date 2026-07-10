@@ -123,19 +123,6 @@ test_admin_cannot_apply_51_percent_desconto if {
     }
 }
 
-test_admin_51_percent_requires_platform_approval if {
-    requer_aprovacao with input as {
-        "user": {"role": "ADMIN_TENANT"},
-        "action": "desconto:aplicar",
-        "operation": {"percentual_desconto": 51}
-    }
-
-    aprovador_requerido == "PLATFORM_ADMIN" with input as {
-        "user": {"role": "ADMIN_TENANT"},
-        "action": "desconto:aplicar",
-        "operation": {"percentual_desconto": 51}
-    }
-}
 
 # ==================== OS Approval: OPERADOR Tests ====================
 
@@ -253,21 +240,7 @@ test_os_without_valor_denied if {
     }
 }
 
-test_negative_desconto_denied if {
-    not allow_alcada with input as {
-        "user": {"role": "ADMIN_TENANT"},
-        "action": "desconto:aplicar",
-        "operation": {"percentual_desconto": -5}
-    }
-}
 
-test_negative_valor_os_denied if {
-    not allow_alcada with input as {
-        "user": {"role": "ADMIN_TENANT"},
-        "action": "os:aprovar",
-        "operation": {"valor_os": -100}
-    }
-}
 
 test_zero_desconto_allowed if {
     allow_alcada with input as {

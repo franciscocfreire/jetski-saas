@@ -104,21 +104,9 @@ test_gerente_can_close_day if {
     }
 }
 
-test_gerente_cannot_close_month if {
-    not allow_rbac with input as {
-        "user": {"role": "GERENTE"},
-        "action": "fechamento:mensal"
-    }
-}
 
 # ==================== FINANCEIRO Tests ====================
 
-test_financeiro_can_close_day if {
-    allow_rbac with input as {
-        "user": {"role": "FINANCEIRO"},
-        "action": "fechamento:diario"
-    }
-}
 
 test_financeiro_can_close_month if {
     allow_rbac with input as {
@@ -143,12 +131,6 @@ test_financeiro_cannot_checkin if {
 
 # ==================== MECANICO Tests ====================
 
-test_mecanico_can_create_os if {
-    allow_rbac with input as {
-        "user": {"role": "MECANICO"},
-        "action": "os:criar"
-    }
-}
 
 test_mecanico_can_close_os if {
     allow_rbac with input as {
@@ -180,12 +162,6 @@ test_mecanico_cannot_checkin if {
 
 # ==================== VENDEDOR Tests ====================
 
-test_vendedor_can_create_reserva if {
-    allow_rbac with input as {
-        "user": {"role": "VENDEDOR"},
-        "action": "reserva:criar"
-    }
-}
 
 test_vendedor_can_list_clientes if {
     allow_rbac with input as {

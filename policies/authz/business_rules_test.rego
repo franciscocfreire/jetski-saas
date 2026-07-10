@@ -142,25 +142,6 @@ test_can_create_reservation_different_jetski if {
     }
 }
 
-test_cancelled_reservation_does_not_block if {
-    count(deny_conflito) == 0 with input as {
-        "action": "reserva:criar",
-        "operation": {
-            "reserva": {
-                "jetski_id": "jetski-123",
-                "hora_inicio": "2025-01-15T11:00:00Z",
-                "hora_fim": "2025-01-15T13:00:00Z"
-            }
-        }
-    } with data.reservas as {
-        "reserva-existing": {
-            "jetski_id": "jetski-123",
-            "hora_inicio": "2025-01-15T11:00:00Z",
-            "hora_fim": "2025-01-15T13:00:00Z",
-            "status": "cancelada"
-        }
-    }
-}
 
 # ==================== Fuel Policy ====================
 

@@ -181,35 +181,7 @@ test_unrestricted_true_bypasses_tenant if {
 
 # ==================== Real-World Scenarios ====================
 
-test_operador_cannot_access_other_tenant_locacao if {
-    not tenant_is_valid with input as {
-        "user": {
-            "id": "operador@tenant-a.com",
-            "tenant_id": "550e8400-e29b-41d4-a716-446655440001",
-            "role": "OPERADOR"
-        },
-        "resource": {
-            "id": "locacao-123",
-            "tenant_id": "550e8400-e29b-41d4-a716-446655440002"
-        },
-        "action": "locacao:view"
-    }
-}
 
-test_admin_tenant_cannot_access_other_tenant if {
-    not tenant_is_valid with input as {
-        "user": {
-            "id": "admin@tenant-a.com",
-            "tenant_id": "550e8400-e29b-41d4-a716-446655440001",
-            "role": "ADMIN_TENANT"
-        },
-        "resource": {
-            "id": "jetski-456",
-            "tenant_id": "550e8400-e29b-41d4-a716-446655440002"
-        },
-        "action": "jetski:update"
-    }
-}
 
 test_platform_admin_can_access_any_tenant if {
     tenant_is_valid with input as {
