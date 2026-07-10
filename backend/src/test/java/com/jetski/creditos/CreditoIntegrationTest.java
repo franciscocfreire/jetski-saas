@@ -90,7 +90,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
             "SELECT count(*) FROM credito_lancamento WHERE tenant_id = ? AND tipo = 'ADESAO'",
             Integer.class, TENANT_ACME);
         assertThat(linhas).isEqualTo(1);
-        assertThat(creditoService.saldo(TENANT_ACME)).isEqualTo(20);
+        assertThat(creditoService.saldo(TENANT_ACME)).isEqualTo(5);
     }
 
     @Test
@@ -116,7 +116,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Débito consome 1 crédito com saldo_apos correto; sem saldo, lança erro")
     void testDebito() {
-        creditoService.lancarAdesao(TENANT_ACME); // +20
+        creditoService.lancarAdesao(TENANT_ACME); // +5
         UUID doc1 = UUID.randomUUID();
         UUID reservaDebito = UUID.randomUUID();
 
@@ -124,15 +124,15 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         transactionTemplate.executeWithoutResult(tx ->
             creditoService.debitarEmissaoDocumento(TENANT_ACME, doc1, reservaDebito));
 
-        assertThat(creditoService.saldo(TENANT_ACME)).isEqualTo(19);
+        assertThat(creditoService.saldo(TENANT_ACME)).isEqualTo(4);
         Integer saldoApos = jdbcTemplate.queryForObject(
             "SELECT saldo_apos FROM credito_lancamento WHERE tipo = 'CONSUMO' AND referencia_id = ?",
             Integer.class, doc1);
-        assertThat(saldoApos).isEqualTo(19);
+        assertThat(saldoApos).isEqualTo(4);
 
         // zera o saldo via estorno e tenta debitar de novo
         transactionTemplate.executeWithoutResult(tx ->
-            creditoService.lancarAjuste(TENANT_ACME, -19, "Zerando para teste", USER_ID));
+            creditoService.lancarAjuste(TENANT_ACME, -4, "Zerando para teste", USER_ID));
         assertThat(creditoService.saldo(TENANT_ACME)).isZero();
 
         assertThatThrownBy(() ->
@@ -152,15 +152,15 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .with(admin()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.saldo").value(20));
+            .andExpect(jsonPath("$.saldo").value(5));
 
         mockMvc.perform(get("/v1/tenants/{tenantId}/creditos/extrato", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .with(admin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].tipo").value("ADESAO"))
-            .andExpect(jsonPath("$[0].quantidade").value(20))
-            .andExpect(jsonPath("$[0].saldoApos").value(20));
+            .andExpect(jsonPath("$[0].quantidade").value(5))
+            .andExpect(jsonPath("$[0].saldoApos").value(5));
     }
 
     @Test

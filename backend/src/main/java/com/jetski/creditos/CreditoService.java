@@ -43,7 +43,7 @@ public class CreditoService {
     private final EntityManager entityManager;
     private final ApplicationEventPublisher eventPublisher;
 
-    @Value("${jetski.creditos.adesao:20}")
+    @Value("${jetski.creditos.adesao:5}")
     private int creditosAdesao;
 
     @Value("${jetski.creditos.pix-chave:}")

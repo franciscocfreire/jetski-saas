@@ -140,8 +140,10 @@ jetski:
     # Prazo (horas) p/ pagar a pré-reserva do portal antes de expirar
     pre-reserva-expiracao-horas: ${JETSKI_PORTAL_PRE_RESERVA_EXPIRACAO_HORAS:24}
   creditos:
-    # Créditos de emissão concedidos na aprovação do tenant (adesão). 0 = desativado.
-    adesao: ${JETSKI_CREDITOS_ADESAO:20}
+    # Créditos de emissão concedidos na aprovação do tenant (adesão/trial). 0 = desativado.
+    # 5 = degustação do trial de 14 dias; os 20 créditos "cheios" pertencem ao
+    # onboarding assistido pago (R$299, modelo da landing) — lançados via ajuste manual.
+    adesao: ${JETSKI_CREDITOS_ADESAO:5}
     # Chave PIX fixa da plataforma para compra de créditos (fluxo manual v1).
     pix-chave: ${JETSKI_CREDITOS_PIX_CHAVE:pix@meujet.com.br}
     # Nome/cidade do recebedor no BR Code (normalizados p/ EMV: sem acento, caixa alta)
