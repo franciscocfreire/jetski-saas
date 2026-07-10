@@ -898,14 +898,6 @@ export interface UserTenantsResponse {
 }
 
 // Platform (super admin)
-export interface PendingTenant {
-  tenantId: string
-  slug: string
-  razaoSocial: string
-  cnpj: string | null
-  createdAt: string
-}
-
 export interface TenantStatusResult {
   tenantId: string
   status: string

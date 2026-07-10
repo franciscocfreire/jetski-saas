@@ -1,5 +1,5 @@
 import { apiClient } from '../client'
-import type { PendingTenant, TenantStatusResult, TenantSummary } from '../types'
+import type { TenantStatusResult, TenantSummary } from '../types'
 
 /**
  * Service: Platform admin (super admin global).
@@ -12,12 +12,6 @@ export const platformService = {
   /** Lista TODAS as empresas (qualquer status) — visão completa do super admin. */
   async listAllTenants(): Promise<TenantSummary[]> {
     const { data } = await apiClient.get<TenantSummary[]>('/v1/platform/tenants')
-    return data
-  },
-
-  /** Lista empresas aguardando aprovação. */
-  async listPending(): Promise<PendingTenant[]> {
-    const { data } = await apiClient.get<PendingTenant[]>('/v1/platform/pending-signups')
     return data
   },
 

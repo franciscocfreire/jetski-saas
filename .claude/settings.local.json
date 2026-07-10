@@ -185,7 +185,8 @@
       "Bash(node scripts/validate_palette.js \"#2a78d6,#1baf7a,#eda100,#4a3aa7\" --mode light)",
       "Bash(sed -n '/public record CheckInEvent/,/^\\) {/p' backend/src/main/java/com/jetski/locacoes/event/CheckInEvent.java)",
       "Bash(sed -n '/public record ReservationCreatedEvent/,/^\\) {/p' backend/src/main/java/com/jetski/reservas/domain/event/ReservationCreatedEvent.java)",
-      "Bash(sed -n '/public record ReservationConfirmedEvent/,/^\\) {/p' backend/src/main/java/com/jetski/reservas/domain/event/ReservationConfirmedEvent.java)"
+      "Bash(sed -n '/public record ReservationConfirmedEvent/,/^\\) {/p' backend/src/main/java/com/jetski/reservas/domain/event/ReservationConfirmedEvent.java)",
+      "Bash(git push *)"
     ],
     "deny": [],
     "ask": [],
