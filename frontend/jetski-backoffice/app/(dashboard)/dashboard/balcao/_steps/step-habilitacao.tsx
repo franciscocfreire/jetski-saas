@@ -217,6 +217,7 @@ export function StepHabilitacao({
             <FileUpload
               label="Enviar/tirar foto da CHA"
               accept="image/*"
+              tipoDocumento="CHA"
               initialUrl={chaFotoUrl ?? undefined}
               onChange={(f) => setChaFoto(f?.dataUrl)}
             />
@@ -356,6 +357,7 @@ export function StepHabilitacao({
                   <FileUpload
                     label="Enviar/tirar foto do comprovante"
                     accept="image/*,application/pdf"
+                    tipoDocumento="GRU_COMPROVANTE"
                     onChange={(f) => setComprovante(f?.dataUrl)}
                   />
                   <div className="flex gap-2">

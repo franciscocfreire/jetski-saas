@@ -67,6 +67,10 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Rede fraca (praia) que trava não pode deixar o botão "enviando…" para sempre:
+  // sem timeout, a promise nunca rejeita e o onError das mutations nunca dispara.
+  // 120s é generoso p/ upload legítimo lento; ainda assim mata o request pendurado.
+  timeout: 120_000,
 })
 
 // Request interceptor for adding auth token and tenant header

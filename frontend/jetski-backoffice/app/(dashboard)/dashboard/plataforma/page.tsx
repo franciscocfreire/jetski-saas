@@ -32,6 +32,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
+import { ImagemConfigCard } from '@/components/dashboard/imagem-config-card'
 
 type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline'
 
@@ -263,6 +264,8 @@ export default function PlataformaPage() {
       <ComprasPendentesCard enabled={isPlatformAdmin} />
 
       <PrecoCreditoCard enabled={isPlatformAdmin} />
+
+      <ImagemConfigCard enabled={isPlatformAdmin} />
 
       <EmissoesPorEmpresaCard enabled={isPlatformAdmin} />
     </div>

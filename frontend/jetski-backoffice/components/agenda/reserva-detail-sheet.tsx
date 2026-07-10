@@ -795,6 +795,7 @@ export function ReservaDetailSheet({
                       <FileUpload
                         label="Enviar/tirar foto da devolutiva"
                         accept="image/*,application/pdf"
+                        tipoDocumento="GRU_COMPROVANTE"
                         onChange={(f) => setDevFile(f?.dataUrl)}
                       />
                       <div className="flex gap-2">
@@ -902,6 +903,7 @@ export function ReservaDetailSheet({
                   <FileUpload
                     label="Enviar/tirar foto do comprovante"
                     accept="image/*,application/pdf"
+                    tipoDocumento="GRU_COMPROVANTE"
                     onChange={(f) => setCompFile(f?.dataUrl)}
                   />
                   <div className="flex gap-2">

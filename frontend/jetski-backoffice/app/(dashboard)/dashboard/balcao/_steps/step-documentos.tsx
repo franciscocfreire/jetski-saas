@@ -203,6 +203,7 @@ export function StepDocumentos({
           <Label className="mb-1 block text-xs">Documento de identidade (RG/CNH)</Label>
           <FileUpload
             label="Enviar RG/CNH"
+            tipoDocumento="IDENTIDADE"
             initialUrl={anexosUrls?.IDENTIDADE}
             onChange={(f) => setAnexos((a) => ({ ...a, IDENTIDADE: f?.dataUrl }))}
           />
@@ -212,6 +213,7 @@ export function StepDocumentos({
           <FileUpload
             label="Tirar/enviar selfie"
             accept="image/*"
+            tipoDocumento="SELFIE"
             initialUrl={anexosUrls?.SELFIE}
             onChange={(f) => setAnexos((a) => ({ ...a, SELFIE: f?.dataUrl }))}
           />
@@ -321,6 +323,7 @@ export function StepDocumentos({
         {temComprovante && (
           <FileUpload
             label="Enviar comprovante de residência"
+            tipoDocumento="COMPROVANTE_RESIDENCIA"
             initialUrl={anexosUrls?.COMPROVANTE_RESIDENCIA}
             onChange={(f) => setAnexos((a) => ({ ...a, COMPROVANTE_RESIDENCIA: f?.dataUrl }))}
           />

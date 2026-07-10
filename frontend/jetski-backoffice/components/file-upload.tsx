@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Upload, X, FileCheck, Camera } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { corrigirOrientacao } from '@/lib/image-orientation'
+import { comprimirImagem } from '@/lib/image-compress'
+import { useImagemConfig } from '@/lib/hooks/use-imagem-config'
+import type { TipoImagemDoc } from '@/lib/api/types'
 
 export type UploadedFile = {
   file: File
@@ -22,13 +24,17 @@ export function FileUpload({
   accept = 'image/*,application/pdf',
   onChange,
   initialUrl,
+  tipoDocumento,
 }: {
   label: string
   accept?: string
   onChange?: (f: UploadedFile | null) => void
   /** URL de uma imagem já enviada (carrega automaticamente; pode trocar). */
   initialUrl?: string
+  /** Tipo do documento — define o preset de compressão da imagem (plataforma). */
+  tipoDocumento?: TipoImagemDoc
 }) {
+  const { presetPara } = useImagemConfig()
   const inputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const [picked, setPicked] = useState<UploadedFile | null>(null)
@@ -51,8 +57,10 @@ export function FileUpload({
 
   async function pick(fileOriginal: File) {
     setLoading(true)
-    // Corrige a orientação EXIF (foto de celular vem "deitada") antes de ler.
-    const file = await corrigirOrientacao(fileOriginal).catch(() => fileOriginal)
+    // Comprime a imagem (orientação EXIF + resize + qualidade do preset) antes de
+    // ler. Foto de celular de vários MB vira centenas de KB — leve na rede da praia
+    // e sem estourar limite de upload. PDF/assinatura passam intactos.
+    const file = await comprimirImagem(fileOriginal, presetPara(tipoDocumento)).catch(() => fileOriginal)
     const reader = new FileReader()
     reader.onload = () => {
       const uf = { file, dataUrl: String(reader.result) }

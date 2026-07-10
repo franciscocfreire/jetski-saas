@@ -920,6 +920,24 @@ export interface DashboardMetrics {
   calculatedAt: string
 }
 
+/** Tipos de documento com preset de compressão (assinatura fica de fora — é PNG). */
+export type TipoImagemDoc =
+  | 'IDENTIDADE'
+  | 'COMPROVANTE_RESIDENCIA'
+  | 'SELFIE'
+  | 'CHA'
+  | 'GRU_COMPROVANTE'
+
+export interface PresetCompressaoImagem {
+  maxDimensao: number
+  qualidade: number
+}
+
+/** Config de compressão de imagem por tipo (parametrizada pelo super admin). */
+export interface ImagemCompressaoConfig {
+  tipos: Partial<Record<TipoImagemDoc, PresetCompressaoImagem>>
+}
+
 /** Checklist "primeiros passos" da empresa — flags auto-detectadas dos dados reais. */
 export interface OnboardingChecklist {
   temModelo: boolean

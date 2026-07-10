@@ -317,6 +317,15 @@ test_operador_can_emitir_documentos if {
     allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "reserva:emitir-documentos"}
 }
 
+# Config de compressão de imagem: lida no upload por quem opera o balcão.
+test_operador_can_read_imagem_config if {
+    allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "documento:imagem-config"}
+}
+
+test_gerente_can_read_imagem_config if {
+    allow_rbac with input as {"user": {"role": "GERENTE"}, "action": "documento:imagem-config"}
+}
+
 test_operador_can_registrar_habilitacao if {
     allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "reserva:habilitacao"}
 }

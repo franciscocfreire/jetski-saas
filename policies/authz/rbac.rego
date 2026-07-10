@@ -70,6 +70,7 @@ role_permissions := {
         "documento:view",
         "documento:download",
         "documento:reenviar",
+        "documento:imagem-config",  # leitura da config de compressão de imagem (upload)
         "gru:list",   # Módulo GRUs (ciclo Marinha)
         "gru:view"
     ],
