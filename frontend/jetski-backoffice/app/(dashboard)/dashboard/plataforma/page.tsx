@@ -44,6 +44,24 @@ const STATUS_BADGE: Record<string, { label: string; variant: BadgeVariant }> = {
   CANCELADO: { label: 'Cancelado', variant: 'outline' },
 }
 
+/** Célula "Plano": nome + vencimento da assinatura (Trial vencido ganha destaque). */
+function PlanoCell({ t }: { t: TenantSummary }) {
+  if (!t.plano) return <span className="text-muted-foreground">—</span>
+  const fim = t.assinaturaFim ? new Date(t.assinaturaFim + 'T00:00:00') : null
+  const vencida = fim != null && fim.getTime() < Date.now()
+  return (
+    <div className="flex flex-col">
+      <span>{t.plano}</span>
+      {fim && (
+        <span className={`text-xs ${vencida ? 'font-medium text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+          {vencida ? 'venceu em ' : 'vence em '}
+          {fim.toLocaleDateString('pt-BR')}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export default function PlataformaPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -214,6 +232,7 @@ export default function PlataformaPage() {
                 <TableRow>
                   <TableHead>Empresa</TableHead>
                   <TableHead>Identificador</TableHead>
+                  <TableHead>Plano</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -225,6 +244,9 @@ export default function PlataformaPage() {
                     <TableRow key={t.id}>
                       <TableCell className="font-medium">{t.razaoSocial}</TableCell>
                       <TableCell className="text-muted-foreground">{t.slug}</TableCell>
+                      <TableCell>
+                        <PlanoCell t={t} />
+                      </TableCell>
                       <TableCell>
                         <Badge variant={badge.variant}>{badge.label}</Badge>
                       </TableCell>

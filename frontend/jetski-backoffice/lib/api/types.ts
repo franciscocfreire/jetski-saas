@@ -889,6 +889,10 @@ export interface TenantSummary {
   razaoSocial: string
   status: string
   roles: string[]
+  /** Plano da assinatura ativa (vem só no painel de plataforma; null sem assinatura). */
+  plano?: string | null
+  /** Fim da assinatura ativa (yyyy-MM-dd) — no Trial, quando os 14 dias vencem. */
+  assinaturaFim?: string | null
 }
 
 export interface UserTenantsResponse {

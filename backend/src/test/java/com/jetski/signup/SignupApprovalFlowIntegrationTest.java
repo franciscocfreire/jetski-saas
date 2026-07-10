@@ -77,6 +77,13 @@ class SignupApprovalFlowIntegrationTest extends AbstractIntegrationTest {
         //    vai para o e-mail do tenant_signup (listener async pós-commit do módulo signup)
         verify(emailService, timeout(5000)).sendTenantStatusNotification(
             eq(adminEmail), eq("TENANT_APPROVED"), eq("Empresa Fluxo Ltda"), isNull());
+
+        // 4) Painel de plataforma mostra o plano e o fim do trial (14 dias)
+        var resumo = platformTenantService.listAll().stream()
+            .filter(t -> t.id().equals(tenantId.toString()))
+            .findFirst().orElseThrow();
+        assertThat(resumo.plano()).isEqualTo("Trial");
+        assertThat(resumo.assinaturaFim()).isEqualTo(java.time.LocalDate.now().plusDays(14));
     }
 
     @Test

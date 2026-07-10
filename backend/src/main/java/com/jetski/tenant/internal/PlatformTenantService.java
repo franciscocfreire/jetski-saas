@@ -48,13 +48,44 @@ public class PlatformTenantService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    /** Lista TODAS as empresas (qualquer status) — visão de plataforma do super admin. */
+    /**
+     * Lista TODAS as empresas (qualquer status) com o plano/vencimento da assinatura ativa.
+     *
+     * <p>A tabela {@code assinatura} tem RLS por tenant; sem bypass (decisão do projeto),
+     * a leitura é feita "tenant por tenant" com {@code SET LOCAL app.tenant_id} — escopado
+     * à transação, o valor da sessão volta ao normal no commit. Volume é pequeno
+     * (uma consulta por empresa, painel de plataforma).
+     */
     @Transactional(readOnly = true)
     public List<PlatformTenantSummary> listAll() {
         return tenantRepository.findAll().stream()
             .sorted((a, b) -> a.getRazaoSocial().compareToIgnoreCase(b.getRazaoSocial()))
-            .map(t -> PlatformTenantSummary.of(t.getId(), t.getSlug(), t.getRazaoSocial(), t.getStatus().name()))
+            .map(t -> {
+                Object[] assinatura = assinaturaAtiva(t.getId());
+                return PlatformTenantSummary.of(
+                    t.getId(), t.getSlug(), t.getRazaoSocial(), t.getStatus().name(),
+                    assinatura != null ? (String) assinatura[0] : null,
+                    assinatura != null && assinatura[1] != null
+                        ? ((java.sql.Date) assinatura[1]).toLocalDate() : null);
+            })
             .toList();
+    }
+
+    /** Plano e dt_fim da assinatura ativa do tenant, ou null se não houver. */
+    private Object[] assinaturaAtiva(UUID tenantId) {
+        entityManager.createNativeQuery("SET LOCAL app.tenant_id = '" + tenantId + "'")
+            .executeUpdate();
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager.createNativeQuery(
+            """
+            SELECT p.nome, a.dt_fim FROM assinatura a
+            JOIN plano p ON p.id = a.plano_id
+            WHERE a.tenant_id = ?1 AND a.status = 'ativa'
+            ORDER BY a.dt_inicio DESC LIMIT 1
+            """)
+            .setParameter(1, tenantId)
+            .getResultList();
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     /** Fila de empresas aguardando aprovação. */

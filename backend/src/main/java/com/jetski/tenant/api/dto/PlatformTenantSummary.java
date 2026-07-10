@@ -1,5 +1,6 @@
 package com.jetski.tenant.api.dto;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -15,10 +16,15 @@ public record PlatformTenantSummary(
     String slug,
     String razaoSocial,
     String status,
-    List<String> roles
+    List<String> roles,
+    /** Nome do plano da assinatura ativa (null se a empresa ainda não tem assinatura). */
+    String plano,
+    /** Fim da assinatura ativa (dt_fim) — no Trial, é a data em que os 14 dias vencem. */
+    LocalDate assinaturaFim
 ) {
-    public static PlatformTenantSummary of(UUID id, String slug, String razaoSocial, String status) {
+    public static PlatformTenantSummary of(UUID id, String slug, String razaoSocial, String status,
+                                           String plano, LocalDate assinaturaFim) {
         return new PlatformTenantSummary(
-            id.toString(), slug, razaoSocial, status, List.of("ADMIN_TENANT"));
+            id.toString(), slug, razaoSocial, status, List.of("ADMIN_TENANT"), plano, assinaturaFim);
     }
 }
