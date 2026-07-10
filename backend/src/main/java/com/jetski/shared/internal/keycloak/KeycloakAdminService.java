@@ -1,5 +1,7 @@
 package com.jetski.shared.internal.keycloak;
 
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Serviço para integração com Keycloak Admin API.
@@ -72,6 +75,19 @@ public class KeycloakAdminService {
      */
     public String createUserWithPassword(UUID usuarioId, String email, String nome,
                                           UUID tenantId, List<String> roles, String password) {
+        try {
+            return tentarCriarUsuario(usuarioId, email, nome, tenantId, roles, password);
+        } catch (TransientKeycloakException e) {
+            // 401/timeout transiente (ex.: Keycloak lento e o token admin de 60s venceu
+            // na fila — visto ao vivo em 10/jul/2026). Client novo = token novo.
+            log.warn("Falha transiente do Keycloak ao criar usuário ({}) — repetindo uma vez: email={}",
+                e.getMessage(), email);
+            return tentarCriarUsuario(usuarioId, email, nome, tenantId, roles, password);
+        }
+    }
+
+    private String tentarCriarUsuario(UUID usuarioId, String email, String nome,
+                                      UUID tenantId, List<String> roles, String password) {
         try (Keycloak keycloak = buildKeycloakClient()) {
 
             log.info("Criando usuário no Keycloak com senha temporária (Option 2): email={}, realm={}", email, targetRealm);
@@ -110,6 +126,11 @@ public class KeycloakAdminService {
             Response response = usersResource.create(user);
             int status = response.getStatus();
 
+            if (status == 401) {
+                // Token admin rejeitado (expirou na fila? Keycloak reiniciou?) — transiente
+                response.close();
+                throw new TransientKeycloakException("401 Unauthorized");
+            }
             if (status != 201) {
                 log.error("Falha ao criar usuário no Keycloak: status={}, email={}", status, email);
                 response.close();
@@ -140,9 +161,21 @@ public class KeycloakAdminService {
 
             return keycloakUserId;
 
+        } catch (TransientKeycloakException e) {
+            throw e; // deixa o retry do chamador agir
+        } catch (jakarta.ws.rs.ProcessingException e) {
+            // Timeout/conexão (client agora tem connect/read timeout) — transiente
+            throw new TransientKeycloakException("timeout/conexão: " + e.getMessage());
         } catch (Exception e) {
             log.error("Erro ao criar usuário no Keycloak com senha: email={}, error={}", email, e.getMessage(), e);
             return null;
+        }
+    }
+
+    /** Falha transiente do Keycloak (401 de token vencido, timeout) — vale UM retry. */
+    private static class TransientKeycloakException extends RuntimeException {
+        TransientKeycloakException(String message) {
+            super(message);
         }
     }
 
@@ -386,14 +419,24 @@ public class KeycloakAdminService {
 
     /**
      * Constrói cliente Keycloak Admin com credenciais configuradas.
+     *
+     * <p>Timeouts explícitos: sem eles, um Keycloak sob carga segura a chamada por
+     * minutos e o token admin (60s de vida no realm master) vence na fila — o
+     * request então falha com 401 confuso (visto ao vivo em dev, 10/jul/2026).
+     * Falhar rápido + retry único no chamador resolve o caso transiente.
      */
     private Keycloak buildKeycloakClient() {
+        Client resteasyClient = ClientBuilder.newBuilder()
+                .connectTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .build();
         return KeycloakBuilder.builder()
                 .serverUrl(serverUrl)
                 .realm(adminRealm)
                 .clientId(clientId)
                 .username(username)
                 .password(password)
+                .resteasyClient(resteasyClient)
                 .build();
     }
 }
