@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { CheckCircle2, CreditCard, Loader2 } from 'lucide-react'
+import { CheckCircle2, Copy, CreditCard, Loader2, Mail, QrCode } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,8 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { PixQrCode } from '@/components/pix-qrcode'
+import { waHref, WhatsAppIcon } from '@/components/whatsapp-link'
 import { reservasService } from '@/lib/api/services'
-import type { FormaPagamento, Reserva } from '@/lib/api/types'
+import type { FormaPagamento, Reserva, ReservaPix } from '@/lib/api/types'
 import type { Atendimento } from '../types'
 
 const FORMAS: { value: FormaPagamento; label: string }[] = [
@@ -61,6 +63,60 @@ export function StepPagamento({
   const [forma, setForma] = useState<FormaPagamento>('DINHEIRO')
   const [valor, setValor] = useState(valorEstimado > 0 ? valorEstimado.toFixed(2) : '')
   const [observacao, setObservacao] = useState('')
+
+  // PIX gerado para o valor atual — descartado se o valor/forma mudar.
+  const [pix, setPix] = useState<ReservaPix | null>(null)
+  useEffect(() => {
+    setPix(null)
+  }, [valor, forma])
+
+  const clienteEmail = atendimento.cliente?.email
+  const clienteFone = atendimento.cliente?.whatsapp || atendimento.cliente?.telefone
+  const primeiroNome = atendimento.cliente?.nome?.split(' ')[0]
+
+  const erroMsg = (e: unknown, fallback: string) =>
+    (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback
+
+  const gerarQr = useMutation({
+    mutationFn: () => reservasService.gerarPix(reserva!.id, Number(valor)),
+    onSuccess: (p) => setPix(p),
+    onError: (e: unknown) => toast.error(erroMsg(e, 'Falha ao gerar o PIX.')),
+  })
+
+  const enviarEmail = useMutation({
+    mutationFn: () => reservasService.enviarPixEmail(reserva!.id, Number(valor)),
+    onSuccess: ({ email }) => toast.success(`PIX copia-e-cola enviado para ${email}.`),
+    onError: (e: unknown) => toast.error(erroMsg(e, 'Falha ao enviar o PIX por e-mail.')),
+  })
+
+  const abrirWhatsApp = (p: ReservaPix) => {
+    const msg =
+      `Olá${primeiroNome ? `, ${primeiroNome}` : ''}! Segue o PIX de R$ ${p.valor.toFixed(2)} ` +
+      `para o pagamento do seu passeio.\n\nPIX copia e cola:\n${p.copiaECola}`
+    const href = waHref(clienteFone, msg)
+    if (!href) return
+    const aberta = window.open(href, '_blank', 'noopener,noreferrer')
+    if (!aberta) toast.error('O navegador bloqueou a janela — libere popups e tente de novo.')
+  }
+
+  const enviarWhatsApp = useMutation({
+    mutationFn: () => reservasService.gerarPix(reserva!.id, Number(valor)),
+    onSuccess: (p) => {
+      setPix(p)
+      abrirWhatsApp(p)
+    },
+    onError: (e: unknown) => toast.error(erroMsg(e, 'Falha ao gerar o PIX.')),
+  })
+
+  const copiarPix = async () => {
+    if (!pix) return
+    try {
+      await navigator.clipboard.writeText(pix.copiaECola)
+      toast.success('Código PIX copiado.')
+    } catch {
+      toast.error('Não foi possível copiar — selecione o código manualmente.')
+    }
+  }
 
   const registrar = useMutation({
     mutationFn: () =>
@@ -148,6 +204,88 @@ export function StepPagamento({
           />
         </div>
       </div>
+
+      {forma === 'PIX' && (
+        <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+          <div className="text-sm">
+            <p className="font-medium">Cobrança PIX</p>
+            <p className="text-muted-foreground">
+              Gere o QR Code para o cliente pagar agora ou envie o copia-e-cola. Após confirmar o
+              recebimento, registre o pagamento.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!valido || gerarQr.isPending}
+              onClick={() => gerarQr.mutate()}
+            >
+              {gerarQr.isPending ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <QrCode className="mr-1 h-4 w-4" />
+              )}
+              Gerar QR Code
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!valido || !clienteEmail || enviarEmail.isPending}
+              title={!clienteEmail ? 'Cliente sem e-mail cadastrado' : undefined}
+              onClick={() => enviarEmail.mutate()}
+            >
+              {enviarEmail.isPending ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <Mail className="mr-1 h-4 w-4" />
+              )}
+              Enviar por e-mail
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!valido || !clienteFone || enviarWhatsApp.isPending}
+              title={!clienteFone ? 'Cliente sem telefone/WhatsApp cadastrado' : undefined}
+              onClick={() => (pix ? abrirWhatsApp(pix) : enviarWhatsApp.mutate())}
+            >
+              {enviarWhatsApp.isPending ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <WhatsAppIcon className="mr-1 h-4 w-4" />
+              )}
+              Enviar por WhatsApp
+            </Button>
+          </div>
+
+          {(!clienteEmail || !clienteFone) && (
+            <p className="text-xs text-muted-foreground">
+              {!clienteEmail && 'Cliente sem e-mail cadastrado. '}
+              {!clienteFone && 'Cliente sem telefone/WhatsApp cadastrado.'}
+            </p>
+          )}
+
+          {pix && (
+            <div className="flex flex-col items-center gap-2 rounded-md border bg-background p-4">
+              <PixQrCode payload={pix.copiaECola} size={200} />
+              <p className="text-xs text-muted-foreground">
+                PIX de <b>R$ {pix.valor.toFixed(2)}</b> — chave {pix.chave}
+              </p>
+              <code className="max-w-full break-all rounded bg-muted px-2 py-1 text-[11px]">
+                {pix.copiaECola}
+              </code>
+              <Button type="button" variant="ghost" size="sm" onClick={copiarPix}>
+                <Copy className="mr-1 h-4 w-4" />
+                Copiar código
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div>
         <Label className="text-xs">Observação (opcional)</Label>

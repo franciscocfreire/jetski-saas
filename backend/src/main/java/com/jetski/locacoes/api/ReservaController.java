@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 public class ReservaController {
 
     private final ReservaService reservaService;
+    private final com.jetski.locacoes.internal.ReservaPixService reservaPixService;
     private final com.jetski.locacoes.internal.ReservaFichaService reservaFichaService;
     private final com.jetski.locacoes.internal.ReservaBuscaService reservaBuscaService;
     private final com.jetski.locacoes.internal.ReservaAgendaService reservaAgendaService;
@@ -493,6 +494,61 @@ public class ReservaController {
     ) {
         validateTenantContext(tenantId);
         return ResponseEntity.ok(FolioExtratoResponse.from(reservaService.extrato(id)));
+    }
+
+    /**
+     * PIX copia-e-cola (BR Code) da cobrança presencial do balcão, com o valor
+     * digitado no passo de Pagamento. Nada é persistido. OPA resolve como
+     * {@code reserva:list} (fallback do ActionExtractor — "pix" fora de
+     * knownSubActions); a restrição real é o @PreAuthorize.
+     */
+    @GetMapping("/{id}/pix")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
+    @Operation(
+        summary = "Gerar PIX copia-e-cola da cobrança (balcão)",
+        description = "Gera o BR Code PIX (chave estática da loja) com o valor a cobrar. " +
+                      "O copia-e-cola é o próprio conteúdo do QR Code. Exige a chave PIX " +
+                      "da loja configurada."
+    )
+    public ResponseEntity<com.jetski.locacoes.api.dto.ReservaPixResponse> gerarPix(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID da reserva")
+        @PathVariable UUID id,
+        @Parameter(description = "Valor a cobrar (R$)")
+        @RequestParam java.math.BigDecimal valor
+    ) {
+        validateTenantContext(tenantId);
+        return ResponseEntity.ok(
+            com.jetski.locacoes.api.dto.ReservaPixResponse.from(reservaPixService.gerar(id, valor)));
+    }
+
+    /**
+     * Envia o PIX copia-e-cola da cobrança do balcão por e-mail ao cliente.
+     * OPA resolve como {@code reserva:create} (fallback do ActionExtractor —
+     * "enviar-pix-email" fora de knownSubActions), permitido às roles do
+     * balcão; a restrição real é o @PreAuthorize.
+     */
+    @PostMapping("/{id}/enviar-pix-email")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(
+        summary = "Enviar PIX copia-e-cola por e-mail (balcão)",
+        description = "Envia o código PIX copia-e-cola da cobrança ao e-mail do cliente da reserva."
+    )
+    public ResponseEntity<java.util.Map<String, String>> enviarPixEmail(
+        @Parameter(description = "UUID do tenant")
+        @PathVariable UUID tenantId,
+        @Parameter(description = "UUID da reserva")
+        @PathVariable UUID id,
+        @Valid @RequestBody com.jetski.locacoes.api.dto.EnviarPixEmailRequest request
+    ) {
+        log.info("POST /v1/tenants/{}/reservas/{}/enviar-pix-email - valor: {}",
+                 tenantId, id, request.getValor());
+
+        validateTenantContext(tenantId);
+
+        String email = reservaPixService.enviarEmail(id, request.getValor());
+        return ResponseEntity.ok(java.util.Map.of("email", email));
     }
 
     /**

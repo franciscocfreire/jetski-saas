@@ -256,6 +256,13 @@ export interface RegistrarPagamentoReservaRequest {
   observacao?: string
 }
 
+/** PIX copia-e-cola da cobrança presencial do balcão (o payload é o conteúdo do QR). */
+export interface ReservaPix {
+  chave: string
+  copiaECola: string
+  valor: number
+}
+
 /** Estorno (devolução ao cliente) de reserva paga — observação obrigatória. */
 export interface RegistrarEstornoRequest {
   forma: FormaPagamento

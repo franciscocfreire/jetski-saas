@@ -16,7 +16,7 @@ class BrCodePixTest {
         String p = BrCodePix.gerar("pix@meujet.com.br", new BigDecimal("250.00"), "Meu Jet", "Florianópolis");
 
         assertThat(p).startsWith("000201");                       // payload format
-        assertThat(p).contains("0014BR.GOV.BCB.PIX");             // GUI do PIX
+        assertThat(p).contains("0014br.gov.bcb.pix");             // GUI do PIX (minúsculas, como no manual do Bacen)
         assertThat(p).contains("0117pix@meujet.com.br");          // chave (17 chars)
         assertThat(p).contains("52040000");                       // MCC
         assertThat(p).contains("5303986");                        // BRL

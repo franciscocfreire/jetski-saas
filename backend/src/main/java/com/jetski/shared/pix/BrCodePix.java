@@ -22,7 +22,9 @@ public final class BrCodePix {
      * @param cidade cidade do recebedor (será normalizada; máx. 15 chars)
      */
     public static String gerar(String chave, BigDecimal valor, String nome, String cidade) {
-        String merchantAccount = tlv("00", "BR.GOV.BCB.PIX") + tlv("01", chave);
+        // GUI em minúsculas: a spec diz case-insensitive, mas o manual do Bacen e
+        // os apps de banco usam "br.gov.bcb.pix" — leitores rigorosos agradecem.
+        String merchantAccount = tlv("00", "br.gov.bcb.pix") + tlv("01", chave);
         String payload =
               tlv("00", "01")                                   // payload format
             + tlv("26", merchantAccount)                        // merchant account info (PIX)

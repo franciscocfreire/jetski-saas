@@ -593,6 +593,94 @@ class ReservaControllerTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.status").value("RASCUNHO"));
     }
 
+    // ========================================================================
+    // PIX da cobrança do balcão (QR copia-e-cola + envio por e-mail)
+    // ========================================================================
+
+    @Test
+    @DisplayName("GET /pix gera BR Code com a chave da loja e o valor cobrado")
+    void testGerarPix_Success() throws Exception {
+        jdbcTemplate.update(
+            "UPDATE tenant SET pix_chave = 'pix@loja.com.br', cidade = 'Florianópolis' WHERE id = ?", TENANT_ID);
+
+        mockMvc.perform(get("/v1/tenants/{tenantId}/reservas/{id}/pix", TENANT_ID, testReserva.getId())
+                .param("valor", "600.00")
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.chave").value("pix@loja.com.br"))
+            .andExpect(jsonPath("$.valor").value(600.00))
+            .andExpect(jsonPath("$.copiaECola").value(org.hamcrest.Matchers.allOf(
+                org.hamcrest.Matchers.startsWith("000201"),
+                org.hamcrest.Matchers.containsString("br.gov.bcb.pix"),
+                org.hamcrest.Matchers.containsString("pix@loja.com.br"),
+                org.hamcrest.Matchers.containsString("5406600.00"))));
+    }
+
+    @Test
+    @DisplayName("GET /pix sem chave PIX configurada na loja → 400")
+    void testGerarPix_SemChaveConfigurada() throws Exception {
+        jdbcTemplate.update("UPDATE tenant SET pix_chave = NULL WHERE id = ?", TENANT_ID);
+
+        mockMvc.perform(get("/v1/tenants/{tenantId}/reservas/{id}/pix", TENANT_ID, testReserva.getId())
+                .param("valor", "600.00")
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("GET /pix com valor zero → 400")
+    void testGerarPix_ValorInvalido() throws Exception {
+        jdbcTemplate.update("UPDATE tenant SET pix_chave = 'pix@loja.com.br' WHERE id = ?", TENANT_ID);
+
+        mockMvc.perform(get("/v1/tenants/{tenantId}/reservas/{id}/pix", TENANT_ID, testReserva.getId())
+                .param("valor", "0")
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /enviar-pix-email envia ao e-mail do cliente da reserva")
+    void testEnviarPixEmail_Success() throws Exception {
+        jdbcTemplate.update("UPDATE tenant SET pix_chave = 'pix@loja.com.br' WHERE id = ?", TENANT_ID);
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/enviar-pix-email", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"valor\": 600.00}")
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.email").value("carlos.teste@email.com"));
+    }
+
+    @Test
+    @DisplayName("POST /enviar-pix-email com cliente sem e-mail → 400")
+    void testEnviarPixEmail_ClienteSemEmail() throws Exception {
+        jdbcTemplate.update("UPDATE tenant SET pix_chave = 'pix@loja.com.br' WHERE id = ?", TENANT_ID);
+        testCliente.setEmail(null);
+        clienteRepository.save(testCliente);
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/enviar-pix-email", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"valor\": 600.00}")
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /enviar-pix-email negado para MECANICO (403)")
+    void testEnviarPixEmail_ForbiddenForMecanico() throws Exception {
+        mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/enviar-pix-email", TENANT_ID, testReserva.getId())
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"valor\": 600.00}")
+                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_MECANICO"))))
+            .andExpect(status().isForbidden());
+    }
+
     private void pagarReserva(java.math.BigDecimal valor) throws Exception {
         mockMvc.perform(post("/v1/tenants/{tenantId}/reservas/{id}/registrar-pagamento", TENANT_ID, testReserva.getId())
                 .header("X-Tenant-Id", TENANT_ID.toString())

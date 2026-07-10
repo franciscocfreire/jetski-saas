@@ -6,6 +6,7 @@ import type {
   ConfirmarPagamentoRequest,
   RegistrarPagamentoReservaRequest,
   RegistrarEstornoRequest,
+  ReservaPix,
   FolioExtrato,
   ResultadoEmissao,
   PagamentoPendente,
@@ -140,6 +141,23 @@ export const reservasService = {
     const { data } = await apiClient.post<Reserva>(
       `${getBasePath()}/${id}/registrar-pagamento`,
       req
+    )
+    return data
+  },
+
+  /** Gera o PIX copia-e-cola (BR Code da chave da loja) do valor a cobrar no balcão. */
+  async gerarPix(id: string, valor: number): Promise<ReservaPix> {
+    const { data } = await apiClient.get<ReservaPix>(`${getBasePath()}/${id}/pix`, {
+      params: { valor: valor.toFixed(2) },
+    })
+    return data
+  },
+
+  /** Envia o PIX copia-e-cola da cobrança por e-mail ao cliente da reserva. */
+  async enviarPixEmail(id: string, valor: number): Promise<{ email: string }> {
+    const { data } = await apiClient.post<{ email: string }>(
+      `${getBasePath()}/${id}/enviar-pix-email`,
+      { valor }
     )
     return data
   },
