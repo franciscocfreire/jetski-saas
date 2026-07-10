@@ -155,17 +155,34 @@ for i in $(seq 1 30); do
 done
 [ "$code" = "200" ] && log "backend healthy (200)" || warn "backend health=$code após ~90s (verifique: $COMPOSE logs backend)"
 
-# 9. Backup diário (cron do usuário, idempotente). Off-site: defina
-#    BACKUP_RCLONE_REMOTE no .env e instale o rclone — ver DEPLOY.md.
-if command -v crontab >/dev/null 2>&1; then
-  mkdir -p "$HOME/backups/meujet"
-  if ! crontab -l 2>/dev/null | grep -q 'infra/prod/backup.sh'; then
-    ( crontab -l 2>/dev/null || true
-      echo "30 3 * * * cd $(pwd) && ./infra/prod/backup.sh >> \$HOME/backups/meujet/backup.log 2>&1" ) | crontab -
-    log "cron de backup diário instalado (03:30 — infra/prod/backup.sh)."
-  fi
-else
-  warn "crontab indisponível — agende ./infra/prod/backup.sh manualmente (diário)."
+# 9. Backup diário via systemd timer (padrão desta VM — não há cron instalado).
+#    Off-site: BACKUP_RCLONE_REMOTE no .env + rclone configurado — ver DEPLOY.md.
+mkdir -p "$HOME/backups/meujet"
+if [ ! -f /etc/systemd/system/meujet-backup.timer ]; then
+  sudo tee /etc/systemd/system/meujet-backup.service > /dev/null <<UNIT
+[Unit]
+Description=Backup diario Meu Jet (Postgres + MinIO, ver DEPLOY.md)
+
+[Service]
+Type=oneshot
+User=$(id -un)
+ExecStart=$(pwd)/infra/prod/backup.sh
+StandardOutput=append:$HOME/backups/meujet/backup.log
+StandardError=append:$HOME/backups/meujet/backup.log
+UNIT
+  sudo tee /etc/systemd/system/meujet-backup.timer > /dev/null <<'UNIT'
+[Unit]
+Description=Timer do backup diario Meu Jet
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+  sudo systemctl daemon-reload && sudo systemctl enable --now meujet-backup.timer
+  log "timer systemd de backup diário instalado (04:00 — infra/prod/backup.sh)."
 fi
 
 log "deploy concluído. Público: ${PUBLIC_URL}"
