@@ -25,9 +25,11 @@ export const clientesService = {
     return data
   },
 
-  /** Cria (ou reutiliza) a pré-conta de balcão; dedupe por CPF no backend. */
-  async criarPreConta(request: ClientePreContaRequest): Promise<Cliente> {
-    const { data } = await apiClient.post<Cliente>(`${getBasePath()}/pre-conta`, request)
+  /** Cria (ou reutiliza) a pré-conta; dedupe por CPF no backend. Origem BALCAO (default) ou LEAD. */
+  async criarPreConta(request: ClientePreContaRequest, origem?: 'BALCAO' | 'LEAD'): Promise<Cliente> {
+    const { data } = await apiClient.post<Cliente>(`${getBasePath()}/pre-conta`, request, {
+      params: origem ? { origem } : undefined,
+    })
     return data
   },
 

@@ -58,4 +58,7 @@ public class ClienteCreateRequest {
     private String enderecoJson;
 
     private Boolean termoAceite;
+
+    @Size(max = 4000, message = "Observações devem ter no máximo 4000 caracteres")
+    private String observacoes;
 }

@@ -85,7 +85,7 @@ export function StepCliente({
           <div className="min-w-[8rem] flex-1">
             <p className="font-medium">{clienteAtual.nome}</p>
             <p className="text-sm text-muted-foreground">
-              {clienteAtual.documento || clienteAtual.cpf || 'sem CPF'} ·{' '}
+              {clienteAtual.documento || 'sem CPF'} ·{' '}
               {clienteAtual.email ?? 'sem e-mail'}
             </p>
           </div>

@@ -33,12 +33,7 @@ import { WhatsAppLink } from '@/components/whatsapp-link'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { Cliente, ClienteStatusConta, LocacaoStatus } from '@/lib/api/types'
 
-const CONTA_BADGE: Record<ClienteStatusConta, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
-  ATIVA: { label: 'Conta ativa', variant: 'default' },
-  CONVIDADA: { label: 'Convidada', variant: 'secondary' },
-  PRE_CONTA: { label: 'Pré-conta', variant: 'outline' },
-  SEM_LOGIN: { label: 'Sem login', variant: 'outline' },
-}
+import { CONTA_BADGE, ORIGEM_BADGE } from '@/components/clientes/badges'
 
 const LOCACAO_BADGE: Record<LocacaoStatus, { label: string; variant: 'success' | 'warning' | 'secondary' }> = {
   EM_CURSO: { label: 'Em curso', variant: 'warning' },
@@ -161,7 +156,7 @@ export function ClienteDetailSheet({
 
   const endereco = parseEndereco(cliente.enderecoJson)
   const conta = cliente.statusConta ? CONTA_BADGE[cliente.statusConta] : null
-  const online = cliente.origem === 'PORTAL'
+  const origem = cliente.origem ? ORIGEM_BADGE[cliente.origem] : null
   const telefone = cliente.telefone || cliente.whatsapp
   const passeios = (locacoes ?? []).slice().sort((a, b) => b.dataCheckIn.localeCompare(a.dataCheckIn))
   const totalGasto = passeios
@@ -174,15 +169,13 @@ export function ClienteDetailSheet({
         <SheetHeader>
           <SheetTitle>{cliente.nome}</SheetTitle>
           <SheetDescription>
-            {cliente.documento || cliente.cpf
-              ? `CPF ${cliente.documento || cliente.cpf}`
-              : 'Sem CPF cadastrado'}
+            {cliente.documento ? `CPF ${cliente.documento}` : 'Sem CPF cadastrado'}
           </SheetDescription>
         </SheetHeader>
 
         <div className="mt-3 flex flex-wrap gap-2">
           {conta && <Badge variant={conta.variant}>{conta.label}</Badge>}
-          <Badge variant={online ? 'default' : 'secondary'}>{online ? 'Online (portal)' : 'Balcão'}</Badge>
+          {origem && <Badge variant={origem.variant}>{origem.label}</Badge>}
           {passeios.length > 0 && (
             <Badge variant="outline">
               {passeios.length} {passeios.length === 1 ? 'passeio' : 'passeios'}
@@ -226,6 +219,13 @@ export function ClienteDetailSheet({
           />
           {cliente.observacoes && (
             <Campo icon={<FileText className="h-4 w-4" />} label="Obs." value={cliente.observacoes} />
+          )}
+          {cliente.capturadoPorNome && (
+            <Campo
+              icon={<User className="h-4 w-4" />}
+              label="Capturado por"
+              value={cliente.capturadoPorNome}
+            />
           )}
         </div>
 

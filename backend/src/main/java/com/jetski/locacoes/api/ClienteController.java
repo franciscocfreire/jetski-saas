@@ -205,6 +205,8 @@ public class ClienteController {
 
         Cliente cliente = clienteService.findById(id);
         ClienteResponse response = toResponse(cliente);
+        // Nome do capturador só no detalhe (evita N+1 nas listagens)
+        response.setCapturadoPorNome(clienteService.nomeUsuarioStaff(cliente.getCapturadoPor()));
 
         return ResponseEntity.ok(response);
     }
@@ -249,27 +251,34 @@ public class ClienteController {
     }
 
     /**
-     * Cria uma pré-conta de cliente no balcão (atendimento assistido).
-     * Origem=BALCAO, status=PRE_CONTA, com dedupe por CPF e proteção anti-takeover.
+     * Cria uma pré-conta de cliente: balcão (atendimento assistido) ou lead
+     * (captação fora do balcão, ex.: operador na praia).
+     * Status=PRE_CONTA, dedupe por CPF, proteção anti-takeover e auto-convite
+     * ao portal quando houver e-mail.
      */
     @PostMapping("/pre-conta")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
     @Operation(
-        summary = "Criar pré-conta (balcão)",
-        description = "Registra um cliente sem login (origem=BALCAO, status PRE_CONTA). " +
+        summary = "Criar pré-conta (balcão ou lead)",
+        description = "Registra um cliente sem login (status PRE_CONTA; origem BALCAO ou LEAD). " +
                       "Faz dedupe por CPF; bloqueia se já houver conta ATIVA (exige OTP)."
     )
     public ResponseEntity<ClienteResponse> criarPreConta(
         @Parameter(description = "UUID do tenant")
         @PathVariable UUID tenantId,
+        @Parameter(description = "Origem do cadastro: BALCAO (default) ou LEAD")
+        @RequestParam(required = false) String origem,
         @Valid @RequestBody ClienteCreateRequest request
     ) {
-        log.info("POST /v1/tenants/{}/clientes/pre-conta - nome: {}", tenantId, request.getNome());
+        log.info("POST /v1/tenants/{}/clientes/pre-conta - nome: {}, origem: {}",
+                 tenantId, request.getNome(), origem);
 
         validateTenantContext(tenantId);
 
+        Cliente.Origem origemResolvida = "LEAD".equalsIgnoreCase(origem)
+            ? Cliente.Origem.LEAD : Cliente.Origem.BALCAO;
         Cliente cliente = toEntity(request, tenantId);
-        Cliente preConta = clienteService.criarPreConta(cliente);
+        Cliente preConta = clienteService.criarPreConta(cliente, origemResolvida);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(preConta));
     }
@@ -455,8 +464,10 @@ public class ClienteController {
             .whatsapp(cliente.getWhatsapp())
             .enderecoJson(cliente.getEnderecoJson())
             .termoAceite(cliente.getTermoAceite())
+            .observacoes(cliente.getObservacoes())
             .origem(cliente.getOrigem() != null ? cliente.getOrigem().name() : null)
             .statusConta(cliente.getStatusConta() != null ? cliente.getStatusConta().name() : null)
+            .capturadoPor(cliente.getCapturadoPor())
             .ativo(cliente.getAtivo())
             .createdAt(cliente.getCreatedAt())
             .updatedAt(cliente.getUpdatedAt())
@@ -480,6 +491,7 @@ public class ClienteController {
             .whatsapp(request.getWhatsapp())
             .enderecoJson(request.getEnderecoJson())
             .termoAceite(request.getTermoAceite() != null ? request.getTermoAceite() : false)
+            .observacoes(request.getObservacoes())
             .ativo(true)
             .build();
     }
@@ -500,6 +512,7 @@ public class ClienteController {
             .whatsapp(request.getWhatsapp())
             .enderecoJson(request.getEnderecoJson())
             .termoAceite(request.getTermoAceite())
+            .observacoes(request.getObservacoes())
             .build();
     }
 }

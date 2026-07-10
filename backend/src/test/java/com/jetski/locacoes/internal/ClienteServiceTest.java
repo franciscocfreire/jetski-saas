@@ -4,6 +4,7 @@ import com.jetski.locacoes.domain.Cliente;
 import com.jetski.locacoes.event.PreContaCriadaEvent;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.security.TenantContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -91,5 +92,53 @@ class ClienteServiceTest {
         assertThatThrownBy(() -> service.criarPreConta(dados()))
             .isInstanceOf(BusinessException.class);
         verify(events, never()).publishEvent(any());
+    }
+
+    @Test
+    @DisplayName("lead (origem=LEAD) → salva PRE_CONTA/LEAD com capturadoPor e publica origem=LEAD")
+    void leadRegistraCapturador() {
+        UUID operador = UUID.randomUUID();
+        TenantContext.setUsuarioId(operador);
+        try {
+            when(clienteRepo.findByDocumento("469.441.130-66")).thenReturn(Optional.empty());
+            when(clienteRepo.save(any(Cliente.class))).thenAnswer(i -> {
+                Cliente c = i.getArgument(0);
+                c.setId(UUID.randomUUID());
+                return c;
+            });
+
+            Cliente r = service.criarPreConta(dados(), Cliente.Origem.LEAD);
+
+            assertThat(r.getOrigem()).isEqualTo(Cliente.Origem.LEAD);
+            assertThat(r.getStatusConta()).isEqualTo(Cliente.StatusConta.PRE_CONTA);
+            assertThat(r.getCapturadoPor()).isEqualTo(operador);
+
+            ArgumentCaptor<Object> ev = ArgumentCaptor.forClass(Object.class);
+            verify(events).publishEvent(ev.capture());
+            assertThat(((PreContaCriadaEvent) ev.getValue()).origem()).isEqualTo("LEAD");
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("reuso por CPF não sobrescreve o capturador original")
+    void reusoNaoSobrescreveCapturador() {
+        UUID capturadorOriginal = UUID.randomUUID();
+        Cliente existente = dados();
+        existente.setId(UUID.randomUUID());
+        existente.setStatusConta(Cliente.StatusConta.PRE_CONTA);
+        existente.setCapturadoPor(capturadorOriginal);
+        when(clienteRepo.findByDocumento("469.441.130-66")).thenReturn(Optional.of(existente));
+
+        TenantContext.setUsuarioId(UUID.randomUUID()); // outro operador reaproveitando
+        try {
+            Cliente r = service.criarPreConta(dados(), Cliente.Origem.LEAD);
+
+            assertThat(r.getCapturadoPor()).isEqualTo(capturadorOriginal);
+            verify(clienteRepo, never()).save(any());
+        } finally {
+            TenantContext.clear();
+        }
     }
 }

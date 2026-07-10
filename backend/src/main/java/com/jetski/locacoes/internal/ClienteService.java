@@ -5,6 +5,8 @@ import com.jetski.locacoes.event.PreContaCriadaEvent;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.security.TenantContext;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -38,6 +40,9 @@ public class ClienteService {
 
     private final ClienteRepository clienteRepository;
     private final ApplicationEventPublisher eventPublisher;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     /**
      * List all active customers for current tenant.
@@ -153,8 +158,20 @@ public class ClienteService {
      */
     @Transactional
     public Cliente criarPreConta(Cliente dados) {
+        return criarPreConta(dados, Cliente.Origem.BALCAO);
+    }
+
+    /**
+     * @param origem BALCAO (atendimento) ou LEAD (captação fora do balcão, ex.: praia).
+     *               Quem registra fica em {@code capturadoPor} (métrica de conversão futura).
+     */
+    @Transactional
+    public Cliente criarPreConta(Cliente dados, Cliente.Origem origem) {
         if (dados.getNome() == null || dados.getNome().isBlank()) {
             throw new BusinessException("Nome do cliente é obrigatório");
+        }
+        if (origem == null || origem == Cliente.Origem.PORTAL) {
+            origem = Cliente.Origem.BALCAO;
         }
 
         String documento = dados.getDocumento();
@@ -168,25 +185,48 @@ public class ClienteService {
                         "É necessária verificação (OTP) antes de vincular.");
                 }
                 log.info("Pré-conta: reutilizando cliente existente id={}, documento={}", c.getId(), documento);
+                // Reuso não sobrescreve capturadoPor — o primeiro capturador fica valendo.
+                UUID capturador = TenantContext.getUsuarioId();
+                if (c.getCapturadoPor() == null && capturador != null) {
+                    c.setCapturadoPor(capturador);
+                    c = clienteRepository.save(c);
+                }
                 // Reuso também dispara o auto-convite (o listener não reenvia se
                 // houver convite vigente) e fica registrado na auditoria.
                 eventPublisher.publishEvent(PreContaCriadaEvent.of(
-                    c.getTenantId(), c.getId(), "BALCAO_REUSO", TenantContext.getUsuarioId()));
+                    c.getTenantId(), c.getId(), origem.name() + "_REUSO", TenantContext.getUsuarioId()));
                 return c;
             }
         }
 
-        dados.setOrigem(Cliente.Origem.BALCAO);
+        dados.setOrigem(origem);
         dados.setStatusConta(Cliente.StatusConta.PRE_CONTA);
+        dados.setCapturadoPor(TenantContext.getUsuarioId());
         dados.setAtivo(true);
 
         Cliente saved = clienteRepository.save(dados);
-        log.info("Pré-conta criada: id={}, nome={}", saved.getId(), saved.getNome());
+        log.info("Pré-conta criada: id={}, nome={}, origem={}", saved.getId(), saved.getNome(), origem);
 
         eventPublisher.publishEvent(PreContaCriadaEvent.of(
-            saved.getTenantId(), saved.getId(), Cliente.Origem.BALCAO.name(), TenantContext.getUsuarioId()));
+            saved.getTenantId(), saved.getId(), origem.name(), TenantContext.getUsuarioId()));
 
         return saved;
+    }
+
+    /**
+     * Nome do usuário do staff (tabela global {@code usuario}) — para exibir
+     * "capturado por" no detalhe do cliente sem acoplar ao módulo usuarios.
+     */
+    @Transactional(readOnly = true)
+    public String nomeUsuarioStaff(UUID usuarioId) {
+        if (usuarioId == null) {
+            return null;
+        }
+        List<?> resultados = entityManager
+            .createNativeQuery("SELECT nome FROM usuario WHERE id = ?1")
+            .setParameter(1, usuarioId)
+            .getResultList();
+        return resultados.isEmpty() ? null : String.valueOf(resultados.get(0));
     }
 
     /**
@@ -260,6 +300,10 @@ public class ClienteService {
 
         if (updates.getTermoAceite() != null) {
             existing.setTermoAceite(updates.getTermoAceite());
+        }
+
+        if (updates.getObservacoes() != null) {
+            existing.setObservacoes(updates.getObservacoes());
         }
 
         Cliente saved = clienteRepository.save(existing);

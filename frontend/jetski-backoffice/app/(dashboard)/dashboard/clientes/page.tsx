@@ -7,10 +7,13 @@ import { Plus, Search, MoreHorizontal, Users, Edit, Phone, Mail, Send, FileText 
 import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { clientesService, claimService } from '@/lib/api/services'
-import type { Cliente, ClienteCreateRequest, ClienteStatusConta } from '@/lib/api/types'
+import type { Cliente, ClienteCreateRequest } from '@/lib/api/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { PhoneInput } from '@/components/ui/phone-input'
+import { CONTA_BADGE, ORIGEM_BADGE } from '@/components/clientes/badges'
 import {
   Table,
   TableBody,
@@ -38,6 +41,29 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ClienteDetailSheet } from '@/components/clientes/cliente-detail-sheet'
 import { WhatsAppLink } from '@/components/whatsapp-link'
 
+/** Máscara visual de CPF (000.000.000-00) — envia só os dígitos formatados. */
+function formatCpf(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  return d
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d{1,2})$/, '.$1-$2')
+}
+
+function extractErrorMessage(e: unknown): string | undefined {
+  const data = (e as { response?: { data?: { message?: string; errors?: Record<string, string> } } })
+    ?.response?.data
+  if (data?.message) return data.message
+  if (data?.errors) return Object.values(data.errors).join('; ')
+  return undefined
+}
+
+/**
+ * Cadastro de cliente fora do balcão = captura de LEAD (ex.: operador na praia):
+ * rápido, mobile-first, cria pré-conta com dedupe por CPF e auto-convite ao
+ * portal quando houver e-mail. A ficha completa (documentos NORMAM, endereço,
+ * anexos) é preenchida depois, no balcão, quando o lead vier alugar.
+ */
 function ClienteFormDialog({
   cliente,
   open,
@@ -53,16 +79,40 @@ function ClienteFormDialog({
     nome: cliente?.nome || '',
     email: cliente?.email || '',
     telefone: cliente?.telefone || '',
-    cpf: cliente?.cpf || '',
+    documento: cliente?.documento || '',
     observacoes: cliente?.observacoes || '',
   })
+  const [duplicado, setDuplicado] = useState<Cliente | null>(null)
+
+  // Dedupe por CPF ao sair do campo (mesmo caminho do balcão)
+  const verificarCpf = async (documento?: string) => {
+    if (!documento || cliente) return
+    const existente = await clientesService.buscarPorCpf(documento).catch(() => null)
+    setDuplicado(existente ?? null)
+  }
 
   const createMutation = useMutation({
-    mutationFn: (data: ClienteCreateRequest) => clientesService.create(data),
-    onSuccess: () => {
+    mutationFn: (data: ClienteCreateRequest) =>
+      clientesService.criarPreConta(
+        {
+          nome: data.nome,
+          documento: data.documento || undefined,
+          email: data.email || undefined,
+          telefone: data.telefone || undefined,
+          observacoes: data.observacoes || undefined,
+        },
+        'LEAD'
+      ),
+    onSuccess: (criado, vars) => {
       queryClient.invalidateQueries({ queryKey: ['clientes'] })
+      toast.success(
+        vars.email
+          ? `Lead ${criado.nome} registrado — convite do portal enviado por e-mail.`
+          : `Lead ${criado.nome} registrado.`
+      )
       onOpenChange(false)
     },
+    onError: (e: unknown) => toast.error(extractErrorMessage(e) ?? 'Falha ao registrar o lead.'),
   })
 
   const updateMutation = useMutation({
@@ -70,8 +120,10 @@ function ClienteFormDialog({
       clientesService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clientes'] })
+      toast.success('Cliente atualizado.')
       onOpenChange(false)
     },
+    onError: (e: unknown) => toast.error(extractErrorMessage(e) ?? 'Falha ao salvar o cliente.'),
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -90,9 +142,11 @@ function ClienteFormDialog({
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>{cliente ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
+            <DialogTitle>{cliente ? 'Editar Cliente' : 'Novo lead'}</DialogTitle>
             <DialogDescription>
-              {cliente ? 'Atualize os dados do cliente' : 'Cadastre um novo cliente'}
+              {cliente
+                ? 'Atualize os dados do cliente'
+                : 'Registro rápido de interessado — a ficha completa é feita no balcão, na hora do aluguel'}
             </DialogDescription>
           </DialogHeader>
 
@@ -109,7 +163,15 @@ function ClienteFormDialog({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="telefone">Celular / WhatsApp</Label>
+              <PhoneInput
+                value={formData.telefone || ''}
+                onChange={(v) => setFormData({ ...formData, telefone: v })}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="email">E-mail</Label>
               <Input
                 id="email"
                 type="email"
@@ -117,35 +179,42 @@ function ClienteFormDialog({
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="email@exemplo.com"
               />
+              {!cliente && (
+                <p className="text-xs text-muted-foreground">
+                  Com e-mail, o cliente recebe automaticamente o convite do portal.
+                </p>
+              )}
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="telefone">Telefone</Label>
+              <Label htmlFor="documento">CPF</Label>
               <Input
-                id="telefone"
-                value={formData.telefone || ''}
-                onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                placeholder="(11) 99999-9999"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="cpf">CPF</Label>
-              <Input
-                id="cpf"
-                value={formData.cpf || ''}
-                onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
+                id="documento"
+                inputMode="numeric"
+                value={formData.documento || ''}
+                onChange={(e) => {
+                  setFormData({ ...formData, documento: formatCpf(e.target.value) })
+                  if (duplicado) setDuplicado(null)
+                }}
+                onBlur={() => verificarCpf(formData.documento)}
                 placeholder="000.000.000-00"
               />
+              {duplicado && (
+                <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                  Já existe um cliente com este CPF: {duplicado.nome}. Use a busca da lista para
+                  encontrá-lo em vez de duplicar.
+                </p>
+              )}
             </div>
 
             <div className="grid gap-2">
               <Label htmlFor="observacoes">Observações</Label>
-              <Input
+              <Textarea
                 id="observacoes"
+                rows={2}
                 value={formData.observacoes || ''}
                 onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
-                placeholder="Observações gerais"
+                placeholder={cliente ? 'Observações gerais' : 'Ex.: abordado na praia, interessado no fim de semana'}
               />
             </div>
           </div>
@@ -154,21 +223,14 @@ function ClienteFormDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Salvando...' : cliente ? 'Salvar' : 'Criar'}
+            <Button type="submit" disabled={isLoading || (!cliente && !!duplicado)}>
+              {isLoading ? 'Salvando...' : cliente ? 'Salvar' : 'Registrar lead'}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   )
-}
-
-const CONTA_BADGE: Record<ClienteStatusConta, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
-  ATIVA: { label: 'Ativa', variant: 'default' },
-  CONVIDADA: { label: 'Convidada', variant: 'secondary' },
-  PRE_CONTA: { label: 'Pré-conta', variant: 'outline' },
-  SEM_LOGIN: { label: 'Sem login', variant: 'outline' },
 }
 
 export default function ClientesPage() {
@@ -260,6 +322,7 @@ export default function ClientesPage() {
               <TableHead className="hidden sm:table-cell">Email</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead className="hidden sm:table-cell">CPF</TableHead>
+              <TableHead className="hidden sm:table-cell">Origem</TableHead>
               <TableHead>Conta</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
@@ -272,13 +335,14 @@ export default function ClientesPage() {
                   <TableCell className="hidden sm:table-cell"><Skeleton className="h-4 w-40" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                   <TableCell className="hidden sm:table-cell"><Skeleton className="h-4 w-28" /></TableCell>
+                  <TableCell className="hidden sm:table-cell"><Skeleton className="h-4 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-8 w-8" /></TableCell>
                 </TableRow>
               ))
             ) : filteredClientes?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <Users className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">Nenhum cliente encontrado</p>
@@ -318,7 +382,16 @@ export default function ClientesPage() {
                       '-'
                     )}
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell">{cliente.documento || cliente.cpf || '-'}</TableCell>
+                  <TableCell className="hidden sm:table-cell">{cliente.documento || '-'}</TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {cliente.origem ? (
+                      <Badge variant={ORIGEM_BADGE[cliente.origem].variant}>
+                        {ORIGEM_BADGE[cliente.origem].label}
+                      </Badge>
+                    ) : (
+                      '-'
+                    )}
+                  </TableCell>
                   <TableCell>
                     {cliente.statusConta ? (
                       <Badge variant={CONTA_BADGE[cliente.statusConta].variant}>

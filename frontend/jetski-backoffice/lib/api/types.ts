@@ -72,7 +72,7 @@ export interface JetskiUpdateRequest extends Partial<JetskiCreateRequest> {
 }
 
 // Cliente Module
-export type ClienteOrigem = 'PORTAL' | 'BALCAO'
+export type ClienteOrigem = 'PORTAL' | 'BALCAO' | 'LEAD'
 export type ClienteStatusConta = 'PRE_CONTA' | 'CONVIDADA' | 'ATIVA' | 'SEM_LOGIN'
 
 export interface Cliente extends BaseEntity {
@@ -86,8 +86,6 @@ export interface Cliente extends BaseEntity {
   orgaoEmissor?: string
   nacionalidade?: string
   naturalidade?: string
-  /** @deprecated usar `documento` (mantido p/ compat. de telas antigas). */
-  cpf?: string
   estrangeiro?: boolean
   dataNascimento?: string
   genero?: string
@@ -97,13 +95,15 @@ export interface Cliente extends BaseEntity {
   statusConta?: ClienteStatusConta
   ativo?: boolean
   observacoes?: string
+  /** Staff que registrou o lead/pré-conta (nome só vem no GET de detalhe). */
+  capturadoPor?: string
+  capturadoPorNome?: string
 }
 
 export interface ClienteCreateRequest {
   nome: string
   email?: string
   telefone?: string
-  cpf?: string
   documento?: string
   rg?: string
   orgaoEmissor?: string
@@ -118,13 +118,14 @@ export interface ClienteCreateRequest {
   observacoes?: string
 }
 
-/** Pré-conta de balcão (atendimento assistido). */
+/** Pré-conta (balcão ou lead capturado fora do balcão). */
 export interface ClientePreContaRequest {
   nome: string
   documento?: string
   email?: string
   telefone?: string
   whatsapp?: string
+  observacoes?: string
 }
 
 // PIX Key Types

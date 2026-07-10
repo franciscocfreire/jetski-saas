@@ -154,12 +154,24 @@ public class Cliente {
     private Instant updatedAt;
 
     /**
-     * Origem do cadastro: PORTAL (self-service) ou BALCAO (atendimento assistido).
+     * Origem do cadastro: PORTAL (self-service), BALCAO (atendimento assistido)
+     * ou LEAD (captado por um operador fora do balcão, ex.: na praia).
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "origem", nullable = false, length = 20)
     @Builder.Default
     private Origem origem = Origem.PORTAL;
+
+    /** Notas livres do staff sobre o cliente (visíveis só no backoffice). */
+    @Column(name = "observacoes")
+    private String observacoes;
+
+    /**
+     * Usuário do staff que registrou o lead/pré-conta — base para métrica de
+     * conversão e comissão de captação (futuras). Null para cadastros do portal.
+     */
+    @Column(name = "capturado_por")
+    private UUID capturadoPor;
 
     /**
      * Estado da conta do cliente (ciclo da pré-conta → ativa).
@@ -191,7 +203,8 @@ public class Cliente {
     /** Origem do cadastro do cliente. */
     public enum Origem {
         PORTAL,
-        BALCAO
+        BALCAO,
+        LEAD
     }
 
     /**

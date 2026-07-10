@@ -39,9 +39,12 @@ public class ClienteResponse {
     private String whatsapp;
     private String enderecoJson;
     private Boolean termoAceite;
+    private String observacoes;
     private String origem;
     private String statusConta;
     private Boolean ativo;
+    private UUID capturadoPor;
+    private String capturadoPorNome;
     private Instant createdAt;
     private Instant updatedAt;
 }

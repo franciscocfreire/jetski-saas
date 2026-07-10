@@ -572,6 +572,19 @@ ALTER TABLE public.reserva_habilitacao ADD COLUMN IF NOT EXISTS cha_mtae_s3_key 
 ALTER TABLE public.documento_emitido ADD COLUMN IF NOT EXISTS marinha_enviado_em timestamptz;
 ALTER TABLE public.documento_emitido ADD COLUMN IF NOT EXISTS cliente_enviado_em timestamptz;
 
+-- V040: captura de leads (origem LEAD + observacoes + capturado_por)
+ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS observacoes   text;
+ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS capturado_por uuid;
+DO $$ BEGIN
+    ALTER TABLE public.cliente
+        ADD CONSTRAINT cliente_capturado_por_fk
+            FOREIGN KEY (capturado_por) REFERENCES public.usuario (id);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+ALTER TABLE public.cliente DROP CONSTRAINT IF EXISTS cliente_origem_check;
+ALTER TABLE public.cliente
+    ADD CONSTRAINT cliente_origem_check
+        CHECK ((origem)::text = ANY (ARRAY['PORTAL'::text, 'BALCAO'::text, 'LEAD'::text]));
+
 -- F3 instrutores (V011): cadastro p/ o Atestado de Demonstração 5-B-1
 CREATE TABLE IF NOT EXISTS public.instrutor (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
