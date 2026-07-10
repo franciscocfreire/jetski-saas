@@ -33,6 +33,13 @@ public final class EmailTemplates {
     public static final String TENANT_SUSPENDED_SUBJECT = "Meu Jet - Acesso da sua empresa suspenso";
     public static final String TENANT_REACTIVATED_SUBJECT = "Meu Jet - Acesso da sua empresa reativado";
 
+    /** Assunto do aviso de trial vencendo (D-3/D-1). */
+    public static String trialWarningSubject(int diasRestantes) {
+        return diasRestantes == 1
+            ? "Meu Jet - Seu período de teste termina amanhã"
+            : "Meu Jet - Seu período de teste termina em " + diasRestantes + " dias";
+    }
+
     /** Cabeçalho de marca compartilhado: wordmark em texto (imagens são bloqueadas por clientes de email). */
     private static final String BRAND_HEADER = """
                     <p style="font-family: Georgia, 'Times New Roman', serif; font-size: 20px;
@@ -73,6 +80,42 @@ public final class EmailTemplates {
             </body>
             </html>
             """, BRAND_HEADER, razaoSocial, slug);
+    }
+
+    public static String trialWarningHtml(String razaoSocial, int diasRestantes, String dataFim) {
+        String prazo = diasRestantes == 1 ? "termina <strong>amanhã</strong>" :
+            String.format("termina em <strong>%d dias</strong>", diasRestantes);
+        return String.format("""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+            </head>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #FCFAF6;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            %s
+                    <h2 style="color: #1E4266;">Seu período de teste está acabando</h2>
+
+                    <p>O período de teste da empresa <strong>%s</strong> no <strong>Meu Jet</strong>
+                       %s (em %s).</p>
+
+                    <div style="background-color: #F8F4EA; padding: 15px; margin: 20px 0; border-left: 4px solid #C9A24B;">
+                        <p style="margin: 5px 0;">Após essa data, o acesso da sua equipe é
+                        <strong>suspenso automaticamente</strong> até a contratação de um plano.</p>
+                    </div>
+
+                    <p>Para continuar usando o sistema sem interrupção, fale com o suporte do
+                       Meu Jet e escolha o plano ideal para a sua operação.</p>
+
+                    <hr style="border: none; border-top: 1px solid #E3D9C2; margin: 30px 0;">
+
+                    <p style="color: #999; font-size: 12px;">
+                        Meu Jet — notificação automática de plataforma
+                    </p>
+                </div>
+            </body>
+            </html>
+            """, BRAND_HEADER, razaoSocial, prazo, dataFim);
     }
 
     /** Assunto do aviso de mudança de status conforme a ação do evento. */

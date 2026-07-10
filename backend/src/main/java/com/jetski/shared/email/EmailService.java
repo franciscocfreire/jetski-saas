@@ -85,6 +85,17 @@ public interface EmailService {
      */
     void sendTenantStatusNotification(String to, String acao, String razaoSocial, String motivo);
 
+    /**
+     * Avisa um administrador da empresa que o período de teste está para vencer
+     * (enviado em D-3 e D-1 pelo job de expiração). Best-effort.
+     *
+     * @param to            email do admin da empresa
+     * @param razaoSocial   razão social da empresa
+     * @param diasRestantes dias até o fim do trial (3 ou 1)
+     * @param dataFim       data (dd/MM/yyyy) em que o trial vence
+     */
+    void sendTrialWarningNotification(String to, String razaoSocial, int diasRestantes, String dataFim);
+
     /** Envia um e-mail HTML simples (sem anexo). */
     void sendEmail(String to, String subject, String htmlBody);
 }

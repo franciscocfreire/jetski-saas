@@ -3,6 +3,7 @@ package com.jetski.usuarios.internal;
 import com.jetski.shared.email.EmailService;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.tenant.domain.event.TenantStatusChangedEvent;
+import com.jetski.tenant.domain.event.TrialExpiringEvent;
 import com.jetski.usuarios.internal.repository.MembroRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -66,6 +68,34 @@ public class TenantStatusEmailListener {
                 event.tenantId(), event.acao(), e.getMessage());
         } finally {
             TenantContext.clear(); // thread de pool é reutilizada
+        }
+    }
+
+    /** Aviso de trial vencendo (D-3/D-1, publicado pelo job de expiração). */
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onTrialExpiring(TrialExpiringEvent event) {
+        try {
+            TenantContext.setTenantId(event.tenantId());
+            List<String> emails = membroRepository
+                .findActiveMemberEmailsByTenantIdAndRole(event.tenantId(), ADMIN_ROLE);
+            String dataFim = event.dataFim().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            for (String to : emails) {
+                try {
+                    emailService.sendTrialWarningNotification(
+                        to, event.razaoSocial(), event.diasRestantes(), dataFim);
+                } catch (Exception e) {
+                    log.warn("Falha (ignorada) ao avisar admin {} sobre trial vencendo da empresa {}: {}",
+                        to, event.slug(), e.getMessage());
+                }
+            }
+            log.info("Aviso de trial vencendo enviado: tenant={}, faltam {} dias, destinatarios={}",
+                event.tenantId(), event.diasRestantes(), emails.size());
+        } catch (Exception e) {
+            log.warn("Aviso de trial vencendo falhou (best-effort): tenant={}, {}",
+                event.tenantId(), e.getMessage());
+        } finally {
+            TenantContext.clear();
         }
     }
 }

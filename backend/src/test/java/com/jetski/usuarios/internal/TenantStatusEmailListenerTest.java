@@ -2,6 +2,7 @@ package com.jetski.usuarios.internal;
 
 import com.jetski.shared.email.EmailService;
 import com.jetski.tenant.domain.event.TenantStatusChangedEvent;
+import com.jetski.tenant.domain.event.TrialExpiringEvent;
 import com.jetski.usuarios.internal.repository.MembroRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -96,5 +97,17 @@ class TenantStatusEmailListenerTest {
 
         assertThatCode(() -> listener.onTenantStatusChanged(evento("TENANT_APPROVED", null)))
             .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("trial vencendo → avisa cada admin com dias restantes e data formatada")
+    void avisaTrialVencendo() {
+        when(membroRepository.findActiveMemberEmailsByTenantIdAndRole(tenant, "ADMIN_TENANT"))
+            .thenReturn(List.of("dono@acme.com"));
+
+        listener.onTrialExpiring(TrialExpiringEvent.of(
+            tenant, "ACME Ltda", "acme", 3, java.time.LocalDate.of(2026, 7, 23)));
+
+        verify(emailService).sendTrialWarningNotification("dono@acme.com", "ACME Ltda", 3, "23/07/2026");
     }
 }

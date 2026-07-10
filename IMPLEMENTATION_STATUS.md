@@ -40,6 +40,7 @@ Estrutura de pacotes por módulo: `api/` (controllers, DTOs) · `domain/` (entid
 - `Tenant`, `TenantStatus`, `ComissaoConfig` (config de comissão por tenant), `TenantConfigController`.
 - `signup` — onboarding self-service (`TenantSignup`, `SignupStatus`, `TenantSignupController`).
 - **Onboarding com aprovação** (ver `ONBOARDING_EMPRESA_SPEC.md`): signup cria tenant `PENDENTE_APROVACAO` (trial só na aprovação); gate de status no `TenantFilter`; super admin (`usuario_global_roles.unrestricted_access` → OPA god-mode) aprova/suspende/reativa via `PlatformTenantController` + painel `dashboard/plataforma`; auditoria via `TenantStatusChangedEvent`; e-mails best-effort — super admin avisado no signup, empresa avisada na mudança de status (`TenantStatusEmailListener` p/ ADMIN_TENANT, `SignupTenantApprovedListener` p/ signup ainda não ativado).
+- **Trial REAL de 14 dias**: `TrialExpirationJob` (diário 05:15) + `TrialExpirationService` — vencido → assinatura `expirada` + empresa SUSPENSA automaticamente (reusa o fluxo de suspensão: e-mail/auditoria/cache); avisos D-3/D-1 por e-mail (`TrialExpiringEvent`). Painel de plataforma mostra plano + vencimento (leitura da `assinatura` tenant-a-tenant via `SET LOCAL`, sem bypass de RLS). Limites de plano além de `usuarios_max` (frota, storage, locações/mês) ainda NÃO são enforçados.
 
 ### ✅ usuarios
 - Entidades: `Usuario`, `Membro` (relação usuário-tenant + papéis), `Convite`, `UsuarioIdentityProvider`.

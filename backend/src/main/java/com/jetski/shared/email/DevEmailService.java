@@ -172,6 +172,16 @@ public class DevEmailService implements EmailService {
     }
 
     @Override
+    public void sendTrialWarningNotification(String to, String razaoSocial, int diasRestantes, String dataFim) {
+        String subject = EmailTemplates.trialWarningSubject(diasRestantes);
+        String body = String.format(
+            "Trial vencendo:%n  Empresa: %s%n  Dias restantes: %d%n  Vence em: %s%n",
+            razaoSocial, diasRestantes, dataFim);
+        logAndSaveEmail(to, subject, body);
+        maybeSendViaSmtp(to, subject, EmailTemplates.trialWarningHtml(razaoSocial, diasRestantes, dataFim));
+    }
+
+    @Override
     public void sendTenantStatusNotification(String to, String acao, String razaoSocial, String motivo) {
         String subject = EmailTemplates.tenantStatusSubject(acao);
         String body = String.format(

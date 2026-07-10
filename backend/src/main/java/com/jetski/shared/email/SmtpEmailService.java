@@ -69,6 +69,12 @@ public class SmtpEmailService implements EmailService {
     }
 
     @Override
+    public void sendTrialWarningNotification(String to, String razaoSocial, int diasRestantes, String dataFim) {
+        sendEmail(to, EmailTemplates.trialWarningSubject(diasRestantes),
+            EmailTemplates.trialWarningHtml(razaoSocial, diasRestantes, dataFim));
+    }
+
+    @Override
     public void sendEmailComAnexo(String to, String subject, String htmlBody,
                                   String attachmentName, byte[] attachment, String attachmentContentType) {
         try {
