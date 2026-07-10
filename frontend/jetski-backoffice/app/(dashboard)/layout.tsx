@@ -65,6 +65,17 @@ export default function DashboardLayout({
 
           // Garante um tenant atual (e X-Tenant-Id) antes de chamadas tenant-scoped
           let current = currentTenant
+          if (current) {
+            // Reconcilia o tenant persistido (zustand/localStorage) com a resposta
+            // fresca: o status muda no servidor (aprovação/suspensão) e o snapshot
+            // local não pode prender o usuário num gate desatualizado até relogar.
+            const fresh = memberships.find((t) => t.id === current!.id)
+            if (fresh && fresh.status !== current.status) {
+              console.log('🔄 Tenant status atualizado:', current.status, '→', fresh.status)
+              setCurrentTenant(fresh)
+            }
+            if (fresh) current = fresh
+          }
           if (!current && memberships.length > 0) {
             current = memberships[0]
             console.log('🏢 Auto-selecting first tenant:', current)
