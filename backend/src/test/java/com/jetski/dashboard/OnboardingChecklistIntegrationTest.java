@@ -42,6 +42,7 @@ class OnboardingChecklistIntegrationTest extends AbstractIntegrationTest {
         OnboardingChecklistResponse inicial = checklistService.checklist(tenantId);
         assertThat(inicial.temModelo()).isFalse();
         assertThat(inicial.temJetski()).isFalse();
+        assertThat(inicial.temInstrutor()).isFalse();
         assertThat(inicial.marinhaEmailConfigurado()).isFalse();
         assertThat(inicial.pixConfigurado()).isFalse();
         assertThat(inicial.equipeConvidada()).isFalse();
@@ -61,6 +62,12 @@ class OnboardingChecklistIntegrationTest extends AbstractIntegrationTest {
             VALUES (?, ?, ?, 'SN-ONB-01', 0, 'DISPONIVEL', TRUE)
             """, UUID.randomUUID(), tenantId, modeloId);
 
+        // Instrutor (Atestado 5-B-1)
+        jdbc.update("""
+            INSERT INTO instrutor (id, tenant_id, nome, ativo)
+            VALUES (?, ?, 'Instrutor Onb', TRUE)
+            """, UUID.randomUUID(), tenantId);
+
         // Configurações da empresa
         jdbc.update("UPDATE tenant SET marinha_email = 'capitania@teste.com', pix_chave = 'pix@onb.com' WHERE id = ?",
             tenantId);
@@ -68,6 +75,7 @@ class OnboardingChecklistIntegrationTest extends AbstractIntegrationTest {
         OnboardingChecklistResponse depois = checklistService.checklist(tenantId);
         assertThat(depois.temModelo()).isTrue();
         assertThat(depois.temJetski()).isTrue();
+        assertThat(depois.temInstrutor()).isTrue();
         assertThat(depois.marinhaEmailConfigurado()).isTrue();
         assertThat(depois.pixConfigurado()).isTrue();
         assertThat(depois.equipeConvidada()).isFalse();   // admin ainda não ativou / ninguém convidado

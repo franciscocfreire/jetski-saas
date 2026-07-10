@@ -924,6 +924,7 @@ export interface DashboardMetrics {
 export interface OnboardingChecklist {
   temModelo: boolean
   temJetski: boolean
+  temInstrutor: boolean
   marinhaEmailConfigurado: boolean
   pixConfigurado: boolean
   equipeConvidada: boolean

@@ -6,6 +6,7 @@ package com.jetski.dashboard.api.dto;
  *
  * @param temModelo               há pelo menos um modelo ativo (pré-requisito de reserva)
  * @param temJetski               há pelo menos um jetski ativo (pré-requisito de check-in)
+ * @param temInstrutor            há pelo menos um instrutor ativo (Atestado 5-B-1 da emissão)
  * @param marinhaEmailConfigurado tenant.marinha_email preenchido (envio de EMA à Marinha)
  * @param pixConfigurado          tenant.pix_chave preenchida (sinal PIX do portal)
  * @param equipeConvidada         mais de um membro ativo (além do admin fundador)
@@ -17,6 +18,7 @@ package com.jetski.dashboard.api.dto;
 public record OnboardingChecklistResponse(
     boolean temModelo,
     boolean temJetski,
+    boolean temInstrutor,
     boolean marinhaEmailConfigurado,
     boolean pixConfigurado,
     boolean equipeConvidada,
@@ -24,11 +26,12 @@ public record OnboardingChecklistResponse(
     boolean completo
 ) {
     public static OnboardingChecklistResponse of(
-            boolean temModelo, boolean temJetski, boolean marinhaEmailConfigurado,
-            boolean pixConfigurado, boolean equipeConvidada, boolean primeiraLocacaoFeita) {
-        boolean completo = temModelo && temJetski && marinhaEmailConfigurado
+            boolean temModelo, boolean temJetski, boolean temInstrutor,
+            boolean marinhaEmailConfigurado, boolean pixConfigurado,
+            boolean equipeConvidada, boolean primeiraLocacaoFeita) {
+        boolean completo = temModelo && temJetski && temInstrutor && marinhaEmailConfigurado
             && pixConfigurado && equipeConvidada && primeiraLocacaoFeita;
-        return new OnboardingChecklistResponse(temModelo, temJetski, marinhaEmailConfigurado,
-            pixConfigurado, equipeConvidada, primeiraLocacaoFeita, completo);
+        return new OnboardingChecklistResponse(temModelo, temJetski, temInstrutor,
+            marinhaEmailConfigurado, pixConfigurado, equipeConvidada, primeiraLocacaoFeita, completo);
     }
 }

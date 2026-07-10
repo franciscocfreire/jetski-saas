@@ -30,20 +30,22 @@ public class OnboardingChecklistService {
         Map<String, Object> row = jdbcTemplate.queryForMap(
             """
             SELECT
-              (SELECT count(*) FROM modelo  WHERE tenant_id = ? AND ativo)  AS modelos,
-              (SELECT count(*) FROM jetski  WHERE tenant_id = ? AND ativo)  AS jetskis,
-              (SELECT count(*) FROM membro  WHERE tenant_id = ? AND ativo)  AS membros,
-              (SELECT count(*) FROM locacao WHERE tenant_id = ?)            AS locacoes,
+              (SELECT count(*) FROM modelo    WHERE tenant_id = ? AND ativo)  AS modelos,
+              (SELECT count(*) FROM jetski    WHERE tenant_id = ? AND ativo)  AS jetskis,
+              (SELECT count(*) FROM instrutor WHERE tenant_id = ? AND ativo)  AS instrutores,
+              (SELECT count(*) FROM membro    WHERE tenant_id = ? AND ativo)  AS membros,
+              (SELECT count(*) FROM locacao   WHERE tenant_id = ?)            AS locacoes,
               (SELECT marinha_email IS NOT NULL AND marinha_email <> ''
-                 FROM tenant WHERE id = ?)                                  AS marinha,
+                 FROM tenant WHERE id = ?)                                    AS marinha,
               (SELECT pix_chave IS NOT NULL AND pix_chave <> ''
-                 FROM tenant WHERE id = ?)                                  AS pix
+                 FROM tenant WHERE id = ?)                                    AS pix
             """,
-            tenantId, tenantId, tenantId, tenantId, tenantId, tenantId);
+            tenantId, tenantId, tenantId, tenantId, tenantId, tenantId, tenantId);
 
         return OnboardingChecklistResponse.of(
             asLong(row.get("modelos")) > 0,
             asLong(row.get("jetskis")) > 0,
+            asLong(row.get("instrutores")) > 0,
             Boolean.TRUE.equals(row.get("marinha")),
             Boolean.TRUE.equals(row.get("pix")),
             asLong(row.get("membros")) > 1, // mais que o admin fundador

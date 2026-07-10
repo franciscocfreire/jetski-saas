@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleDollarSign,
+  GraduationCap,
   Mail,
   Rocket,
   Ship,
@@ -46,6 +47,13 @@ const PASSOS: Passo[] = [
     descricao: 'Cada jetski pertence a um modelo e entra na agenda',
     href: '/dashboard/jetskis',
     icon: Anchor,
+  },
+  {
+    key: 'temInstrutor',
+    titulo: 'Cadastre um instrutor',
+    descricao: 'Assina o Atestado de Demonstração (5-B-1) na emissão de documentos',
+    href: '/dashboard/instrutores',
+    icon: GraduationCap,
   },
   {
     key: 'marinhaEmailConfigurado',
