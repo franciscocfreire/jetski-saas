@@ -26,7 +26,7 @@ export default function PrivacidadePage() {
 
         <p className="mt-6">
           Esta Política descreve como a plataforma <strong>Meu Jet</strong>, operada por{' '}
-          <strong>[RAZÃO SOCIAL DA EMPRESA]</strong> (CNPJ <strong>[CNPJ]</strong>), trata dados
+          <strong>Fcf Tecnologia Ltda</strong> (CNPJ <strong>93.365.124/0001-51</strong>), trata dados
           pessoais, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 —
           &ldquo;LGPD&rdquo;). Ela vale para o site meujet.com.br, o painel das locadoras
           (backoffice) e o Portal do Cliente. Leia-a junto com os{' '}
@@ -182,7 +182,7 @@ export default function PrivacidadePage() {
 
         <H2>10. Encarregado e contato</H2>
         <p>
-          Encarregado pelo tratamento de dados (DPO): <strong>[NOME DO ENCARREGADO]</strong> —{' '}
+          Encarregado pelo tratamento de dados (DPO): <strong>Fcf Tecnologia Ltda</strong> —{' '}
           <a href="mailto:suporte@meujet.com.br" className="text-sky-700 underline">
             suporte@meujet.com.br
           </a>
