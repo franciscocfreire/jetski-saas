@@ -14,12 +14,17 @@ set -a; . ./.env; set +a
 KC="${KC_URL:-http://127.0.0.1:8080}"
 REALM="${KC_REALM:-jetski-saas}"
 
-if [ -z "${GMAIL_USER:-}" ] || [ -z "${GMAIL_APP_PASSWORD:-}" ]; then
-  echo ">> GMAIL_USER/GMAIL_APP_PASSWORD vazios — pulei a config de SMTP do Keycloak."
+SMTP_HOST="${PLATFORM_SMTP_HOST:-smtp.gmail.com}"
+SMTP_PORT="${PLATFORM_SMTP_PORT:-587}"
+SMTP_USER="${PLATFORM_SMTP_USERNAME:-${GMAIL_USER:-}}"
+SMTP_PASS="${PLATFORM_SMTP_PASSWORD:-${GMAIL_APP_PASSWORD:-}}"
+SMTP_FROM="${PLATFORM_SMTP_FROM:-${GMAIL_USER:-}}"
+if [ -z "$SMTP_USER" ] || [ -z "$SMTP_PASS" ]; then
+  echo ">> SMTP da plataforma sem credenciais (PLATFORM_SMTP_*/GMAIL_*) — pulei a config de SMTP do Keycloak."
   exit 0
 fi
 
-echo ">> Keycloak SMTP do realm: host=smtp.gmail.com from=$GMAIL_USER"
+echo ">> Keycloak SMTP do realm: host=$SMTP_HOST from=$SMTP_FROM"
 
 TOKEN=$(curl -s -X POST "$KC/realms/master/protocol/openid-connect/token" \
   -d client_id=admin-cli -d grant_type=password \
@@ -29,14 +34,14 @@ TOKEN=$(curl -s -X POST "$KC/realms/master/protocol/openid-connect/token" \
 
 # GET realm → adiciona smtpServer → PUT (atualização do realm; não toca clients/users/roles)
 curl -s "$KC/admin/realms/$REALM" -H "Authorization: Bearer $TOKEN" \
-  | GUSER="$GMAIL_USER" GPASS="$GMAIL_APP_PASSWORD" python3 -c '
+  | GHOST="$SMTP_HOST" GPORT="$SMTP_PORT" GUSER="$SMTP_USER" GPASS="$SMTP_PASS" GFROM="$SMTP_FROM" python3 -c '
 import sys, json, os
 r = json.load(sys.stdin)
 user = os.environ["GUSER"]; pwd = os.environ["GPASS"]
 r["smtpServer"] = {
-    "host": "smtp.gmail.com",
-    "port": "587",
-    "from": user,
+    "host": os.environ["GHOST"],
+    "port": os.environ["GPORT"],
+    "from": os.environ["GFROM"] or user,
     "fromDisplayName": "Meu Jet",
     "auth": "true",
     "user": user,

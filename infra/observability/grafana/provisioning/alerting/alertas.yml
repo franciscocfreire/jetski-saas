@@ -188,3 +188,118 @@ groups:
               refId: C
               conditions:
                 - evaluator: { type: gt, params: [20] }
+
+      # ------------------------------------------------------------------
+      # Dependências internas (telegraf net_response): uma instância de
+      # alerta por serviço caído (labels server/port no e-mail).
+      - uid: dependencia-down
+        title: Dependência interna fora do ar
+        condition: C
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: >-
+            Serviço interno sem resposta TCP há 3 minutos (postgres/redis/
+            keycloak/opa — ver label "server"). O backend depende dele.
+            Ver `docker compose ps` no servidor.
+        isPaused: false
+        noDataState: Alerting
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: Prometheus
+            model:
+              expr: net_response_result_code
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      # ------------------------------------------------------------------
+      # Cloudflare Tunnel: sem conexões HA = site fora do ar para o público
+      # (mesmo com tudo saudável internamente).
+      - uid: tunnel-down
+        title: Cloudflare Tunnel sem conexões
+        condition: C
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: >-
+            cloudflared sem conexões ativas com a Cloudflare há 5 minutos —
+            o site está inacessível ao público. Ver `docker compose logs
+            cloudflared` (token expirado? rede?).
+        isPaused: false
+        # OK em NoData: dev roda o cloudflared no host (sem métricas) e o
+        # container de prod tem restart automático — o cenário coberto aqui
+        # é "tunnel vivo porém sem conexões com a Cloudflare".
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: Prometheus
+            model:
+              expr: max(cloudflared_tunnel_ha_connections)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      # ------------------------------------------------------------------
+      # Backup diário: marcador last-success com mais de 26h = o backup das
+      # 04:00 falhou/não rodou. Em DEV o arquivo não existe → noDataState OK
+      # (sem falso alarme).
+      - uid: backup-desatualizado
+        title: Backup diário não rodou
+        condition: C
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: >-
+            O marcador ~/backups/meujet/last-success tem mais de 26 horas —
+            o backup diário (systemd timer 04:00) falhou ou não rodou. Ver
+            `journalctl -u meujet-backup` e ~/backups/meujet/backup.log.
+        isPaused: false
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: Prometheus
+            model:
+              expr: time() - max(filestat_modification_time{file=~".*last-success"}) / 1e9
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [93600] }

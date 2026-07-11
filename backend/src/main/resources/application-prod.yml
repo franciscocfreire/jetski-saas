@@ -49,12 +49,13 @@ spring:
     redis:
       time-to-live: 3600000  # 1 hour
 
-  # Email SMTP Configuration (Gmail)
+  # SMTP da plataforma — genérico (trocar de provedor = editar .env; sem código).
+  # Fallback: Gmail (GMAIL_USER/GMAIL_APP_PASSWORD), o provedor atual.
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: ${GMAIL_USER:}
-    password: ${GMAIL_APP_PASSWORD:}
+    host: ${PLATFORM_SMTP_HOST:smtp.gmail.com}
+    port: ${PLATFORM_SMTP_PORT:587}
+    username: ${PLATFORM_SMTP_USERNAME:${GMAIL_USER:}}
+    password: ${PLATFORM_SMTP_PASSWORD:${GMAIL_APP_PASSWORD:}}
     properties:
       mail:
         smtp:
@@ -123,7 +124,7 @@ jetski:
   opa:
     base-url: ${JETSKI_OPA_BASE_URL:http://opa:8181}
   email:
-    from: ${GMAIL_USER:noreply@meujet.com.br}
+    from: ${PLATFORM_SMTP_FROM:${GMAIL_USER:noreply@meujet.com.br}}
     from-name: Meu Jet
   frontend:
     url: ${JETSKI_FRONTEND_URL:https://meujet.com.br}

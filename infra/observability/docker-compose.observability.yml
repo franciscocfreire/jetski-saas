@@ -102,6 +102,9 @@ services:
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Marcador do backup diário (alerta de backup velho). Em dev o dir
+      # placeholder fica vazio — o alerta trata ausência como OK.
+      - ${MEUJET_BACKUP_DIR:-/tmp/meujet-backup-placeholder}:/host/backups:ro
     mem_limit: 192m
     networks:
       - app
@@ -124,10 +127,10 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       # Alertas por e-mail — reaproveita o Gmail do backend (.env)
       GF_SMTP_ENABLED: ${GRAFANA_SMTP_ENABLED:-true}
-      GF_SMTP_HOST: ${GRAFANA_SMTP_HOST:-smtp.gmail.com:587}
-      GF_SMTP_USER: ${GMAIL_USER:-}
-      GF_SMTP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
-      GF_SMTP_FROM_ADDRESS: ${GMAIL_USER:-grafana@localhost}
+      GF_SMTP_HOST: ${PLATFORM_SMTP_HOST:-smtp.gmail.com}:${PLATFORM_SMTP_PORT:-587}
+      GF_SMTP_USER: ${PLATFORM_SMTP_USERNAME:-${GMAIL_USER:-}}
+      GF_SMTP_PASSWORD: ${PLATFORM_SMTP_PASSWORD:-${GMAIL_APP_PASSWORD:-}}
+      GF_SMTP_FROM_ADDRESS: ${PLATFORM_SMTP_FROM:-${GMAIL_USER:-grafana@localhost}}
       GF_SMTP_FROM_NAME: Grafana Meu Jet
       # destinatário dos alertas (usado pelo provisioning de alerting)
       GRAFANA_ALERT_EMAIL: ${GRAFANA_ALERT_EMAIL:-${GMAIL_USER:-ops@localhost}}

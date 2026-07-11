@@ -267,17 +267,17 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Origens permitidas (deve vir de configuração por tenant)
+        // Origens permitidas. Wildcard de ngrok foi REMOVIDO (P1 do lançamento):
+        // com allowCredentials=true, qualquer subdomínio ngrok-free.app de
+        // terceiros poderia fazer chamadas credenciadas — os túneis de dev
+        // hoje são os domínios pegaojet.
         configuration.setAllowedOriginPatterns(List.of(
             "http://localhost:3000",      // Frontend local (dev)
             "http://localhost:3001",      // Backoffice local (dev)
             "http://localhost:3002",      // Backoffice Next.js (dev)
             "http://localhost:3003",      // Portal do cliente (dev)
-            "https://*.ngrok-free.app",   // ngrok URLs (dev)
-            "https://*.jetski.app",       // Mobile app (produção)
-            "https://*.jetski.com.br",    // Web app (produção)
-            "https://pegaojet.com.br",    // Cloudflare tunnel (produção)
-            "https://*.pegaojet.com.br",  // Cloudflare tunnel subdomains (produção)
+            "https://pegaojet.com.br",    // Cloudflare tunnel (dev)
+            "https://*.pegaojet.com.br",  // Cloudflare tunnel subdomains (dev)
             "https://meujet.com.br",     // Cloudflare tunnel (produção)
             "https://*.meujet.com.br"    // Cloudflare tunnel subdomains (produção)
         ));
