@@ -24,6 +24,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(@NonNull InterceptorRegistry registry) {
         registry.addInterceptor(abacAuthorizationInterceptor)
+            .order(0) // autorização SEMPRE antes do gating de módulo (ver ModuloPlanoInterceptor)
             .addPathPatterns("/**")  // Aplica a todos os endpoints (context-path /api já está no request)
             .excludePathPatterns(
                 "/v1/auth-test/public",  // Endpoint público

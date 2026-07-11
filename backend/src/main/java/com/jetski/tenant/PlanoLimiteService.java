@@ -68,4 +68,62 @@ public class PlanoLimiteService {
                 recurso, usoAtual, max));
         }
     }
+
+    /**
+     * Módulos do plano do tenant (V046). Sentinela {@code "*"} = todos
+     * (plano.modulos NULL, sem assinatura ou falha de leitura — nunca
+     * degrada a oferta por erro). Cacheado (evict na troca de plano e ao
+     * salvar módulos — {@code PlatformFaturaService}).
+     */
+    @org.springframework.cache.annotation.Cacheable(value = "plano-modulos", key = "#tenantId")
+    @Transactional(readOnly = true,
+        propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public List<String> modulosDoPlano(UUID tenantId) {
+        try {
+            // GUC transaction-local: este método também atende chamadas SEM tenant
+            // no contexto (ex.: /v1/user/tenants lista várias empresas). Sem isto a
+            // RLS de assinatura estoura cast de '' para uuid; REQUIRES_NEW evita que
+            // esse erro marque a transação do chamador como rollback-only.
+            entityManager.createNativeQuery("SELECT set_config('app.tenant_id', :tid, true)")
+                .setParameter("tid", tenantId.toString())
+                .getSingleResult();
+            List<?> rows = entityManager.createNativeQuery(
+                    "SELECT p.modulos::text FROM assinatura a "
+                    + "JOIN plano p ON p.id = a.plano_id "
+                    + "WHERE a.tenant_id = :tid AND a.status = 'ativa' "
+                    + "ORDER BY a.created_at DESC LIMIT 1")
+                .setParameter("tid", tenantId)
+                .getResultList();
+            // ArrayList (não List.of/copyOf): o serializer do cache Redis só
+            // grava type info para tipos concretos — ImmutableCollections volta
+            // como array cru e explode na desserialização.
+            if (rows.isEmpty() || rows.get(0) == null) {
+                return new java.util.ArrayList<>(List.of("*"));
+            }
+            List<String> modulos = new java.util.ArrayList<>();
+            for (Object o : com.fasterxml.jackson.databind.json.JsonMapper.builder().build()
+                    .readValue((String) rows.get(0), java.util.List.class)) {
+                modulos.add(String.valueOf(o));
+            }
+            return modulos;
+        } catch (Exception e) {
+            log.warn("Falha ao ler módulos do plano do tenant {}: {}", tenantId, e.getMessage());
+            return new java.util.ArrayList<>(List.of("*"));
+        }
+    }
+
+    /** True se o módulo está incluído no plano do tenant. */
+    public boolean moduloHabilitado(UUID tenantId, ModuloPlano modulo) {
+        List<String> modulos = modulosDoPlano(tenantId);
+        return modulos.contains("*") || modulos.contains(modulo.name());
+    }
+
+    /** Nega (400) com mensagem de upgrade se o módulo não está no plano. */
+    public void verificarModulo(UUID tenantId, ModuloPlano modulo) {
+        if (!moduloHabilitado(tenantId, modulo)) {
+            throw new BusinessException(
+                "O módulo \"" + modulo.rotulo() + "\" não está incluído no seu plano. "
+                + "Faça upgrade em Plano e Faturas para habilitá-lo.");
+        }
+    }
 }

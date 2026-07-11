@@ -47,6 +47,7 @@ public class UserTenantsController {
     private final TenantAccessService tenantAccessService;
     private final IdentityProviderMappingService identityMappingService;
     private final TenantQueryService tenantQueryService;
+    private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
 
     /**
      * GET /api/v1/user/tenants
@@ -155,12 +156,16 @@ public class UserTenantsController {
         return membros.stream()
             .map(membro -> {
                 Tenant tenant = tenantsMap.get(membro.getTenantId());
+                // Módulos do plano (V046): null = todos — o menu do backoffice
+                // filtra por isto (sentinela "*" vira null p/ o frontend)
+                List<String> modulos = planoLimiteService.modulosDoPlano(membro.getTenantId());
                 return TenantSummary.builder()
                     .id(membro.getTenantId())
                     .slug(tenant != null ? tenant.getSlug() : null)
                     .razaoSocial(tenant != null ? tenant.getRazaoSocial() : null)
                     .status(tenant != null && tenant.getStatus() != null ? tenant.getStatus().name() : null)
                     .roles(membro.getPapeis() != null ? List.of(membro.getPapeis()) : List.of())
+                    .modulos(modulos.contains("*") ? null : modulos)
                     .build();
             })
             .collect(Collectors.toList());

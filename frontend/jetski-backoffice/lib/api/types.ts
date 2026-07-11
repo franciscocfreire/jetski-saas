@@ -902,6 +902,8 @@ export interface TenantSummary {
   assinaturaFim?: string | null
   /** Expurgo agendado (exclusão com carência, ISO) — null/ausente = sem exclusão pendente. */
   exclusaoAgendadaEm?: string | null
+  /** Módulos do plano (V046, chaves do enum ModuloPlano); null/ausente = todos. */
+  modulos?: string[] | null
 }
 
 export interface UserTenantsResponse {

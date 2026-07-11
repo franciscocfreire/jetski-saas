@@ -66,4 +66,20 @@ public class PlatformFaturaController {
     public List<Map<String, Object>> planos() {
         return platformFaturaService.planosAtivos();
     }
+
+    /** Catálogo de módulos gateáveis (grade módulos × planos). */
+    @GetMapping("/modulos")
+    public List<Map<String, String>> modulos() {
+        return java.util.Arrays.stream(com.jetski.tenant.ModuloPlano.values())
+            .map(m -> Map.of("key", m.name(), "rotulo", m.rotulo(), "descricao", m.descricao()))
+            .toList();
+    }
+
+    /** Define os módulos incluídos no plano (controle de oferta). */
+    @PutMapping("/planos/{planoId}/modulos")
+    public Map<String, String> salvarModulos(@PathVariable Integer planoId,
+                                             @RequestBody Map<String, List<String>> body) {
+        platformFaturaService.salvarModulos(planoId, body.get("modulos"));
+        return Map.of("status", "salvo");
+    }
 }

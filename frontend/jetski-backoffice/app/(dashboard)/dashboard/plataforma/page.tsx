@@ -9,6 +9,7 @@ import { ResetEmpresaDialog } from '@/components/plataforma/reset-empresa-dialog
 import { ExportarEmpresaButton } from '@/components/plataforma/exportar-empresa-button'
 import { ExcluirEmpresaDialog } from '@/components/plataforma/excluir-empresa-dialog'
 import { FaturasPendentesCard } from '@/components/plataforma/faturas-pendentes-card'
+import { ModulosPorPlanoCard } from '@/components/plataforma/modulos-por-plano-card'
 import { AlterarPlanoDialog } from '@/components/plataforma/alterar-plano-dialog'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import type { TenantSummary } from '@/lib/api/types'
@@ -302,6 +303,8 @@ export default function PlataformaPage() {
 
       <ComprasPendentesCard enabled={isPlatformAdmin} />
       <FaturasPendentesCard enabled={isPlatformAdmin} />
+
+      <ModulosPorPlanoCard enabled={isPlatformAdmin} />
 
       <PrecoCreditoCard enabled={isPlatformAdmin} />
 

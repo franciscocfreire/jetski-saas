@@ -145,6 +145,17 @@ export const platformService = {
       { headers: { 'X-Tenant-Id': tenantId } })
   },
 
+  /** Catálogo de módulos gateáveis por plano (enum ModuloPlano do backend). */
+  async modulos(): Promise<ModuloCatalogo[]> {
+    const { data } = await apiClient.get<ModuloCatalogo[]>('/v1/platform/modulos')
+    return data
+  },
+
+  /** Define os módulos incluídos no plano (controle de oferta). */
+  async salvarModulosDoPlano(planoId: string, modulos: string[]): Promise<void> {
+    await apiClient.put(`/v1/platform/planos/${planoId}/modulos`, { modulos })
+  },
+
   /** Re-cifra os segredos de todos os tenants com a chave atual (rotação de chave). */
   async reencryptSecrets(): Promise<ReencryptResult> {
     const { data } = await apiClient.post<ReencryptResult>('/v1/platform/secrets/reencrypt')
@@ -171,6 +182,14 @@ export interface PlanoInfo {
   nome: string
   precoMensal: number
   limites: string
+  /** JSON array de chaves de módulos (texto) ou null = todos. */
+  modulos?: string | null
+}
+
+export interface ModuloCatalogo {
+  key: string
+  rotulo: string
+  descricao: string
 }
 
 export interface TenantExport {

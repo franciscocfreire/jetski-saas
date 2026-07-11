@@ -190,6 +190,7 @@ public class PlatformFaturaService {
      * quem suspende). Caminho de contratação pós-trial e de upgrade/downgrade.
      */
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "plano-modulos", allEntries = true)
     public void mudarPlano(UUID tenantId, Integer planoId) {
         Object nome;
         try {
@@ -220,13 +221,53 @@ public class PlatformFaturaService {
     @SuppressWarnings("unchecked")
     public List<java.util.Map<String, Object>> planosAtivos() {
         List<Object[]> rows = entityManager.createNativeQuery(
-                "SELECT id, nome, preco_mensal, limites::text FROM plano ORDER BY preco_mensal")
+                "SELECT id, nome, preco_mensal, limites::text, modulos::text FROM plano ORDER BY preco_mensal")
             .getResultList();
         return rows.stream()
-            .map(r -> java.util.Map.<String, Object>of(
-                "id", r[0].toString(), "nome", r[1],
-                "precoMensal", r[2], "limites", r[3]))
+            .map(r -> {
+                java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+                m.put("id", r[0].toString());
+                m.put("nome", r[1]);
+                m.put("precoMensal", r[2]);
+                m.put("limites", r[3]);
+                m.put("modulos", r[4]); // JSON text ou null (= todos)
+                return m;
+            })
             .toList();
+    }
+
+    /**
+     * Define os módulos do plano (controle de oferta). Lista vazia é inválida
+     * (plano sem nenhum módulo não faz sentido — use null/todos ou escolha).
+     * Chaves validadas contra o catálogo {@link com.jetski.tenant.ModuloPlano}.
+     */
+    @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "plano-modulos", allEntries = true)
+    public void salvarModulos(Integer planoId, List<String> modulos) {
+        if (modulos == null || modulos.isEmpty()) {
+            throw new BusinessException("Selecione ao menos um módulo (ou todos)");
+        }
+        for (String m : modulos) {
+            try {
+                com.jetski.tenant.ModuloPlano.valueOf(m);
+            } catch (IllegalArgumentException e) {
+                throw new BusinessException("Módulo desconhecido: " + m);
+            }
+        }
+        boolean todos = modulos.size() == com.jetski.tenant.ModuloPlano.values().length;
+        String json = todos ? null
+            : "[" + modulos.stream().map(m -> "\"" + m + "\"")
+                .collect(java.util.stream.Collectors.joining(",")) + "]";
+        int n = entityManager.createNativeQuery(
+                "UPDATE plano SET modulos = CAST(:json AS jsonb) WHERE id = :pid")
+            .setParameter("json", json)
+            .setParameter("pid", planoId)
+            .executeUpdate();
+        if (n == 0) {
+            throw new NotFoundException("Plano não encontrado: " + planoId);
+        }
+        log.warn("[PLATFORM] Módulos do plano {} atualizados: {}", planoId,
+            todos ? "TODOS" : modulos);
     }
 
     // ------------------------------------------------------------------

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import type { LucideIcon } from 'lucide-react'
 import {
   BadgeCheck,
   Anchor,
@@ -58,7 +59,15 @@ import { useTenantStore } from '@/lib/store/tenant-store'
 import { useQuery } from '@tanstack/react-query'
 import { configuracoesService } from '@/lib/api/services'
 
-const mainNavItems = [
+type NavItem = {
+  title: string
+  href: string
+  icon: LucideIcon
+  /** Chave do ModuloPlano quando o item é gateável por plano; ausente = core. */
+  modulo?: string
+}
+
+const mainNavItems: NavItem[] = [
   {
     title: 'Dashboard',
     href: '/dashboard',
@@ -101,7 +110,7 @@ const mainNavItems = [
   },
 ]
 
-const managementItems = [
+const managementItems: NavItem[] = [
   {
     title: 'Jetskis',
     href: '/dashboard/jetskis',
@@ -121,11 +130,13 @@ const managementItems = [
     title: 'Vendedores',
     href: '/dashboard/vendedores',
     icon: UserCircle,
+    modulo: 'COMISSOES',
   },
   {
     title: 'Instrutores',
     href: '/dashboard/instrutores',
     icon: GraduationCap,
+    modulo: 'EMISSAO_MARINHA',
   },
   {
     title: 'Reservas',
@@ -136,29 +147,34 @@ const managementItems = [
     title: 'Documentos',
     href: '/dashboard/documentos',
     icon: FileText,
+    modulo: 'EMISSAO_MARINHA',
   },
   {
     title: 'GRUs',
     href: '/dashboard/grus',
     icon: Landmark,
+    modulo: 'EMISSAO_MARINHA',
   },
 ]
 
-const operationsItems = [
+const operationsItems: NavItem[] = [
   {
     title: 'Manutenção',
     href: '/dashboard/manutencao',
     icon: Wrench,
+    modulo: 'MANUTENCAO',
   },
   {
     title: 'Fechamentos',
     href: '/dashboard/fechamentos/diario',
     icon: CalendarCheck,
+    modulo: 'FECHAMENTOS',
   },
   {
     title: 'Relatórios',
     href: '/dashboard/relatorios',
     icon: ChartBar,
+    modulo: 'RELATORIOS',
   },
   {
     title: 'Auditoria',
@@ -167,21 +183,24 @@ const operationsItems = [
   },
 ]
 
-const financeiroItems = [
+const financeiroItems: NavItem[] = [
   {
     title: 'Dashboard Financeiro',
     href: '/dashboard/financeiro',
     icon: PieChart,
+    modulo: 'RELATORIOS',
   },
   {
     title: 'Comissões',
     href: '/dashboard/comissoes',
     icon: Percent,
+    modulo: 'COMISSOES',
   },
   {
     title: 'Pagamentos',
     href: '/dashboard/financeiro/pagamentos',
     icon: Wallet,
+    modulo: 'COMISSOES',
   },
   {
     title: 'Validar pagamentos',
@@ -192,10 +211,11 @@ const financeiroItems = [
     title: 'Despesas Operacionais',
     href: '/dashboard/despesas-operacionais',
     icon: Receipt,
+    modulo: 'DESPESAS',
   },
 ]
 
-const sistemaItems = [
+const sistemaItems: NavItem[] = [
   {
     title: 'Plano e faturas',
     href: '/dashboard/plano',
@@ -213,7 +233,7 @@ const sistemaItems = [
   },
 ]
 
-const platformItems = [
+const platformItems: NavItem[] = [
   {
     title: 'Empresas',
     href: '/dashboard/plataforma',
@@ -233,6 +253,15 @@ export function AppSidebar() {
     staleTime: 5 * 60 * 1000,
     retry: false,
   })
+
+  // Gating de oferta (V046): item com `modulo` fora do plano some do menu.
+  // null/ausente = todos os módulos; superadmin sempre vê tudo. A API tem o
+  // enforcement de verdade (ModuloPlanoInterceptor) — aqui é só UX.
+  const moduloHabilitado = (modulo?: string) =>
+    !modulo ||
+    accessType === 'UNRESTRICTED' ||
+    !currentTenant?.modulos ||
+    currentTenant.modulos.includes(modulo)
 
   const handleSignOut = () => {
     // Navegar para a página de logout que:
@@ -322,7 +351,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Cadastros</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {managementItems.map((item) => (
+              {managementItems.filter((item) => moduloHabilitado(item.modulo)).map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild isActive={pathname === item.href}>
                     <Link href={item.href}>
@@ -340,7 +369,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Operações</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {operationsItems.map((item) => {
+              {operationsItems.filter((item) => moduloHabilitado(item.modulo)).map((item) => {
                 // Para Fechamentos, destacar se estiver em qualquer sub-página
                 const isActive = item.href.includes('/fechamentos')
                   ? pathname.startsWith('/dashboard/fechamentos')
@@ -364,7 +393,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Financeiro</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {financeiroItems.map((item) => {
+              {financeiroItems.filter((item) => moduloHabilitado(item.modulo)).map((item) => {
                 // Para Dashboard Financeiro, destacar se estiver em qualquer sub-página
                 const isActive = item.href === '/dashboard/financeiro'
                   ? pathname === '/dashboard/financeiro'

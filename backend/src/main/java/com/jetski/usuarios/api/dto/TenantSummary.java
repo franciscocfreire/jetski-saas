@@ -21,4 +21,6 @@ public class TenantSummary {
     private String razaoSocial;
     private String status;
     private List<String> roles;
+    /** Módulos do plano (V046); null = todos — usado no gating do menu. */
+    private List<String> modulos;
 }

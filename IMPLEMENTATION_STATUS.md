@@ -1,6 +1,6 @@
 # Status de Implementação — Meu Jet
 
-**Data:** 2026-07-11 · **Estado:** em produção · **Testes:** ~1057 (`mvn test`) · **Migrations:** V001–V044
+**Data:** 2026-07-11 · **Estado:** em produção · **Testes:** ~1072 (`mvn test`) · **Migrations:** V001–V046
 **Arquitetura:** monolito modular (Spring Modulith) — Java 21 / Spring Boot 3.3
 
 Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (backoffice) ·
@@ -46,6 +46,15 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
 - **Exclusão de empresa**: carência 30 dias (cancelável) ou imediata; expurgo com tombstone
   (slug liberado, sensíveis anonimizados; ledger/metering/auditoria preservados); job diário
   (05:45) executa expurgos vencidos e remove exports >90 dias.
+- **Billing manual assistido** (V045): fatura mensal por plano pago (job 06:00), PIX da
+  plataforma, empresa informa txid → conferência no painel → PAGA; inadimplente suspende
+  após carência de 7 dias. Página "Plano e faturas" (uso × limites + faturas + PIX).
+- **Enforcement de limites do plano** (`plano.limites` jsonb): usuários, frota e locações/mês
+  com negação de negócio e mensagem de upgrade.
+- **Módulos por plano** (V046, `plano.modulos` jsonb): super admin define a oferta por plano
+  (Emissão à Marinha, Comissões, Manutenção, Fechamentos, Relatórios, Despesas); NULL = todos.
+  Gating em duas camadas: menu do backoffice (itens somem) e API (`ModuloPlanoInterceptor`,
+  400 com pedido de upgrade; superadmin isento; cache Redis com evict na troca).
 
 ### Infra/segurança/operacional
 - CI (testes + Modulith + E2E Newman 75 asserções) → CD automático em produção (Oracle ARM,
@@ -60,21 +69,17 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
 
 ## Pendências conhecidas
 
-**Curto prazo (P1 do lançamento):**
-- E-mail transacional (hoje: conta Gmail única ~500/dia, também canal dos alertas).
-- Rate limiting (nenhum — signup/OTP/endpoints públicos); fechar `/actuator/prometheus` e
-  swagger públicos; apertar CORS (`*.ngrok-free.app` com credentials).
+**Curto prazo:**
+- E-mail transacional dedicado (hoje: Gmail com fallback `PLATFORM_SMTP_*` já preparado —
+  trocar de provedor é só configuração).
 - Validação server-side de upload presignado (content-type/tamanho).
-- Alertas para Postgres/Keycloak/tunnel down e backup falho.
-- Processo de cobrança da mensalidade (não há billing — pós-trial = suspensão; decidir manual).
 
 **Backlog (v2/estrutural):**
-- Billing por plano a partir do metering; enforcement de limites além de `usuarios_max`
-  (frota, storage, locações/mês); fluxo de upgrade.
+- Gateway de pagamento (billing hoje é manual assistido); cobrança por metering de emissões.
 - LGPD titular: exportação/anonimização a pedido (hoje soft-delete de cliente).
 - HA/segunda VM (produção é VM única); retenção de logs >7 dias.
 - Assinatura C1 (selfie/geoloc) e C3 (ICP-Brasil/gov.br); troca de CPF do cliente com OTP;
-  RN05 (caução/danos); central de ajuda/documentação de usuário.
+  RN05 (caução/danos).
 - Mobile (KMM): código no working dir separado `/mnt/c/repos/jetski-mobile` (login, check-in,
   fotos, offline em desenvolvimento) — docs em `mobile/*.md`.
 

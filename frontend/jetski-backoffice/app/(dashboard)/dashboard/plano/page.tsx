@@ -26,6 +26,16 @@ const STATUS_BADGE: Record<Fatura['status'], { label: string; variant: 'default'
   CANCELADA: { label: 'Cancelada', variant: 'outline' },
 }
 
+/** Rótulos dos módulos gateáveis (espelho do enum ModuloPlano do backend). */
+const MODULOS: Record<string, string> = {
+  EMISSAO_MARINHA: 'Emissão à Marinha',
+  COMISSOES: 'Comissões e vendedores',
+  MANUTENCAO: 'Manutenção',
+  FECHAMENTOS: 'Fechamentos',
+  RELATORIOS: 'Relatórios e dash. financeiro',
+  DESPESAS: 'Despesas operacionais',
+}
+
 const mesAno = (iso: string) => {
   const [y, m] = iso.split('-')
   return `${m}/${y}`
@@ -118,10 +128,26 @@ export default function PlanoPage() {
               : 'Período de teste — sem cobrança. Para contratar um plano, fale com o Meu Jet.'}
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
-          <UsoLimite rotulo="Jetskis ativos" uso={data?.uso.jetskisAtivos ?? 0} limite={limites.frota_max} />
-          <UsoLimite rotulo="Locações no mês" uso={data?.uso.locacoesMes ?? 0} limite={limites.locacoes_mes} />
-          <UsoLimite rotulo="Usuários da equipe" uso={data?.uso.usuariosAtivos ?? 0} limite={limites.usuarios_max} />
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <UsoLimite rotulo="Jetskis ativos" uso={data?.uso.jetskisAtivos ?? 0} limite={limites.frota_max} />
+            <UsoLimite rotulo="Locações no mês" uso={data?.uso.locacoesMes ?? 0} limite={limites.locacoes_mes} />
+            <UsoLimite rotulo="Usuários da equipe" uso={data?.uso.usuariosAtivos ?? 0} limite={limites.usuarios_max} />
+          </div>
+          <div>
+            <p className="mb-2 text-sm text-muted-foreground">Módulos incluídos</p>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(MODULOS).map(([key, rotulo]) => {
+                const incluido = !currentTenant?.modulos || currentTenant.modulos.includes(key)
+                return (
+                  <Badge key={key} variant={incluido ? 'secondary' : 'outline'}
+                    className={incluido ? '' : 'text-muted-foreground line-through opacity-60'}>
+                    {rotulo}
+                  </Badge>
+                )
+              })}
+            </div>
+          </div>
         </CardContent>
       </Card>
 

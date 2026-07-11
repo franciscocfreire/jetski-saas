@@ -621,6 +621,9 @@ CREATE TABLE IF NOT EXISTS public.customer_habilitacao (
 CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_cpf ON public.customer_habilitacao (cpf);
 CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_sub ON public.customer_habilitacao (provider, provider_user_id);
 
+-- V046: módulos por plano (NULL = todos)
+ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
+
 -- V045: billing manual assistido — fatura mensal da assinatura (PIX plataforma)
 CREATE TABLE IF NOT EXISTS public.fatura (
     id              uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
