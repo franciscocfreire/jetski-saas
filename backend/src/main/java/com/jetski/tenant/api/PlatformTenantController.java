@@ -28,6 +28,7 @@ public class PlatformTenantController {
 
     private final PlatformTenantService platformTenantService;
     private final PlatformSecretsService platformSecretsService;
+    private final com.jetski.tenant.internal.TenantResetService tenantResetService;
 
     /** Lista TODAS as empresas (qualquer status) — visão completa do super admin. */
     @GetMapping("/tenants")
@@ -58,6 +59,34 @@ public class PlatformTenantController {
     @PostMapping("/tenants/{id}/reactivate")
     public TenantStatusResult reactivate(@PathVariable("id") UUID id) {
         return platformTenantService.reactivate(id);
+    }
+
+    /**
+     * Dry-run do reset: contagem por tabela do que o nível apagaria.
+     * Ação OPA: {@code platform:reset-preview} (só super admin).
+     */
+    @GetMapping("/tenants/{id}/reset-preview")
+    public java.util.Map<String, Long> resetPreview(
+            @PathVariable("id") UUID id,
+            @RequestParam("nivel") com.jetski.tenant.internal.TenantResetService.Nivel nivel) {
+        return tenantResetService.preview(id, nivel);
+    }
+
+    /**
+     * RESET da empresa (zona de perigo): zera os dados do nível escolhido,
+     * preservando tenant/assinatura/créditos/metering/auditoria. Exige o slug
+     * digitado. Ação OPA: {@code platform:reset} (só super admin).
+     */
+    @PostMapping("/tenants/{id}/reset")
+    public java.util.Map<String, Object> reset(
+            @PathVariable("id") UUID id,
+            @jakarta.validation.Valid @RequestBody com.jetski.tenant.api.dto.ResetTenantRequest body) {
+        java.util.Map<String, Long> apagados =
+            tenantResetService.reset(id, body.nivel(), body.confirmacaoSlug());
+        return java.util.Map.of(
+            "nivel", body.nivel().name(),
+            "apagados", apagados,
+            "totalLinhas", apagados.values().stream().mapToLong(Long::longValue).sum());
     }
 
     /**

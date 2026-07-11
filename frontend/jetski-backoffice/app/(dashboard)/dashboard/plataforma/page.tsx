@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ShieldCheck, Check, Ban, RotateCcw, ShieldAlert, KeyRound, Loader2, Gauge as GaugeIcon, Coins } from 'lucide-react'
 import { platformService, meteringService, creditosService } from '@/lib/api/services'
+import { ResetEmpresaDialog } from '@/components/plataforma/reset-empresa-dialog'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import type { TenantSummary } from '@/lib/api/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -152,6 +153,7 @@ export default function PlataformaPage() {
       return (
         <div className="flex items-center justify-end gap-2">
           <LancarCreditosDialog tenant={t} />
+          <ResetEmpresaDialog tenant={t} />
           <ConfirmAction
             trigger={<><Ban className="mr-1 size-4" /> Suspender</>}
             variant="destructive"
@@ -166,14 +168,17 @@ export default function PlataformaPage() {
     }
     if (t.status === 'SUSPENSO') {
       return (
-        <ConfirmAction
-          trigger={<><RotateCcw className="mr-1 size-4" /> Reativar</>}
-          title="Reativar empresa?"
-          description={`${t.razaoSocial} voltará a ter acesso.`}
-          confirmLabel="Reativar"
-          onConfirm={() => reactivateMutation.mutate(t.id)}
-          pending={reactivateMutation.isPending && reactivateMutation.variables === t.id}
-        />
+        <div className="flex items-center justify-end gap-2">
+          <ResetEmpresaDialog tenant={t} />
+          <ConfirmAction
+            trigger={<><RotateCcw className="mr-1 size-4" /> Reativar</>}
+            title="Reativar empresa?"
+            description={`${t.razaoSocial} voltará a ter acesso.`}
+            confirmLabel="Reativar"
+            onConfirm={() => reactivateMutation.mutate(t.id)}
+            pending={reactivateMutation.isPending && reactivateMutation.variables === t.id}
+          />
+        </div>
       )
     }
     return <span className="text-xs text-muted-foreground">—</span>

@@ -45,11 +45,43 @@ export const platformService = {
     return data
   },
 
+  /** Dry-run do reset: contagem por tabela do que o nível apagaria. */
+  async resetPreview(tenantId: string, nivel: ResetNivel): Promise<Record<string, number>> {
+    const { data } = await apiClient.get<Record<string, number>>(
+      `/v1/platform/tenants/${tenantId}/reset-preview`,
+      { params: { nivel }, headers: { 'X-Tenant-Id': tenantId } }
+    )
+    return data
+  },
+
+  /** RESET da empresa (zona de perigo) — exige o slug digitado. */
+  async resetEmpresa(
+    tenantId: string,
+    nivel: ResetNivel,
+    confirmacaoSlug: string
+  ): Promise<ResetResult> {
+    const { data } = await apiClient.post<ResetResult>(
+      `/v1/platform/tenants/${tenantId}/reset`,
+      { nivel, confirmacaoSlug },
+      { headers: { 'X-Tenant-Id': tenantId } }
+    )
+    return data
+  },
+
   /** Re-cifra os segredos de todos os tenants com a chave atual (rotação de chave). */
   async reencryptSecrets(): Promise<ReencryptResult> {
     const { data } = await apiClient.post<ReencryptResult>('/v1/platform/secrets/reencrypt')
     return data
   },
+}
+
+/** Níveis do reset — cada um é superconjunto do anterior. */
+export type ResetNivel = 'OPERACIONAL' | 'FROTA' | 'TOTAL'
+
+export interface ResetResult {
+  nivel: ResetNivel
+  apagados: Record<string, number>
+  totalLinhas: number
 }
 
 export interface ReencryptResult {
