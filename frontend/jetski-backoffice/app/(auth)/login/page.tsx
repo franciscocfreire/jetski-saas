@@ -109,9 +109,11 @@ export default function LoginPage() {
           </div>
 
           <p className="text-center text-sm text-muted-foreground">
-            Precisa de ajuda?{' '}
+            Precisa de ajuda? Veja a{' '}
+            <a href="/ajuda" className="text-primary hover:underline font-medium">Central de Ajuda</a>
+            {' '}ou{' '}
             <a href="mailto:suporte@meujet.com.br" className="text-primary hover:underline font-medium">
-              Fale conosco
+              fale conosco
             </a>
           </p>
         </div>

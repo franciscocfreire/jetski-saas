@@ -141,6 +141,9 @@ export function Footer() {
             &copy; {new Date().getFullYear()} Meu Jet. Todos os direitos reservados.
           </p>
           <div className="flex gap-6 text-xs text-white/30">
+            <Link href="/ajuda" className="hover:text-gold transition-colors duration-300">
+              Ajuda
+            </Link>
             <Link href="/termos" className="hover:text-gold transition-colors duration-300">
               Termos de Uso
             </Link>

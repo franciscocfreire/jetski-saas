@@ -12,6 +12,14 @@ export function ChromeFooter() {
       <div>powered by Meu Jet · NORMAM-212/DPC compliant flow</div>
       <div className="flex gap-4">
         <a
+          href="https://www.meujet.com.br/ajuda"
+          target="_blank"
+          rel="noreferrer"
+          className="underline-offset-2 hover:underline"
+        >
+          Ajuda
+        </a>
+        <a
           href="https://www.meujet.com.br/termos"
           target="_blank"
           rel="noreferrer"
