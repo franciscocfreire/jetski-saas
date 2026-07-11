@@ -49,6 +49,7 @@ public class GruService {
     private final ReservaHabilitacaoRepository habilitacaoRepository;
     private final ClienteNotificacaoService clienteNotificacaoService;
     private final ReservaRepository reservaRepository;
+    private final CustomerHabilitacaoSyncService customerHabilitacaoSyncService;
     private final ClienteRepository clienteRepository;
     private final GruClient gruClient;
     private final ObjectMapper objectMapper;
@@ -251,6 +252,7 @@ public class GruService {
                     reservaId, e.getMessage());
             }
             habilitacaoRepository.save(hab);
+            customerHabilitacaoSyncService.sync(reservaId);
             log.info("GRU paga confirmada para reserva {} (pagoEm={})", reservaId, hab.getGruPagoEm());
             return new VerificacaoPagamento(true, "CONCLUIDO", hab.getGruComprovanteS3Key() != null);
         } catch (GruException e) {
@@ -293,6 +295,7 @@ public class GruService {
             ? (hab.getChaNumero() != null && !hab.getChaNumero().isBlank())
             : true);
         habilitacaoRepository.save(hab);
+        customerHabilitacaoSyncService.sync(reservaId);
         log.info("Comprovante manual da GRU registrado para reserva {} (gruPago=true)", reservaId);
     }
 

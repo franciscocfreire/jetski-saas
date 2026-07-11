@@ -23,6 +23,11 @@ import java.util.UUID;
  *
  * <p>Mesmo padrão cross-loja do {@link CustomerLocacaoService}: posse via
  * vínculos ({@code app.customer_sub}) + {@code fixarTenant} por vínculo.
+ *
+ * <p>Desde a V043, a fonte PRIMÁRIA é o registro global do cliente
+ * ({@code customer_habilitacao}, nascido na emissão) — sobrevive a
+ * reset/exclusão da loja de origem. A varredura por vínculos permanece
+ * como complemento/fallback; deduplicação por nº de GRU.
  */
 @Slf4j
 @Service
@@ -31,9 +36,13 @@ public class CustomerHabilitacaoService {
 
     private static final ZoneId ZONA_EXIBICAO = ZoneId.of("America/Sao_Paulo");
 
+    private static final String PROVIDER = "keycloak";
+
     private final EntityManager entityManager;
     private final CustomerAccountService customerAccountService;
     private final com.jetski.shared.storage.StorageService storageService;
+    private final com.jetski.locacoes.internal.repository.CustomerHabilitacaoRepository customerHabilitacaoRepository;
+    private final com.jetski.locacoes.internal.repository.CustomerProfileRepository customerProfileRepository;
 
     public record HabilitacaoTemporaria(
         String lojaSlug,
@@ -87,8 +96,45 @@ public class CustomerHabilitacaoService {
             }
         }
 
+        // Fonte global (V043): registros que nasceram na emissão e sobrevivem
+        // à loja de origem. Dedup por nº de GRU — a linha tenant-scoped (viva)
+        // tem prioridade sobre o espelho global.
+        java.util.Set<String> vistos = new java.util.HashSet<>();
+        for (HabilitacaoTemporaria t : resultado) {
+            vistos.add(t.gruNumero());
+        }
+        for (var g : registrosGlobais(sub)) {
+            if (!vistos.add(g.getGruNumero())) {
+                continue;
+            }
+            Instant limite = g.getEmitidaEm().plus(
+                Duration.ofDays(HabilitacaoService.VALIDADE_TEMPORARIA_DIAS));
+            resultado.add(new HabilitacaoTemporaria(
+                null, g.getLojaOrigemNome(), g.getTenantOrigem(), g.getReservaOrigem(),
+                g.getGruNumero(), g.getEmitidaEm(),
+                limite.atZone(ZONA_EXIBICAO).toLocalDate(),
+                limite.isAfter(agora),
+                g.getMarinhaConfirmadaEm() != null, g.getMarinhaConfirmadaEm()));
+        }
+
         resultado.sort(Comparator.comparing(HabilitacaoTemporaria::emitidaEm).reversed());
         return resultado;
+    }
+
+    /** Registros globais do titular: pelo sub do vínculo e pelo CPF do perfil. */
+    private List<com.jetski.locacoes.domain.CustomerHabilitacao> registrosGlobais(String sub) {
+        var porSub = customerHabilitacaoRepository.findByProviderUserIdOrderByEmitidaEmDesc(sub);
+        var porCpf = customerProfileRepository.findByProviderAndProviderUserId(PROVIDER, sub)
+            .map(p -> p.getCpf())
+            .filter(c -> c != null && !c.isBlank())
+            .map(c -> customerHabilitacaoRepository
+                .findByCpfOrderByEmitidaEmDesc(c.replaceAll("\\D", "")))
+            .orElse(List.of());
+        List<com.jetski.locacoes.domain.CustomerHabilitacao> todos = new ArrayList<>(porSub);
+        java.util.Set<UUID> ids = new java.util.HashSet<>();
+        porSub.forEach(r -> ids.add(r.getId()));
+        porCpf.stream().filter(r -> ids.add(r.getId())).forEach(todos::add);
+        return todos;
     }
 
     /**
@@ -122,6 +168,13 @@ public class CustomerHabilitacaoService {
                 .getResultList();
             if (!keys.isEmpty()) {
                 return storageService.getObject((String) keys.get(0));
+            }
+        }
+        // Fallback global (V043): a loja de origem pode ter sido expurgada —
+        // a cópia do PDF no prefixo da plataforma pertence ao cliente.
+        for (var g : registrosGlobais(sub)) {
+            if (reservaId.equals(g.getReservaOrigem()) && g.getPdfS3Key() != null) {
+                return storageService.getObject(g.getPdfS3Key());
             }
         }
         throw new com.jetski.shared.exception.NotFoundException(

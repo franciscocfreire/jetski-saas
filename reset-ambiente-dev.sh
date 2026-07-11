@@ -598,6 +598,29 @@ ALTER TABLE public.cliente
     ADD CONSTRAINT cliente_origem_check
         CHECK ((origem)::text = ANY (ARRAY['PORTAL'::text, 'BALCAO'::text, 'LEAD'::text]));
 
+-- V043: habilitação temporária como dado DO CLIENTE (global, by design) —
+-- sobrevive a reset/exclusão da loja de origem; sem RLS como customer_profile
+CREATE TABLE IF NOT EXISTS public.customer_habilitacao (
+    id                    uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    cpf                   varchar(14) NOT NULL,
+    provider              varchar(50),
+    provider_user_id      varchar(255),
+    gru_numero            varchar(60) NOT NULL,
+    categoria             varchar(40) NOT NULL DEFAULT 'CHA-MTA-E',
+    emitida_em            timestamptz NOT NULL,
+    valida_ate            date NOT NULL,
+    marinha_confirmada_em timestamptz,
+    loja_origem_nome      varchar(200),
+    tenant_origem         uuid,
+    reserva_origem        uuid,
+    pdf_s3_key            text,
+    created_at            timestamptz NOT NULL DEFAULT now(),
+    updated_at            timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT customer_habilitacao_gru_uq UNIQUE (gru_numero)
+);
+CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_cpf ON public.customer_habilitacao (cpf);
+CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_sub ON public.customer_habilitacao (provider, provider_user_id);
+
 -- V042: RLS na tabela tenant (backstop p/ segredos por loja: smtp_password etc.)
 -- Contexto nulo (signup/login/marketplace/jobs) = liberado; tenant-scoped = só a
 -- própria linha; superadmin = GUC app.unrestricted (TenantAwareDataSource).

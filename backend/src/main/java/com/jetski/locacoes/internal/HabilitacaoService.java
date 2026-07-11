@@ -41,6 +41,7 @@ public class HabilitacaoService {
     public static final String CHA_CATEGORIA_TEMPORARIA = "MTA-E TEMPORÁRIA";
 
     private final ReservaHabilitacaoRepository repository;
+    private final CustomerHabilitacaoSyncService customerHabilitacaoSyncService;
     private final ReservaRepository reservaRepository;
     private final com.jetski.shared.storage.StorageService storageService;
     private final DocumentoPdfService documentoPdfService;
@@ -98,6 +99,9 @@ public class HabilitacaoService {
                 "/conta/perfil");
         }
         ReservaHabilitacao salvo = repository.save(hab);
+        // Devolutiva confirma o direito do cliente — espelha no registro global
+        // (inclui cópia do PDF em prefixo da plataforma).
+        customerHabilitacaoSyncService.sync(reservaId);
         eventPublisher.publishEvent(com.jetski.locacoes.event.ChaMtaeConfirmadaEvent.of(
             hab.getTenantId(), reservaId, usuarioId, substituicao));
         log.info("Devolutiva da Marinha registrada: reserva={}, substituicao={}", reservaId, substituicao);

@@ -67,7 +67,7 @@ class EmissaoServiceTest {
     private final ClienteNotificacaoService notificacaoService =
         mock(ClienteNotificacaoService.class);
     private final EmissaoService service = new EmissaoService(
-        reservaRepo, notificacaoService, clienteRepo, instrutorRepo, habRepo, aceiteRepo, docRepo, storage, email,
+        reservaRepo, mock(CustomerHabilitacaoSyncService.class), notificacaoService, clienteRepo, instrutorRepo, habRepo, aceiteRepo, docRepo, storage, email,
         tenantQuery, pdfService, anexoService, creditoService, events, new ObjectMapper(),
         carimboService, padesService);
 

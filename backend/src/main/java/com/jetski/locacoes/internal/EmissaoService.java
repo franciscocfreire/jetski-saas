@@ -46,6 +46,7 @@ import java.util.UUID;
 public class EmissaoService {
 
     private final ReservaRepository reservaRepository;
+    private final CustomerHabilitacaoSyncService customerHabilitacaoSyncService;
     private final ClienteNotificacaoService clienteNotificacaoService;
     private final ClienteRepository clienteRepository;
     private final com.jetski.locacoes.internal.repository.InstrutorRepository instrutorRepository;
@@ -180,6 +181,10 @@ public class EmissaoService {
         }
         reserva.setDocumentoEmitidoEm(Instant.now());
         reservaRepository.save(reserva);
+
+        // Habilitação temporária é dado DO CLIENTE — espelha no registro global
+        // (sobrevive a reset/exclusão da loja). Best-effort na mesma transação.
+        customerHabilitacaoSyncService.sync(reservaId);
 
         // E-mail à Marinha só quando aplicável (EMA) e a documentação está completa.
         boolean enviadoMarinha = marinhaAplicavel && docCompleta && enviar(marinhaEmail,
