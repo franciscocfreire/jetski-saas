@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, MapPin, Star, Clock, Users, Fuel, Calendar, MessageCircle, Loader2, ChevronLeft, ChevronRight, Play, X } from 'lucide-react'
+import { ArrowLeft, MapPin, Star, Clock, Users, Fuel, Calendar, MessageCircle, ChevronLeft, ChevronRight, Play } from 'lucide-react'
 import { ReservationForm } from '@/components/public/reservation-form'
-import { marketplaceService, MarketplaceModelo, MarketplaceMidia, getPrincipalImage, getImages, getVideos } from '@/lib/api/services/marketplace'
+import { marketplaceService, MarketplaceModelo, MarketplaceMidia, getPrincipalImage } from '@/lib/api/services/marketplace'
 
 // Tipo para ofertas com todos os campos necessários
 interface OfferingDetail {
@@ -31,147 +31,6 @@ interface OfferingDetail {
   inclusos: string[]
   horarios: string[]
 }
-
-// Lanchas fixas (dados estáticos por enquanto)
-const lanchasFixas: OfferingDetail[] = [
-  {
-    id: 'lancha-1',
-    modelo: 'Lancha Focker 265',
-    tipo: 'LANCHA',
-    empresa: 'Marina Premium',
-    empresaWhatsapp: '5548977777777',
-    precoMeiaDiaria: 1800,
-    precoDiaria: 3200,
-    imagemUrl: 'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=800&h=600&fit=crop&q=80',
-    localizacao: 'Jurerê, SC',
-    avaliacao: 4.7,
-    totalAvaliacoes: 56,
-    capacidade: 8,
-    potencia: '200 HP',
-    combustivel: 'Gasolina',
-    descricao: 'A Focker 265 é uma lancha esportiva premium, ideal para passeios em grupo. Amplo espaço interno, som ambiente e área de sol. Perfeita para um dia inesquecível no mar.',
-    inclusos: ['Marinheiro', 'Combustível', 'Gelo e água', 'Seguro completo'],
-    horarios: ['Meia diária manhã (08:00-12:00)', 'Meia diária tarde (13:00-17:00)', 'Diária completa (08:00-17:00)'],
-  },
-  {
-    id: 'lancha-2',
-    modelo: 'Lancha NX 280',
-    tipo: 'LANCHA',
-    empresa: 'Náutica Elite',
-    empresaWhatsapp: '5548955555555',
-    precoMeiaDiaria: 2200,
-    precoDiaria: 3800,
-    imagemUrl: 'https://images.unsplash.com/photo-1569263979104-865ab7cd8d13?w=800&h=600&fit=crop&q=80',
-    localizacao: 'Itapema, SC',
-    avaliacao: 4.8,
-    totalAvaliacoes: 34,
-    capacidade: 10,
-    potencia: '250 HP',
-    combustivel: 'Gasolina',
-    descricao: 'A NX 280 é sinônimo de luxo e sofisticação. Cabine fechada, banheiro, churrasqueira e muito espaço. A escolha certa para celebrações especiais.',
-    inclusos: ['Marinheiro', 'Combustível', 'Gelo, água e refrigerante', 'Seguro completo', 'Churrasqueira'],
-    horarios: ['Meia diária manhã (08:00-12:00)', 'Meia diária tarde (13:00-17:00)', 'Diária completa (08:00-17:00)'],
-  },
-  {
-    id: 'lancha-3',
-    modelo: 'Lancha Phantom 303',
-    tipo: 'LANCHA',
-    empresa: 'Yacht Club Premium',
-    empresaWhatsapp: '5548933333333',
-    precoMeiaDiaria: 3500,
-    precoDiaria: 6000,
-    imagemUrl: 'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=800&h=600&fit=crop&q=80',
-    localizacao: 'Balneário Camboriú, SC',
-    avaliacao: 4.9,
-    totalAvaliacoes: 67,
-    capacidade: 12,
-    potencia: '300 HP',
-    combustivel: 'Gasolina',
-    descricao: 'A Phantom 303 é o topo de linha em lanchas de passeio. Design italiano, acabamento premium e todo conforto que você merece. Para momentos verdadeiramente especiais.',
-    inclusos: ['Marinheiro experiente', 'Combustível ilimitado', 'Bebidas premium', 'Seguro VIP', 'DJ disponível'],
-    horarios: ['Meia diária manhã (08:00-12:00)', 'Meia diária tarde (13:00-17:00)', 'Diária completa (08:00-17:00)', 'Sunset (16:00-19:00)'],
-  },
-]
-
-// Fallback jetskis (usados se API não retornar dados)
-const jetskisFallback: OfferingDetail[] = [
-  {
-    id: 'fallback-1',
-    modelo: 'Sea-Doo GTI 130',
-    tipo: 'JETSKI',
-    empresa: 'Marina do Sol',
-    empresaWhatsapp: '5548999999999',
-    precoHora: 250,
-    precoPacote30min: 150,
-    imagemUrl: 'https://sea-doo.brp.com/content/dam/global/en/sea-doo/my26/studio/recreation/gti/SEA-MY26-GTI-Standard-NoSS-M130-Bright-White-Neo-Mint-00038TB00-Studio-RSIDE-CU.png',
-    localizacao: 'Florianópolis, SC',
-    avaliacao: 4.8,
-    totalAvaliacoes: 127,
-    capacidade: 2,
-    potencia: '130 HP',
-    combustivel: 'Gasolina',
-    descricao: 'O Sea-Doo GTI 130 é a combinação perfeita de versatilidade e desempenho. Ideal para quem busca diversão na água com conforto e segurança. Equipado com sistema de frenagem iBR e modo ECO.',
-    inclusos: ['Colete salva-vidas', 'Orientação de uso', 'Combustível inicial'],
-    horarios: ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'],
-  },
-  {
-    id: 'fallback-2',
-    modelo: 'Sea-Doo Spark 90',
-    tipo: 'JETSKI',
-    empresa: 'JetSki Praia',
-    empresaWhatsapp: '5548966666666',
-    precoHora: 180,
-    precoPacote30min: 100,
-    imagemUrl: 'https://sea-doo.brp.com/content/dam/global/en/sea-doo/my26/studio/rec-lite/spark-trixx/SEA-MY26-SPARK-Trixx-1up-NoSS-M90-Gulfstream-Blue-Orange-Crush-00067TB00-Studio-RSIDE-CU.png',
-    localizacao: 'Bombinhas, SC',
-    avaliacao: 4.6,
-    totalAvaliacoes: 203,
-    capacidade: 2,
-    potencia: '90 HP',
-    combustivel: 'Gasolina',
-    descricao: 'O Sea-Doo Spark é leve, ágil e divertido. Ideal para iniciantes e para quem quer se aventurar nas águas com economia. Fácil de pilotar e muito econômico.',
-    inclusos: ['Colete salva-vidas', 'Orientação de uso'],
-    horarios: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'],
-  },
-  {
-    id: 'fallback-3',
-    modelo: 'Sea-Doo RXT-X 325',
-    tipo: 'JETSKI',
-    empresa: 'Marina do Sol',
-    empresaWhatsapp: '5548999999999',
-    precoHora: 380,
-    precoPacote30min: 220,
-    imagemUrl: 'https://sea-doo.brp.com/content/dam/global/en/sea-doo/my26/studio/performance/rxt-x/SEA-MY26-RXT-X-X-Integrated100W-M325-Gulfstream-Blue-Premium-00022TD00-Studio-RSIDE-CU.png',
-    localizacao: 'Florianópolis, SC',
-    avaliacao: 4.9,
-    totalAvaliacoes: 78,
-    capacidade: 2,
-    potencia: '325 HP',
-    combustivel: 'Gasolina',
-    descricao: 'O RXT-X 325 é o jetski mais potente da Sea-Doo. Para quem busca adrenalina máxima e performance incomparável. Equipado com sistema de som Bluetooth e GPS.',
-    inclusos: ['Colete salva-vidas', 'Orientação de uso', 'Combustível inicial', 'Seguro premium'],
-    horarios: ['08:00', '10:00', '14:00', '16:00'],
-  },
-  {
-    id: 'fallback-4',
-    modelo: 'Sea-Doo GTX 170',
-    tipo: 'JETSKI',
-    empresa: 'Águas Claras',
-    empresaWhatsapp: '5548944444444',
-    precoHora: 290,
-    precoPacote30min: 170,
-    imagemUrl: 'https://sea-doo.brp.com/content/dam/global/en/sea-doo/my26/studio/touring/gtx/SEA-MY26-GTX-Standard-Integrated100W-M170-Blue-Abyss-Gulfstream-Blue-00011TA00-Studio-RSIDE-CU.png',
-    localizacao: 'Porto Belo, SC',
-    avaliacao: 4.5,
-    totalAvaliacoes: 145,
-    capacidade: 3,
-    potencia: '170 HP',
-    combustivel: 'Gasolina',
-    descricao: 'O GTX 170 é o modelo touring da Sea-Doo, feito para longas distâncias com conforto. Banco ergonômico, porta-objetos amplo e autonomia estendida.',
-    inclusos: ['Colete salva-vidas', 'Orientação de uso', 'Combustível inicial'],
-    horarios: ['08:00', '09:00', '10:00', '14:00', '15:00', '16:00'],
-  },
-]
 
 /**
  * Mapeia modelo da API para detalhes completos
@@ -534,32 +393,14 @@ export default function EmbarcacaoDetailPage() {
 
   useEffect(() => {
     async function fetchOffering() {
-      // Se é uma lancha fixa, usar dados estáticos
-      if (id.startsWith('lancha-')) {
-        const lancha = lanchasFixas.find(l => l.id === id)
-        setOffering(lancha || null)
-        setLoading(false)
-        return
-      }
-
-      // Se é um fallback, usar dados estáticos
-      if (id.startsWith('fallback-')) {
-        const fallback = jetskisFallback.find(j => j.id === id)
-        setOffering(fallback || null)
-        setLoading(false)
-        return
-      }
-
-      // Tentar buscar da API
+      // Só embarcações reais do marketplace — sem dados de demonstração.
       try {
         const modelo = await marketplaceService.getModelo(id)
         setOffering(mapApiModeloToDetail(modelo))
       } catch (err) {
         console.error('Erro ao carregar embarcação:', err)
         setError('Embarcação não encontrada')
-        // Tentar fallback por ID numérico antigo
-        const fallbackById = jetskisFallback[0]
-        setOffering(fallbackById || null)
+        setOffering(null)
       } finally {
         setLoading(false)
       }

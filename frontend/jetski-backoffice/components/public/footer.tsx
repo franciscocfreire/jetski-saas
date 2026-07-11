@@ -53,8 +53,8 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="#ofertas" className="text-sm text-white/40 hover:text-gold transition-colors duration-300">
-                  Embarcações
+                <Link href="/#ofertas" className="text-sm text-white/40 hover:text-gold transition-colors duration-300">
+                  Marketplace
                 </Link>
               </li>
               <li>

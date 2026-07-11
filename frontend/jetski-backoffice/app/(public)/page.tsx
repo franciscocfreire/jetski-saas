@@ -22,18 +22,18 @@ export default function HomePage() {
               <div className="inline-flex items-center gap-3 mb-4">
                 <div className="h-px w-8 bg-gold/60" />
                 <span className="text-gold/80 text-sm tracking-[0.3em] uppercase">
-                  Coleção
+                  Marketplace
                 </span>
               </div>
               <h2 className="font-display text-4xl md:text-5xl font-medium text-white">
-                Embarcações em
+                Marketplace de
                 <br />
-                <span className="text-gold-gradient">Destaque</span>
+                <span className="text-gold-gradient">Embarcações</span>
               </h2>
             </div>
 
             <p className="text-white/50 max-w-md text-lg leading-relaxed">
-              Nossa curadoria das melhores opções disponíveis nas locadoras parceiras.
+              Embarcações reais publicadas pelas locadoras parceiras — reserve direto com quem opera.
             </p>
           </div>
 

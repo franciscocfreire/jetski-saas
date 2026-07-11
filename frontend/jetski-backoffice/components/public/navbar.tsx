@@ -10,7 +10,7 @@ import { usePortalUrl } from '@/components/public/portal-link'
 
 const navLinks = [
   { href: '/', label: 'Início' },
-  { href: '/#ofertas', label: 'Embarcações' },
+  { href: '/#ofertas', label: 'Marketplace' },
   { href: '/#como-funciona', label: 'Como Funciona' },
   { href: '/para-empresas', label: 'Para Empresas' },
 ]
@@ -32,8 +32,10 @@ export function Navbar() {
     <header
       className={cn(
         'fixed top-0 left-0 right-0 z-50 transition-all duration-500',
+        // Mobile: fundo SÓLIDO ao scrollar — backdrop-blur é instável/ausente em
+        // navegadores mobile e a transparência deixa o texto vazando por trás.
         scrolled
-          ? 'bg-abyss/90 backdrop-blur-xl border-b border-white/10'
+          ? 'bg-abyss border-b border-white/10 md:bg-abyss/90 md:backdrop-blur-xl'
           : 'bg-transparent'
       )}
     >
@@ -63,24 +65,13 @@ export function Navbar() {
             className="text-white/70 hover:text-white hover:bg-white/10 transition-all duration-300"
             asChild
           >
-            <Link href="/login">Acesso Empresa</Link>
+            <Link href="/login">Portal da Empresa</Link>
           </Button>
           <Button
             className="bg-gold text-[#231A05] hover:bg-gold/90 transition-all duration-300 rounded-none font-medium"
             asChild
           >
             <a href={portalUrl}>Portal do Cliente</a>
-          </Button>
-          <Button
-            className={cn(
-              "transition-all duration-500 rounded-none",
-              scrolled
-                ? "bg-white text-black hover:bg-white/90"
-                : "bg-white/10 text-white border border-white/20 hover:bg-white/20"
-            )}
-            asChild
-          >
-            <Link href="/para-empresas">Para Empresas</Link>
           </Button>
         </div>
 
@@ -101,7 +92,8 @@ export function Navbar() {
       {/* Mobile Menu */}
       <div
         className={cn(
-          'md:hidden absolute top-full left-0 right-0 bg-abyss/95 backdrop-blur-xl border-b border-white/10 transition-all duration-300',
+          // Painel sólido: blur/transparência no mobile deixa o conteúdo vazando por trás.
+          'md:hidden absolute top-full left-0 right-0 bg-abyss border-b border-white/10 transition-all duration-300',
           mobileMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
         )}
       >
@@ -125,10 +117,7 @@ export function Navbar() {
               className="w-full bg-transparent border-white/30 text-white hover:bg-white/10 hover:text-white rounded-none"
               asChild
             >
-              <Link href="/login">Acesso Empresa</Link>
-            </Button>
-            <Button className="w-full bg-white text-black hover:bg-white/90 rounded-none" asChild>
-              <Link href="/para-empresas">Para Empresas</Link>
+              <Link href="/login" onClick={() => setMobileMenuOpen(false)}>Portal da Empresa</Link>
             </Button>
           </div>
         </div>
