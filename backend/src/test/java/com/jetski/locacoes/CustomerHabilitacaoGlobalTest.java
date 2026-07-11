@@ -66,8 +66,11 @@ class CustomerHabilitacaoGlobalTest extends AbstractIntegrationTest {
         TenantContext.setTenantId(TENANT_ID);
         globalRepository.deleteAll();
         jdbcTemplate.update("DELETE FROM cliente_identity_provider WHERE provider_user_id = ?", SUB);
+        // Ordem FK (espelha ReservaControllerTest): locacao referencia cliente —
+        // testes anteriores da suíte podem ter deixado locações do tenant seed.
         jdbcTemplate.execute("DELETE FROM os_manutencao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM reserva WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM locacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM cliente WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
 
         Modelo modelo = modeloRepository.save(Modelo.builder()
