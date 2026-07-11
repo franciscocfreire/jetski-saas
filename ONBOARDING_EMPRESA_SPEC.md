@@ -162,7 +162,9 @@ Autogestão (lacuna):
 - **E. Tenant criado por usuário autenticado:** também **pendente** (recomendado). ✔
 - **F. PLATFORM_ADMIN:** **app-level** via `usuario_global_roles` (sem realm role). ✔
 
-## 9. Futuro (deferido)
+## 9. [HISTÓRICO — itens abaixo já entregues: painel de plataforma, listagem completa, trial 14d com expiração automática, créditos, reset/export/exclusão de empresa]
+
+### 9. Futuro (deferido)
 
 - Bypass de RLS (flag de sessão `app.platform_admin` escopado **ou** datasource `BYPASSRLS`)
   para listagem/operação cross-tenant.

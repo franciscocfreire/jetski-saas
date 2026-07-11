@@ -1,5 +1,7 @@
 # Visão do Produto
 
+> **DOCUMENTO HISTÓRICO** — especificação original do produto (2025). O estado atual está em `IMPLEMENTATION_STATUS.md`. O roadmap de infra (§7: EKS/RDS/S3/ArgoCD) NÃO foi o caminho adotado — produção roda em Docker Compose (Oracle Cloud ARM) + Cloudflare Tunnel + MinIO (ver `DEPLOY.md`).
+
 Sistema para gestão de locações de jetski com controle de frota, agenda, operação diária, manutenção, abastecimento, comissões e fechamentos diário/mensal, incluindo captura e guarda de fotos (check‑in/check‑out/incidentes).
 
 ---

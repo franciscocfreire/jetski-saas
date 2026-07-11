@@ -124,4 +124,4 @@ Tenants podem personalizar cor primária, cor secundária e logo em
   `--sidebar-primary`, `--gold`) pelo `TenantThemeProvider` — só no grupo
   `(dashboard)`; login, site público e e-mails permanecem Meu Jet.
 - Fora de escopo (futuro): paleta dark própria por tenant, branding em
-  e-mails/PDFs, branding real no portal do cliente (aguarda portal com backend).
+  e-mails/PDFs, ~~branding real no portal do cliente~~ (ENTREGUE jul/2026 — portal white-label por loja).

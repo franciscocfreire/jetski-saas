@@ -1,5 +1,7 @@
 # Robô GRU — Geração automática da GRU da Marinha (SPEC)
 
+> **STATUS (jul/2026): ENTREGUE E VALIDADO NO SITE REAL** — GRU + PIX/boleto + verificação de pagamento + comprovante, implementados como cliente HTTP em Java (`GruClient`/`GruService`), com fallback manual. As seções sobre microsserviço Node/Playwright (§3–§4) e o spike (§2, §8, §10) são HISTÓRICAS — a decisão final foi HTTP puro no backend. Contrato real: `GRU_HTTP_CONTRACT.md`.
+
 > Status: **proposta** (planejamento) — 23/jun/2026
 > Objetivo v1: gerar automaticamente a **GRU** (Guia de Recolhimento da União) da Marinha
 > para a **Carteira de Habilitação de Amador** (CHA-MTA-E / via EMA), retornando

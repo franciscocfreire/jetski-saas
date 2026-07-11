@@ -4,16 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Multi-tenant SaaS B2B jetski rental management system** ("Meu Jet") — fleet control, reservations, check-in/check-out with mandatory photos, fuel, maintenance, seller commissions, daily/monthly closures, credit-based document emission to the Brazilian Navy (EMA/CHA + GRU with PIX/boleto), customer self-service portal, and marketplace.
+**Multi-tenant SaaS B2B jetski rental management system** ("Meu Jet") — fleet control, reservations, check-in/check-out with mandatory photos, fuel, maintenance, seller commissions, daily/monthly closures, credit-based document emission to the Brazilian Navy (EMA/CHA + GRU with PIX/boleto), customer self-service portal, marketplace, and platform admin (aprovação de empresas, créditos, reset/exclusão de empresa com export de arquivamento).
 
-In **production** at `https://www.meujet.com.br` (Oracle Cloud ARM, docker compose + Cloudflare Tunnel). Domain language, UI texts and docs are **Portuguese** (pt-BR, BRL, America/Sao_Paulo).
+In **production** (Oracle Cloud ARM, docker compose + Cloudflare Tunnel): site público + marketplace em `www.meujet.com.br`, backoffice em `app.meujet.com.br`, portal do cliente em `cliente.meujet.com.br` (dev espelha em `*.pegaojet.com.br`). Domain language, UI texts and docs are **Portuguese** (pt-BR, BRL, America/Sao_Paulo).
 
 ## Codebase Map
 
-- **Backend** `backend/`: Spring Boot 3.3 / Java 21 **modular monolith** (Spring Modulith). Modules: `tenant`, `tenants`, `usuarios`, `signup`, `frota`, `reservas`, `locacoes` (inclui GRU/EMA/assinatura), `manutencao`, `comissoes`, `fechamento`, `combustivel`, `despesas`, `pagamentos`, `bonus`, `dashboard`, `marketplace`, `creditos`, `metering`, `audit`, `metrics` + `shared` (subpacotes expostos exigem `@NamedInterface`). 32 Flyway migrations (V001–V032), ~80 classes de teste (~920 testes, Testcontainers Postgres+Redis).
+- **Backend** `backend/`: Spring Boot 3.3 / Java 21 **modular monolith** (Spring Modulith). Modules: `tenant`, `tenants`, `usuarios`, `signup`, `frota`, `reservas`, `locacoes` (inclui GRU/EMA/assinatura), `manutencao`, `comissoes`, `fechamento`, `combustivel`, `despesas`, `pagamentos`, `bonus`, `dashboard`, `marketplace`, `creditos`, `metering`, `audit`, `metrics` + `shared` (subpacotes expostos exigem `@NamedInterface`). Migrations Flyway V001–V044 (próximo número: `ls backend/src/main/resources/db/migration | sort | tail`), ~1060 testes (Testcontainers Postgres+Redis).
 - **Backoffice** `frontend/jetski-backoffice/`: Next.js 15 + React 19 + shadcn/ui, NextAuth + Keycloak (público + PKCE), TanStack Query/Table, Playwright.
-- **Portal do cliente** `frontend/portal-cliente/`: Next.js, `basePath /portal`, login por e-mail ou CPF, reserva online com sinal PIX.
-- **Infra**: `docker-compose.yml` (+ `.prod.yml`/`.ci.yml`), `infra/` (nginx, keycloak realm, OPA policies em `policies/`, observability), scripts na raiz (`rebuild.sh`, `reset-ambiente-dev.sh`, `deploy.sh`).
+- **Portal do cliente** `frontend/portal-cliente/`: Next.js no subdomínio próprio (`cliente.*`), login por e-mail ou CPF, reserva online com sinal PIX.
+- **Infra**: `docker-compose.yml` (+ `.prod.yml`/`.ci.yml`), `infra/` (nginx, keycloak realm, OPA policies em `policies/`, observability, `infra/prod/backup.sh` — backup diário com off-site), scripts na raiz (`rebuild.sh`, `reset-ambiente-dev.sh`, `deploy.sh`).
 - **Mobile** (KMM): apenas docs (`mobile/*.md`); código em working dir separado (`/mnt/c/repos/jetski-mobile`).
 
 Referências: `IMPLEMENTATION_STATUS.md` (status por feature), `PORTAL_CLIENTE_SPEC.md`, `DEPLOY.md`, `BRAND.md`, `inicial.md` (spec original, histórica — inclui cenários BDD e schema SQL).
@@ -50,6 +50,6 @@ Referências: `IMPLEMENTATION_STATUS.md` (status por feature), `PORTAL_CLIENTE_S
 
 - Subir código novo: `./rebuild.sh [backend|frontend|portal] [--no-cache]` — **sempre** conferir se a imagem mudou (sha/idade); build 100% CACHED = deploy falso. Ver `/rebuild-dev`.
 - Reset completo: `./reset-ambiente-dev.sh` (banco + realm + seeds + migrations). Destrutivo em dev.
-- Dev e prod são simétricos (compose + Cloudflare Tunnel); recriar containers sem as vars `NEXTAUTH_URL`/`KEYCLOAK_ISSUER`/`JETSKI_FRONTEND_URL`/`JETSKI_EXTERNAL_URL` quebra o login — prefira os scripts.
+- Dev e prod são simétricos (compose + Cloudflare Tunnel); recriar containers sem as vars `NEXTAUTH_URL`/`APP_PUBLIC_URL`/`KEYCLOAK_ISSUER`/`JETSKI_FRONTEND_URL`/`JETSKI_EXTERNAL_URL` quebra o login — prefira os scripts. `rebuild.sh` aceita **UM** serviço por vez.
 - Testes: `cd backend && mvn test` (precisa de Docker). Ver `/rodar-testes` para os gotchas (nome exato `ModuleStructureTest`, pool, TZ, CORS).
 - Deploy produção: ver `/deploy-prod` e `DEPLOY.md`.

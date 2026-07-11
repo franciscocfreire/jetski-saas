@@ -15,7 +15,7 @@ backend/host/containers no Grafana.
 
 Total: ~2 GB no pior caso. Alertas usam o alerting nativo do Grafana (sem
 Alertmanager); **sem Jaeger** (tracing) nesta versão — o stack de dev em
-`infra/docker-compose-monitoring.yml` continua sendo a referência completa.
+`infra/observability/docker-compose.observability.yml` continua sendo a referência completa.
 
 ## Subir (servidor OU dev — mesmo comando)
 
@@ -40,7 +40,7 @@ Em dev, acesse direto: Grafana em `http://localhost:3300` (ou via nginx em
 > — o `--remove-orphans` remove o container do Promtail; Loki e Grafana são
 > recriados automaticamente (mounts mudaram). Pode haver uma pequena
 > duplicação de logs recentes na virada (o Alloy relê a posição corrente
-> dos containers). O stack antigo de dev (`infra/docker-compose-monitoring.yml`,
+> dos containers). O stack antigo de dev (`infra/observability/docker-compose.observability.yml`,
 > com Jaeger/Alertmanager) foi aposentado junto.
 
 > **Após um `git pull` que mude config montada** (prometheus-prod.yml,

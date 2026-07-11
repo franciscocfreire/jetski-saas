@@ -27,7 +27,7 @@ Dev: `PUBLIC_URL=https://www.pegaojet.com.br`. Se o backend for recriado sem `JE
 
 - Scope OIDC: `openid profile email` (sem `offline_access` — Keycloak nega).
 - `docker compose up -d --build <svc>` nem sempre recria com a imagem nova → usar `--force-recreate`; em caso de comportamento "antigo" persistente, `docker compose build --no-cache` (conferir data da imagem).
-- Rebuild só de frontend: `./rebuild-frontend.sh` ou `./rebuild.sh frontend`.
+- Rebuild só de frontend: `./rebuild.sh frontend`.
 - Cache do Next: já houve EACCES no cache do next em dev — se build falhar com EACCES, limpar `.next`.
 
 ## Padrões

@@ -1,214 +1,85 @@
-# Jetski SaaS - Implementation Status Report
+# Status de Implementação — Meu Jet
 
-**Date:** 2026-06-14
-**Project Version:** 0.8.0
-**Architecture:** Modular monolith (Spring Modulith 1.2.7) — Java 21 / Spring Boot 3.3
+**Data:** 2026-07-11 · **Estado:** em produção · **Testes:** ~1057 (`mvn test`) · **Migrations:** V001–V044
+**Arquitetura:** monolito modular (Spring Modulith) — Java 21 / Spring Boot 3.3
 
-> **Estado da suíte:** `mvn test` = **749 testes, 0 falhas** (BUILD SUCCESS), incluindo o
-> `ModuleStructureTest` (sem ciclos e sem acesso a `internal` entre módulos).
+Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (backoffice) ·
+`cliente.meujet.com.br` (portal do cliente). Dev espelha em `*.pegaojet.com.br`.
 
----
+## Entregue (em produção)
 
-## EXECUTIVE SUMMARY
+### Núcleo operacional (backoffice)
+- Frota (modelos, jetskis, mídias de marketplace), agenda/reservas com conflito e prontidão,
+  balcão em 7 passos (cliente → passeio → habilitação → documentos → termos → pagamento → emissão).
+- Check-in/check-out com fotos obrigatórias, itens opcionais, combustível (RN03, 3 modos),
+  manutenção/OS (RN06 bloqueia agenda), despesas.
+- Financeiro: folio por reserva/locação (`reserva_lancamento`, V035–V037), pagamento presencial
+  integral no balcão (com **cobrança PIX**: QR Code, copia-e-cola por e-mail e WhatsApp), estorno
+  manual, NO_SHOW (RN02), fechamento diário por forma de pagamento e mensal com comissões
+  (RN04, hierarquia campanha → modelo → faixa → default) e bônus/pagamento de vendedores.
+- Clientes: ficha completa, captura de lead (V040), anexos/documentos LGPD com propagação de
+  identidade, pré-conta com convite (claim-token).
 
-A plataforma está em **desenvolvimento ativo** e já cobre todo o ciclo operacional e financeiro
-do MVP. O backend é um monólito modular com isolamento multi-tenant (RLS), Keycloak (OIDC) e
-OPA (ABAC/RBAC). O backoffice web (Next.js 15) está funcional com ~27 telas. O app mobile (KMM)
-ainda é só documentação.
+### Documentação náutica (NORMAM-212)
+- Emissão CHA/EMA com anexos 5-B-1/5-B-2/5-C, instrutores, envio à Marinha por e-mail com
+  gate de documentação completa, devolutiva da Marinha anexável (V038), PDF consolidado.
+- **Robô GRU** (HTTP em Java, validado no site real): geração PIX/boleto, verificação de
+  pagamento, comprovante — com fallback manual (ver `GRU_HTTP_CONTRACT.md`).
+- Assinatura eletrônica de termos: fases A (auditoria + carimbo RFC 3161), B (OTP e-mail/
+  WhatsApp) e C2 (PAdES opt-in) — C1 (selfie/geoloc) e C3 (ICP/gov.br) pendentes.
+- **Habilitação temporária é dado GLOBAL do cliente** (`customer_habilitacao`, V043): nasce na
+  emissão e sobrevive a reset/exclusão/suspensão da loja de origem (reuso entre lojas garantido).
 
-**Estado por camada:**
+### Portal do cliente (P0–P4 completos)
+- Identidade própria (login e-mail/CPF, role CLIENTE, vínculo explícito — nunca JIT),
+  perfil global (`customer_profile`), reserva online com sinal PIX 30% + comprovante,
+  termos/CHA remotos, EMA/GRU self-service, histórico, avaliações, white-label por loja.
 
-- **Backend** — Funcional. 385+ classes Java, **749 testes verdes**, **2 migrations Flyway** (baseline + seed, rodam limpas do zero). Spring Modulith com **todos os módulos `CLOSED`** (fronteiras enforçadas).
-- **Backoffice web** (`frontend/jetski-backoffice`) — Funcional. Next.js 15 + React 19 + shadcn/ui, NextAuth + OIDC, TanStack Query/Table, Recharts, Playwright e2e.
-- **Mobile** (KMM) — Apenas documentação (`mobile/*.md`); código em working dir separado (`/mnt/c/repos/jetski-mobile`).
+### Plataforma (super admin)
+- Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão
+  automática → checklist de primeiros passos (7 itens). Créditos de adesão automáticos.
+- Créditos de emissão: ledger append-only (trigger de banco anti-DELETE), débito na emissão,
+  compra via PIX com conferência manual do super admin. Metering (DOCUMENTO/GRU/PREVIA).
+- **Reset de empresa** em 3 níveis (operacional/frota/total) com preview, classificação
+  obrigatória das tabelas (teste-guarda) e export automático prévio.
+- **Export de arquivamento** (.zip: dados JSON de todas as tabelas + arquivos do storage).
+- **Exclusão de empresa**: carência 30 dias (cancelável) ou imediata; expurgo com tombstone
+  (slug liberado, sensíveis anonimizados; ledger/metering/auditoria preservados); job diário
+  (05:45) executa expurgos vencidos e remove exports >90 dias.
 
----
+### Infra/segurança/operacional
+- CI (testes + Modulith + E2E Newman 75 asserções) → CD automático em produção (Oracle ARM,
+  Docker Compose, Cloudflare Tunnel). Deploy não-destrutivo com verificação de RLS.
+- RLS em todas as tabelas multi-tenant + guarda no deploy (02-verify-rls) + RLS na tabela
+  `tenant` (V042, GUC `app.unrestricted` p/ superadmin); policies de marketplace escopadas.
+- Backup diário automatizado (systemd timer 04:00) com off-site Google Drive; restore testado.
+- Observabilidade: Grafana/Loki/Prometheus, 5 alertas por e-mail. Storage MinIO com prefixo
+  por tenant e URLs presignadas.
+- Termos de Uso e Política de Privacidade publicados (`/termos`, `/privacidade`) — Fcf
+  Tecnologia Ltda; revisão jurídica pendente.
 
-## 1. MÓDULOS DO BACKEND
+## Pendências conhecidas
 
-Estrutura de pacotes por módulo: `api/` (controllers, DTOs) · `domain/` (entidades, enums, eventos) · `internal/` (services, repositories).
+**Curto prazo (P1 do lançamento):**
+- E-mail transacional (hoje: conta Gmail única ~500/dia, também canal dos alertas).
+- Rate limiting (nenhum — signup/OTP/endpoints públicos); fechar `/actuator/prometheus` e
+  swagger públicos; apertar CORS (`*.ngrok-free.app` com credentials).
+- Validação server-side de upload presignado (content-type/tamanho).
+- Alertas para Postgres/Keycloak/tunnel down e backup falho.
+- Processo de cobrança da mensalidade (não há billing — pós-trial = suspensão; decidir manual).
 
-### ✅ shared (infraestrutura transversal)
-- **security** — Spring Security 6 (OAuth2 Resource Server), `JwtAuthenticationConverter` (extrai `tenant_id` do JWT), `TenantContext` (ThreadLocal), `TenantFilter`, `TenantAccessService`.
-- **authorization (OPA)** — `OPAAuthorizationService` + interceptor, 6 políticas Rego (RBAC, contexto, alçadas, regras de negócio, multi-tenant).
-- **exception** — `GlobalExceptionHandler`, exceções customizadas, `ErrorResponse`.
-- **email** — `EmailService` (`SmtpEmailService` / `DevEmailService`).
-- **storage** — `LocalStorageController` (storage local de mídia; abstração para evoluir a S3).
-- **audit** — `Auditoria` + `AuditoriaService` + `AuditEventListener` (**eventos assíncronos**), `AuditoriaController` (consulta).
+**Backlog (v2/estrutural):**
+- Billing por plano a partir do metering; enforcement de limites além de `usuarios_max`
+  (frota, storage, locações/mês); fluxo de upgrade.
+- LGPD titular: exportação/anonimização a pedido (hoje soft-delete de cliente).
+- HA/segunda VM (produção é VM única); retenção de logs >7 dias.
+- Assinatura C1 (selfie/geoloc) e C3 (ICP-Brasil/gov.br); troca de CPF do cliente com OTP;
+  RN05 (caução/danos); central de ajuda/documentação de usuário.
+- Mobile (KMM): código no working dir separado `/mnt/c/repos/jetski-mobile` (login, check-in,
+  fotos, offline em desenvolvimento) — docs em `mobile/*.md`.
 
-### ✅ tenant / tenants / signup
-- `Tenant`, `TenantStatus`, `ComissaoConfig` (config de comissão por tenant), `TenantConfigController`.
-- `signup` — onboarding self-service (`TenantSignup`, `SignupStatus`, `TenantSignupController`).
-- **Onboarding com aprovação** (ver `ONBOARDING_EMPRESA_SPEC.md`): signup cria tenant `PENDENTE_APROVACAO` (trial só na aprovação); gate de status no `TenantFilter`; super admin (`usuario_global_roles.unrestricted_access` → OPA god-mode) aprova/suspende/reativa via `PlatformTenantController` + painel `dashboard/plataforma`; auditoria via `TenantStatusChangedEvent`; e-mails best-effort — super admin avisado no signup, empresa avisada na mudança de status (`TenantStatusEmailListener` p/ ADMIN_TENANT, `SignupTenantApprovedListener` p/ signup ainda não ativado).
-- **Trial REAL de 14 dias**: `TrialExpirationJob` (diário 05:15) + `TrialExpirationService` — vencido → assinatura `expirada` + empresa SUSPENSA automaticamente (reusa o fluxo de suspensão: e-mail/auditoria/cache); avisos D-3/D-1 por e-mail (`TrialExpiringEvent`). Painel de plataforma mostra plano + vencimento (leitura da `assinatura` tenant-a-tenant via `SET LOCAL`, sem bypass de RLS). Limites de plano além de `usuarios_max` (frota, storage, locações/mês) ainda NÃO são enforçados.
-- **Checklist "Primeiros passos"** (onboarding dentro do tenant): card no dashboard p/ ADMIN_TENANT com o percurso modelo→jetski→instrutor→Capitania→PIX→equipe→1ª locação, auto-detectado dos dados reais (`GET .../dashboard/onboarding`, módulo dashboard); config da empresa ganhou campo Chave PIX; e-mail de aprovação com CTA "Comece por aqui".
-- **Compressão de imagem no upload** (leve na rede da praia + não estoura limite): fotos são reduzidas no navegador antes de enviar (`lib/image-compress.ts` no `FileUpload`), com qualidade/resolução por tipo de documento parametrizada pelo super admin (`plataforma_config.imagem_compressao`; card no painel Plataforma; `GET/PUT /v1/platform/documentos/imagem-config`, tenant lê em `GET /v1/tenants/{id}/documentos/imagem-config`). Assinatura (PNG) fica de fora. Axios ganhou timeout de 120s (botão não trava mais em "enviando…").
-
-### ✅ usuarios
-- Entidades: `Usuario`, `Membro` (relação usuário-tenant + papéis), `Convite`, `UsuarioIdentityProvider`.
-- Controllers: convites (`UserInvitationController`, `ConviteController`), ativação de conta (`AccountActivationController` — magic-link), membros (`TenantMemberController`), tenants do usuário (`UserTenantsController`).
-- Provisionamento Keycloak + PostgreSQL, magic-link JWT, e-mails de convite.
-- Eventos: `MemberInvited/Activated/Deactivated/RolesChanged`.
-
-### ✅ locacoes (núcleo operacional — maior módulo)
-- **Frota/catálogo**: `Modelo`, `ModeloMidia`, `Jetski` (`JetskiStatus`), `Cliente`, `ItemOpcional`.
-- **Reservas**: `Reserva` (baseada em modelo), `ReservaConfig`, prioridade ALTA/BAIXA, confirmação de sinal, alocação de jetski, expiração agendada, overbooking configurável.
-- **Locação**: `Locacao` (`LocacaoStatus`), check-in (reserva e walk-in), check-out com **billing RN01** (tolerância, arredondamento 15 min, horímetro), itens opcionais (`LocacaoItemOpcional`).
-- **Fotos**: `Foto`/`FotoTipo`, `PhotoController` (upload de fotos via storage).
-- **Vendedores**: `Vendedor` (`VendedorTipo`, PIX `TipoChavePix`, diária base), `PresencaVendedor` (`TipoPresenca`) + `PresencaVendedorController`.
-- Eventos: `CheckInEvent`, `CheckOutEvent`, `RentalCompletedEvent`, `LocacaoEditadaEvent`, `DataCheckInAlteradaEvent`.
-
-### ✅ frota
-- `FrotaDashboardController` (visão de frota).
-
-### ✅ manutencao (RN06)
-- `OSManutencao` (status ABERTA/EM_ANDAMENTO/AGUARDANDO_PECAS/CONCLUIDA/CANCELADA, tipo, prioridade).
-- `DespesaManutencao` + `DespesaManutencaoController`.
-- Workflow: criar (bloqueia jetski) → start → finish (peças + mão de obra) → libera jetski; endpoint de disponibilidade.
-
-### ✅ combustivel (RN03)
-- `Abastecimento` (`TipoAbastecimento`), `FuelPolicy` (`FuelPolicyType`, `FuelChargeMode` — modos **Incluso / Medido / Taxa fixa**), `FuelPriceDay` (preço diário).
-- Controllers: `AbastecimentoController`, `FuelPolicyController`, `FuelPriceDayController`.
-
-### ✅ comissoes (RN04)
-- `Comissao` (`StatusComissao`, `TipoComissao`), `PoliticaComissao` (`NivelPolitica` — hierarquia campanha → modelo → duração → vendedor).
-- Controllers: `ComissaoController`, `PoliticaComissaoController`.
-
-### ✅ fechamento
-- `FechamentoDiario`, `FechamentoMensal` (consolidação financeira com lock retroativo, hash de valores, diárias e despesas).
-- `FechamentoController`.
-
-### ✅ despesas
-- `DespesaOperacional` (`CategoriaDespesa`, `StatusDespesa`), `DespesaOperacionalController`.
-
-### ✅ pagamentos
-- `PagamentoVendedor` (`TipoPagamento`) — pagamentos a vendedores (inclui PIX), `PagamentoVendedorController`.
-
-### ✅ bonus
-- `BonusVendedor` (`StatusBonus`).
-
-### ✅ dashboard
-- `DashboardFinanceiroController` (KPIs financeiros).
-
-### ✅ marketplace
-- `PublicMarketplaceController` — vitrine pública de embarcações (endpoint público).
-
----
-
-## 2. BACKOFFICE WEB (`frontend/jetski-backoffice`)
-
-Next.js 15 + React 19 + TypeScript + shadcn/ui. Auth via NextAuth + OIDC (Keycloak).
-Estado: TanStack Query; tabelas: TanStack Table; gráficos: Recharts; testes e2e: Playwright.
-
-**Telas (~27):**
-- Auth: login, logout, signup, magic-activate.
-- Operacional: agenda, locações, clientes, jetskis (+ detalhe), modelos (+ detalhe), manutenção.
-- Vendas/comissões: vendedores (+ detalhe), comissões.
-- Financeiro: financeiro, pagamentos, despesas-operacionais, fechamentos (diário/mensal).
-- Gestão: usuários, configurações, relatórios, auditoria, dashboard.
-- Público: home, `embarcacao/[id]` (marketplace).
-
----
-
-## 3. INFRAESTRUTURA LOCAL
-
-`docker-compose.yml` — serviços: **nginx, postgres (16), redis (7), keycloak (26), opa, backend, frontend**.
-
-- **PostgreSQL 16** com RLS habilitado em todas as tabelas operacionais; `set_config('app.tenant_id', …)` por sessão.
-- **Keycloak 26** — realm único + claim `tenant_id`; setup automatizado (`setup-keycloak-local.sh`).
-  O `infra/keycloak-realm.json` é **self-contained**: traz os 5 usuários ACME com IDs
-  fixos que casam com o seed (`usuario_identity_provider`) e o client `jetski-test`
-  (público, *direct access grants*). Após `docker compose up` os usuários já logam e
-  resolvem o usuário interno, sem depender da sincronização de UUID do `reset-ambiente-dev.sh`.
-- **OPA** — políticas `.rego` montadas via volume.
-- Scripts de ambiente: `reset-ambiente-dev.sh` (toda alteração/inclusão de tabela deve entrar aqui), `rebuild.sh`, `rebuild-frontend.sh`.
-
----
-
-## 4. BANCO DE DADOS — MIGRATIONS (consolidadas em 2)
-
-As 36 migrations incrementais antigas (V001→V036) não rodavam limpas do zero (as
-`align_*_with_entity` assumiam um schema antigo) e foram **consolidadas**:
-
-- **`V001__schema.sql`** — baseline completo (36 tabelas, índices, constraints, RLS policies,
-  functions, triggers). Gerado a partir do schema real e alinhado às entidades JPA.
-- **`V002__seed_data.sql`** — seed de dev/test (planos, tenant ACME, usuários, modelos, jetskis,
-  fixtures de teste).
-
-> Toda alteração de tabela deve entrar no `reset-ambiente-dev.sh` e, daqui pra frente, como uma
-> nova migration `V003+` (não editar o baseline).
-
----
-
-## 5. REGRAS DE NEGÓCIO IMPLEMENTADAS
-
-- **RN01** — Billing de locação (tolerância, arredondamento de 15 min, horímetro, valor base).
-- **RN03** — Combustível em 3 modos (Incluso / Medido / Taxa fixa) via `FuelPolicy`.
-- **RN04** — Comissão com hierarquia de políticas (campanha → modelo → duração → vendedor).
-- **RN06** — Manutenção bloqueia jetski; libera ao concluir/cancelar todas as OS ativas.
-- Fechamento diário/mensal com **lock retroativo** e hash de valores.
-- Multi-tenancy por RLS + RBAC (Keycloak) + ABAC/alçadas (OPA).
-
-> Mapa **RN ↔ cenário BDD ↔ teste** (cobertura e lacunas) em [`docs/RN-COVERAGE.md`](docs/RN-COVERAGE.md).
-> Lacunas conhecidas: RN02 (cancelamento/no-show) não implementado, RN05 caução/danos
-> faltando, RN07 sem teste dedicado.
-
----
-
-## 5.1 ARQUITETURA MODULAR (Spring Modulith)
-
-`ModuleStructureTest` valida as fronteiras em todo build e está **verde**:
-
-- **Sem ciclos.** Os 3 ciclos que existiam foram quebrados:
-  - `shared ↔ tenant` → `TenantTimeService` movido para o módulo `tenant` (shared é fundação pura).
-  - `comissoes ↔ bonus` → evento `ComissaoCalculadaEvent` (comissoes publica, bonus escuta).
-  - `locacoes ↔ fechamento` → port `FechamentoLockChecker` (DI invertida) + eventos.
-- **Todos os módulos `CLOSED`.** Internals não são acessados entre módulos; a comunicação
-  cross-module passa por named interfaces (`api`, `domain`, `events`) e serviços públicos
-  (`*QueryService`, `*Service` em `api`).
-- Módulos consumidores que antes "furavam" fronteiras (`dashboard`, `pagamentos`, `signup`)
-  agora consomem apenas APIs públicas.
-
----
-
-## 6. PENDÊNCIAS / PRÓXIMOS PASSOS
-
-### Storage de mídia
-- Hoje via storage **local** (`LocalStorageController`). Falta integração **S3** (presigned URLs, SSE), validação de fotos obrigatórias, EXIF e hash SHA-256.
-
-### Segurança / compliance
-- LGPD (consentimento, retenção por tenant), AWS KMS (envelope encryption), rate-limit por tenant, DPA.
-
-### CI/CD & deploy
-- **CI implementado (GitHub Actions):**
-  - `.github/workflows/ci.yml` — `mvn clean test` (unit + integração Testcontainers +
-    `ModuleStructureTest`) em todo push/PR na main.
-  - `.github/workflows/e2e.yml` — sobe o stack via docker compose e roda a collection
-    Postman com **Newman** contra a API real (Keycloak real). Usa `infra/ci-bootstrap-db.sh`
-    (cria `jetski_app` + migrations Flyway + grants) e `docker-compose.ci.yml` (alinha o
-    issuer do JWT). Roda em push na main + `workflow_dispatch`; **ainda não em PR** até a
-    1ª execução verde no runner (validado localmente: 37 requests / 70 assertions / 0 falhas).
-- **Falta:** build/push de imagem Docker no pipeline, EKS/Helm/ArgoCD, RDS — nenhum dos
-  workflows faz **deploy** (apenas validação).
-
-### Mobile (KMM)
-- Apenas documentação; código no working dir `/mnt/c/repos/jetski-mobile`.
-
-### Observabilidade
-- Configuração base (Actuator, stack de observabilidade em `infra/observability` com Grafana/Loki/Prometheus); validar dashboards e correlação por `traceId`.
-
----
-
-## 7. DOCUMENTAÇÃO RELACIONADA
-
-- `inicial.md` — especificação original (PT).
-- `CLAUDE.md` — diretrizes para assistentes de IA + visão da arquitetura.
-- `README.md` — setup e arquitetura.
-- `AMBIENTE-LOCAL.md`, `DESENVOLVIMENTO-LOCAL.md`, `SETUP.md` — ambiente e workflow.
-- `BACKOFFICE-API-*.md` — referência da API consumida pelo backoffice.
-- `policies/README.md` — políticas OPA.
-
----
-
-**Como atualizar este relatório:** rode `mvn test` para números atuais de testes/cobertura e
-reflita aqui novos módulos/migrations. Mantenha sincronizado com `CLAUDE.md` (seção *Current Status*).
+## Como manter este documento
+Atualize a data e os contadores ao fechar blocos de trabalho (`mvn test` para o número real;
+`ls backend/src/main/resources/db/migration | tail -1` para a última migration). Specs de
+projeto (`PORTAL_CLIENTE_SPEC.md`, `GRU_ROBO_SPEC.md`, `inicial.md`) são históricas — o estado
+vigente é ESTE arquivo + `CLAUDE.md` + `DEPLOY.md`.

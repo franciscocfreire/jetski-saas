@@ -122,3 +122,14 @@ no próximo boot).
 - **Onde mexer no código:** `PlatformAdminSeeder`, `usuario_global_roles`, OPA
   `authorization.rego` (`is_platform_admin`), `PlatformTenantController/Service`. Spec geral
   em `ONBOARDING_EMPRESA_SPEC.md`.
+
+## Capacidades adicionadas (jul/2026)
+
+Na página **Plataforma › Empresas**, além de aprovar/suspender/reativar:
+- **Lançar créditos** de emissão (ajuste manual no ledger, auditado).
+- **Exportar** — arquivamento completo da empresa (.zip: dados JSON + arquivos), download imediato.
+- **Resetar** — zera dados em 3 níveis (Operacional / +Frota / Total) com preview de contagens,
+  confirmação por slug e export automático prévio. Créditos/metering/auditoria nunca são apagados.
+- **Excluir** — carência de 30 dias (suspende agora, expurga depois, cancelável) ou imediata;
+  expurgo deixa tombstone (slug liberado, dados sensíveis anonimizados). Job diário (05:45)
+  executa expurgos vencidos e remove exports com mais de 90 dias.

@@ -9,7 +9,7 @@ description: Rebuild seguro do ambiente dev do jetski (backend/frontend/portal) 
 ```bash
 ./rebuild.sh                # tudo
 ./rebuild.sh backend        # só backend
-./rebuild.sh frontend       # só frontend (ou ./rebuild-frontend.sh)
+./rebuild.sh frontend       # só frontend
 ./rebuild.sh portal         # só o portal do cliente (basePath /portal)
 ./rebuild.sh backend --no-cache   # força recompilação
 ```

@@ -165,7 +165,7 @@ make backend-run     # Rodar aplicação
 | [EPIC-06](./stories/epics/epic-06-backoffice-web.md) | Backoffice Web | ✅ CONCLUÍDO | 82 pts |
 | [EPIC-07](./stories/epics/epic-07-mobile-kmm-poc.md) | Mobile KMM POC | 📋 TODO³ | 47 pts |
 
-¹ Núcleo completo (reservas, check-in/out, billing RN01). Pendente: armazenamento de fotos em S3 (hoje storage local).
+¹ Núcleo completo (reservas, check-in/out, billing RN01). Storage em MinIO (S3-compatível) em produção.
 ² Observabilidade implementada (Grafana/Loki/Prometheus, Actuator). Pendente: pipeline CI/CD e deploy.
 ³ Apenas documentação (`mobile/*.md`); código no working dir separado.
 
@@ -182,7 +182,7 @@ O sistema usa **isolamento lógico de dados** com:
 ## 🧪 Testes
 
 ```bash
-# Backend (749 testes; unit + integração com Testcontainers; requer Docker)
+# Backend (~1057 testes; unit + integração com Testcontainers; requer Docker)
 cd backend
 mvn test                          # Suíte completa
 mvn test -Dtest=ModuleStructureTest   # Verifica fronteiras de módulos (Spring Modulith)
@@ -264,6 +264,6 @@ TBD
 
 ---
 
-**Status:** 🚧 Em desenvolvimento ativo (v0.8.0)
+**Status:** ✅ Em produção — www.meujet.com.br (site + marketplace), app.meujet.com.br (backoffice), cliente.meujet.com.br (portal)
 **Módulos:** Multi-tenant, usuários/convites, frota, reservas, locações (check-in/out + billing), manutenção, comissões, fechamentos, combustível, despesas, pagamentos, bônus, dashboard, marketplace
-**Última atualização:** 2026-06-14
+**Última atualização:** 2026-07-11

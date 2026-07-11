@@ -62,10 +62,10 @@ openssl rand -base64 24   # senhas de banco/MinIO
 
 1. Cloudflare Zero Trust → **Networks → Tunnels → Create a tunnel** (Cloudflared).
 2. Copie o **token** e cole em `CLOUDFLARE_TUNNEL_TOKEN` no `.env`.
-3. Em **Public Hostnames** do tunnel, adicione:
-   - Hostname: `meujet.com.br` (e/ou `www`) → Service: `http://nginx:80`
-   - Hostname: `cliente.meujet.com.br` → Service: `http://nginx:80` (portal do
-     cliente no subdomínio próprio — fase 1; exige `PORTAL_PUBLIC_URL` no `.env`)
+3. Em **Public Hostnames** do tunnel, adicione (todos → Service: `http://nginx:80`):
+   - `meujet.com.br` e `www.meujet.com.br` — site público + marketplace
+   - `app.meujet.com.br` — backoffice (login/painel; exige `APP_PUBLIC_URL` no `.env`)
+   - `cliente.meujet.com.br` — portal do cliente (exige `PORTAL_PUBLIC_URL` no `.env`)
 4. O DNS (CNAME) é criado automaticamente pelo Cloudflare.
 
 ## 4. Primeiro deploy
@@ -75,13 +75,13 @@ cd ~/jetski
 ./deploy.sh
 ```
 
-`deploy.sh` sobe a infra, cria o role, aplica migrations (V001–V013, inclui seed do tenant ACME),
+`deploy.sh` sobe a infra, cria o role, aplica as migrations pendentes (V001–V044+),
 verifica RLS, builda backend/frontend (ARM nativo), sobe nginx + cloudflared, e **configura o
 client Keycloak** `jetski-backoffice` (confidencial + secret + PKCE + redirects do `PUBLIC_URL`,
 via `infra/prod/configure-keycloak-client.sh`, idempotente). Ao final faz smoke check em
 `http://127.0.0.1:8090/api/actuator/health`.
 
-Acesse: **https://meujet.com.br** — login com os usuários do realm (ex: `admin@acme.com`).
+Acesse: site em **https://www.meujet.com.br**; backoffice (login) em **https://app.meujet.com.br**.
 
 ## 5. CD (deploys seguintes)
 
@@ -108,15 +108,16 @@ $C logs -f backend          # logs
 
 ## Backup e restore
 
-**Automatizado**: o `deploy.sh` instala um cron diário (03:30) que roda
+**Automatizado**: o `deploy.sh` instala um systemd timer diário (`meujet-backup.timer`,
+04:00 — a VM não tem cron) que roda
 `infra/prod/backup.sh` — `pg_dump` do `jetski_prod` (formato custom; **inclui o
 schema `keycloak`**, ou seja, realm/usuários) + tar do volume do MinIO
 (fotos/documentos), com retenção de 14 dias em `~/backups/meujet/` e marcador
 `last-success`. Log: `~/backups/meujet/backup.log`.
 
 **Off-site (IMPORTANTE)**: por padrão o backup fica na MESMA VM — perda da VM =
-perda dos backups. Instale o `rclone`, configure um remoto (ex.: Oracle Object
-Storage) e defina `BACKUP_RCLONE_REMOTE=meu-remoto:meujet-backup` no `.env`;
+perda dos backups. Já configurado: rclone → Google Drive (`gdrive:meujet-backup`, escopo drive.file), via
+`BACKUP_RCLONE_REMOTE` no `.env`;
 o script sincroniza automaticamente a cada execução.
 
 **Restore do Postgres** (testado em 10/jul/2026 — dump de dev restaurado íntegro):

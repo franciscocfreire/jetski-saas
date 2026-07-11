@@ -1,5 +1,7 @@
 # Especificação — Portal do Cliente (Frontend)
 
+> **STATUS (jul/2026): ENTREGUE — P0–P4 em produção** (identidade, reserva online + sinal PIX, termos/CHA remotos, EMA/GRU self-service, histórico + avaliações + white-label). Este documento é a especificação de projeto, mantida como referência de desenho; as seções de "gaps"/"a criar" (§0, §9, §13) descrevem o estado de jun/2026 e foram implementadas.
+
 > **Status:** Proposta v1 (MVP) · **Data:** 2026-06-15 · **Versão do produto:** 0.8.x
 > **Escopo:** App web voltado ao **cliente final** (locatário de moto aquática), separado do backoffice.
 > Documento de especificação de **frontend**, com os contratos de API e dependências de backend que o portal exige.

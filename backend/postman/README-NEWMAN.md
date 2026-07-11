@@ -46,7 +46,7 @@ curl http://localhost:8181/health
 
 ### Opção 1: Execução Básica (CLI)
 ```bash
-newman run postman/Jetski-Sprint3-Jornadas-Testadas.postman_collection.json \
+newman run postman/Jetski-Jornadas.postman_collection.json \
   -e postman/environments/Local.postman_environment.json
 ```
 
@@ -59,7 +59,7 @@ newman run postman/Jetski-Sprint3-Jornadas-Testadas.postman_collection.json \
 
 ### Opção 2: Com Relatórios (JSON + HTML)
 ```bash
-newman run postman/Jetski-Sprint3-Jornadas-Testadas.postman_collection.json \
+newman run postman/Jetski-Jornadas.postman_collection.json \
   -e postman/environments/Local.postman_environment.json \
   --reporters cli,json,htmlextra \
   --reporter-json-export results.json \
@@ -75,7 +75,7 @@ start report.html  # Windows
 
 ### Opção 3: CI/CD Mode (Sem Cores, Exit Code)
 ```bash
-newman run postman/Jetski-Sprint3-Jornadas-Testadas.postman_collection.json \
+newman run postman/Jetski-Jornadas.postman_collection.json \
   -e postman/environments/Local.postman_environment.json \
   --reporters cli,json \
   --reporter-json-export results.json \
@@ -90,19 +90,19 @@ newman run postman/Jetski-Sprint3-Jornadas-Testadas.postman_collection.json \
 ### Opção 4: Executar Apenas Uma Jornada
 ```bash
 # Apenas Fechamento Diário
-newman run postman/Jetski-Sprint3-Jornadas-Testadas.postman_collection.json \
+newman run postman/Jetski-Jornadas.postman_collection.json \
   -e postman/environments/Local.postman_environment.json \
   --folder "1️⃣ Jornada: Fechamento Diário Completo"
 
 # Apenas Comissões
-newman run postman/Jetski-Sprint3-Jornadas-Testadas.postman_collection.json \
+newman run postman/Jetski-Jornadas.postman_collection.json \
   -e postman/environments/Local.postman_environment.json \
   --folder "2️⃣ Jornada: Comissões - Do Cálculo ao Pagamento"
 ```
 
 ### Opção 5: Múltiplas Iterações (Load Test)
 ```bash
-newman run postman/Jetski-Sprint3-Jornadas-Testadas.postman_collection.json \
+newman run postman/Jetski-Jornadas.postman_collection.json \
   -e postman/environments/Local.postman_environment.json \
   -n 10  # Executa 10 vezes
 ```
@@ -236,7 +236,7 @@ jobs:
 
       - name: Run Postman Tests
         run: |
-          newman run postman/Jetski-Sprint3-Jornadas-Testadas.postman_collection.json \
+          newman run postman/Jetski-Jornadas.postman_collection.json \
             -e postman/environments/Local.postman_environment.json \
             --reporters cli,json,htmlextra \
             --reporter-json-export results.json \
@@ -263,7 +263,7 @@ api-tests:
     - npm install -g newman newman-reporter-htmlextra
     - mvn spring-boot:run &
     - sleep 30
-    - newman run postman/Jetski-Sprint3-Jornadas-Testadas.postman_collection.json \
+    - newman run postman/Jetski-Jornadas.postman_collection.json \
         -e postman/environments/Local.postman_environment.json \
         --reporters cli,json \
         --reporter-json-export results.json
@@ -300,7 +300,7 @@ Para validação rápida após deploy:
 
 echo "🚀 Executando smoke tests..."
 
-newman run postman/Jetski-Sprint3-Jornadas-Testadas.postman_collection.json \
+newman run postman/Jetski-Jornadas.postman_collection.json \
   -e postman/environments/Local.postman_environment.json \
   --folder "0️⃣ Setup - Autenticação" \
   --bail \
@@ -313,7 +313,7 @@ else
   exit 1
 fi
 
-newman run postman/Jetski-Sprint3-Jornadas-Testadas.postman_collection.json \
+newman run postman/Jetski-Jornadas.postman_collection.json \
   -e postman/environments/Local.postman_environment.json \
   --folder "1️⃣ Jornada: Fechamento Diário Completo" \
   --bail \
