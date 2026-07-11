@@ -186,6 +186,36 @@ public class LocalFileStorageService implements StorageService {
         }
     }
 
+    @Override
+    public java.util.List<String> listObjectKeys(String prefix) {
+        Path root = Paths.get(basePath);
+        Path dir = Paths.get(basePath, prefix);
+        if (!Files.isDirectory(dir)) {
+            return java.util.List.of();
+        }
+        try (var stream = Files.walk(dir)) {
+            return stream
+                .filter(Files::isRegularFile)
+                .map(p -> root.relativize(p).toString().replace('\\', '/'))
+                .toList();
+        } catch (IOException e) {
+            log.error("Falha ao listar objetos locais: prefix={}", prefix, e);
+            throw new BusinessException("Erro ao listar arquivos: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void putObject(String key, java.io.InputStream content, long size, String contentType) {
+        try {
+            Path filePath = Paths.get(basePath, key);
+            Files.createDirectories(filePath.getParent());
+            Files.copy(content, filePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            log.error("Falha ao salvar objeto local (stream): {}", key, e);
+            throw new BusinessException("Erro ao salvar arquivo: " + e.getMessage());
+        }
+    }
+
     /**
      * Salva arquivo local (usado internamente pelo endpoint de upload simulado).
      */

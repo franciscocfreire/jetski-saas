@@ -35,6 +35,7 @@ class TenantResetIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired private TenantResetService resetService;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private com.jetski.shared.storage.StorageService storage;
 
     private String slug;
 
@@ -104,9 +105,11 @@ class TenantResetIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("OPERACIONAL: apaga reservas/clientes, mantém frota, equipe e créditos")
     void resetOperacional() {
-        Map<String, Long> apagados = resetService.reset(TENANT, Nivel.OPERACIONAL, slug);
+        TenantResetService.Resultado r = resetService.reset(TENANT, Nivel.OPERACIONAL, slug);
 
-        assertThat(apagados).containsKeys("reserva", "cliente");
+        assertThat(r.apagados()).containsKeys("reserva", "cliente");
+        assertThat(r.exportKey()).startsWith("_platform/exports/" + TENANT + "/");
+        assertThat(r.exportBytes()).isPositive();
         assertThat(count("reserva")).isZero();
         assertThat(count("cliente")).isZero();
         assertThat(count("modelo")).isPositive();
@@ -130,10 +133,10 @@ class TenantResetIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("TOTAL: preserva só membros ADMIN_TENANT (e sempre os créditos)")
     void resetTotal() {
-        Map<String, Long> apagados = resetService.reset(TENANT, Nivel.TOTAL, slug);
+        TenantResetService.Resultado r = resetService.reset(TENANT, Nivel.TOTAL, slug);
 
         assertThat(count("modelo")).isZero();
-        assertThat(apagados).containsEntry("membro", 1L);
+        assertThat(r.apagados()).containsEntry("membro", 1L);
         assertThat(count("membro")).isEqualTo(1);
         String papeis = jdbc.queryForObject(
             "SELECT papeis::text FROM membro WHERE tenant_id = ?", String.class, TENANT);
@@ -159,5 +162,29 @@ class TenantResetIntegrationTest extends AbstractIntegrationTest {
         assertThat(preview.getOrDefault("reserva", 0L)).isPositive();
         assertThat(preview.getOrDefault("membro", 0L)).isEqualTo(1); // só o não-admin
         assertThat(count("reserva")).isPositive();
+    }
+
+    @Test
+    @DisplayName("export automático: zip contém dados JSON do tenant e manifesto")
+    void exportGeradoAntesDoReset() throws Exception {
+        TenantResetService.Resultado r = resetService.reset(TENANT, Nivel.OPERACIONAL, slug);
+
+        byte[] zip = storage.getObject(r.exportKey());
+        java.util.Set<String> entradas = new java.util.HashSet<>();
+        String reservaJson = null;
+        try (java.util.zip.ZipInputStream in =
+                 new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(zip))) {
+            java.util.zip.ZipEntry e;
+            while ((e = in.getNextEntry()) != null) {
+                entradas.add(e.getName());
+                if (e.getName().equals("dados/reserva.json")) {
+                    reservaJson = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                }
+            }
+        }
+        assertThat(entradas).contains("manifest.json", "dados/reserva.json", "dados/tenant.json",
+            "dados/credito_lancamento.json");
+        // A reserva apagada pelo reset está preservada no export
+        assertThat(reservaJson).contains("a1000000-0000-0000-0000-000000000004");
     }
 }

@@ -76,4 +76,24 @@ public interface StorageService {
      * @return conteúdo do arquivo
      */
     byte[] getObject(String key);
+
+    /**
+     * Lista as chaves de objetos sob um prefixo (recursivo). Usado pelo export
+     * de tenant (arquivamento pré-reset/expurgo) — prefixo {tenantId}/.
+     *
+     * @param prefix prefixo das chaves (ex.: "tenant-uuid/")
+     * @return chaves completas encontradas
+     */
+    java.util.List<String> listObjectKeys(String prefix);
+
+    /**
+     * Salva um objeto a partir de um stream (uploads grandes — ex.: o zip do
+     * export de tenant — sem carregar tudo em memória).
+     *
+     * @param key         chave única do objeto
+     * @param content     stream do conteúdo (o chamador fecha)
+     * @param size        tamanho em bytes
+     * @param contentType tipo MIME
+     */
+    void putObject(String key, java.io.InputStream content, long size, String contentType);
 }

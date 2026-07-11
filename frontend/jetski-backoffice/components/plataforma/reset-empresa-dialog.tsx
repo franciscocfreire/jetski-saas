@@ -95,9 +95,10 @@ export function ResetEmpresaDialog({ tenant }: { tenant: TenantSummary }) {
             <TriangleAlert className="size-5 text-destructive" /> Resetar {tenant.razaoSocial}
           </DialogTitle>
           <DialogDescription>
-            Apaga os dados do nível escolhido de forma <b>irreversível</b>. Créditos, plano,
-            metering e auditoria são sempre preservados; habilitações de clientes já vivem no
-            registro global e não são afetadas.
+            Apaga os dados do nível escolhido. Um <b>export de arquivamento (.zip)</b> é gerado
+            automaticamente antes — se ele falhar, nada é apagado. Créditos, plano, metering e
+            auditoria são sempre preservados; habilitações de clientes já vivem no registro
+            global e não são afetadas.
           </DialogDescription>
         </DialogHeader>
 

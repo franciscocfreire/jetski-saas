@@ -3,6 +3,7 @@ package com.jetski.shared.storage;
 import com.jetski.shared.exception.BusinessException;
 import io.minio.*;
 import io.minio.http.Method;
+import io.minio.messages.Item;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -95,6 +96,40 @@ public class MinIOStorageService implements StorageService {
         } catch (Exception e) {
             log.error("Falha ao ler objeto MinIO: {}", key, e);
             throw new BusinessException("Erro ao ler arquivo no MinIO: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public java.util.List<String> listObjectKeys(String prefix) {
+        try {
+            ensureBucketExists();
+            java.util.List<String> keys = new java.util.ArrayList<>();
+            for (Result<Item> r : minioClient.listObjects(
+                    ListObjectsArgs.builder().bucket(bucket).prefix(prefix).recursive(true).build())) {
+                keys.add(r.get().objectName());
+            }
+            return keys;
+        } catch (Exception e) {
+            log.error("Falha ao listar objetos MinIO: prefix={}", prefix, e);
+            throw new BusinessException("Erro ao listar arquivos no MinIO: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void putObject(String key, java.io.InputStream content, long size, String contentType) {
+        log.info("Salvando objeto MinIO (stream): bucket={}, key={}, size={} bytes", bucket, key, size);
+        try {
+            ensureBucketExists();
+            minioClient.putObject(
+                PutObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(key)
+                    .stream(content, size, -1)
+                    .contentType(contentType)
+                    .build());
+        } catch (Exception e) {
+            log.error("Falha ao salvar objeto MinIO (stream): {}", key, e);
+            throw new BusinessException("Erro ao salvar arquivo no MinIO: " + e.getMessage());
         }
     }
 

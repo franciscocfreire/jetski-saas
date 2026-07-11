@@ -93,7 +93,11 @@ public class TenantResetService {
 
     private final JdbcTemplate jdbcTemplate;
     private final TenantRepository tenantRepository;
+    private final TenantExportService tenantExportService;
     private final ApplicationEventPublisher eventPublisher;
+
+    /** Resultado do reset: contagens apagadas + export de arquivamento gerado antes. */
+    public record Resultado(Map<String, Long> apagados, String exportKey, long exportBytes) {}
 
     /** Contagem por tabela do que o reset apagaria no nível (dry-run p/ a UI). */
     @Transactional(readOnly = true)
@@ -127,7 +131,7 @@ public class TenantResetService {
      * @return contagem de linhas apagadas por tabela (ordem de execução)
      */
     @Transactional
-    public Map<String, Long> reset(UUID tenantId, Nivel nivel, String confirmacaoSlug) {
+    public Resultado reset(UUID tenantId, Nivel nivel, String confirmacaoSlug) {
         Tenant tenant = carregarTenant(tenantId);
         if (confirmacaoSlug == null || !confirmacaoSlug.trim().equals(tenant.getSlug())) {
             throw new BusinessException(
@@ -139,6 +143,10 @@ public class TenantResetService {
         jdbcTemplate.queryForObject(
             "SELECT pg_advisory_xact_lock(hashtextextended(?, 42))", Object.class,
             tenantId.toString());
+
+        // Export de arquivamento ANTES de apagar (decisão de produto: automático).
+        // Falhou o export → o reset inteiro aborta; nada é apagado sem cópia.
+        TenantExportService.Export export = tenantExportService.exportar(tenantId);
 
         Map<String, Long> apagados = new LinkedHashMap<>();
         for (String tabela : tabelasDoNivel(nivel)) {
@@ -169,12 +177,13 @@ public class TenantResetService {
         eventPublisher.publishEvent(TenantStatusChangedEvent.of(
             tenantId, "TENANT_RESET", tenant.getStatus().name(), tenant.getStatus().name(),
             actor, "nivel=" + nivel + "; tabelas=" + apagados.size()
-                + "; linhas=" + apagados.values().stream().mapToLong(Long::longValue).sum(),
+                + "; linhas=" + apagados.values().stream().mapToLong(Long::longValue).sum()
+                + "; export=" + export.key(),
             tenant.getRazaoSocial(), tenant.getSlug()));
 
-        log.warn("[PLATFORM] RESET de empresa executado: tenant={} ({}), nivel={}, apagados={}",
-            tenantId, tenant.getSlug(), nivel, apagados);
-        return apagados;
+        log.warn("[PLATFORM] RESET de empresa executado: tenant={} ({}), nivel={}, apagados={}, export={}",
+            tenantId, tenant.getSlug(), nivel, apagados, export.key());
+        return new Resultado(apagados, export.key(), export.bytes());
     }
 
     private List<String> tabelasDoNivel(Nivel nivel) {

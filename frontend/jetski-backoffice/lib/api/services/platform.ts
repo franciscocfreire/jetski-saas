@@ -68,11 +68,42 @@ export const platformService = {
     return data
   },
 
+  /** Gera o export de arquivamento (.zip com dados + arquivos) da empresa. */
+  async exportTenant(tenantId: string): Promise<TenantExport> {
+    const { data } = await apiClient.post<TenantExport>(
+      `/v1/platform/tenants/${tenantId}/export`,
+      undefined,
+      { headers: { 'X-Tenant-Id': tenantId }, timeout: 300_000 }
+    )
+    return data
+  },
+
+  /** Baixa um export (.zip) como blob. */
+  async downloadExport(tenantId: string, key: string): Promise<Blob> {
+    const { data } = await apiClient.get<Blob>(
+      `/v1/platform/tenants/${tenantId}/exports/download`,
+      {
+        params: { key },
+        headers: { 'X-Tenant-Id': tenantId },
+        responseType: 'blob',
+        timeout: 300_000,
+      }
+    )
+    return data
+  },
+
   /** Re-cifra os segredos de todos os tenants com a chave atual (rotação de chave). */
   async reencryptSecrets(): Promise<ReencryptResult> {
     const { data } = await apiClient.post<ReencryptResult>('/v1/platform/secrets/reencrypt')
     return data
   },
+}
+
+export interface TenantExport {
+  key: string
+  bytes: number
+  tabelas: number
+  arquivos: number
 }
 
 /** Níveis do reset — cada um é superconjunto do anterior. */

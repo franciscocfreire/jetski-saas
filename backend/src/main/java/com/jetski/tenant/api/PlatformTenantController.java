@@ -29,6 +29,7 @@ public class PlatformTenantController {
     private final PlatformTenantService platformTenantService;
     private final PlatformSecretsService platformSecretsService;
     private final com.jetski.tenant.internal.TenantResetService tenantResetService;
+    private final com.jetski.tenant.internal.TenantExportService tenantExportService;
 
     /** Lista TODAS as empresas (qualquer status) — visão completa do super admin. */
     @GetMapping("/tenants")
@@ -81,12 +82,40 @@ public class PlatformTenantController {
     public java.util.Map<String, Object> reset(
             @PathVariable("id") UUID id,
             @jakarta.validation.Valid @RequestBody com.jetski.tenant.api.dto.ResetTenantRequest body) {
-        java.util.Map<String, Long> apagados =
-            tenantResetService.reset(id, body.nivel(), body.confirmacaoSlug());
+        var resultado = tenantResetService.reset(id, body.nivel(), body.confirmacaoSlug());
         return java.util.Map.of(
             "nivel", body.nivel().name(),
-            "apagados", apagados,
-            "totalLinhas", apagados.values().stream().mapToLong(Long::longValue).sum());
+            "apagados", resultado.apagados(),
+            "totalLinhas", resultado.apagados().values().stream().mapToLong(Long::longValue).sum(),
+            "exportKey", resultado.exportKey(),
+            "exportBytes", resultado.exportBytes());
+    }
+
+    /**
+     * Gera sob demanda o export de arquivamento da empresa (.zip com dados
+     * JSON + arquivos do storage). Ação OPA: {@code platform:export}.
+     */
+    @PostMapping("/tenants/{id}/export")
+    public com.jetski.tenant.internal.TenantExportService.Export export(@PathVariable("id") UUID id) {
+        return tenantExportService.exportar(id);
+    }
+
+    /** Lista os exports já gerados da empresa. Ação OPA: {@code platform:exports}. */
+    @GetMapping("/tenants/{id}/exports")
+    public java.util.List<String> exports(@PathVariable("id") UUID id) {
+        return tenantExportService.listar(id);
+    }
+
+    /** Download de um export (.zip). Ação OPA: {@code platform:download}. */
+    @GetMapping("/tenants/{id}/exports/download")
+    public org.springframework.http.ResponseEntity<byte[]> downloadExport(
+            @PathVariable("id") UUID id, @RequestParam("key") String key) {
+        byte[] zip = tenantExportService.baixar(id, key);
+        String nome = key.substring(key.lastIndexOf('/') + 1);
+        return org.springframework.http.ResponseEntity.ok()
+            .header("Content-Disposition", "attachment; filename=\"" + nome + "\"")
+            .header("Content-Type", "application/zip")
+            .body(zip);
     }
 
     /**

@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ShieldCheck, Check, Ban, RotateCcw, ShieldAlert, KeyRound, Loader2, Gauge as GaugeIcon, Coins } from 'lucide-react'
 import { platformService, meteringService, creditosService } from '@/lib/api/services'
 import { ResetEmpresaDialog } from '@/components/plataforma/reset-empresa-dialog'
+import { ExportarEmpresaButton } from '@/components/plataforma/exportar-empresa-button'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import type { TenantSummary } from '@/lib/api/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -153,6 +154,7 @@ export default function PlataformaPage() {
       return (
         <div className="flex items-center justify-end gap-2">
           <LancarCreditosDialog tenant={t} />
+          <ExportarEmpresaButton tenant={t} />
           <ResetEmpresaDialog tenant={t} />
           <ConfirmAction
             trigger={<><Ban className="mr-1 size-4" /> Suspender</>}
@@ -169,6 +171,7 @@ export default function PlataformaPage() {
     if (t.status === 'SUSPENSO') {
       return (
         <div className="flex items-center justify-end gap-2">
+          <ExportarEmpresaButton tenant={t} />
           <ResetEmpresaDialog tenant={t} />
           <ConfirmAction
             trigger={<><RotateCcw className="mr-1 size-4" /> Reativar</>}
