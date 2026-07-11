@@ -40,6 +40,7 @@ public class JetskiService {
 
     private final JetskiRepository jetskiRepository;
     private final ModeloRepository modeloRepository;
+    private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
 
     /**
      * List all active jetskis for current tenant.
@@ -130,6 +131,10 @@ public class JetskiService {
     @Transactional
     public Jetski createJetski(Jetski jetski) {
         log.info("Creating new jetski: serie={}, modelo={}", jetski.getSerie(), jetski.getModeloId());
+
+        // Limite do plano (frota_max) — v2 item 2
+        planoLimiteService.verificar(jetski.getTenantId(), "frota_max",
+            jetskiRepository.countByTenantIdAndAtivoTrue(jetski.getTenantId()), "jetskis ativos");
 
         // Validate model exists
         if (!modeloRepository.existsById(jetski.getModeloId())) {

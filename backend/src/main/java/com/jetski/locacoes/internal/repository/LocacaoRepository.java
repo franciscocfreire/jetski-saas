@@ -77,6 +77,10 @@ public interface LocacaoRepository extends JpaRepository<Locacao, UUID> {
      */
     long countByTenantIdAndStatus(UUID tenantId, LocacaoStatus status);
 
+    /** Locações iniciadas no período (enforcement de locacoes_mes do plano). */
+    long countByTenantIdAndDataCheckInBetween(
+        UUID tenantId, java.time.LocalDateTime de, java.time.LocalDateTime ate);
+
     /**
      * Check if jetski has active rental
      */

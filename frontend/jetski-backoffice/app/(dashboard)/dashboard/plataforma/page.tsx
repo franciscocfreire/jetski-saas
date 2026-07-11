@@ -8,6 +8,8 @@ import { platformService, meteringService, creditosService } from '@/lib/api/ser
 import { ResetEmpresaDialog } from '@/components/plataforma/reset-empresa-dialog'
 import { ExportarEmpresaButton } from '@/components/plataforma/exportar-empresa-button'
 import { ExcluirEmpresaDialog } from '@/components/plataforma/excluir-empresa-dialog'
+import { FaturasPendentesCard } from '@/components/plataforma/faturas-pendentes-card'
+import { AlterarPlanoDialog } from '@/components/plataforma/alterar-plano-dialog'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import type { TenantSummary } from '@/lib/api/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -161,6 +163,7 @@ export default function PlataformaPage() {
     if (t.status === 'ATIVO' || t.status === 'TRIAL') {
       return (
         <div className="flex items-center justify-end gap-2">
+          <AlterarPlanoDialog tenant={t} />
           <LancarCreditosDialog tenant={t} />
           <ExportarEmpresaButton tenant={t} />
           <ResetEmpresaDialog tenant={t} />
@@ -298,6 +301,7 @@ export default function PlataformaPage() {
       </Card>
 
       <ComprasPendentesCard enabled={isPlatformAdmin} />
+      <FaturasPendentesCard enabled={isPlatformAdmin} />
 
       <PrecoCreditoCard enabled={isPlatformAdmin} />
 

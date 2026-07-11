@@ -61,6 +61,7 @@ import java.util.UUID;
 public class LocacaoService {
 
     private final LocacaoRepository locacaoRepository;
+    private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
     private final ReservaRepository reservaRepository;
     private final ReservaLancamentoRepository reservaLancamentoRepository;
     private final LocacaoItemOpcionalRepository locacaoItemOpcionalRepository;
@@ -104,6 +105,8 @@ public class LocacaoService {
                                            BigDecimal valorNegociado, String motivoDesconto,
                                            ModalidadePreco modalidadePreco) {
         log.info("Check-in from reservation: tenant={}, reserva={}", tenantId, reservaId);
+
+        verificarLimiteLocacoesDoMes(tenantId);
 
         // 1. Find and validate reservation
         Reserva reserva = reservaRepository.findById(reservaId)
@@ -235,6 +238,8 @@ public class LocacaoService {
                                   String checklistSaidaJson, BigDecimal valorNegociado, String motivoDesconto,
                                   ModalidadePreco modalidadePreco, LocalDateTime dataCheckIn) {
         log.info("Walk-in check-in: tenant={}, jetski={}, cliente={}", tenantId, jetskiId, clienteId);
+
+        verificarLimiteLocacoesDoMes(tenantId);
 
         // 1. Validate jetski
         Jetski jetski = jetskiService.findById(jetskiId);
@@ -1237,5 +1242,15 @@ public class LocacaoService {
         return porId.values().stream()
             .sorted(java.util.Comparator.comparing(ReservaLancamento::getCreatedAt))
             .toList();
+    }
+
+    /** Limite mensal de locações do plano (locacoes_mes) — v2 item 2. */
+    private void verificarLimiteLocacoesDoMes(UUID tenantId) {
+        LocalDateTime inicioMes = java.time.LocalDate.now(
+                java.time.ZoneId.of("America/Sao_Paulo"))
+            .withDayOfMonth(1).atStartOfDay();
+        long usadas = locacaoRepository.countByTenantIdAndDataCheckInBetween(
+            tenantId, inicioMes, inicioMes.plusMonths(1));
+        planoLimiteService.verificar(tenantId, "locacoes_mes", usadas, "locações no mês");
     }
 }

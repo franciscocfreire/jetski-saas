@@ -52,6 +52,9 @@ class ChecklistValidationTest {
     private ReservaRepository reservaRepository;
 
     @Mock
+    private com.jetski.tenant.PlanoLimiteService planoLimiteService;
+
+    @Mock
     private com.jetski.locacoes.internal.repository.ReservaLancamentoRepository reservaLancamentoRepository;
 
     @Mock

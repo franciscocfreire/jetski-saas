@@ -23,6 +23,7 @@ import {
   Receipt,
   Settings,
   Wallet,
+  LifeBuoy,
   Percent,
   Store,
   FileClock,
@@ -196,9 +197,19 @@ const financeiroItems = [
 
 const sistemaItems = [
   {
+    title: 'Plano e faturas',
+    href: '/dashboard/plano',
+    icon: Wallet,
+  },
+  {
     title: 'Configurações',
     href: '/dashboard/configuracoes',
     icon: Settings,
+  },
+  {
+    title: 'Ajuda',
+    href: '/ajuda',
+    icon: LifeBuoy,
   },
 ]
 

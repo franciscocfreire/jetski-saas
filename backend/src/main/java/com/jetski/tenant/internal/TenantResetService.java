@@ -89,7 +89,7 @@ public class TenantResetService {
     /** Nunca apagadas em nenhum nível (com o porquê no javadoc da classe). */
     static final Set<String> TABELAS_PRESERVADAS = Set.of(
         "assinatura", "auditoria", "credito_compra", "credito_lancamento",
-        "emissao_uso", "tenant_signup");
+        "emissao_uso", "tenant_signup", "fatura");
 
     private final JdbcTemplate jdbcTemplate;
     private final TenantRepository tenantRepository;

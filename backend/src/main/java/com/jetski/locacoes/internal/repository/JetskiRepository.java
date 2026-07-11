@@ -138,6 +138,9 @@ public interface JetskiRepository extends JpaRepository<Jetski, UUID>, JpaSpecif
      * @param status Jetski status (DISPONIVEL, LOCADO, MANUTENCAO, INDISPONIVEL)
      * @return Count of jetskis matching criteria
      */
+    /** Jetskis ativos do tenant (enforcement de frota_max do plano). */
+    long countByTenantIdAndAtivoTrue(java.util.UUID tenantId);
+
     @Query("""
         SELECT COUNT(j) FROM Jetski j
         WHERE j.modeloId = :modeloId

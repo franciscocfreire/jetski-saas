@@ -115,11 +115,62 @@ export const platformService = {
     return data
   },
 
+  /** Fila global de faturas EM_CONFERENCIA (billing manual assistido). */
+  async faturasPendentes(): Promise<FaturaPendente[]> {
+    const { data } = await apiClient.get<FaturaPendente[]>('/v1/platform/faturas/pendentes')
+    return data
+  },
+
+  /** Confirma a fatura conferida no extrato → PAGA. */
+  async confirmarFatura(tenantId: string, faturaId: string): Promise<void> {
+    await apiClient.post(`/v1/platform/faturas/${tenantId}/${faturaId}/confirmar`, undefined,
+      { headers: { 'X-Tenant-Id': tenantId } })
+  },
+
+  /** Cancela a fatura (cortesia/erro) — observação obrigatória. */
+  async cancelarFatura(tenantId: string, faturaId: string, observacao: string): Promise<void> {
+    await apiClient.post(`/v1/platform/faturas/${tenantId}/${faturaId}/cancelar`, { observacao },
+      { headers: { 'X-Tenant-Id': tenantId } })
+  },
+
+  /** Planos disponíveis (seletor de troca de plano). */
+  async planos(): Promise<PlanoInfo[]> {
+    const { data } = await apiClient.get<PlanoInfo[]>('/v1/platform/planos')
+    return data
+  },
+
+  /** Troca o plano do tenant (contratação pós-trial / upgrade). */
+  async mudarPlano(tenantId: string, planoId: string): Promise<void> {
+    await apiClient.post(`/v1/platform/tenants/${tenantId}/plano`, { planoId },
+      { headers: { 'X-Tenant-Id': tenantId } })
+  },
+
   /** Re-cifra os segredos de todos os tenants com a chave atual (rotação de chave). */
   async reencryptSecrets(): Promise<ReencryptResult> {
     const { data } = await apiClient.post<ReencryptResult>('/v1/platform/secrets/reencrypt')
     return data
   },
+}
+
+export interface FaturaPendente {
+  fatura: {
+    id: string
+    competencia: string
+    planoNome: string
+    valor: number
+    txidInformado?: string
+    vencimento: string
+  }
+  tenantId: string
+  slug: string
+  razaoSocial: string
+}
+
+export interface PlanoInfo {
+  id: string
+  nome: string
+  precoMensal: number
+  limites: string
 }
 
 export interface TenantExport {

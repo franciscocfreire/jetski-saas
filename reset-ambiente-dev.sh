@@ -621,6 +621,33 @@ CREATE TABLE IF NOT EXISTS public.customer_habilitacao (
 CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_cpf ON public.customer_habilitacao (cpf);
 CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_sub ON public.customer_habilitacao (provider, provider_user_id);
 
+-- V045: billing manual assistido — fatura mensal da assinatura (PIX plataforma)
+CREATE TABLE IF NOT EXISTS public.fatura (
+    id              uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id       uuid NOT NULL REFERENCES public.tenant(id),
+    competencia     date NOT NULL,
+    plano_nome      varchar(60) NOT NULL,
+    valor           numeric(10,2) NOT NULL CHECK (valor > 0),
+    status          varchar(20) NOT NULL DEFAULT 'ABERTA'
+                    CHECK (status IN ('ABERTA', 'EM_CONFERENCIA', 'PAGA', 'CANCELADA')),
+    vencimento      date NOT NULL,
+    pix_copia_e_cola text,
+    txid_informado  varchar(80),
+    informado_em    timestamptz,
+    pago_em         timestamptz,
+    decidido_por    uuid,
+    observacao      varchar(300),
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    updated_at      timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT fatura_tenant_competencia_uq UNIQUE (tenant_id, competencia)
+);
+CREATE INDEX IF NOT EXISTS idx_fatura_tenant_status ON public.fatura (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_fatura_status_vencimento ON public.fatura (status, vencimento);
+ALTER TABLE public.fatura ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_fatura ON public.fatura;
+CREATE POLICY tenant_isolation_fatura ON public.fatura
+    USING (tenant_id = public.get_current_tenant_id());
+
 -- V044: exclusão de empresa (agendamento do expurgo + tombstone)
 ALTER TABLE public.tenant ADD COLUMN IF NOT EXISTS exclusao_agendada_em timestamptz;
 ALTER TABLE public.tenant ADD COLUMN IF NOT EXISTS excluido_em timestamptz;
