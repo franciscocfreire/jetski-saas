@@ -6,7 +6,7 @@ import { Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Logo } from '@/components/logo'
-import { usePortalUrl } from '@/components/public/portal-link'
+import { usePortalUrl, useAppUrl } from '@/components/public/portal-link'
 
 const navLinks = [
   { href: '/', label: 'Início' },
@@ -19,6 +19,7 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const portalUrl = usePortalUrl()
+  const loginUrl = `${useAppUrl()}/login`
 
   useEffect(() => {
     const handleScroll = () => {
@@ -65,7 +66,7 @@ export function Navbar() {
             className="text-white/70 hover:text-white hover:bg-white/10 transition-all duration-300"
             asChild
           >
-            <Link href="/login">Portal da Empresa</Link>
+            <a href={loginUrl}>Portal da Empresa</a>
           </Button>
           <Button
             className="bg-gold text-[#231A05] hover:bg-gold/90 transition-all duration-300 rounded-none font-medium"
@@ -117,7 +118,7 @@ export function Navbar() {
               className="w-full bg-transparent border-white/30 text-white hover:bg-white/10 hover:text-white rounded-none"
               asChild
             >
-              <Link href="/login" onClick={() => setMobileMenuOpen(false)}>Portal da Empresa</Link>
+              <a href={loginUrl} onClick={() => setMobileMenuOpen(false)}>Portal da Empresa</a>
             </Button>
           </div>
         </div>

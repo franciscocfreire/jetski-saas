@@ -52,8 +52,8 @@ services:
       KC_METRICS_ENABLED: "true"
       # Substituição no import do realm (jetski-backoffice) com a URL pública de prod
       # Nomes sem prefixo KC_ (reservado p/ opções de config do Keycloak).
-      BACKOFFICE_URL: ${PUBLIC_URL}
-      BACKOFFICE_REDIRECT: ${PUBLIC_URL}/*
+      BACKOFFICE_URL: ${APP_PUBLIC_URL:-${PUBLIC_URL}}
+      BACKOFFICE_REDIRECT: ${APP_PUBLIC_URL:-${PUBLIC_URL}}/*
       # SMTP do realm (reset de senha, verificação de email) — Gmail (mesmas creds do backend).
       # Aplica no import de realm NOVO; realm existente é configurado via admin API no deploy.
       SMTP_HOST: smtp.gmail.com
@@ -132,10 +132,12 @@ services:
       # está no repo (público) — falha a subida se ausente (deploy.sh gera).
       JWT_MAGIC_LINK_SECRET: ${JWT_MAGIC_LINK_SECRET:?ausente - o deploy.sh gera no .env}
 
-      JETSKI_FRONTEND_URL: ${PUBLIC_URL}
+      # Backoffice mora em APP_PUBLIC_URL (app.meujet.com.br); links de convite/
+      # ativação/reset apontam para lá. Fallback = PUBLIC_URL (transição segura).
+      JETSKI_FRONTEND_URL: ${APP_PUBLIC_URL:-${PUBLIC_URL}}
       JETSKI_EXTERNAL_URL: ${PUBLIC_URL}
       JETSKI_PORTAL_URL: ${PORTAL_PUBLIC_URL}
-      JETSKI_ALLOWED_ORIGINS: ${PUBLIC_URL}
+      JETSKI_ALLOWED_ORIGINS: ${PUBLIC_URL},${APP_PUBLIC_URL:-${PUBLIC_URL}}
       # Super admin de plataforma (emails separados por vírgula) — promovidos no boot
       PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
     ports: !override
@@ -169,7 +171,8 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: /api
       NEXT_PUBLIC_KEYCLOAK_URL: /realms/jetski-saas
-      NEXTAUTH_URL: ${PUBLIC_URL}
+      # Host canônico do backoffice (AUTH_TRUST_HOST=true cobre o www na transição)
+      NEXTAUTH_URL: ${APP_PUBLIC_URL:-${PUBLIC_URL}}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       AUTH_TRUST_HOST: "true"
       KEYCLOAK_CLIENT_ID: jetski-backoffice

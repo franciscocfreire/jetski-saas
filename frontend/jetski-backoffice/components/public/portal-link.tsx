@@ -20,6 +20,24 @@ export function usePortalUrl(): string {
   return url
 }
 
+/**
+ * URL do Portal da Empresa (backoffice) derivada do host atual:
+ * www.{dominio} → app.{dominio}. Em localhost fica no próprio host
+ * (login relativo), pois não há subdomínio local.
+ */
+export function useAppUrl(): string {
+  const [url, setUrl] = useState('')
+  useEffect(() => {
+    const host = window.location.host
+    if (host.startsWith('localhost') || host.startsWith('127.') || host.startsWith('app.')) {
+      setUrl('') // já é o host do app (ou dev local) — usa caminho relativo
+      return
+    }
+    setUrl(`https://app.${host.replace(/^www\./, '')}`)
+  }, [])
+  return url
+}
+
 /** Âncora para o portal (para uso em server components, ex.: footer). */
 export function PortalLink({ className, children }: {
   className?: string

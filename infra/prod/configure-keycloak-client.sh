@@ -68,6 +68,10 @@ base=os.environ["BASE"]
 d=json.load(sys.stdin)[0]
 ru=set(d.get("redirectUris") or []); ru.update([base+"/*", base+"/api/auth/callback/keycloak"]); d["redirectUris"]=sorted(ru)
 wo=set(d.get("webOrigins") or []); wo.update([base]); d["webOrigins"]=sorted(wo)
+# rootUrl/baseUrl: destino do "voltar à aplicação" pós required-action (troca de
+# senha). Sem convergir, ficava no default do realm (http://localhost:3002).
+d["rootUrl"]=base
+d["baseUrl"]="/"
 d["publicClient"]=True
 d["clientAuthenticatorType"]="client-secret"
 d.pop("secret", None)
@@ -85,7 +89,9 @@ print(">> publicClient=True, PKCE=S256; redirectUris="+str(d["redirectUris"]))
   rm -f /tmp/kc_client.json
 }
 
-converge_client "jetski-backoffice" "$PUBLIC_URL" "Jetski Backoffice"
+# Backoffice mora no subdomínio app.* (APP_PUBLIC_URL); fallback = PUBLIC_URL.
+# O converge só ADICIONA redirect URIs — os do host www continuam valendo na transição.
+converge_client "jetski-backoffice" "${APP_PUBLIC_URL:-$PUBLIC_URL}" "Jetski Backoffice"
 converge_client "jetski-customer-portal" "${PORTAL_PUBLIC_URL:-$PUBLIC_URL}" "Meu Jet — Portal do Cliente"
 
 # Frontend URL do realm: base pública dos links gerados (e-mails de verificação,

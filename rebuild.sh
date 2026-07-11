@@ -119,6 +119,9 @@ else
 fi
 # Portal no subdomínio próprio (fase 1): deriva cliente.* do host www se não setada
 PORTAL_PUBLIC_URL="${PORTAL_PUBLIC_URL:-$(echo "$BASE_URL" | sed 's#//www\.#//cliente.#')}"
+# Backoffice no subdomínio app.* (deriva do www; ex.: app.pegaojet.com.br).
+# Login/convites/troca de senha apontam para cá; www continua servindo o site.
+APP_PUBLIC_URL="${APP_PUBLIC_URL:-$(echo "$BASE_URL" | sed 's#//www\.#//app.#')}"
 
 echo -e "${BLUE}========================================"
 echo "  REBUILD - Jetski SaaS"
@@ -152,7 +155,7 @@ fi
 if [ "$CLEAR_CACHE" = true ]; then
     echo -e "${YELLOW}Cache: será limpo${NC}"
 fi
-echo -e "${GREEN}NEXTAUTH_URL:    ${BASE_URL}${NC}"
+echo -e "${GREEN}NEXTAUTH_URL:    ${APP_PUBLIC_URL}${NC}"
 echo -e "${GREEN}KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER}${NC}"
 echo ""
 
@@ -217,12 +220,13 @@ fi
 # Step 6: Start services with environment variables
 # --force-recreate ensures containers are recreated with new env vars
 echo -e "${BLUE}[6/6] Iniciando serviços...${NC}"
-NEXTAUTH_URL="$BASE_URL" \
+NEXTAUTH_URL="$APP_PUBLIC_URL" \
+APP_PUBLIC_URL="$APP_PUBLIC_URL" \
 PORTAL_NEXTAUTH_URL="$PORTAL_PUBLIC_URL" \
 PORTAL_PUBLIC_URL="$PORTAL_PUBLIC_URL" \
 STORAGE_MINIO_PUBLIC_URL="$BASE_URL" \
 KEYCLOAK_ISSUER="$KEYCLOAK_ISSUER" \
-JETSKI_FRONTEND_URL="$BASE_URL" \
+JETSKI_FRONTEND_URL="$APP_PUBLIC_URL" \
 JETSKI_EXTERNAL_URL="$BASE_URL" \
 docker compose up -d --force-recreate $SERVICES
 
