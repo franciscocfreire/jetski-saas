@@ -66,7 +66,8 @@ public class PlatformTenantService {
                     t.getId(), t.getSlug(), t.getRazaoSocial(), t.getStatus().name(),
                     assinatura != null ? (String) assinatura[0] : null,
                     assinatura != null && assinatura[1] != null
-                        ? ((java.sql.Date) assinatura[1]).toLocalDate() : null);
+                        ? ((java.sql.Date) assinatura[1]).toLocalDate() : null,
+                    t.getExclusaoAgendadaEm());
             })
             .toList();
     }

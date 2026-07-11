@@ -900,6 +900,8 @@ export interface TenantSummary {
   plano?: string | null
   /** Fim da assinatura ativa (yyyy-MM-dd) — no Trial, quando os 14 dias vencem. */
   assinaturaFim?: string | null
+  /** Expurgo agendado (exclusão com carência, ISO) — null/ausente = sem exclusão pendente. */
+  exclusaoAgendadaEm?: string | null
 }
 
 export interface UserTenantsResponse {

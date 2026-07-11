@@ -7,6 +7,7 @@ import { ShieldCheck, Check, Ban, RotateCcw, ShieldAlert, KeyRound, Loader2, Gau
 import { platformService, meteringService, creditosService } from '@/lib/api/services'
 import { ResetEmpresaDialog } from '@/components/plataforma/reset-empresa-dialog'
 import { ExportarEmpresaButton } from '@/components/plataforma/exportar-empresa-button'
+import { ExcluirEmpresaDialog } from '@/components/plataforma/excluir-empresa-dialog'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import type { TenantSummary } from '@/lib/api/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -45,6 +46,7 @@ const STATUS_BADGE: Record<string, { label: string; variant: BadgeVariant }> = {
   SUSPENSO: { label: 'Suspenso', variant: 'destructive' },
   INATIVO: { label: 'Inativo', variant: 'outline' },
   CANCELADO: { label: 'Cancelado', variant: 'outline' },
+  EXCLUIDO: { label: 'Excluída', variant: 'outline' },
 }
 
 /** Célula "Plano": nome + vencimento da assinatura (Trial vencido ganha destaque). */
@@ -109,6 +111,12 @@ export default function PlataformaPage() {
     onError: (e) => toast({ title: 'Falha ao reativar', description: errMsg(e, 'Erro inesperado'), variant: 'destructive' }),
   })
 
+  const cancelarExclusaoMutation = useMutation({
+    mutationFn: (tenantId: string) => platformService.cancelarExclusao(tenantId),
+    onSuccess: () => { toast({ title: 'Exclusão cancelada', description: 'A empresa segue suspensa — reative se necessário.' }); refresh() },
+    onError: (e) => toast({ title: 'Falha ao cancelar exclusão', description: errMsg(e, 'Erro inesperado'), variant: 'destructive' }),
+  })
+
   const reencryptMutation = useMutation({
     mutationFn: () => platformService.reencryptSecrets(),
     onSuccess: (r) =>
@@ -156,6 +164,7 @@ export default function PlataformaPage() {
           <LancarCreditosDialog tenant={t} />
           <ExportarEmpresaButton tenant={t} />
           <ResetEmpresaDialog tenant={t} />
+          <ExcluirEmpresaDialog tenant={t} />
           <ConfirmAction
             trigger={<><Ban className="mr-1 size-4" /> Suspender</>}
             variant="destructive"
@@ -169,10 +178,29 @@ export default function PlataformaPage() {
       )
     }
     if (t.status === 'SUSPENSO') {
+      if (t.exclusaoAgendadaEm) {
+        return (
+          <div className="flex items-center justify-end gap-2">
+            <span className="text-xs font-medium text-destructive">
+              Expurgo em {new Date(t.exclusaoAgendadaEm).toLocaleDateString('pt-BR')}
+            </span>
+            <ExportarEmpresaButton tenant={t} />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={cancelarExclusaoMutation.isPending && cancelarExclusaoMutation.variables === t.id}
+              onClick={() => cancelarExclusaoMutation.mutate(t.id)}
+            >
+              <RotateCcw className="mr-1 size-4" /> Cancelar exclusão
+            </Button>
+          </div>
+        )
+      }
       return (
         <div className="flex items-center justify-end gap-2">
           <ExportarEmpresaButton tenant={t} />
           <ResetEmpresaDialog tenant={t} />
+          <ExcluirEmpresaDialog tenant={t} />
           <ConfirmAction
             trigger={<><RotateCcw className="mr-1 size-4" /> Reativar</>}
             title="Reativar empresa?"

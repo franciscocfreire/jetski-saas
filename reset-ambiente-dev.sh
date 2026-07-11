@@ -621,6 +621,10 @@ CREATE TABLE IF NOT EXISTS public.customer_habilitacao (
 CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_cpf ON public.customer_habilitacao (cpf);
 CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_sub ON public.customer_habilitacao (provider, provider_user_id);
 
+-- V044: exclusão de empresa (agendamento do expurgo + tombstone)
+ALTER TABLE public.tenant ADD COLUMN IF NOT EXISTS exclusao_agendada_em timestamptz;
+ALTER TABLE public.tenant ADD COLUMN IF NOT EXISTS excluido_em timestamptz;
+
 -- V042: RLS na tabela tenant (backstop p/ segredos por loja: smtp_password etc.)
 -- Contexto nulo (signup/login/marketplace/jobs) = liberado; tenant-scoped = só a
 -- própria linha; superadmin = GUC app.unrestricted (TenantAwareDataSource).

@@ -142,6 +142,14 @@ public class Tenant {
     @Column(name = "pix_chave", length = 140)
     private String pixChave;
 
+    /** Quando o expurgo definitivo deve rodar (job diário); null = sem exclusão agendada. */
+    @Column(name = "exclusao_agendada_em")
+    private java.time.Instant exclusaoAgendadaEm;
+
+    /** Quando o expurgo foi executado (tombstone); null = não expurgado. */
+    @Column(name = "excluido_em")
+    private java.time.Instant excluidoEm;
+
     // ========== CAMPOS DE MARKETPLACE ==========
 
     /**

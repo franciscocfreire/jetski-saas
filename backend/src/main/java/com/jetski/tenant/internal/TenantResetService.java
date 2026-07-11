@@ -186,6 +186,29 @@ public class TenantResetService {
         return new Resultado(apagados, export.key(), export.bytes());
     }
 
+    /**
+     * Expurgo COMPLETO dos dados (usado pela exclusão de empresa): nível TOTAL
+     * sem a exceção de admin — TODOS os membros/acessos saem. Sem export nem
+     * evento aqui (o {@code TenantExclusaoService} cuida da pipeline inteira);
+     * pressupõe contexto/lock já fixados pelo chamador, na MESMA transação.
+     */
+    Map<String, Long> expurgoCompleto(UUID tenantId) {
+        Map<String, Long> apagados = new LinkedHashMap<>();
+        for (String tabela : tabelasDoNivel(Nivel.TOTAL)) {
+            int n = jdbcTemplate.update("DELETE FROM " + tabela + " WHERE tenant_id = ?", tenantId);
+            if (n > 0) {
+                apagados.put(tabela, (long) n);
+            }
+        }
+        for (String tabela : TABELAS_EQUIPE_ESPECIAL) {
+            int n = jdbcTemplate.update("DELETE FROM " + tabela + " WHERE tenant_id = ?", tenantId);
+            if (n > 0) {
+                apagados.put(tabela, (long) n);
+            }
+        }
+        return apagados;
+    }
+
     private List<String> tabelasDoNivel(Nivel nivel) {
         List<String> tabelas = new ArrayList<>(TABELAS_OPERACIONAL);
         if (nivel == Nivel.FROTA || nivel == Nivel.TOTAL) {

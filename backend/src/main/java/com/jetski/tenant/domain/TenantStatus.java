@@ -40,5 +40,12 @@ public enum TenantStatus {
      * Inactive tenant - permanently disabled
      * Account closed or migrated
      */
-    INATIVO
+    INATIVO,
+
+    /**
+     * Excluída (tombstone): dados e arquivos expurgados; a linha permanece
+     * anonimizada para preservar as FKs do ledger de créditos/metering
+     * (histórico fiscal da plataforma). Slug renomeado — liberado p/ reuso.
+     */
+    EXCLUIDO
 }

@@ -20,11 +20,15 @@ public record PlatformTenantSummary(
     /** Nome do plano da assinatura ativa (null se a empresa ainda não tem assinatura). */
     String plano,
     /** Fim da assinatura ativa (dt_fim) — no Trial, é a data em que os 14 dias vencem. */
-    LocalDate assinaturaFim
+    LocalDate assinaturaFim,
+    /** Expurgo agendado (exclusão com carência); null = sem exclusão pendente. */
+    java.time.Instant exclusaoAgendadaEm
 ) {
     public static PlatformTenantSummary of(UUID id, String slug, String razaoSocial, String status,
-                                           String plano, LocalDate assinaturaFim) {
+                                           String plano, LocalDate assinaturaFim,
+                                           java.time.Instant exclusaoAgendadaEm) {
         return new PlatformTenantSummary(
-            id.toString(), slug, razaoSocial, status, List.of("ADMIN_TENANT"), plano, assinaturaFim);
+            id.toString(), slug, razaoSocial, status, List.of("ADMIN_TENANT"), plano,
+            assinaturaFim, exclusaoAgendadaEm);
     }
 }

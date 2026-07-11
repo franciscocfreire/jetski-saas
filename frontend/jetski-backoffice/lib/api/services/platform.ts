@@ -68,6 +68,29 @@ export const platformService = {
     return data
   },
 
+  /** EXCLUSÃO da empresa: CARENCIA (suspende + expurgo em 30d) ou IMEDIATO. */
+  async excluirEmpresa(
+    tenantId: string,
+    modo: 'CARENCIA' | 'IMEDIATO',
+    confirmacaoSlug: string
+  ): Promise<{ modo: string; expurgoEm?: string; totalLinhas?: number }> {
+    const { data } = await apiClient.post(
+      `/v1/platform/tenants/${tenantId}/excluir`,
+      { modo, confirmacaoSlug },
+      { headers: { 'X-Tenant-Id': tenantId }, timeout: 300_000 }
+    )
+    return data
+  },
+
+  /** Cancela uma exclusão agendada (a empresa segue suspensa). */
+  async cancelarExclusao(tenantId: string): Promise<void> {
+    await apiClient.post(
+      `/v1/platform/tenants/${tenantId}/cancelar-exclusao`,
+      undefined,
+      { headers: { 'X-Tenant-Id': tenantId } }
+    )
+  },
+
   /** Gera o export de arquivamento (.zip com dados + arquivos) da empresa. */
   async exportTenant(tenantId: string): Promise<TenantExport> {
     const { data } = await apiClient.post<TenantExport>(

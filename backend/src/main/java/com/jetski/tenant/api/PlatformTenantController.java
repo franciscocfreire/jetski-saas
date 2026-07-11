@@ -30,6 +30,7 @@ public class PlatformTenantController {
     private final PlatformSecretsService platformSecretsService;
     private final com.jetski.tenant.internal.TenantResetService tenantResetService;
     private final com.jetski.tenant.internal.TenantExportService tenantExportService;
+    private final com.jetski.tenant.internal.TenantExclusaoService tenantExclusaoService;
 
     /** Lista TODAS as empresas (qualquer status) — visão completa do super admin. */
     @GetMapping("/tenants")
@@ -89,6 +90,33 @@ public class PlatformTenantController {
             "totalLinhas", resultado.apagados().values().stream().mapToLong(Long::longValue).sum(),
             "exportKey", resultado.exportKey(),
             "exportBytes", resultado.exportBytes());
+    }
+
+    /**
+     * EXCLUSÃO da empresa. CARENCIA: suspende agora + expurgo em D+30 (job
+     * diário, cancelável). IMEDIATO: expurga na hora. Export de arquivamento
+     * sempre acontece antes do expurgo. Ação OPA: {@code platform:excluir}.
+     */
+    @PostMapping("/tenants/{id}/excluir")
+    public java.util.Map<String, Object> excluir(
+            @PathVariable("id") UUID id,
+            @jakarta.validation.Valid @RequestBody com.jetski.tenant.api.dto.ExcluirTenantRequest body) {
+        if (body.modo() == com.jetski.tenant.api.dto.ExcluirTenantRequest.Modo.IMEDIATO) {
+            var apagados = tenantExclusaoService.excluirAgora(id, body.confirmacaoSlug());
+            return java.util.Map.of(
+                "modo", "IMEDIATO",
+                "apagados", apagados,
+                "totalLinhas", apagados.values().stream().mapToLong(Long::longValue).sum());
+        }
+        java.time.Instant quando = tenantExclusaoService.agendar(id, body.confirmacaoSlug());
+        return java.util.Map.of("modo", "CARENCIA", "expurgoEm", quando.toString());
+    }
+
+    /** Cancela uma exclusão agendada (empresa segue SUSPENSA). Ação OPA: {@code platform:cancelar-exclusao}. */
+    @PostMapping("/tenants/{id}/cancelar-exclusao")
+    public java.util.Map<String, String> cancelarExclusao(@PathVariable("id") UUID id) {
+        tenantExclusaoService.cancelar(id);
+        return java.util.Map.of("status", "cancelada");
     }
 
     /**
