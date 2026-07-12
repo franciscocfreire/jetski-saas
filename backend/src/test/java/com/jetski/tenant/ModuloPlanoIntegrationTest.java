@@ -5,6 +5,7 @@ import com.jetski.shared.authorization.OPAAuthorizationService;
 import com.jetski.shared.authorization.dto.OPADecision;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.security.TenantAccessInfo;
+import com.jetski.marketplace.internal.MarketplaceService;
 import com.jetski.usuarios.internal.TenantAccessService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -46,6 +47,7 @@ class ModuloPlanoIntegrationTest extends AbstractIntegrationTest {
     @Autowired private PlanoLimiteService planoLimiteService;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private CacheManager cacheManager;
+    @Autowired private MarketplaceService marketplaceService;
 
     @MockBean private OPAAuthorizationService opaAuthorizationService;
     @MockBean private TenantAccessService tenantAccessService;
@@ -149,6 +151,48 @@ class ModuloPlanoIntegrationTest extends AbstractIntegrationTest {
                 .param("dataFim", "2026-07-31")
                 .with(jwtAdmin()))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("MARKETPLACE fora do plano: modelo some do marketplace agregado; NULL = aparece")
+    void marketplaceGate() {
+        UUID modeloId = UUID.fromString("a4000000-0000-0000-0000-0000000000ef");
+        jdbc.update("INSERT INTO modelo (id, tenant_id, nome, preco_base_hora, ativo, exibir_no_marketplace) "
+            + "VALUES (?, ?, 'Gate Teste', 100, true, true) ON CONFLICT (id) DO NOTHING",
+            modeloId, TENANT);
+        jdbc.update("UPDATE tenant SET exibir_no_marketplace = true WHERE id = ?", TENANT);
+
+        // plano do setUp: MANUTENCAO+FECHAMENTOS (sem MARKETPLACE) → some
+        assertThat(marketplaceService.listPublicModelos())
+            .noneMatch(m -> m.id().equals(modeloId));
+        assertThat(marketplaceService.getPublicModelo(modeloId)).isEmpty();
+
+        // NULL = todos → aparece
+        jdbc.update("UPDATE plano SET modulos = NULL WHERE nome = 'Modulos Teste'");
+        limparCache();
+        assertThat(marketplaceService.listPublicModelos())
+            .anyMatch(m -> m.id().equals(modeloId));
+        assertThat(marketplaceService.getPublicModelo(modeloId)).isPresent();
+    }
+
+    @Test
+    @DisplayName("LOJA_ONLINE fora do plano: vitrine some, disponibilidade 404 e reserva online nega")
+    void lojaOnlineGate() throws Exception {
+        jdbc.update("UPDATE tenant SET exibir_no_marketplace = true WHERE id = ?", TENANT);
+
+        // sem LOJA_ONLINE no plano do setUp
+        assertThat(marketplaceService.getPublicLoja("modulos-teste")).isEmpty();
+        assertThat(marketplaceService.listPublicModelosByLoja("modulos-teste")).isEmpty();
+        mockMvc.perform(get("/v1/public/lojas/modulos-teste/disponibilidade")
+                .param("modeloId", UUID.randomUUID().toString())
+                .param("dataInicio", "2026-08-01T10:00:00")
+                .param("dataFimPrevista", "2026-08-01T11:00:00"))
+            .andExpect(status().isNotFound());
+
+        // NULL = todos → vitrine volta
+        jdbc.update("UPDATE plano SET modulos = NULL WHERE nome = 'Modulos Teste'");
+        limparCache();
+        assertThat(marketplaceService.getPublicLoja("modulos-teste")).isPresent();
     }
 
     @Test

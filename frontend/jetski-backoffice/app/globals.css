@@ -157,6 +157,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* rede de segurança mobile: nenhum elemento pode gerar scroll horizontal da página */
+    overflow-x: clip;
   }
 }
 

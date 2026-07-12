@@ -59,6 +59,7 @@ public class CustomerReservaService {
     private static final long COMPROVANTE_MAX_BYTES = 5L * 1024 * 1024;
 
     private final EntityManager entityManager;
+    private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
     private final ReservaService reservaService;
     private final ModeloService modeloService;
     private final ClienteRepository clienteRepository;
@@ -106,6 +107,13 @@ public class CustomerReservaService {
 
         Loja loja = lojaBySlug(cmd.lojaSlug())
             .orElseThrow(() -> new NotFoundException("Loja não encontrada: " + cmd.lojaSlug()));
+        // Gate por plano (V046): reserva online exige o módulo Loja online.
+        // Reservas já existentes seguem o fluxo normal (aceite, comprovante etc).
+        if (!planoLimiteService.moduloHabilitado(loja.tenantId(),
+                com.jetski.tenant.ModuloPlano.LOJA_ONLINE)) {
+            throw new BusinessException(
+                "Esta loja não está com a reserva online habilitada. Entre em contato pelo WhatsApp.");
+        }
         fixarTenant(loja.tenantId());
 
         Cliente cliente = resolverOuCriarCliente(loja.tenantId(), sub, email, nome, cmd.cpf(), cmd.telefone());

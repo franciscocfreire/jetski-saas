@@ -46,7 +46,20 @@ public enum ModuloPlano {
     DESPESAS(
         "Despesas operacionais",
         "Lançamento e acompanhamento de despesas da operação",
-        List.of("^despesas-operacionais(/|$)"));
+        List.of("^despesas-operacionais(/|$)")),
+
+    // Os dois módulos abaixo não têm endpoint tenant-scoped gateável (patterns
+    // vazios): o enforcement é nas consultas PÚBLICAS (MarketplaceService,
+    // CustomerReservaService, disponibilidade) via moduloHabilitado.
+    MARKETPLACE(
+        "Marketplace",
+        "Vitrine dos seus jetskis no marketplace público do Meu Jet",
+        List.of()),
+
+    LOJA_ONLINE(
+        "Loja online",
+        "Vitrine própria da loja e reserva online pelo portal do cliente",
+        List.of());
 
     private final String rotulo;
     private final String descricao;

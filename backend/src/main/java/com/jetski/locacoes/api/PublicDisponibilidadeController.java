@@ -35,6 +35,7 @@ public class PublicDisponibilidadeController {
 
     private final ReservaService reservaService;
     private final CustomerReservaService customerReservaService;
+    private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
     private final EntityManager entityManager;
 
     @GetMapping("/{slug}/disponibilidade")
@@ -47,6 +48,11 @@ public class PublicDisponibilidadeController {
             @RequestParam LocalDateTime dataFimPrevista) {
 
         UUID tenantId = tenantIdBySlug(slug);
+        // Gate por plano (V046): sem o módulo Loja online, a vitrine some e a
+        // disponibilidade pública responde como loja inexistente.
+        if (!planoLimiteService.moduloHabilitado(tenantId, com.jetski.tenant.ModuloPlano.LOJA_ONLINE)) {
+            throw new com.jetski.shared.exception.NotFoundException("Loja não encontrada: " + slug);
+        }
         entityManager.createNativeQuery("SELECT set_config('app.tenant_id', :tid, true)")
             .setParameter("tid", tenantId.toString())
             .getSingleResult();

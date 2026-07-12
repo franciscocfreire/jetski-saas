@@ -37,6 +37,8 @@ body {
   color: var(--color-ink-900);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  /* rede de segurança mobile: nenhum elemento pode gerar scroll horizontal da página */
+  overflow-x: clip;
 }
 
 * {

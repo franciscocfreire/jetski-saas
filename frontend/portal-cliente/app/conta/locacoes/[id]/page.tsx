@@ -221,9 +221,9 @@ export default function LocacaoDetailPage() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-slate-50 p-3">
+    <div className="min-w-0 rounded-xl bg-slate-50 p-3">
       <div className="text-xs text-slate-400">{label}</div>
-      <div className="mt-0.5 font-semibold text-ink-900">{value}</div>
+      <div className="mt-0.5 break-words font-semibold text-ink-900">{value}</div>
     </div>
   );
 }

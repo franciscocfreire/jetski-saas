@@ -2,6 +2,8 @@ package com.jetski.marketplace.internal;
 
 import com.jetski.marketplace.api.dto.MarketplaceMidiaDTO;
 import com.jetski.marketplace.api.dto.MarketplaceModeloDTO;
+import com.jetski.tenant.ModuloPlano;
+import com.jetski.tenant.PlanoLimiteService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,22 @@ public class MarketplaceService {
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    private final PlanoLimiteService planoLimiteService;
+
+    public MarketplaceService(PlanoLimiteService planoLimiteService) {
+        this.planoLimiteService = planoLimiteService;
+    }
+
+    /**
+     * Gate por plano (V046): o filtro é em Java, por tenant distinto, via
+     * {@link PlanoLimiteService#moduloHabilitado} (cacheado em Redis). Não dá
+     * para filtrar na SQL: a RLS de {@code assinatura} bloquearia a subquery
+     * em produção (estas consultas rodam sem tenant no contexto).
+     */
+    private boolean moduloHabilitado(UUID tenantId, ModuloPlano modulo) {
+        return planoLimiteService.moduloHabilitado(tenantId, modulo);
+    }
 
     /**
      * List all models visible in the public marketplace.
@@ -83,6 +101,7 @@ public class MarketplaceService {
 
         List<MarketplaceModeloDTO> modelos = results.stream()
             .map(this::mapToDTO)
+            .filter(m -> moduloHabilitado(m.tenantId(), ModuloPlano.MARKETPLACE))
             .toList();
 
         // If we have models, fetch their midias
@@ -153,8 +172,9 @@ public class MarketplaceService {
 
         return results.stream()
             .findFirst()
-            .map(row -> {
-                MarketplaceModeloDTO dto = mapToDTO(row);
+            .map(this::mapToDTO)
+            .filter(dto -> moduloHabilitado(dto.tenantId(), ModuloPlano.MARKETPLACE))
+            .map(dto -> {
                 // Fetch midias for this single model
                 List<MarketplaceMidiaDTO> midias = fetchMidiasForModelo(modeloId);
                 return dto.withMidias(midias);
@@ -205,7 +225,10 @@ public class MarketplaceService {
             .setParameter("slug", slug)
             .getResultList();
 
-        List<MarketplaceModeloDTO> modelos = results.stream().map(this::mapToDTO).toList();
+        List<MarketplaceModeloDTO> modelos = results.stream()
+            .map(this::mapToDTO)
+            .filter(m -> moduloHabilitado(m.tenantId(), ModuloPlano.LOJA_ONLINE))
+            .toList();
         if (!modelos.isEmpty()) {
             Map<UUID, List<MarketplaceMidiaDTO>> midiasMap =
                 fetchMidiasForModelos(modelos.stream().map(MarketplaceModeloDTO::id).toList());
@@ -234,7 +257,8 @@ public class MarketplaceService {
 
         return results.stream().findFirst().map(r -> new MarketplaceLojaDTO(
             (UUID) r[0], (String) r[1], (String) r[2],
-            (String) r[3], (String) r[4], (String) r[5]));
+            (String) r[3], (String) r[4], (String) r[5]))
+            .filter(loja -> moduloHabilitado(loja.tenantId(), ModuloPlano.LOJA_ONLINE));
     }
 
     /** Loja pública (vitrine). */

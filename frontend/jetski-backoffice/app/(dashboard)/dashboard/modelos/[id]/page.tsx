@@ -1087,6 +1087,20 @@ export default function ModeloDetailsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Gating por plano (V046): aviso quando os canais públicos não estão no plano */}
+              {currentTenant?.modulos && !currentTenant.modulos.includes('MARKETPLACE') && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                  Seu plano não inclui o módulo <strong>Marketplace</strong> — mesmo com a exibição
+                  ligada, este modelo não aparece no marketplace público do Meu Jet. Fale com o
+                  Meu Jet para fazer upgrade.
+                </div>
+              )}
+              {currentTenant?.modulos && !currentTenant.modulos.includes('LOJA_ONLINE') && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                  Seu plano não inclui o módulo <strong>Loja online</strong> — a vitrine da sua loja
+                  e a reserva online pelo portal estão desativadas.
+                </div>
+              )}
               {/* Visibility Toggle */}
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div className="flex items-center gap-4">

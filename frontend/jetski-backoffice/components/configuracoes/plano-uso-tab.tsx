@@ -149,20 +149,20 @@ function ComprarCreditosCard() {
       {pix && (
         <div className="mt-4 flex flex-wrap items-center gap-5 rounded-lg border bg-muted/40 p-4">
           <PixQrCode payload={pix.copiaECola} size={148} className="rounded-md border bg-white p-1.5" />
-          <div className="min-w-64 flex-1 space-y-2">
+          <div className="min-w-0 flex-1 basis-64 space-y-2">
             <p className="text-sm">
               Pague <span className="font-semibold tabular-nums">{brl(pix.valor)}</span>{' '}
               <span className="text-muted-foreground">({pix.quantidade} créditos)</span> escaneando o QR
               ou pelo copia-e-cola:
             </p>
             <div className="flex items-center gap-2">
-              <code className="max-w-xs truncate rounded bg-background px-2 py-1 text-[11px]">{pix.copiaECola}</code>
+              <code className="min-w-0 max-w-xs flex-1 truncate rounded bg-background px-2 py-1 text-[11px]">{pix.copiaECola}</code>
               <Button size="sm" variant="outline" onClick={copiarPix} className="gap-1 shrink-0">
                 <Copy className="h-3.5 w-3.5" /> Copiar
               </Button>
             </div>
             <div className="flex flex-wrap items-end gap-2 pt-1">
-              <div className="min-w-56 flex-1 space-y-1">
+              <div className="min-w-0 flex-1 basis-56 space-y-1">
                 <label className="text-xs font-medium" htmlFor="compra-txid">Número da transação (comprovante)</label>
                 <Input
                   id="compra-txid"

@@ -488,7 +488,7 @@ export default function EmbarcacaoDetailPage() {
               <p className="text-gold text-sm tracking-wider uppercase mb-2">
                 {offering.empresa}
               </p>
-              <h1 className="font-display text-4xl md:text-5xl font-medium text-white mb-4">
+              <h1 className="font-display text-4xl md:text-5xl font-medium text-white mb-4 break-words">
                 {offering.modelo}
               </h1>
               <div className="flex items-center gap-2 text-white/60">
@@ -501,7 +501,7 @@ export default function EmbarcacaoDetailPage() {
             <div className="bg-white/5 rounded-xl p-6 mb-6">
               <p className="text-white/50 text-sm mb-1">A partir de</p>
               <div className="flex items-baseline gap-2">
-                <span className="font-display text-4xl text-white">
+                <span className="min-w-0 break-words font-display text-4xl text-white">
                   {formatCurrency(priceDisplay.valor)}
                 </span>
                 <span className="text-white/50">/{priceDisplay.label}</span>
@@ -520,17 +520,17 @@ export default function EmbarcacaoDetailPage() {
 
             {/* Specs */}
             <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-white/5 rounded-xl p-4 text-center">
+              <div className="min-w-0 bg-white/5 rounded-xl p-4 text-center">
                 <Users className="h-5 w-5 text-gold mx-auto mb-2" />
                 <p className="text-white font-medium">{offering.capacidade}</p>
                 <p className="text-white/50 text-xs">Pessoas</p>
               </div>
-              <div className="bg-white/5 rounded-xl p-4 text-center">
+              <div className="min-w-0 bg-white/5 rounded-xl p-4 text-center">
                 <Fuel className="h-5 w-5 text-gold mx-auto mb-2" />
                 <p className="text-white font-medium">{offering.potencia}</p>
                 <p className="text-white/50 text-xs">Potência</p>
               </div>
-              <div className="bg-white/5 rounded-xl p-4 text-center">
+              <div className="min-w-0 bg-white/5 rounded-xl p-4 text-center">
                 <Clock className="h-5 w-5 text-gold mx-auto mb-2" />
                 <p className="text-white font-medium">
                   {offering.tipo === 'JETSKI' ? '30min+' : '4h+'}

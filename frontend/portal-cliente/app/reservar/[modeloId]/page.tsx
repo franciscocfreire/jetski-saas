@@ -357,22 +357,22 @@ function Wizard() {
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button
               onClick={() => setTipo("SINAL")}
-              className={`rounded-xl border p-3 text-left ${
+              className={`min-w-0 rounded-xl border p-3 text-left ${
                 tipo === "SINAL" ? "border-brand-500 bg-brand-50" : "border-slate-200 hover:border-slate-300"
               }`}
             >
               <div className="text-sm font-semibold text-ink-900">Sinal (30%)</div>
-              <div className="text-lg font-bold text-brand-700">{brl(total * SINAL_PCT)}</div>
+              <div className="break-words text-lg font-bold text-brand-700">{brl(total * SINAL_PCT)}</div>
               <div className="text-xs text-slate-400">Restante no check-in</div>
             </button>
             <button
               onClick={() => setTipo("TOTAL")}
-              className={`rounded-xl border p-3 text-left ${
+              className={`min-w-0 rounded-xl border p-3 text-left ${
                 tipo === "TOTAL" ? "border-brand-500 bg-brand-50" : "border-slate-200 hover:border-slate-300"
               }`}
             >
               <div className="text-sm font-semibold text-ink-900">Valor total</div>
-              <div className="text-lg font-bold text-brand-700">{brl(total)}</div>
+              <div className="break-words text-lg font-bold text-brand-700">{brl(total)}</div>
               <div className="text-xs text-slate-400">Nada a pagar depois</div>
             </button>
           </div>

@@ -52,9 +52,11 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
 - **Enforcement de limites do plano** (`plano.limites` jsonb): usuários, frota e locações/mês
   com negação de negócio e mensagem de upgrade.
 - **Módulos por plano** (V046, `plano.modulos` jsonb): super admin define a oferta por plano
-  (Emissão à Marinha, Comissões, Manutenção, Fechamentos, Relatórios, Despesas); NULL = todos.
-  Gating em duas camadas: menu do backoffice (itens somem) e API (`ModuloPlanoInterceptor`,
-  400 com pedido de upgrade; superadmin isento; cache Redis com evict na troca).
+  (Emissão à Marinha, Comissões, Manutenção, Fechamentos, Relatórios, Despesas, Marketplace,
+  Loja online); NULL = todos. Gating em três camadas: menu do backoffice (itens somem), API
+  (`ModuloPlanoInterceptor`, 400 com pedido de upgrade; superadmin isento; cache Redis com
+  evict na troca) e canais públicos — Marketplace tira a empresa do marketplace agregado;
+  Loja online desativa a vitrine própria, a disponibilidade pública e a reserva online.
 
 ### Infra/segurança/operacional
 - CI (testes + Modulith + E2E Newman 75 asserções) → CD automático em produção (Oracle ARM,
