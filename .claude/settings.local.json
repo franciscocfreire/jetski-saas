@@ -186,7 +186,8 @@
       "Bash(sed -n '/public record CheckInEvent/,/^\\) {/p' backend/src/main/java/com/jetski/locacoes/event/CheckInEvent.java)",
       "Bash(sed -n '/public record ReservationCreatedEvent/,/^\\) {/p' backend/src/main/java/com/jetski/reservas/domain/event/ReservationCreatedEvent.java)",
       "Bash(sed -n '/public record ReservationConfirmedEvent/,/^\\) {/p' backend/src/main/java/com/jetski/reservas/domain/event/ReservationConfirmedEvent.java)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(./rebuild.sh frontend *)"
     ],
     "deny": [],
     "ask": [],
