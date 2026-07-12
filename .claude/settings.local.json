@@ -187,7 +187,11 @@
       "Bash(sed -n '/public record ReservationCreatedEvent/,/^\\) {/p' backend/src/main/java/com/jetski/reservas/domain/event/ReservationCreatedEvent.java)",
       "Bash(sed -n '/public record ReservationConfirmedEvent/,/^\\) {/p' backend/src/main/java/com/jetski/reservas/domain/event/ReservationConfirmedEvent.java)",
       "Bash(git push *)",
-      "Bash(./rebuild.sh frontend *)"
+      "Bash(./rebuild.sh frontend *)",
+      "Bash(systemctl status *)",
+      "Bash(git -C /home/franciscocfreire/repos/jetski mv 'frontend/jetski-backoffice/app/\\(public\\)/loja/[slug]/page.tsx' 'frontend/jetski-backoffice/app/loja/[slug]/page.tsx')",
+      "Bash(mv '/home/franciscocfreire/repos/jetski/frontend/jetski-backoffice/app/\\(public\\)/loja/[slug]/page.tsx' '/home/franciscocfreire/repos/jetski/frontend/jetski-backoffice/app/loja/[slug]/page.tsx')",
+      "Bash(rmdir '/home/franciscocfreire/repos/jetski/frontend/jetski-backoffice/app/\\(public\\)/loja/[slug]' '/home/franciscocfreire/repos/jetski/frontend/jetski-backoffice/app/\\(public\\)/loja')"
     ],
     "deny": [],
     "ask": [],

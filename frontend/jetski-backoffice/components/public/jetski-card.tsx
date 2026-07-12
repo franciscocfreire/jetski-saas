@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils'
 
 export interface JetskiCardProps {
   id: string
+  /** Destino do card; default /embarcacao/{id}. A vitrine por loja aponta para o www absoluto. */
+  href?: string
   modelo: string
   tipo: 'JETSKI' | 'LANCHA'
   empresa: string
@@ -20,6 +22,7 @@ export interface JetskiCardProps {
 
 export function JetskiCard({
   id,
+  href,
   modelo,
   tipo,
   empresa,
@@ -61,7 +64,7 @@ export function JetskiCard({
   const priceDisplay = getPriceDisplay()
 
   return (
-    <Link href={`/embarcacao/${id}`} className="block">
+    <Link href={href ?? `/embarcacao/${id}`} className="block">
       <article className="group relative overflow-hidden rounded-2xl bg-white/[0.03] border border-white/[0.08] hover-lift cursor-pointer">
         {/* Image Container */}
         <div className="relative aspect-[4/3] overflow-hidden">

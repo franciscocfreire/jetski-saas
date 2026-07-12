@@ -5,8 +5,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ArrowLeft, MapPin, Star, Clock, Users, Fuel, Calendar, MessageCircle, ChevronLeft, ChevronRight, Play } from 'lucide-react'
-import { ReservationForm } from '@/components/public/reservation-form'
 import { marketplaceService, MarketplaceModelo, MarketplaceMidia, getPrincipalImage } from '@/lib/api/services/marketplace'
+import { subBase } from '@/lib/public-hosts'
 
 // Tipo para ofertas com todos os campos necessários
 interface OfferingDetail {
@@ -384,7 +384,6 @@ function DetailSkeleton() {
 
 export default function EmbarcacaoDetailPage() {
   const params = useParams()
-  const [showReservation, setShowReservation] = useState(false)
   const [offering, setOffering] = useState<OfferingDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -563,13 +562,14 @@ export default function EmbarcacaoDetailPage() {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4">
-              <button
-                onClick={() => setShowReservation(true)}
+              {/* Reserva de verdade acontece no portal do cliente (conta, PIX, CHA) */}
+              <a
+                href={`${subBase('cliente')}/modelo/${offering.id}`}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-8 py-4 bg-gold text-black font-medium hover:bg-gold/90 transition-all duration-300"
               >
                 <Calendar className="h-5 w-5" />
                 Reservar Agora
-              </button>
+              </a>
               <a
                 href={`https://wa.me/${offering.empresaWhatsapp}?text=Olá! Tenho interesse no ${offering.modelo}. Gostaria de mais informações.`}
                 target="_blank"
@@ -584,13 +584,6 @@ export default function EmbarcacaoDetailPage() {
         </div>
       </div>
 
-      {/* Reservation Modal */}
-      {showReservation && (
-        <ReservationForm
-          offering={offering}
-          onClose={() => setShowReservation(false)}
-        />
-      )}
     </div>
   )
 }

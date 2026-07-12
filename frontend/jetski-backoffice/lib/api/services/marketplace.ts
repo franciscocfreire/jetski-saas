@@ -45,6 +45,18 @@ export interface MarketplaceModelo {
 }
 
 /**
+ * Public data of a loja (vitrine header) — /v1/public/lojas/{slug}
+ */
+export interface MarketplaceLoja {
+  tenantId: string
+  slug: string
+  nome: string
+  cidade?: string
+  uf?: string
+  whatsapp?: string
+}
+
+/**
  * Marketplace service - public API calls
  * No authentication required
  */
@@ -65,6 +77,23 @@ export const marketplaceService = {
    */
   async getModelo(id: string): Promise<MarketplaceModelo> {
     const { data } = await publicClient.get<MarketplaceModelo>(`/v1/public/marketplace/modelos/${id}`)
+    return data
+  },
+
+  /**
+   * Public loja data for the per-company vitrine ({slug}.meujet.com.br).
+   * 404 = loja inexistente, inativa ou sem o módulo LOJA_ONLINE no plano.
+   */
+  async getLoja(slug: string): Promise<MarketplaceLoja> {
+    const { data } = await publicClient.get<MarketplaceLoja>(`/v1/public/lojas/${slug}`)
+    return data
+  },
+
+  /**
+   * Visible models of a single loja (same visibility rules as the marketplace)
+   */
+  async listModelosByLoja(slug: string): Promise<MarketplaceModelo[]> {
+    const { data } = await publicClient.get<MarketplaceModelo[]>(`/v1/public/lojas/${slug}/modelos`)
     return data
   },
 }
