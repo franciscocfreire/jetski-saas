@@ -164,13 +164,15 @@ public class TenantConfigController {
 
     @PutMapping("/branding")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
-    @Operation(summary = "Atualizar cores do branding. Nulos voltam ao padrão Meu Jet.")
+    @Operation(summary = "Atualizar cores e conteúdo da vitrine. Nulos voltam ao padrão Meu Jet.")
     public ResponseEntity<BrandingResponse> updateBranding(
             @PathVariable UUID tenantId,
             @RequestBody BrandingRequest request) {
         log.info("PUT /v1/tenants/{}/config/branding", tenantId);
         Branding cfg = tenantConfigService.updateBranding(tenantId,
-            new Branding(request.corPrimaria(), request.corSecundaria(), null, null));
+            new Branding(request.corPrimaria(), request.corSecundaria(), null, null,
+                request.vitrineDescricao(), request.vitrineEndereco(), request.vitrinePraia(),
+                request.vitrineHorario(), request.vitrineInstagram(), request.vitrineSite()));
         return ResponseEntity.ok(toBrandingResponse(tenantId, cfg));
     }
 
@@ -196,7 +198,9 @@ public class TenantConfigController {
 
     private BrandingResponse toBrandingResponse(UUID tenantId, Branding cfg) {
         String logoDataUrl = cfg.temLogo() ? tenantConfigService.getLogoDataUrl(tenantId) : null;
-        return new BrandingResponse(cfg.corPrimaria(), cfg.corSecundaria(), logoDataUrl);
+        return new BrandingResponse(cfg.corPrimaria(), cfg.corSecundaria(), logoDataUrl,
+            cfg.vitrineDescricao(), cfg.vitrineEndereco(), cfg.vitrinePraia(),
+            cfg.vitrineHorario(), cfg.vitrineInstagram(), cfg.vitrineSite());
     }
 
     /**

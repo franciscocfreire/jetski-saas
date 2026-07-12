@@ -54,6 +54,19 @@ export interface MarketplaceLoja {
   cidade?: string
   uf?: string
   whatsapp?: string
+  vitrineDescricao?: string
+  vitrineEndereco?: string
+  vitrinePraia?: string
+  vitrineHorario?: string
+  vitrineInstagram?: string
+  vitrineSite?: string
+}
+
+/** Branding público da loja (white-label): cores + logo como data URL. */
+export interface MarketplaceLojaBranding {
+  corPrimaria?: string | null
+  corSecundaria?: string | null
+  logoDataUrl?: string | null
 }
 
 /**
@@ -94,6 +107,12 @@ export const marketplaceService = {
    */
   async listModelosByLoja(slug: string): Promise<MarketplaceModelo[]> {
     const { data } = await publicClient.get<MarketplaceModelo[]>(`/v1/public/lojas/${slug}/modelos`)
+    return data
+  },
+
+  /** Branding público (logo/cores) — best-effort na vitrine. */
+  async getLojaBranding(slug: string): Promise<MarketplaceLojaBranding> {
+    const { data } = await publicClient.get<MarketplaceLojaBranding>(`/v1/public/lojas/${slug}/branding`)
     return data
   },
 }

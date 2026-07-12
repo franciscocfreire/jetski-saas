@@ -239,11 +239,17 @@ public class MarketplaceService {
         return modelos;
     }
 
-    /** Dados públicos da loja (cabeçalho da vitrine). */
+    /** Dados públicos da loja (cabeçalho da vitrine + conteúdo configurável do branding). */
     @Transactional(readOnly = true)
     public Optional<MarketplaceLojaDTO> getPublicLoja(String slug) {
         String sql = """
-            SELECT t.id, t.slug, t.razao_social, t.cidade, t.uf, t.whatsapp
+            SELECT t.id, t.slug, t.razao_social, t.cidade, t.uf, t.whatsapp,
+                   t.branding->>'vitrine_descricao',
+                   t.branding->>'vitrine_endereco',
+                   t.branding->>'vitrine_praia',
+                   t.branding->>'vitrine_horario',
+                   t.branding->>'vitrine_instagram',
+                   t.branding->>'vitrine_site'
             FROM tenant t
             WHERE t.slug = :slug
               AND t.status = 'ATIVO'
@@ -257,13 +263,16 @@ public class MarketplaceService {
 
         return results.stream().findFirst().map(r -> new MarketplaceLojaDTO(
             (UUID) r[0], (String) r[1], (String) r[2],
-            (String) r[3], (String) r[4], (String) r[5]))
+            (String) r[3], (String) r[4], (String) r[5],
+            (String) r[6], (String) r[7], (String) r[8], (String) r[9], (String) r[10], (String) r[11]))
             .filter(loja -> moduloHabilitado(loja.tenantId(), ModuloPlano.LOJA_ONLINE));
     }
 
-    /** Loja pública (vitrine). */
+    /** Loja pública (vitrine). Campos vitrine* vêm do branding e podem ser nulos. */
     public record MarketplaceLojaDTO(
-        UUID tenantId, String slug, String nome, String cidade, String uf, String whatsapp) {}
+        UUID tenantId, String slug, String nome, String cidade, String uf, String whatsapp,
+        String vitrineDescricao, String vitrineEndereco, String vitrinePraia,
+        String vitrineHorario, String vitrineInstagram, String vitrineSite) {}
 
     /**
      * Fetch midias for multiple models (batch query for efficiency)

@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { MapPin, MessageCircle, Anchor, ArrowRight } from 'lucide-react'
+import { MapPin, MessageCircle, Anchor, ArrowRight, Clock, Instagram, Globe, Navigation } from 'lucide-react'
 import { JetskiCard, JetskiCardProps } from '@/components/public/jetski-card'
 import {
   marketplaceService,
   MarketplaceLoja,
+  MarketplaceLojaBranding,
   MarketplaceModelo,
   getPrincipalImage,
 } from '@/lib/api/services/marketplace'
@@ -41,6 +42,12 @@ function whatsappHref(whatsapp: string): string {
   let digits = whatsapp.replace(/\D/g, '')
   if (digits.length <= 11) digits = `55${digits}`
   return `https://wa.me/${digits}`
+}
+
+function instagramHref(valor: string): string {
+  const v = valor.trim()
+  if (/instagram\.com/i.test(v)) return v.match(/^https?:\/\//i) ? v : `https://${v}`
+  return `https://instagram.com/${v.replace(/^@/, '')}`
 }
 
 function VitrineSkeleton() {
@@ -95,6 +102,7 @@ export default function LojaVitrinePage() {
   const slug = params.slug
 
   const [loja, setLoja] = useState<MarketplaceLoja | null>(null)
+  const [branding, setBranding] = useState<MarketplaceLojaBranding | null>(null)
   const [modelos, setModelos] = useState<JetskiCardProps[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -104,12 +112,14 @@ export default function LojaVitrinePage() {
     let vivo = true
     async function carregar() {
       try {
-        const [lojaData, modelosData] = await Promise.all([
+        const [lojaData, modelosData, brandingData] = await Promise.all([
           marketplaceService.getLoja(slug),
           marketplaceService.listModelosByLoja(slug),
+          marketplaceService.getLojaBranding(slug).catch(() => null),
         ])
         if (!vivo) return
         setLoja(lojaData)
+        setBranding(brandingData)
         const base = subBase('cliente')
         setModelos(modelosData.map((m) => mapModeloToCard(m, base)))
       } catch {
@@ -144,13 +154,29 @@ export default function LojaVitrinePage() {
                     Vitrine oficial
                   </span>
                 </div>
-                <h1 className="font-display text-4xl md:text-5xl font-medium text-white break-words">
-                  {loja.nome}
-                </h1>
-                {(loja.cidade || loja.uf) && (
+                <div className="flex flex-wrap items-center gap-4">
+                  {branding?.logoDataUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={branding.logoDataUrl}
+                      alt={`Logo ${loja.nome}`}
+                      className="h-14 max-w-36 rounded-lg bg-white/95 object-contain p-1.5"
+                    />
+                  )}
+                  <h1 className="min-w-0 font-display text-4xl md:text-5xl font-medium text-white break-words">
+                    {loja.nome}
+                  </h1>
+                </div>
+                {(loja.vitrinePraia || loja.cidade || loja.uf) && (
                   <div className="mt-4 flex items-center gap-2 text-white/60">
-                    <MapPin className="h-4 w-4 shrink-0" />
-                    <span>{[loja.cidade, loja.uf].filter(Boolean).join(' · ')}</span>
+                    <MapPin className="h-4 w-4 shrink-0 text-gold/70" />
+                    <span>
+                      {loja.vitrinePraia && (
+                        <span className="font-medium text-white/90">{loja.vitrinePraia}</span>
+                      )}
+                      {loja.vitrinePraia && (loja.cidade || loja.uf) && ' · '}
+                      {[loja.cidade, loja.uf].filter(Boolean).join(' · ')}
+                    </span>
                   </div>
                 )}
               </div>
@@ -176,6 +202,95 @@ export default function LojaVitrinePage() {
                 {modelos.map((m) => (
                   <JetskiCard key={m.id} {...m} />
                 ))}
+              </div>
+            )}
+
+            {/* Sobre a empresa */}
+            {loja.vitrineDescricao && (
+              <div className="mt-16 max-w-3xl">
+                <h2 className="text-white font-medium text-xl mb-4">Sobre a {loja.nome}</h2>
+                <p className="text-white/60 leading-relaxed whitespace-pre-line">
+                  {loja.vitrineDescricao}
+                </p>
+              </div>
+            )}
+
+            {/* Localização + informações */}
+            {(loja.vitrineEndereco || loja.vitrineHorario || loja.vitrineInstagram || loja.vitrineSite) && (
+              <div className="mt-16 grid gap-6 lg:grid-cols-2">
+                {loja.vitrineEndereco && (
+                  <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+                    <iframe
+                      title={`Mapa — ${loja.vitrineEndereco}`}
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(loja.vitrineEndereco)}&z=15&output=embed`}
+                      className="h-72 w-full border-0"
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+                      <p className="min-w-0 flex-1 basis-52 text-sm text-white/60 break-words">
+                        {loja.vitrineEndereco}
+                      </p>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loja.vitrineEndereco)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex shrink-0 items-center gap-2 rounded-full border border-gold/40 px-4 py-2 text-sm text-gold hover:bg-gold/10 transition-colors"
+                      >
+                        <Navigation className="h-4 w-4" /> Como chegar
+                      </a>
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-6 rounded-xl border border-white/10 bg-white/[0.03] p-6">
+                  {loja.vitrineHorario && (
+                    <div>
+                      <h3 className="flex items-center gap-2 text-white font-medium mb-2">
+                        <Clock className="h-4 w-4 text-gold/70" /> Horário de funcionamento
+                      </h3>
+                      <p className="text-white/60 text-sm leading-relaxed whitespace-pre-line">
+                        {loja.vitrineHorario}
+                      </p>
+                    </div>
+                  )}
+                  {(loja.vitrineInstagram || loja.vitrineSite || loja.whatsapp) && (
+                    <div>
+                      <h3 className="text-white font-medium mb-3">Contato</h3>
+                      <div className="flex flex-wrap gap-3">
+                        {loja.whatsapp && (
+                          <a
+                            href={whatsappHref(loja.whatsapp)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-white/80 hover:border-gold/40 hover:text-gold transition-colors"
+                          >
+                            <MessageCircle className="h-4 w-4" /> WhatsApp
+                          </a>
+                        )}
+                        {loja.vitrineInstagram && (
+                          <a
+                            href={instagramHref(loja.vitrineInstagram)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-white/80 hover:border-gold/40 hover:text-gold transition-colors"
+                          >
+                            <Instagram className="h-4 w-4" /> Instagram
+                          </a>
+                        )}
+                        {loja.vitrineSite && (
+                          <a
+                            href={loja.vitrineSite}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-sm text-white/80 hover:border-gold/40 hover:text-gold transition-colors"
+                          >
+                            <Globe className="h-4 w-4" /> Site
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

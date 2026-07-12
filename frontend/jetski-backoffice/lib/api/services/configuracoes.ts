@@ -75,7 +75,16 @@ export const configuracoesService = {
     return data
   },
 
-  async updateBrandingConfig(request: { corPrimaria?: string | null; corSecundaria?: string | null }): Promise<Branding> {
+  async updateBrandingConfig(request: {
+    corPrimaria?: string | null
+    corSecundaria?: string | null
+    vitrineDescricao?: string | null
+    vitrineEndereco?: string | null
+    vitrinePraia?: string | null
+    vitrineHorario?: string | null
+    vitrineInstagram?: string | null
+    vitrineSite?: string | null
+  }): Promise<Branding> {
     const { data } = await apiClient.put<Branding>(`${getBasePath()}/branding`, request)
     return data
   },

@@ -1521,6 +1521,13 @@ export interface Branding {
   corPrimaria?: string | null
   corSecundaria?: string | null
   logoDataUrl?: string | null
+  /** Conteúdo da vitrine pública ({slug}.meujet.com.br) — nulos ⇒ seção não aparece. */
+  vitrineDescricao?: string | null
+  vitrineEndereco?: string | null
+  vitrinePraia?: string | null
+  vitrineHorario?: string | null
+  vitrineInstagram?: string | null
+  vitrineSite?: string | null
 }
 
 // ==========================================

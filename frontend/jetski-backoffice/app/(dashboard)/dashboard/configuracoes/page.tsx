@@ -16,11 +16,12 @@ import type {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail, FileText, ShieldCheck, Palette, Gauge } from 'lucide-react'
+import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail, FileText, ShieldCheck, Palette, Gauge, Store } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Logo } from '@/components/logo'
 import { PlanoUsoTab } from '@/components/configuracoes/plano-uso-tab'
@@ -205,8 +206,19 @@ function ConfiguracoesConteudo() {
     })
   }
 
+  /** PUT /branding leva SEMPRE o objeto completo (cores + vitrine): campo omitido viraria null no backend. */
+  const brandPayload = (cfg: Branding) => ({
+    corPrimaria: cfg.corPrimaria || null,
+    corSecundaria: cfg.corSecundaria || null,
+    vitrineDescricao: cfg.vitrineDescricao || null,
+    vitrineEndereco: cfg.vitrineEndereco || null,
+    vitrinePraia: cfg.vitrinePraia || null,
+    vitrineHorario: cfg.vitrineHorario || null,
+    vitrineInstagram: cfg.vitrineInstagram || null,
+    vitrineSite: cfg.vitrineSite || null,
+  })
   const updateBrand = useMutation({
-    mutationFn: (req: { corPrimaria?: string | null; corSecundaria?: string | null }) =>
+    mutationFn: (req: ReturnType<typeof brandPayload>) =>
       configuracoesService.updateBrandingConfig(req),
     onSuccess: brandingOnSuccess('Cores da marca salvas'),
     onError: brandingOnError,
@@ -983,8 +995,8 @@ function ConfiguracoesConteudo() {
                 Marca da empresa (white-label)
               </CardTitle>
               <CardDescription>
-                Personalize a cor e o logo exibidos no sistema para a sua equipe.
-                Sem personalização, vale a identidade padrão Meu Jet.
+                Personalize a cor e o logo exibidos no sistema e o conteúdo da
+                vitrine pública da sua empresa. Sem personalização, vale a identidade padrão Meu Jet.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -1126,30 +1138,129 @@ function ConfiguracoesConteudo() {
                     </div>
                   </div>
 
+                  {/* Vitrine pública ({slug}.meujet.com.br) */}
+                  <div className="space-y-4 rounded-lg border p-4">
+                    <div>
+                      <Label className="flex items-center gap-2 text-sm font-medium">
+                        <Store className="h-4 w-4" /> Vitrine pública da empresa
+                      </Label>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Conteúdo exibido em{' '}
+                        <span className="font-mono text-foreground">
+                          {geral?.slug ? `${geral.slug}.meujet.com.br` : 'sua-empresa.meujet.com.br'}
+                        </span>
+                        . Campos vazios não aparecem na página.
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="vitrine-descricao" className="text-sm">Sobre a empresa</Label>
+                      <Textarea
+                        id="vitrine-descricao"
+                        rows={4}
+                        maxLength={2000}
+                        placeholder="Conte quem vocês são, há quanto tempo atuam, diferenciais, estrutura de apoio na praia…"
+                        value={brandCfg.vitrineDescricao || ''}
+                        onChange={(e) => setBrandCfg({ ...brandCfg, vitrineDescricao: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="vitrine-praia" className="text-sm">Praia / ponto de encontro</Label>
+                        <Input
+                          id="vitrine-praia"
+                          maxLength={120}
+                          placeholder="Ex.: Praia do Forte"
+                          value={brandCfg.vitrinePraia || ''}
+                          onChange={(e) => setBrandCfg({ ...brandCfg, vitrinePraia: e.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          É assim que o cliente encontra vocês — aparece em destaque junto da cidade.
+                        </p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="vitrine-horario" className="text-sm">Horário de funcionamento</Label>
+                        <Textarea
+                          id="vitrine-horario"
+                          rows={2}
+                          maxLength={500}
+                          placeholder={'Seg–Sex 9h–17h\nSáb, Dom e feriados 8h–18h'}
+                          value={brandCfg.vitrineHorario || ''}
+                          onChange={(e) => setBrandCfg({ ...brandCfg, vitrineHorario: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="vitrine-endereco" className="text-sm">Endereço completo (gera o mapa)</Label>
+                      <Input
+                        id="vitrine-endereco"
+                        maxLength={300}
+                        placeholder="Av. Beira Mar, 1000 - Praia do Forte, Cabo Frio - RJ, 28909-000"
+                        value={brandCfg.vitrineEndereco || ''}
+                        onChange={(e) => setBrandCfg({ ...brandCfg, vitrineEndereco: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Quanto mais completo (com CEP), mais preciso o ponto no mapa abaixo.
+                      </p>
+                      {brandCfg.vitrineEndereco && (
+                        <div className="overflow-hidden rounded-lg border">
+                          <iframe
+                            title="Prévia do mapa da vitrine"
+                            src={`https://maps.google.com/maps?q=${encodeURIComponent(brandCfg.vitrineEndereco)}&z=15&output=embed`}
+                            className="h-56 w-full"
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="vitrine-instagram" className="text-sm">Instagram</Label>
+                        <Input
+                          id="vitrine-instagram"
+                          maxLength={100}
+                          placeholder="@suaempresa"
+                          value={brandCfg.vitrineInstagram || ''}
+                          onChange={(e) => setBrandCfg({ ...brandCfg, vitrineInstagram: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="vitrine-site" className="text-sm">Site próprio</Label>
+                        <Input
+                          id="vitrine-site"
+                          maxLength={200}
+                          placeholder="www.suaempresa.com.br"
+                          value={brandCfg.vitrineSite || ''}
+                          onChange={(e) => setBrandCfg({ ...brandCfg, vitrineSite: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap gap-2">
                     <Button
-                      onClick={() =>
-                        updateBrand.mutate({
-                          corPrimaria: brandCfg.corPrimaria || null,
-                          corSecundaria: brandCfg.corSecundaria || null,
-                        })
-                      }
+                      onClick={() => updateBrand.mutate(brandPayload(brandCfg))}
                       disabled={updateBrand.isPending}
                       className="gap-2"
                     >
                       {updateBrand.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      Salvar cores da marca
+                      Salvar marca e vitrine
                     </Button>
                     <Button
                       variant="outline"
                       className="gap-2"
                       disabled={updateBrand.isPending}
                       onClick={() => {
-                        setBrandCfg({ ...brandCfg, corPrimaria: null, corSecundaria: null })
-                        updateBrand.mutate({ corPrimaria: null, corSecundaria: null })
+                        const semCores = { ...brandCfg, corPrimaria: null, corSecundaria: null }
+                        setBrandCfg(semCores)
+                        updateBrand.mutate(brandPayload(semCores))
                       }}
                     >
-                      Restaurar padrão Meu Jet
+                      Restaurar cores padrão Meu Jet
                     </Button>
                   </div>
                 </>

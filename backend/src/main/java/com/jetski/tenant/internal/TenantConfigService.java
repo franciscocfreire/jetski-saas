@@ -236,7 +236,7 @@ public class TenantConfigService {
         }
     }
 
-    /** Atualiza as cores; o logo é preservado (gerenciado por upload/remove dedicados). */
+    /** Atualiza cores + conteúdo da vitrine; o logo é preservado (upload/remove dedicados). */
     @Transactional
     public Branding updateBranding(UUID tenantId, Branding request) {
         Tenant tenant = tenantRepository.findById(tenantId)
@@ -247,11 +247,44 @@ public class TenantConfigService {
         validarCor("cor primária", request.corPrimaria(), true);
         validarCor("cor secundária", request.corSecundaria(), false);
         Branding atual = tenant.getBranding() != null ? tenant.getBranding() : Branding.padrao();
-        Branding cfg = atual.comCores(normalizarCor(request.corPrimaria()), normalizarCor(request.corSecundaria()));
+        Branding cfg = atual
+            .comCores(normalizarCor(request.corPrimaria()), normalizarCor(request.corSecundaria()))
+            .comVitrine(
+                normalizarTextoVitrine("descrição", request.vitrineDescricao(), 2000),
+                normalizarTextoVitrine("endereço", request.vitrineEndereco(), 300),
+                normalizarTextoVitrine("praia", request.vitrinePraia(), 120),
+                normalizarTextoVitrine("horário", request.vitrineHorario(), 500),
+                normalizarTextoVitrine("Instagram", request.vitrineInstagram(), 100),
+                normalizarSiteVitrine(request.vitrineSite()));
         tenant.setBranding(cfg);
         tenantRepository.save(tenant);
         log.info("Branding atualizado para o tenant {}", tenantId);
         return cfg;
+    }
+
+    /** Trim + vazio→null + limite de tamanho (400 de negócio se exceder). */
+    private String normalizarTextoVitrine(String campo, String valor, int max) {
+        if (valor == null || valor.isBlank()) {
+            return null;
+        }
+        String v = valor.strip();
+        if (v.length() > max) {
+            throw new BusinessException(
+                "Campo " + campo + " da vitrine excede o limite de " + max + " caracteres");
+        }
+        return v;
+    }
+
+    /** Site sempre com esquema http(s) — vira link público na vitrine. */
+    private String normalizarSiteVitrine(String valor) {
+        String v = normalizarTextoVitrine("site", valor, 200);
+        if (v == null) {
+            return null;
+        }
+        if (!v.matches("(?i)^https?://.*")) {
+            v = "https://" + v;
+        }
+        return v;
     }
 
     @Transactional

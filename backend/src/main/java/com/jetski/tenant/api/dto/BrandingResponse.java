@@ -7,5 +7,11 @@ package com.jetski.tenant.api.dto;
 public record BrandingResponse(
         String corPrimaria,
         String corSecundaria,
-        String logoDataUrl
+        String logoDataUrl,
+        String vitrineDescricao,
+        String vitrineEndereco,
+        String vitrinePraia,
+        String vitrineHorario,
+        String vitrineInstagram,
+        String vitrineSite
 ) {}
