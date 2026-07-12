@@ -40,6 +40,8 @@ export interface MarketplaceModelo {
   empresaNome: string
   empresaWhatsapp?: string
   localizacao: string
+  /** Praia/ponto de encontro da loja — usada na busca por praia. */
+  praia?: string
   prioridade: number
   midias: MarketplaceMidia[]
 }

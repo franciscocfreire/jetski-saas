@@ -81,7 +81,8 @@ public class MarketplaceService {
                 t.uf,
                 t.prioridade_marketplace,
                 av.nota_media,
-                av.total_avaliacoes
+                av.total_avaliacoes,
+                t.branding->>'vitrine_praia'
             FROM modelo m
             INNER JOIN tenant t ON m.tenant_id = t.id
             LEFT JOIN LATERAL (
@@ -150,7 +151,8 @@ public class MarketplaceService {
                 t.uf,
                 t.prioridade_marketplace,
                 av.nota_media,
-                av.total_avaliacoes
+                av.total_avaliacoes,
+                t.branding->>'vitrine_praia'
             FROM modelo m
             INNER JOIN tenant t ON m.tenant_id = t.id
             LEFT JOIN LATERAL (
@@ -204,7 +206,8 @@ public class MarketplaceService {
                 t.uf,
                 t.prioridade_marketplace,
                 av.nota_media,
-                av.total_avaliacoes
+                av.total_avaliacoes,
+                t.branding->>'vitrine_praia'
             FROM modelo m
             INNER JOIN tenant t ON m.tenant_id = t.id
             LEFT JOIN LATERAL (
@@ -339,6 +342,7 @@ public class MarketplaceService {
         Integer prioridade = row[13] != null ? ((Number) row[13]).intValue() : 0;
         BigDecimal notaMedia = row[14] != null ? new BigDecimal(row[14].toString()) : null;
         Integer totalAvaliacoes = row[15] != null ? ((Number) row[15]).intValue() : 0;
+        String praia = (String) row[16];
 
         BigDecimal precoPacote30min = extractPacote30min(pacotesJson);
 
@@ -356,6 +360,7 @@ public class MarketplaceService {
             empresaWhatsapp,
             cidade,
             uf,
+            praia,
             prioridade,
             notaMedia,
             totalAvaliacoes

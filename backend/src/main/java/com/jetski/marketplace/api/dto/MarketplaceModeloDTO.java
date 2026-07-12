@@ -24,6 +24,8 @@ public record MarketplaceModeloDTO(
     String empresaNome,
     String empresaWhatsapp,
     String localizacao,
+    /** Praia/ponto de encontro da loja (branding.vitrine_praia) — base da busca por praia. */
+    String praia,
     Integer prioridade,
     BigDecimal notaMedia,
     Integer totalAvaliacoes,
@@ -46,6 +48,7 @@ public record MarketplaceModeloDTO(
             String empresaWhatsapp,
             String cidade,
             String uf,
+            String praia,
             Integer prioridade,
             BigDecimal notaMedia,
             Integer totalAvaliacoes
@@ -63,6 +66,7 @@ public record MarketplaceModeloDTO(
             empresaNome,
             empresaWhatsapp,
             formatLocalizacao(cidade, uf),
+            praia,
             prioridade,
             notaMedia,
             totalAvaliacoes,
@@ -87,6 +91,7 @@ public record MarketplaceModeloDTO(
             this.empresaNome,
             this.empresaWhatsapp,
             this.localizacao,
+            this.praia,
             this.prioridade,
             this.notaMedia,
             this.totalAvaliacoes,
