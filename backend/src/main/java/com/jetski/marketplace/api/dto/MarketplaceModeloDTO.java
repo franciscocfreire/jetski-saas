@@ -24,6 +24,9 @@ public record MarketplaceModeloDTO(
     String empresaNome,
     String empresaWhatsapp,
     String localizacao,
+    /** Cidade/UF crus para filtros (localizacao é a versão formatada de exibição). */
+    String cidade,
+    String uf,
     /** Praia/ponto de encontro da loja (branding.vitrine_praia) — base da busca por praia. */
     String praia,
     Integer prioridade,
@@ -66,6 +69,8 @@ public record MarketplaceModeloDTO(
             empresaNome,
             empresaWhatsapp,
             formatLocalizacao(cidade, uf),
+            cidade,
+            uf,
             praia,
             prioridade,
             notaMedia,
@@ -91,6 +96,8 @@ public record MarketplaceModeloDTO(
             this.empresaNome,
             this.empresaWhatsapp,
             this.localizacao,
+            this.cidade,
+            this.uf,
             this.praia,
             this.prioridade,
             this.notaMedia,

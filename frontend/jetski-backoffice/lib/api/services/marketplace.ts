@@ -40,6 +40,9 @@ export interface MarketplaceModelo {
   empresaNome: string
   empresaWhatsapp?: string
   localizacao: string
+  /** Cidade/UF crus para os filtros em cascata (localizacao é a versão formatada). */
+  cidade?: string
+  uf?: string
   /** Praia/ponto de encontro da loja — usada na busca por praia. */
   praia?: string
   prioridade: number
