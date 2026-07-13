@@ -376,21 +376,30 @@ public class CustomerReservaService {
      * (TransactionTemplate — auto-invocação não passa pelo proxy @Transactional).
      */
     public int expirarPreReservasPortal(int horas) {
-        List<UUID> tenants = transactionTemplate.execute(tx -> {
-            @SuppressWarnings("unchecked")
-            List<UUID> ids = entityManager
-                .createNativeQuery("SELECT id FROM tenant WHERE status = 'ATIVO'")
-                .getResultList();
-            return ids;
-        });
+        // Roda em thread de SCHEDULER: o fixarTenant de cada tenant seta o
+        // TenantContext (ThreadLocal) e, sem limpeza, o último tenant iterado
+        // ficaria vazado na thread para sempre — contaminando TODOS os jobs
+        // seguintes da mesma thread (TenantAwareDataSource passaria a emitir
+        // set_config session-scoped a cada checkout de conexão).
+        try {
+            List<UUID> tenants = transactionTemplate.execute(tx -> {
+                @SuppressWarnings("unchecked")
+                List<UUID> ids = entityManager
+                    .createNativeQuery("SELECT id FROM tenant WHERE status = 'ATIVO'")
+                    .getResultList();
+                return ids;
+            });
 
-        int total = 0;
-        for (UUID tenantId : tenants) {
-            Integer n = transactionTemplate.execute(tx ->
-                expirarPreReservasPortalDoTenant(tenantId, horas));
-            total += n != null ? n : 0;
+            int total = 0;
+            for (UUID tenantId : tenants) {
+                Integer n = transactionTemplate.execute(tx ->
+                    expirarPreReservasPortalDoTenant(tenantId, horas));
+                total += n != null ? n : 0;
+            }
+            return total;
+        } finally {
+            TenantContext.clear();
         }
-        return total;
     }
 
     private int expirarPreReservasPortalDoTenant(UUID tenantId, int horas) {

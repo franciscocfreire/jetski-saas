@@ -19,6 +19,12 @@ scrape_configs:
         labels:
           application: jetski-api
 
+  # Métricas do Keycloak (KC_METRICS_ENABLED + eventos de usuário do KC 26.4)
+  # saem na porta de MANAGEMENT (9000), não na 8080.
+  - job_name: 'keycloak'
+    static_configs:
+      - targets: ['keycloak:9000']
+
   - job_name: 'node'
     static_configs:
       - targets: ['node-exporter:9100']

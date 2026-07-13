@@ -366,6 +366,24 @@ public class KeycloakAdminService {
     }
 
     /**
+     * Estatísticas de sessões ativas por client do realm alvo
+     * (Admin API {@code GET /admin/realms/{realm}/client-session-stats}).
+     *
+     * <p>Cada item da lista é um mapa com as chaves {@code clientId},
+     * {@code active} e {@code offline} (valores como String — formato do
+     * admin-client).
+     *
+     * <p>Diferente dos demais métodos deste service, falhas PROPAGAM: o
+     * consumidor (poller de métricas) precisa distinguir "Keycloak fora do ar"
+     * de "zero sessões" para manter o último valor do gauge.
+     */
+    public List<Map<String, String>> getClientSessionStats() {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            return keycloak.realm(targetRealm).getClientSessionStats();
+        }
+    }
+
+    /**
      * Atribui roles realm-level ao usuário.
      *
      * @param realmResource Recurso do realm
