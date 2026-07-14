@@ -756,6 +756,13 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+-- V050: grandfathering — quem já emite/está configurado entra habilitado como emissora
+UPDATE public.tenant t
+   SET emissora_habilitada = true
+ WHERE emissora_habilitada = false
+   AND (EXISTS (SELECT 1 FROM public.documento_emitido d WHERE d.tenant_id = t.id)
+     OR t.marinha_email IS NOT NULL);
+
 -- V045: billing manual assistido — fatura mensal da assinatura (PIX plataforma)
 CREATE TABLE IF NOT EXISTS public.fatura (
     id              uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
@@ -1028,6 +1035,14 @@ UPDATE tenant SET
     marinha_email = 'capitania.dev@example.com',
     pix_chave = '65455888000100',
     branding = '{"cor_primaria": "#0066CC", "cor_secundaria": "#C9A24B"}'::jsonb
+WHERE slug = 'acme';
+
+-- V050: emissão própria exige emissora_habilitada — o seed de dev entra
+-- habilitado (com capitania) para o fluxo de emissão continuar funcionando
+UPDATE tenant SET
+    emissora_habilitada = true,
+    eama_registro = 'EAMA-DEV-SEED',
+    capitania_id = (SELECT id FROM capitania WHERE codigo = 'CPSC')
 WHERE slug = 'acme';
 
 -- Marcar modelos como visiveis no marketplace

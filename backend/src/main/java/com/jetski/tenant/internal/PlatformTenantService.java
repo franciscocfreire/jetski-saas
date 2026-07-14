@@ -67,7 +67,8 @@ public class PlatformTenantService {
                     assinatura != null ? (String) assinatura[0] : null,
                     assinatura != null && assinatura[1] != null
                         ? ((java.sql.Date) assinatura[1]).toLocalDate() : null,
-                    t.getExclusaoAgendadaEm());
+                    t.getExclusaoAgendadaEm(),
+                    Boolean.TRUE.equals(t.getEmissoraHabilitada()), t.getEamaRegistro());
             })
             .toList();
     }

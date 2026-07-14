@@ -11,6 +11,8 @@ import { ExcluirEmpresaDialog } from '@/components/plataforma/excluir-empresa-di
 import { FaturasPendentesCard } from '@/components/plataforma/faturas-pendentes-card'
 import { ModulosPorPlanoCard } from '@/components/plataforma/modulos-por-plano-card'
 import { AlterarPlanoDialog } from '@/components/plataforma/alterar-plano-dialog'
+import { EmissoraButton } from '@/components/plataforma/emissora-button'
+import { CapitaniasCard } from '@/components/plataforma/capitanias-card'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import type { TenantSummary } from '@/lib/api/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -164,6 +166,7 @@ export default function PlataformaPage() {
     if (t.status === 'ATIVO' || t.status === 'TRIAL') {
       return (
         <div className="flex items-center justify-end gap-2">
+          <EmissoraButton tenant={t} />
           <AlterarPlanoDialog tenant={t} />
           <LancarCreditosDialog tenant={t} />
           <ExportarEmpresaButton tenant={t} />
@@ -289,7 +292,12 @@ export default function PlataformaPage() {
                         <PlanoCell t={t} />
                       </TableCell>
                       <TableCell>
-                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                        <div className="flex items-center gap-1">
+                          <Badge variant={badge.variant}>{badge.label}</Badge>
+                          {t.emissoraHabilitada && (
+                            <Badge variant="outline" title="EAMA emissora habilitada">EAMA</Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">{renderAction(t)}</TableCell>
                     </TableRow>
@@ -307,6 +315,8 @@ export default function PlataformaPage() {
       <ModulosPorPlanoCard enabled={isPlatformAdmin} />
 
       <PrecoCreditoCard enabled={isPlatformAdmin} />
+
+      <CapitaniasCard enabled={isPlatformAdmin} />
 
       <ImagemConfigCard enabled={isPlatformAdmin} />
 

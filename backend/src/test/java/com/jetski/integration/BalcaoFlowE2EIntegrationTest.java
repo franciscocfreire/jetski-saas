@@ -75,8 +75,8 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
         TenantContext.setUsuarioId(USER_ID);
 
         jdbc.update("""
-            INSERT INTO tenant (id, slug, razao_social, cnpj, cidade, marinha_email)
-            VALUES (?, 'e2e-balcao', 'Jet Save E2E LTDA', '11.222.333/0001-44', 'Angra dos Reis', 'capitania-e2e@example.com')
+            INSERT INTO tenant (id, slug, razao_social, cnpj, cidade, marinha_email, emissora_habilitada)
+            VALUES (?, 'e2e-balcao', 'Jet Save E2E LTDA', '11.222.333/0001-44', 'Angra dos Reis', 'capitania-e2e@example.com', true)
             ON CONFLICT (id) DO NOTHING
             """, TENANT_ID);
         // Página de auditoria ligada, mas carimbo TSA desligado (usa âncora interna,

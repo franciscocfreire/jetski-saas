@@ -904,6 +904,10 @@ export interface TenantSummary {
   exclusaoAgendadaEm?: string | null
   /** Módulos do plano (V046, chaves do enum ModuloPlano); null/ausente = todos. */
   modulos?: string[] | null
+  /** EAMA emissora validada pelo super admin (V047) — vem só no painel de plataforma. */
+  emissoraHabilitada?: boolean
+  /** Registro EAMA declarado pela empresa (painel de plataforma; null = não preenchido). */
+  eamaRegistro?: string | null
 }
 
 export interface UserTenantsResponse {

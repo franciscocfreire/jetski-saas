@@ -161,6 +161,53 @@ export const platformService = {
     const { data } = await apiClient.post<ReencryptResult>('/v1/platform/secrets/reencrypt')
     return data
   },
+
+  // ===== Emissão delegada (V047): habilitação de EAMA + catálogo de capitanias =====
+
+  /** Habilita a empresa como EAMA emissora (exige capitania + registro declarados). */
+  async habilitarEmissora(tenantId: string): Promise<void> {
+    await apiClient.post(`/v1/platform/tenants/${tenantId}/habilitar-emissora`, undefined,
+      { headers: { 'X-Tenant-Id': tenantId } })
+  },
+
+  /** Remove a habilitação de emissora (revalidação/irregularidade). */
+  async desabilitarEmissora(tenantId: string): Promise<void> {
+    await apiClient.post(`/v1/platform/tenants/${tenantId}/desabilitar-emissora`, undefined,
+      { headers: { 'X-Tenant-Id': tenantId } })
+  },
+
+  /** Catálogo completo de capitanias (inclusive inativas). */
+  async listCapitanias(): Promise<PlatformCapitania[]> {
+    const { data } = await apiClient.get<PlatformCapitania[]>('/v1/platform/capitanias')
+    return data
+  },
+
+  async criarCapitania(req: CapitaniaEditRequest): Promise<PlatformCapitania> {
+    const { data } = await apiClient.post<PlatformCapitania>('/v1/platform/capitanias', req)
+    return data
+  },
+
+  async atualizarCapitania(id: string, req: CapitaniaEditRequest): Promise<PlatformCapitania> {
+    const { data } = await apiClient.put<PlatformCapitania>(`/v1/platform/capitanias/${id}`, req)
+    return data
+  },
+}
+
+export interface PlatformCapitania {
+  id: string
+  codigo: string
+  nome: string
+  uf: string | null
+  emailOficial: string | null
+  ativa: boolean
+}
+
+export interface CapitaniaEditRequest {
+  codigo: string
+  nome: string
+  uf?: string | null
+  emailOficial?: string | null
+  ativa?: boolean | null
 }
 
 export interface FaturaPendente {

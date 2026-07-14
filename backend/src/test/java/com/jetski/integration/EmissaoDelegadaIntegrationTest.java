@@ -401,6 +401,47 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
             .hasMessageContaining("parceria");
     }
 
+    @Test
+    @DisplayName("portão duplo (V050): emissão PRÓPRIA sem emissora_habilitada nega com 400 de negócio")
+    void propriaSemHabilitacaoNega() {
+        // tenant com todos os módulos (sem assinatura = '*') mas SEM habilitação cadastral
+        UUID propria = UUID.randomUUID();
+        UUID modeloProprio = UUID.randomUUID();
+        jdbc.update("INSERT INTO tenant (id, slug, razao_social) VALUES (?, ?, 'Propria Sem Habilitacao')",
+            propria, "propria-" + propria.toString().substring(0, 8));
+        jdbc.update("""
+            INSERT INTO modelo (id, tenant_id, nome, fabricante, potencia_hp, capacidade_pessoas,
+                                preco_base_hora, tolerancia_min, taxa_hora_extra, caucao,
+                                inclui_combustivel, ativo)
+            VALUES (?, ?, 'SeaDoo GTI', 'Sea-Doo', 130, 2, 150.00, 5, 50.00, 300.00, FALSE, TRUE)
+            """, modeloProprio, propria);
+        jdbc.update("INSERT INTO credito_lancamento (tenant_id, tipo, quantidade, saldo_apos, motivo) "
+            + "VALUES (?, 'AJUSTE', 5, 5, 'seed portao duplo')", propria);
+        TenantContext.setTenantId(propria);
+
+        Cliente cliente = clienteService.criarPreConta(Cliente.builder()
+            .tenantId(propria).nome("Cliente Propria").documento("935.411.347-80").build());
+        UUID reservaId = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO reserva (id, tenant_id, modelo_id, cliente_id, data_inicio, data_fim_prevista)
+            VALUES (?, ?, ?, ?, now() + interval '1 day', now() + interval '1 day' + interval '2 hours')
+            """, reservaId, propria, modeloProprio, cliente.getId());
+        habilitacaoService.registrar(reservaId, ReservaHabilitacao.builder()
+            .via(ReservaHabilitacao.Via.EMA)
+            .gruNumero("GRU-PROPRIA-1").gruValor(new BigDecimal("23.13")).gruPago(true)
+            .build());
+        aceiteService.registrar(reservaId, ReservaAceite.Metodo.SIGNATURE_PAD,
+            pngValido(), "127.0.0.1", "JUnit");
+
+        assertThatThrownBy(() -> emissaoService.emitir(reservaId))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("habilitada como EAMA emissora");
+
+        // habilitando (como o superadmin faria), a mesma emissão passa
+        jdbc.update("UPDATE tenant SET emissora_habilitada = true WHERE id = ?", propria);
+        assertThat(emissaoService.emitir(reservaId).getDocumentoId()).isNotNull();
+    }
+
     /** PNG 1x1 válido (o OpenPDF precisa parsear o header da imagem). */
     private static byte[] pngValido() {
         try {

@@ -101,7 +101,8 @@ class EmissaoServiceTest {
             .build()));
         when(tenantQuery.findById(tenant)).thenReturn(Tenant.builder()
             .razaoSocial("Jet Save Turismo Náutico LTDA").cnpj("65.455.888/0001-00")
-            .marinhaEmail("capitania@example.com").cidade("Angra dos Reis").build());
+            .marinhaEmail("capitania@example.com").cidade("Angra dos Reis")
+            .emissoraHabilitada(true).build());
         when(storage.getObject(anyString())).thenReturn("png".getBytes());
         when(storage.generatePresignedDownloadUrl(anyString(), anyInt()))
             .thenReturn(PresignedUrl.builder().url("http://download/doc.pdf").build());

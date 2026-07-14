@@ -59,11 +59,14 @@ public class VinculoEmissaoService {
     private final com.jetski.locacoes.internal.repository.VinculoEmissaoInstrutorRepository designacaoRepository;
     private final com.jetski.locacoes.internal.repository.InstrutorRepository instrutorRepository;
     private final com.jetski.creditos.CreditoService creditoService;
+    private final com.jetski.shared.email.EmailService emailService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
     private final EntityManager entityManager;
 
     /** Dados mínimos do parceiro lidos na janela unrestricted (sem segredos). */
     public record ParceiroInfo(UUID id, String slug, String razaoSocial,
-                               UUID capitaniaId, boolean emissoraHabilitada) {}
+                               UUID capitaniaId, boolean emissoraHabilitada,
+                               String contatoEmail) {}
 
     /** Contexto do emissor resolvido para uma emissão delegada (snapshot vivo). */
     public record DelegacaoContext(
@@ -108,6 +111,10 @@ public class VinculoEmissaoService {
                 .build());
             log.info("Vínculo de emissão convidado: {} (operadora={}, emissora={}, por tenant={})",
                 v.getId(), operadorId, emissorId, tenantId);
+            notificarTransicao(v, "CONVIDADO", tenantId,
+                "Convite de parceria de emissão delegada",
+                "Sua empresa foi convidada para uma parceria de emissão delegada no Meu Jet. "
+                + "Acesse Emissão delegada no backoffice para ler o termo e aceitar (ou recusar).");
             return v;
         } catch (DataIntegrityViolationException e) {
             // corrida com o unique parcial (1 vínculo vivo por operadora)
@@ -158,6 +165,10 @@ public class VinculoEmissaoService {
         });
 
         log.info("Vínculo de emissão ATIVO: {} (aceito pelo tenant {})", v.getId(), tenantId);
+        notificarTransicao(v, "ATIVADO", tenantId,
+            "Parceria de emissão delegada ativada",
+            "O convite de parceria de emissão delegada foi aceito (termo de responsabilidade "
+            + "assinado). A parceria está ATIVA.");
         return v;
     }
 
@@ -175,6 +186,10 @@ public class VinculoEmissaoService {
         v.setBloqueadoEm(Instant.now());
         repository.save(v);
         log.info("Vínculo de emissão BLOQUEADO pela emissora: {} (tenant {})", vinculoId, tenantId);
+        notificarTransicao(v, "BLOQUEADO", tenantId,
+            "Emissão delegada BLOQUEADA pela EAMA",
+            "A EAMA parceira bloqueou novas emissões em nome dela (efeito imediato). "
+            + "Fale com a emissora para regularizar e liberar.");
         return v;
     }
 
@@ -191,6 +206,9 @@ public class VinculoEmissaoService {
         v.setBloqueadoEm(null);
         repository.save(v);
         log.info("Vínculo de emissão LIBERADO pela emissora: {} (tenant {})", vinculoId, tenantId);
+        notificarTransicao(v, "LIBERADO", tenantId,
+            "Emissão delegada liberada",
+            "A EAMA parceira liberou a parceria — novas emissões em nome dela voltaram a funcionar.");
         return v;
     }
 
@@ -206,6 +224,9 @@ public class VinculoEmissaoService {
         v.setRevogadoEm(Instant.now());
         repository.save(v);
         log.info("Vínculo de emissão REVOGADO: {} (pelo tenant {})", vinculoId, tenantId);
+        notificarTransicao(v, "REVOGADO", tenantId,
+            "Parceria de emissão delegada revogada",
+            "A parceria de emissão delegada foi revogada (ação definitiva).");
         return v;
     }
 
@@ -473,7 +494,7 @@ public class VinculoEmissaoService {
         try {
             @SuppressWarnings("unchecked")
             List<Object[]> rows = entityManager.createNativeQuery(
-                    "SELECT id, slug, razao_social, capitania_id, emissora_habilitada "
+                    "SELECT id, slug, razao_social, capitania_id, emissora_habilitada, email_remetente "
                     + "FROM tenant WHERE " + where)
                 .setParameter(1, param)
                 .getResultList();
@@ -482,7 +503,7 @@ public class VinculoEmissaoService {
             }
             Object[] r = rows.get(0);
             return new ParceiroInfo((UUID) r[0], (String) r[1], (String) r[2],
-                (UUID) r[3], Boolean.TRUE.equals(r[4]));
+                (UUID) r[3], Boolean.TRUE.equals(r[4]), (String) r[5]);
         } finally {
             entityManager.createNativeQuery("SELECT set_config('app.unrestricted', ?1, true)")
                 .setParameter(1, antes)
@@ -508,6 +529,32 @@ public class VinculoEmissaoService {
         entityManager.createNativeQuery("SELECT set_config('app.tenant_id', ?1, true)")
             .setParameter(1, tenantId != null ? tenantId.toString() : "")
             .getSingleResult();
+    }
+
+    /**
+     * Trilha + aviso da transição: publica o evento de auditoria (gravado nos
+     * DOIS tenants pelo AuditEventListener) e envia e-mail best-effort ao
+     * OUTRO lado da parceria (email_remetente — identidade da empresa).
+     */
+    private void notificarTransicao(VinculoEmissao v, String transicao, UUID actorTenantId,
+                                    String assunto, String corpo) {
+        eventPublisher.publishEvent(com.jetski.locacoes.event.VinculoEmissaoTransicaoEvent.of(
+            v.getId(), v.getTenantOperadorId(), v.getTenantEmissorId(), transicao, actorOrNull()));
+        try {
+            UUID outroLado = actorTenantId.equals(v.getTenantOperadorId())
+                ? v.getTenantEmissorId() : v.getTenantOperadorId();
+            ParceiroInfo destino = lookupParceiroPorId(outroLado);
+            if (destino != null && destino.contatoEmail() != null && !destino.contatoEmail().isBlank()) {
+                ParceiroInfo remetente = lookupParceiroPorId(actorTenantId);
+                String quem = remetente != null ? remetente.razaoSocial() : "A empresa parceira";
+                emailService.sendEmail(destino.contatoEmail(),
+                    assunto + " — " + quem,
+                    "<p><b>" + quem + "</b>: " + corpo + "</p>");
+            }
+        } catch (Exception e) {
+            log.warn("E-mail da transição {} do vínculo {} não enviado (segue sem): {}",
+                transicao, v.getId(), e.getMessage());
+        }
     }
 
     private UUID actorOrNull() {

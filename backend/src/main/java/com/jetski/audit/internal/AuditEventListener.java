@@ -42,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Centralized Event Listener for Audit Logging.
@@ -1046,6 +1047,57 @@ public class AuditEventListener {
         } catch (Exception e) {
             log.error("Failed to audit CREDITO_LANCADO: tenant={}, error={}",
                     event.tenantId(), e.getMessage(), e);
+        }
+    }
+
+    // ===================================================================
+    // Emissão delegada (V048) — transições do vínculo operadora×EAMA
+    // ===================================================================
+
+    /**
+     * Trilha da parceria nos DOIS tenants (prova de "quando a EAMA bloqueou/
+     * aceitou", §4.3 da spec). Dois listeners para o mesmo evento: cada lado
+     * grava em transação própria com o contexto RLS do respectivo tenant.
+     */
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onVinculoEmissaoLadoOperadora(com.jetski.locacoes.event.VinculoEmissaoTransicaoEvent event) {
+        gravarVinculoEmissao(event, event.tenantOperadorId());
+    }
+
+    @Async
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onVinculoEmissaoLadoEmissora(com.jetski.locacoes.event.VinculoEmissaoTransicaoEvent event) {
+        gravarVinculoEmissao(event, event.tenantEmissorId());
+    }
+
+    private void gravarVinculoEmissao(com.jetski.locacoes.event.VinculoEmissaoTransicaoEvent event,
+                                      UUID tenantId) {
+        try {
+            com.jetski.shared.security.TenantContext.setTenantId(tenantId);
+            Map<String, Object> dados = new HashMap<>();
+            dados.put("vinculoId", event.vinculoId().toString());
+            dados.put("tenantOperadorId", event.tenantOperadorId().toString());
+            dados.put("tenantEmissorId", event.tenantEmissorId().toString());
+            dados.put("transicao", event.transicao());
+
+            auditoriaRepository.save(Auditoria.builder()
+                .tenantId(tenantId)
+                .usuarioId(event.actor())
+                .acao("VINCULO_EMISSAO_" + event.transicao())
+                .entidade("VINCULO_EMISSAO")
+                .entidadeId(event.vinculoId())
+                .dadosNovos(dados)
+                .traceId(getTraceId())
+                .ip(getRemoteIp())
+                .build());
+            log.info("Audit da parceria de emissão: vinculo={}, transicao={}, tenant={}",
+                event.vinculoId(), event.transicao(), tenantId);
+        } catch (Exception e) {
+            log.error("Falha no audit da parceria de emissão (vinculo={}, tenant={}): {}",
+                event.vinculoId(), tenantId, e.getMessage(), e);
         }
     }
 

@@ -22,13 +22,18 @@ public record PlatformTenantSummary(
     /** Fim da assinatura ativa (dt_fim) — no Trial, é a data em que os 14 dias vencem. */
     LocalDate assinaturaFim,
     /** Expurgo agendado (exclusão com carência); null = sem exclusão pendente. */
-    java.time.Instant exclusaoAgendadaEm
+    java.time.Instant exclusaoAgendadaEm,
+    /** EAMA emissora validada (V047) — portão cadastral da emissão própria/delegada. */
+    boolean emissoraHabilitada,
+    /** Registro EAMA declarado pela empresa (null = ainda não preenchido). */
+    String eamaRegistro
 ) {
     public static PlatformTenantSummary of(UUID id, String slug, String razaoSocial, String status,
                                            String plano, LocalDate assinaturaFim,
-                                           java.time.Instant exclusaoAgendadaEm) {
+                                           java.time.Instant exclusaoAgendadaEm,
+                                           boolean emissoraHabilitada, String eamaRegistro) {
         return new PlatformTenantSummary(
             id.toString(), slug, razaoSocial, status, List.of("ADMIN_TENANT"), plano,
-            assinaturaFim, exclusaoAgendadaEm);
+            assinaturaFim, exclusaoAgendadaEm, emissoraHabilitada, eamaRegistro);
     }
 }

@@ -11,9 +11,10 @@
 > Frontend: página Emissão delegada (parceria + painel), instrutor da EAMA parceira no
 > balcão, menu gateado pelo split.
 >
-> **Desvios conscientes do MVP** (ver §12): emissão PRÓPRIA ainda não exige
-> `emissora_habilitada` (evita regressão das lojas existentes); UI de superadmin para
-> capitanias/habilitar-emissora pendente (endpoints prontos).
+> **13/jul/2026 — pendências fechadas** (detalhe em §12): portão duplo da emissão própria
+> ligado (V050, com grandfathering), UI de superadmin (capitanias + habilitar emissora),
+> audit das transições do vínculo nos dois tenants e e-mails de convite/aceite/bloqueio.
+> Sem pendências de MVP abertas.
 > Escopo **MVP** (enxuto): catálogo de capitanias, perfil emissor validado pelo superadmin,
 > vínculo bilateral com kill switch, emissão delegada com instrutor do emissor, painel do
 > emissor (visão + reenvio). Cobrança entre empresas fica **fora da plataforma**.
@@ -299,11 +300,18 @@ cada mudança de schema/RLS e `IMPLEMENTATION_STATUS.md` ao concluir.
 - **OPA**: ações novas via listas de papéis no `rbac.rego` (sem regra nova → sem gotcha de
   default); sub-actions novas no `ActionExtractor` (aceitar/bloquear/liberar/revogar/termo/
   instrutores-parceiro/contagens). Gestão do vínculo = ADMIN_TENANT.
-- **Pendências de polish**: UI do superadmin (catálogo de capitanias + botão
-  habilitar/desabilitar emissora no painel plataforma — endpoints prontos); eventos de
-  audit dedicados para transições do vínculo (hoje: logs); notificação por e-mail no
-  convite/aceite; `CustomerEmaService` (emissão pelo portal do cliente) ainda emite só no
-  modo próprio — operadoras delegadas atendem pelo balcão.
+- **Pendências fechadas em 13/jul/2026**: (a) portão duplo da emissão PRÓPRIA ligado
+  (V050) com grandfathering — quem já emitia (documento_emitido) ou tinha marinha_email
+  entrou habilitado; empresas novas passam pela validação do superadmin; (b) UI do
+  superadmin no painel plataforma (badge EAMA + habilitar/desabilitar emissora por
+  empresa + catálogo de capitanias com e-mails oficiais e criação de
+  delegacias/agências); (c) transições do vínculo auditadas NOS DOIS tenants
+  (VinculoEmissaoTransicaoEvent → dois handlers no AuditEventListener, um por lado, cada
+  um em transação própria com o contexto RLS certo); (d) e-mail best-effort ao outro lado
+  em convite/aceite/bloqueio/liberação/revogação (email_remetente). Sobre o portal do
+  cliente: verificado que a emissão de documentos SÓ acontece via EmissaoService.emitir
+  (balcão) — o portal faz autoatendimento de dados/GRU (GRU é neutra, CPF do cliente),
+  então a delegada já cobre todos os caminhos de emissão.
 - **Testes**: `EmissaoDelegadaIntegrationTest` (vínculo/estorno/emissão fim-a-fim/kill
   switch/painel), `CapitaniaEmissoraIntegrationTest`, split no `ModuloPlanoIntegrationTest`,
   + suítes afetadas (metering/audit/metrics/créditos/balcão E2E/ModuleStructure) e OPA

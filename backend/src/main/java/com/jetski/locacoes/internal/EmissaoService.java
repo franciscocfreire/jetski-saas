@@ -114,6 +114,16 @@ public class EmissaoService {
         VinculoEmissaoService.DelegacaoContext delegacao =
             resolverDelegacao(reserva.getTenantId(), hab, marinhaAplicavel);
 
+        // Portão duplo da emissão PRÓPRIA (§8.K, V050): além do módulo no plano,
+        // exige o cadastro validado pelo superadmin. Lojas pré-existentes foram
+        // grandfathered na V050; delegada valida a habilitação DO EMISSOR no vínculo.
+        if (marinhaAplicavel && delegacao == null
+                && !Boolean.TRUE.equals(tenant.getEmissoraHabilitada())) {
+            throw new BusinessException("Sua empresa ainda não está habilitada como EAMA emissora "
+                + "junto ao Meu Jet. Preencha o perfil de emissão (capitania + registro EAMA) na "
+                + "tela Emissão delegada e solicite a validação — ou emita via EAMA parceira.");
+        }
+
         DocumentoPdfService.DadosDocumento dados = montarDados(reserva, cliente, hab, tenant, delegacao);
         DocumentoConfig cfg = configDocumento(tenant);
 
