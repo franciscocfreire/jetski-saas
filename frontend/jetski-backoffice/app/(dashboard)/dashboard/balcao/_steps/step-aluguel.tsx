@@ -115,6 +115,13 @@ export function StepAluguel({
           <div className="flex h-9 items-center text-sm text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando…
           </div>
+        ) : (modelos ?? []).filter((m) => m.ativo).length === 0 ? (
+          <div className="mt-1 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            Nenhum modelo ativo cadastrado — o passeio precisa de um modelo com preço por hora.{' '}
+            <Link href="/dashboard/modelos" className="font-medium text-primary hover:underline">
+              Ir para Modelos e cadastrar →
+            </Link>
+          </div>
         ) : (
           <Select value={modeloId} onValueChange={setModeloId}>
             <SelectTrigger>
