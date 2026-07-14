@@ -64,6 +64,21 @@ public class PlatformTenantController {
     }
 
     /**
+     * Habilita a empresa como EAMA emissora após validação do registro na
+     * Capitania (V047). Ação OPA: {@code platform:habilitar-emissora}.
+     */
+    @PostMapping("/tenants/{id}/habilitar-emissora")
+    public com.jetski.tenant.api.dto.EmissoraStatusResult habilitarEmissora(@PathVariable("id") UUID id) {
+        return platformTenantService.habilitarEmissora(id);
+    }
+
+    /** Remove a habilitação de emissora. Ação OPA: {@code platform:desabilitar-emissora}. */
+    @PostMapping("/tenants/{id}/desabilitar-emissora")
+    public com.jetski.tenant.api.dto.EmissoraStatusResult desabilitarEmissora(@PathVariable("id") UUID id) {
+        return platformTenantService.desabilitarEmissora(id);
+    }
+
+    /**
      * Dry-run do reset: contagem por tabela do que o nível apagaria.
      * Ação OPA: {@code platform:reset-preview} (só super admin).
      */

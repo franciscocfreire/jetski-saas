@@ -118,7 +118,7 @@ class MetricsEventListenerTest {
     @DisplayName("Emissões: DOCUMENTO, GRU e PREVIA com tag tipo")
     void testEmissoes() {
         listener.onDocumentosEmitidos(new DocumentosEmitidosEvent(TENANT, UUID.randomUUID(),
-            UUID.randomUUID(), "email", UUID.randomUUID(), Instant.now()));
+            UUID.randomUUID(), "email", UUID.randomUUID(), null, Instant.now()));
         listener.onGruEmitida(new GruEmitidaEvent(TENANT, UUID.randomUUID(),
             UUID.randomUUID(), "PIX", Instant.now()));
         listener.onDocumentoPreviewGerado(new DocumentoPreviewGeradoEvent(TENANT,

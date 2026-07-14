@@ -43,6 +43,10 @@ public class EmissaoUso {
     @Column(name = "ocorrido_em", nullable = false)
     private Instant ocorridoEm;
 
+    /** Emissão delegada (V048): EAMA em nome de quem o documento saiu; NULL = própria. */
+    @Column(name = "emissor_tenant_id")
+    private UUID emissorTenantId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

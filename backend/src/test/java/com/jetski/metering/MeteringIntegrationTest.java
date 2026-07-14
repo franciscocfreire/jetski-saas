@@ -121,7 +121,7 @@ class MeteringIntegrationTest extends AbstractIntegrationTest {
         UUID docId = UUID.randomUUID();
         Instant quando = Instant.now();
         DocumentosEmitidosEvent ev = new DocumentosEmitidosEvent(
-            TENANT_ACME, UUID.randomUUID(), docId, "marinha,cliente", USER_ID, quando);
+            TENANT_ACME, UUID.randomUUID(), docId, "marinha,cliente", USER_ID, null, quando);
 
         listener.onDocumentosEmitidos(ev);
         listener.onDocumentosEmitidos(ev);
@@ -158,7 +158,7 @@ class MeteringIntegrationTest extends AbstractIntegrationTest {
         UUID habId = UUID.randomUUID();
         UUID reservaPrevia = UUID.randomUUID();
         listener.onDocumentosEmitidos(new DocumentosEmitidosEvent(
-            TENANT_ACME, UUID.randomUUID(), docId, "marinha,cliente", USER_ID, agora));
+            TENANT_ACME, UUID.randomUUID(), docId, "marinha,cliente", USER_ID, null, agora));
         listener.onGruEmitida(new GruEmitidaEvent(
             TENANT_ACME, UUID.randomUUID(), habId, "PIX", agora));
         listener.onDocumentoPreviewGerado(new DocumentoPreviewGeradoEvent(
@@ -201,7 +201,7 @@ class MeteringIntegrationTest extends AbstractIntegrationTest {
         UUID habId = UUID.randomUUID();
         // RLS: o insert do listener precisa casar com o tenant da sessão — troca o contexto
         listener.onDocumentosEmitidos(new DocumentosEmitidosEvent(
-            TENANT_ACME, UUID.randomUUID(), docId, "marinha,cliente", USER_ID, agora));
+            TENANT_ACME, UUID.randomUUID(), docId, "marinha,cliente", USER_ID, null, agora));
         aguardarContagem("DOCUMENTO", docId, 1);
         TenantContext.setTenantId(TENANT_MARINA);
         listener.onGruEmitida(new GruEmitidaEvent(

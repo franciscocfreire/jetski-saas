@@ -3,10 +3,14 @@ package com.jetski.tenant.internal;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.tenant.api.dto.ComissaoConfigRequest;
+import com.jetski.tenant.api.dto.EmissoraConfigRequest;
+import com.jetski.tenant.api.dto.EmissoraConfigResponse;
 import com.jetski.tenant.api.dto.TenantGeralConfigRequest;
 import com.jetski.tenant.api.dto.TenantGeralConfigResponse;
 import com.jetski.shared.storage.StorageService;
 import com.jetski.tenant.domain.AssinaturaConfig;
+import com.jetski.tenant.domain.Capitania;
+import com.jetski.tenant.internal.repository.CapitaniaRepository;
 import com.jetski.tenant.domain.Branding;
 import com.jetski.tenant.domain.ComissaoConfig;
 import com.jetski.tenant.domain.DocumentoConfig;
@@ -37,6 +41,7 @@ import java.util.regex.Pattern;
 public class TenantConfigService {
 
     private final TenantRepository tenantRepository;
+    private final CapitaniaRepository capitaniaRepository;
     private final SecretCipher secretCipher;
     private final StorageService storageService;
 
@@ -89,6 +94,73 @@ public class TenantConfigService {
 
     private static String blankToNull(String s) {
         return s == null || s.isBlank() ? null : s.trim();
+    }
+
+    // ========== PERFIL DE EMISSÃO / EAMA (V047) ==========
+
+    /** Perfil de emissão do tenant (capitania + registro EAMA + habilitação). */
+    @Transactional(readOnly = true)
+    public EmissoraConfigResponse getEmissoraConfig(UUID tenantId) {
+        Tenant t = tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new NotFoundException("Tenant não encontrado: " + tenantId));
+        Capitania cap = t.getCapitaniaId() != null
+            ? capitaniaRepository.findById(t.getCapitaniaId()).orElse(null)
+            : null;
+        return new EmissoraConfigResponse(
+            t.getCapitaniaId(),
+            cap != null ? cap.getCodigo() : null,
+            cap != null ? cap.getNome() : null,
+            t.getEamaRegistro(),
+            t.getEamaRegistroValidade(),
+            Boolean.TRUE.equals(t.getEmissoraHabilitada()));
+    }
+
+    /**
+     * Atualiza capitania + registro EAMA declarados pelo tenant. Se a empresa
+     * já estava habilitada como emissora, mudar capitania ou registro DERRUBA
+     * a habilitação (portão cadastral exige revalidação do super admin).
+     * O e-mail oficial da capitania só pré-preenche {@code marinha_email}
+     * quando este está vazio — o destino continua editável pela EAMA (§8.E).
+     */
+    @Transactional
+    public EmissoraConfigResponse updateEmissoraConfig(UUID tenantId, EmissoraConfigRequest req) {
+        Tenant t = tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new NotFoundException("Tenant não encontrado: " + tenantId));
+
+        UUID capitaniaAntes = t.getCapitaniaId();
+        String registroAntes = t.getEamaRegistro();
+
+        if (req.capitaniaId() != null) {
+            Capitania cap = capitaniaRepository.findById(req.capitaniaId())
+                .orElseThrow(() -> new NotFoundException("Capitania não encontrada: " + req.capitaniaId()));
+            if (!Boolean.TRUE.equals(cap.getAtiva())) {
+                throw new BusinessException("Capitania " + cap.getCodigo() + " está inativa no catálogo");
+            }
+            t.setCapitaniaId(cap.getId());
+            if ((t.getMarinhaEmail() == null || t.getMarinhaEmail().isBlank())
+                    && cap.getEmailOficial() != null && !cap.getEmailOficial().isBlank()) {
+                t.setMarinhaEmail(cap.getEmailOficial());
+            }
+        }
+        if (req.eamaRegistro() != null) {
+            t.setEamaRegistro(blankToNull(req.eamaRegistro()));
+        }
+        if (req.eamaRegistroValidade() != null) {
+            t.setEamaRegistroValidade(req.eamaRegistroValidade());
+        }
+
+        boolean mudouCadastro = !java.util.Objects.equals(capitaniaAntes, t.getCapitaniaId())
+            || !java.util.Objects.equals(registroAntes, t.getEamaRegistro());
+        if (Boolean.TRUE.equals(t.getEmissoraHabilitada()) && mudouCadastro) {
+            t.setEmissoraHabilitada(false);
+            log.info("Habilitação de emissora do tenant {} derrubada por alteração cadastral "
+                + "(capitania/registro); exige revalidação do super admin", tenantId);
+        }
+
+        tenantRepository.save(t);
+        log.info("Perfil de emissão do tenant {} atualizado (capitania={}, registro={})",
+            tenantId, t.getCapitaniaId(), t.getEamaRegistro());
+        return getEmissoraConfig(tenantId);
     }
 
     /**

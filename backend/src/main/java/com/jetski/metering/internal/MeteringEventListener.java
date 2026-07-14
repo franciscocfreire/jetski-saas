@@ -38,7 +38,7 @@ public class MeteringEventListener {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onDocumentosEmitidos(DocumentosEmitidosEvent event) {
         registrar(event.tenantId(), TipoEmissao.DOCUMENTO, event.documentoId(),
-            event.destinos(), event.occurredAt());
+            event.destinos(), event.occurredAt(), event.emissorTenantId());
     }
 
     @Async
@@ -46,7 +46,7 @@ public class MeteringEventListener {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onGruEmitida(GruEmitidaEvent event) {
         registrar(event.tenantId(), TipoEmissao.GRU, event.habilitacaoId(),
-            event.meio(), event.geradaEm());
+            event.meio(), event.geradaEm(), null);
     }
 
     @Async
@@ -54,11 +54,17 @@ public class MeteringEventListener {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onDocumentoPreviewGerado(DocumentoPreviewGeradoEvent event) {
         registrar(event.tenantId(), TipoEmissao.PREVIA, event.reservaId(),
-            event.destino(), event.occurredAt());
+            event.destino(), event.occurredAt(), null);
     }
 
     /** Visível ao pacote para testes de idempotência (invocação síncrona). */
     void registrar(UUID tenantId, TipoEmissao tipo, UUID referenciaId, String destinos, Instant ocorridoEm) {
+        registrar(tenantId, tipo, referenciaId, destinos, ocorridoEm, null);
+    }
+
+    /** Variante com a dimensão do emissor delegado (V048). */
+    void registrar(UUID tenantId, TipoEmissao tipo, UUID referenciaId, String destinos,
+                   Instant ocorridoEm, UUID emissorTenantId) {
         try {
             if (tenantId == null || referenciaId == null || ocorridoEm == null) {
                 log.warn("Metering ignorado por dados incompletos: tipo={}, tenant={}, ref={}",
@@ -74,6 +80,7 @@ public class MeteringEventListener {
                 .referenciaId(referenciaId)
                 .destinos(destinos != null && destinos.length() > 60 ? destinos.substring(0, 60) : destinos)
                 .ocorridoEm(ocorridoEm)
+                .emissorTenantId(emissorTenantId)
                 .build());
             log.info("Metering: {} contabilizado (tenant={}, ref={})", tipo, tenantId, referenciaId);
         } catch (DataIntegrityViolationException e) {

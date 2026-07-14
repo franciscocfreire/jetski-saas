@@ -28,7 +28,8 @@ const STATUS_BADGE: Record<Fatura['status'], { label: string; variant: 'default'
 
 /** Rótulos dos módulos gateáveis (espelho do enum ModuloPlano do backend). */
 const MODULOS: Record<string, string> = {
-  EMISSAO_MARINHA: 'Emissão à Marinha',
+  EMISSAO_PROPRIA: 'Emissão à Marinha — própria',
+  EMISSAO_DELEGADA: 'Emissão à Marinha — delegada',
   COMISSOES: 'Comissões e vendedores',
   MANUTENCAO: 'Manutenção',
   FECHAMENTOS: 'Fechamentos',

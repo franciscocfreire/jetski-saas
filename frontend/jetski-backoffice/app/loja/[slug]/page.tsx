@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type CSSProperties } from 'react'
 import { useParams } from 'next/navigation'
 import { MapPin, MessageCircle, Anchor, ArrowRight, Clock, Instagram, Globe, Navigation } from 'lucide-react'
 import { JetskiCard, JetskiCardProps } from '@/components/public/jetski-card'
@@ -135,7 +135,17 @@ export default function LojaVitrinePage() {
   }, [slug])
 
   return (
-    <div className="bg-abyss min-h-screen">
+    // White-label: a cor secundária da empresa substitui o accent dourado da página
+    // inteira via CSS var (--gold alimenta text/border/bg-gold). A primária não é
+    // usada aqui: ela é validada como escura (texto branco) e sumiria no fundo navy.
+    <div
+      className="bg-abyss min-h-screen"
+      style={
+        branding?.corSecundaria
+          ? ({ '--gold': branding.corSecundaria } as CSSProperties)
+          : undefined
+      }
+    >
       <section className="bg-premium-navy relative">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:64px_64px]" />
 

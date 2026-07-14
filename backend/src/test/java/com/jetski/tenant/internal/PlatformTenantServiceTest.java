@@ -72,6 +72,53 @@ class PlatformTenantServiceTest {
     }
 
     @Test
+    @DisplayName("habilitarEmissora: com capitania+registro declarados → emissora_habilitada=true")
+    void habilitarEmissoraOk() {
+        Tenant t = tenant(TenantStatus.ATIVO);
+        t.setCapitaniaId(UUID.randomUUID());
+        t.setEamaRegistro("EAMA-SP-123");
+        when(tenantRepository.findById(t.getId())).thenReturn(Optional.of(t));
+
+        var result = service.habilitarEmissora(t.getId());
+
+        assertThat(result.emissoraHabilitada()).isTrue();
+        assertThat(t.getEmissoraHabilitada()).isTrue();
+        verify(tenantRepository).save(t);
+    }
+
+    @Test
+    @DisplayName("habilitarEmissora: sem capitania ou sem registro EAMA → BusinessException")
+    void habilitarEmissoraSemCadastro() {
+        Tenant semCapitania = tenant(TenantStatus.ATIVO);
+        semCapitania.setEamaRegistro("EAMA-SP-123");
+        when(tenantRepository.findById(semCapitania.getId())).thenReturn(Optional.of(semCapitania));
+        assertThatThrownBy(() -> service.habilitarEmissora(semCapitania.getId()))
+            .isInstanceOf(com.jetski.shared.exception.BusinessException.class)
+            .hasMessageContaining("capitania");
+
+        Tenant semRegistro = tenant(TenantStatus.ATIVO);
+        semRegistro.setCapitaniaId(UUID.randomUUID());
+        when(tenantRepository.findById(semRegistro.getId())).thenReturn(Optional.of(semRegistro));
+        assertThatThrownBy(() -> service.habilitarEmissora(semRegistro.getId()))
+            .isInstanceOf(com.jetski.shared.exception.BusinessException.class)
+            .hasMessageContaining("registro EAMA");
+    }
+
+    @Test
+    @DisplayName("desabilitarEmissora: sempre permitido, zera a flag")
+    void desabilitarEmissora() {
+        Tenant t = tenant(TenantStatus.ATIVO);
+        t.setEmissoraHabilitada(true);
+        when(tenantRepository.findById(t.getId())).thenReturn(Optional.of(t));
+
+        var result = service.desabilitarEmissora(t.getId());
+
+        assertThat(result.emissoraHabilitada()).isFalse();
+        assertThat(t.getEmissoraHabilitada()).isFalse();
+        verify(tenantRepository).save(t);
+    }
+
+    @Test
     @DisplayName("approve: PENDENTE_APROVACAO → ATIVO + cria assinatura Trial")
     void approvePendingTenant() {
         Tenant t = tenant(TenantStatus.PENDENTE_APROVACAO);

@@ -110,6 +110,31 @@ public class TenantConfigController {
         return ResponseEntity.ok(tenantConfigService.updateGeralConfig(tenantId, request));
     }
 
+    // ========== PERFIL DE EMISSÃO / EAMA (V047) ==========
+
+    @GetMapping("/emissora")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Obter perfil de emissão (capitania + registro EAMA + habilitação)")
+    public ResponseEntity<com.jetski.tenant.api.dto.EmissoraConfigResponse> getEmissoraConfig(
+            @PathVariable UUID tenantId) {
+        log.info("GET /v1/tenants/{}/config/emissora", tenantId);
+        return ResponseEntity.ok(tenantConfigService.getEmissoraConfig(tenantId));
+    }
+
+    @PutMapping("/emissora")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Atualizar capitania e registro EAMA da empresa",
+        description = "A habilitação de emissora é validada pelo super admin; alterar capitania "
+                    + "ou registro com a empresa já habilitada derruba a habilitação (revalidação)."
+    )
+    public ResponseEntity<com.jetski.tenant.api.dto.EmissoraConfigResponse> updateEmissoraConfig(
+            @PathVariable UUID tenantId,
+            @RequestBody com.jetski.tenant.api.dto.EmissoraConfigRequest request) {
+        log.info("PUT /v1/tenants/{}/config/emissora", tenantId);
+        return ResponseEntity.ok(tenantConfigService.updateEmissoraConfig(tenantId, request));
+    }
+
     @GetMapping("/documento")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
     @Operation(

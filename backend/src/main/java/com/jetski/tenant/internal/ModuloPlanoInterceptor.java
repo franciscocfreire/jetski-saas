@@ -50,16 +50,24 @@ public class ModuloPlanoInterceptor implements HandlerInterceptor {
             return true;
         }
         String subPath = m.group(1);
-        for (ModuloPlano modulo : ModuloPlano.values()) {
-            if (modulo.cobre(subPath)) {
-                List<String> modulos = planoLimiteService.modulosDoPlano(tenantId);
-                if (!modulos.contains("*") && !modulos.contains(modulo.name())) {
-                    throw new BusinessException(
-                        "O módulo \"" + modulo.rotulo() + "\" não está incluído no seu plano. "
-                        + "Faça upgrade em Plano e Faturas para habilitá-lo.");
-                }
-                return true;
-            }
+        // Um path pode ser coberto por MAIS de um módulo (ex.: documentos/grus é
+        // EMISSAO_PROPRIA e EMISSAO_DELEGADA): basta UM deles no plano para liberar.
+        List<ModuloPlano> cobridores = java.util.Arrays.stream(ModuloPlano.values())
+            .filter(mod -> mod.cobre(subPath))
+            .toList();
+        if (cobridores.isEmpty()) {
+            return true;
+        }
+        List<String> modulos = planoLimiteService.modulosDoPlano(tenantId);
+        boolean liberado = modulos.contains("*")
+            || cobridores.stream().anyMatch(mod -> modulos.contains(mod.name()));
+        if (!liberado) {
+            String rotulos = cobridores.stream()
+                .map(mod -> "\"" + mod.rotulo() + "\"")
+                .collect(java.util.stream.Collectors.joining(" ou "));
+            throw new BusinessException(
+                "O módulo " + rotulos + " não está incluído no seu plano. "
+                + "Faça upgrade em Plano e Faturas para habilitá-lo.");
         }
         return true;
     }

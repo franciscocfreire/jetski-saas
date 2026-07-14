@@ -17,10 +17,19 @@ public record DocumentosEmitidosEvent(
     UUID documentoId,
     String destinos,
     UUID emitidoPor,
+    UUID emissorTenantId,
     Instant occurredAt
 ) {
     public static DocumentosEmitidosEvent of(
             UUID tenantId, UUID reservaId, UUID documentoId, String destinos, UUID emitidoPor) {
-        return new DocumentosEmitidosEvent(tenantId, reservaId, documentoId, destinos, emitidoPor, Instant.now());
+        return of(tenantId, reservaId, documentoId, destinos, emitidoPor, null);
+    }
+
+    /** Emissão delegada (V048): informa a EAMA em nome de quem o documento saiu. */
+    public static DocumentosEmitidosEvent of(
+            UUID tenantId, UUID reservaId, UUID documentoId, String destinos, UUID emitidoPor,
+            UUID emissorTenantId) {
+        return new DocumentosEmitidosEvent(
+            tenantId, reservaId, documentoId, destinos, emitidoPor, emissorTenantId, Instant.now());
     }
 }

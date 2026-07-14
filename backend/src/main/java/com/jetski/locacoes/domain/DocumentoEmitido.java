@@ -45,6 +45,15 @@ public class DocumentoEmitido {
     @Column(name = "emitido_em", nullable = false)
     private Instant emitidoEm;
 
+    // Emissão delegada (V048): em nome de quem o documento saiu. NULL = própria.
+    @Column(name = "emissor_tenant_id")
+    private UUID emissorTenantId;
+
+    /** Snapshot do emissor congelado na emissão (razão social/CNPJ/instrutor) — auditoria imutável. */
+    @Type(JsonBinaryType.class)
+    @Column(name = "emissor_snapshot", columnDefinition = "jsonb")
+    private String emissorSnapshot;
+
     // Resultado do envio best-effort (V039): null = não enviado, falha ou
     // emissão anterior ao registro — o remédio em todos os casos é reenviar.
     @Column(name = "marinha_enviado_em")

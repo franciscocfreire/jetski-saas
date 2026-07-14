@@ -142,6 +142,28 @@ public class Tenant {
     @Column(name = "pix_chave", length = 140)
     private String pixChave;
 
+    // ========== PERFIL DE EMISSÃO / EAMA (V047, EMISSAO_DELEGADA_SPEC §3.2) ==========
+
+    /** Capitania do tenant: emissora declara a da licença; operadora, a da área de operação. */
+    @Column(name = "capitania_id")
+    private UUID capitaniaId;
+
+    /**
+     * EAMA emissora validada pelo super admin — portão CADASTRAL da emissão
+     * (o portão comercial é o módulo do plano). Editar registro/capitania
+     * derruba a habilitação (exige revalidação).
+     */
+    @Column(name = "emissora_habilitada", nullable = false)
+    @Builder.Default
+    private Boolean emissoraHabilitada = false;
+
+    /** Nº de inscrição/registro da EAMA na Capitania (declarado pelo tenant). */
+    @Column(name = "eama_registro", length = 60)
+    private String eamaRegistro;
+
+    @Column(name = "eama_registro_validade")
+    private java.time.LocalDate eamaRegistroValidade;
+
     /** Quando o expurgo definitivo deve rodar (job diário); null = sem exclusão agendada. */
     @Column(name = "exclusao_agendada_em")
     private java.time.Instant exclusaoAgendadaEm;

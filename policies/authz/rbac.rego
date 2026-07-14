@@ -72,7 +72,9 @@ role_permissions := {
         "documento:reenviar",
         "documento:imagem-config",  # leitura da config de compressão de imagem (upload)
         "gru:list",   # Módulo GRUs (ciclo Marinha)
-        "gru:view"
+        "gru:view",
+        # Emissão delegada (V048): staff que emite escolhe o instrutor da EAMA parceira
+        "vinculo-emissao:instrutores-parceiro"
     ],
 
     "GERENTE": [
@@ -87,6 +89,13 @@ role_permissions := {
         "instrutor:*",  # Cadastro de instrutores (EAMA) — Anexo 5-B-1
         "documento:*",  # Consulta de documentos emitidos
         "gru:*",  # Módulo GRUs (ciclo Marinha)
+        # Emissão delegada (V048): consulta da parceria + painel do emissor;
+        # gestão do vínculo (convidar/aceitar/bloquear/revogar) é só ADMIN_TENANT
+        "vinculo-emissao:list",
+        "vinculo-emissao:termo",
+        "vinculo-emissao:instrutores-parceiro",
+        "vinculo-emissao:instrutores-designados",  # EAMA designa quem atende cada operadora (V049)
+        "emissao-delegada:*",
         "item-opcional:*",  # Itens opcionais (coletes, equipamentos, etc)
 
         # Permissões específicas de GERENTE

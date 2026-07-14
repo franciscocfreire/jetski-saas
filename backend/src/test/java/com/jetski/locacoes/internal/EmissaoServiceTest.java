@@ -63,12 +63,17 @@ class EmissaoServiceTest {
     private final PadesSignatureService padesService = mock(PadesSignatureService.class);
     private final com.jetski.creditos.CreditoService creditoService =
         mock(com.jetski.creditos.CreditoService.class);
+    private final com.jetski.tenant.PlanoLimiteService planoLimiteService =
+        mock(com.jetski.tenant.PlanoLimiteService.class);
+    private final VinculoEmissaoService vinculoEmissaoService =
+        mock(VinculoEmissaoService.class);
 
     private final ClienteNotificacaoService notificacaoService =
         mock(ClienteNotificacaoService.class);
     private final EmissaoService service = new EmissaoService(
         reservaRepo, mock(CustomerHabilitacaoSyncService.class), notificacaoService, clienteRepo, instrutorRepo, habRepo, aceiteRepo, docRepo, storage, email,
-        tenantQuery, pdfService, anexoService, creditoService, events, new ObjectMapper(),
+        tenantQuery, pdfService, anexoService, creditoService, planoLimiteService,
+        vinculoEmissaoService, events, new ObjectMapper(),
         carimboService, padesService);
 
     private final UUID tenant = UUID.randomUUID();
@@ -77,6 +82,9 @@ class EmissaoServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Plano com emissão própria → comportamento clássico (delegação só quando ausente)
+        when(planoLimiteService.moduloHabilitado(any(UUID.class),
+            eq(com.jetski.tenant.ModuloPlano.EMISSAO_PROPRIA))).thenReturn(true);
         when(reservaRepo.findById(reservaId))
             .thenReturn(Optional.of(Reserva.builder().id(reservaId).tenantId(tenant).clienteId(clienteId).build()));
         when(habRepo.findByReservaId(reservaId)).thenReturn(Optional.of(ReservaHabilitacao.builder()

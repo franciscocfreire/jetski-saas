@@ -196,11 +196,39 @@ class ModuloPlanoIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("emissão delegada: cobre documentos/grus mas NÃO instrutores; qualquer módulo de emissão no plano libera o path compartilhado")
+    void splitEmissaoPropriaDelegada() throws Exception {
+        // patterns: instrutores é exclusivo da emissão própria
+        assertThat(ModuloPlano.EMISSAO_DELEGADA.cobre("documentos")).isTrue();
+        assertThat(ModuloPlano.EMISSAO_DELEGADA.cobre("grus/123")).isTrue();
+        assertThat(ModuloPlano.EMISSAO_DELEGADA.cobre(
+            "reservas/" + UUID.randomUUID() + "/emitir-documentos")).isTrue();
+        assertThat(ModuloPlano.EMISSAO_DELEGADA.cobre("instrutores")).isFalse();
+        assertThat(ModuloPlano.EMISSAO_PROPRIA.cobre("instrutores")).isTrue();
+
+        // interceptor: plano só com EMISSAO_DELEGADA → documentos passa (path coberto
+        // pelos dois módulos de emissão, basta um), instrutores nega com 400
+        jdbc.update("UPDATE plano SET modulos = '[\"EMISSAO_DELEGADA\"]'::jsonb "
+            + "WHERE nome = 'Modulos Teste'");
+        limparCache();
+        mockMvc.perform(get("/v1/tenants/{t}/documentos", TENANT)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(status().isOk());
+        mockMvc.perform(get("/v1/tenants/{t}/instrutores", TENANT)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value(
+                org.hamcrest.Matchers.containsString("não está incluído no seu plano")));
+    }
+
+    @Test
     @DisplayName("padrões dos módulos cobrem os sub-paths certos e poupam o core")
     void padroesDosModulos() {
-        assertThat(ModuloPlano.EMISSAO_MARINHA.cobre("documentos")).isTrue();
-        assertThat(ModuloPlano.EMISSAO_MARINHA.cobre("grus/123")).isTrue();
-        assertThat(ModuloPlano.EMISSAO_MARINHA.cobre(
+        assertThat(ModuloPlano.EMISSAO_PROPRIA.cobre("documentos")).isTrue();
+        assertThat(ModuloPlano.EMISSAO_PROPRIA.cobre("grus/123")).isTrue();
+        assertThat(ModuloPlano.EMISSAO_PROPRIA.cobre(
             "reservas/" + UUID.randomUUID() + "/habilitacao/gru")).isTrue();
         assertThat(ModuloPlano.COMISSOES.cobre("vendedores")).isTrue();
         assertThat(ModuloPlano.RELATORIOS.cobre("dashboard/financeiro")).isTrue();

@@ -17,10 +17,20 @@ import java.util.regex.Pattern;
  */
 public enum ModuloPlano {
 
-    EMISSAO_MARINHA(
-        "Emissão à Marinha",
-        "GRU automática, documentação NORMAM-212 (EMA/CHA) e instrutores",
+    // Split V047 (emissão delegada): a antiga EMISSAO_MARINHA virou EMISSAO_PROPRIA.
+    // Um mesmo path pode ser coberto pelos dois módulos de emissão (documentos/grus);
+    // o interceptor libera se QUALQUER módulo cobridor estiver no plano. O cadastro
+    // de instrutores é exclusivo da emissão própria (operadora usa os da EAMA parceira).
+    EMISSAO_PROPRIA(
+        "Emissão à Marinha — própria",
+        "GRU automática, documentação NORMAM-212 (EMA/CHA) e instrutores, emitindo em nome da própria empresa (EAMA licenciada)",
         List.of("^(documentos|grus|instrutores)(/|$)",
+                "^reservas/[^/]+/(habilitacao/gru|emitir-documentos)")),
+
+    EMISSAO_DELEGADA(
+        "Emissão à Marinha — delegada",
+        "GRU automática e documentação NORMAM-212 emitida em nome de uma EAMA parceira (sem cadastro de instrutores)",
+        List.of("^(documentos|grus)(/|$)",
                 "^reservas/[^/]+/(habilitacao/gru|emitir-documentos)")),
 
     COMISSOES(

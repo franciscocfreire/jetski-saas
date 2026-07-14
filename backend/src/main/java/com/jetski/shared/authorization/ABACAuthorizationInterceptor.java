@@ -260,6 +260,8 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
                action.startsWith("health:") ||
                action.startsWith("metrics:") ||
                action.equals("user:list") ||   // Listar tenants não requer tenant específico
+               action.equals("capitania:list") ||   // Catálogo de capitanias (V047) — autenticado, sem tenant específico
+               action.equals("capitania:view") ||
                action.equals("user:invite") ||   // Convidar usuário - validação por Spring Security roles
                action.equals("auth:create");   // Complete activation - endpoint público (Option 2: temp password)
     }

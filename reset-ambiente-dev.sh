@@ -624,6 +624,138 @@ CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_sub ON public.customer_habil
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 
+-- V047: emissão delegada (fundação) — catálogo capitania + perfil emissor no tenant + split de módulos
+CREATE TABLE IF NOT EXISTS public.capitania (
+    id            uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    codigo        varchar(12)  NOT NULL UNIQUE,
+    nome          varchar(120) NOT NULL,
+    uf            char(2),
+    email_oficial varchar(255),
+    ativa         boolean      NOT NULL DEFAULT true,
+    created_at    timestamptz  NOT NULL DEFAULT now(),
+    updated_at    timestamptz  NOT NULL DEFAULT now()
+);
+ALTER TABLE public.tenant ADD COLUMN IF NOT EXISTS capitania_id uuid REFERENCES public.capitania(id);
+ALTER TABLE public.tenant ADD COLUMN IF NOT EXISTS emissora_habilitada boolean NOT NULL DEFAULT false;
+ALTER TABLE public.tenant ADD COLUMN IF NOT EXISTS eama_registro varchar(60);
+ALTER TABLE public.tenant ADD COLUMN IF NOT EXISTS eama_registro_validade date;
+CREATE INDEX IF NOT EXISTS idx_tenant_capitania ON public.tenant (capitania_id);
+UPDATE public.plano
+   SET modulos = replace(modulos::text, '"EMISSAO_MARINHA"', '"EMISSAO_PROPRIA"')::jsonb
+ WHERE modulos::text LIKE '%EMISSAO_MARINHA%';
+INSERT INTO public.capitania (codigo, nome, uf) VALUES
+  ('CPRJ',  'Capitania dos Portos do Rio de Janeiro',      'RJ'),
+  ('CPSP',  'Capitania dos Portos de São Paulo',           'SP'),
+  ('CPES',  'Capitania dos Portos do Espírito Santo',      'ES'),
+  ('CPBA',  'Capitania dos Portos da Bahia',               'BA'),
+  ('CPPE',  'Capitania dos Portos de Pernambuco',          'PE'),
+  ('CPCE',  'Capitania dos Portos do Ceará',               'CE'),
+  ('CPRN',  'Capitania dos Portos do Rio Grande do Norte', 'RN'),
+  ('CPPB',  'Capitania dos Portos da Paraíba',             'PB'),
+  ('CPAL',  'Capitania dos Portos de Alagoas',             'AL'),
+  ('CPSE',  'Capitania dos Portos de Sergipe',             'SE'),
+  ('CPPI',  'Capitania dos Portos do Piauí',               'PI'),
+  ('CPMA',  'Capitania dos Portos do Maranhão',            'MA'),
+  ('CPAOR', 'Capitania dos Portos da Amazônia Oriental',   'PA'),
+  ('CPSC',  'Capitania dos Portos de Santa Catarina',      'SC'),
+  ('CPPR',  'Capitania dos Portos do Paraná',              'PR'),
+  ('CPRS',  'Capitania dos Portos do Rio Grande do Sul',   'RS')
+ON CONFLICT (codigo) DO NOTHING;
+
+-- V048: emissão delegada — vínculo operadora×EAMA + espelho do emissor + snapshot + metering
+CREATE TABLE IF NOT EXISTS public.vinculo_emissao (
+    id                   uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_operador_id   uuid NOT NULL REFERENCES public.tenant(id) ON DELETE CASCADE,
+    tenant_emissor_id    uuid NOT NULL REFERENCES public.tenant(id) ON DELETE CASCADE,
+    status               varchar(12) NOT NULL DEFAULT 'CONVIDADO'
+                         CHECK (status IN ('CONVIDADO', 'ATIVO', 'BLOQUEADO', 'REVOGADO')),
+    convidado_por_tenant uuid NOT NULL,
+    convidado_por        uuid,
+    convidado_em         timestamptz NOT NULL DEFAULT now(),
+    aceito_por           uuid,
+    aceito_em            timestamptz,
+    termo_aceite_em      timestamptz,
+    termo_texto          text,
+    bloqueado_em         timestamptz,
+    revogado_por         uuid,
+    revogado_em          timestamptz,
+    created_at           timestamptz NOT NULL DEFAULT now(),
+    updated_at           timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT vinculo_emissao_lados_distintos CHECK (tenant_operador_id <> tenant_emissor_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_vinculo_emissao_operador_vivo
+    ON public.vinculo_emissao (tenant_operador_id)
+    WHERE status IN ('CONVIDADO', 'ATIVO', 'BLOQUEADO');
+CREATE INDEX IF NOT EXISTS idx_vinculo_emissao_emissor ON public.vinculo_emissao (tenant_emissor_id, status);
+ALTER TABLE public.vinculo_emissao ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vinculo_emissao FORCE ROW LEVEL SECURITY;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'vinculo_emissao' AND policyname = 'vinculo_emissao_partes') THEN
+        CREATE POLICY vinculo_emissao_partes ON public.vinculo_emissao
+            USING (tenant_operador_id = public.get_current_tenant_id()
+                OR tenant_emissor_id = public.get_current_tenant_id());
+    END IF;
+END $$;
+CREATE TABLE IF NOT EXISTS public.emissao_delegada (
+    id                  uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id           uuid NOT NULL REFERENCES public.tenant(id) ON DELETE CASCADE,
+    vinculo_id          uuid REFERENCES public.vinculo_emissao(id) ON DELETE SET NULL,
+    documento_id        uuid REFERENCES public.documento_emitido(id) ON DELETE SET NULL,
+    documento_hash      varchar(64),
+    s3_key              text,
+    operadora_tenant_id uuid NOT NULL,
+    operadora_nome      varchar(200),
+    condutor_nome       varchar(200),
+    condutor_cpf        varchar(20),
+    instrutor_id        uuid,
+    instrutor_nome      varchar(200),
+    gru_numero          varchar(40),
+    emitido_em          timestamptz NOT NULL,
+    reenviado_em        timestamptz,
+    reenviado_para      varchar(255),
+    created_at          timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_emissao_delegada_documento
+    ON public.emissao_delegada (documento_id) WHERE documento_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_emissao_delegada_tenant_data ON public.emissao_delegada (tenant_id, emitido_em);
+CREATE INDEX IF NOT EXISTS idx_emissao_delegada_tenant_operadora
+    ON public.emissao_delegada (tenant_id, operadora_tenant_id);
+ALTER TABLE public.emissao_delegada ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.emissao_delegada FORCE ROW LEVEL SECURITY;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'emissao_delegada' AND policyname = 'tenant_isolation_emissao_delegada') THEN
+        CREATE POLICY tenant_isolation_emissao_delegada ON public.emissao_delegada
+            USING (tenant_id = public.get_current_tenant_id());
+    END IF;
+END $$;
+ALTER TABLE public.documento_emitido ADD COLUMN IF NOT EXISTS emissor_tenant_id uuid;
+ALTER TABLE public.documento_emitido ADD COLUMN IF NOT EXISTS emissor_snapshot jsonb;
+ALTER TABLE public.emissao_uso ADD COLUMN IF NOT EXISTS emissor_tenant_id uuid;
+
+-- V049: instrutores designados por parceria (vazio = todos os ativos da EAMA)
+CREATE TABLE IF NOT EXISTS public.vinculo_emissao_instrutor (
+    id           uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    vinculo_id   uuid NOT NULL REFERENCES public.vinculo_emissao(id) ON DELETE CASCADE,
+    instrutor_id uuid NOT NULL REFERENCES public.instrutor(id) ON DELETE CASCADE,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT ux_vinculo_emissao_instrutor UNIQUE (vinculo_id, instrutor_id)
+);
+CREATE INDEX IF NOT EXISTS idx_vinculo_emissao_instrutor_vinculo
+    ON public.vinculo_emissao_instrutor (vinculo_id);
+ALTER TABLE public.vinculo_emissao_instrutor ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vinculo_emissao_instrutor FORCE ROW LEVEL SECURITY;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'vinculo_emissao_instrutor' AND policyname = 'vinculo_emissao_instrutor_partes') THEN
+        CREATE POLICY vinculo_emissao_instrutor_partes ON public.vinculo_emissao_instrutor
+            USING (EXISTS (
+                SELECT 1 FROM public.vinculo_emissao v
+                WHERE v.id = vinculo_id
+                  AND (v.tenant_operador_id = public.get_current_tenant_id()
+                    OR v.tenant_emissor_id = public.get_current_tenant_id())
+            ));
+    END IF;
+END $$;
+
 -- V045: billing manual assistido — fatura mensal da assinatura (PIX plataforma)
 CREATE TABLE IF NOT EXISTS public.fatura (
     id              uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,

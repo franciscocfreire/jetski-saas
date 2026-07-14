@@ -29,6 +29,12 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   WhatsApp) e C2 (PAdES opt-in) — C1 (selfie/geoloc) e C3 (ICP/gov.br) pendentes.
 - **Habilitação temporária é dado GLOBAL do cliente** (`customer_habilitacao`, V043): nasce na
   emissão e sobrevive a reset/exclusão/suspensão da loja de origem (reuso entre lojas garantido).
+- **Emissão delegada** (V047/V048, `EMISSAO_DELEGADA_SPEC.md`): operadora não licenciada emite
+  CHA-MTE em nome de EAMA parceira da MESMA capitania — catálogo de capitanias, perfil emissor
+  validado pelo superadmin, vínculo bilateral com termo + kill switch da EAMA, estorno
+  anti-fraude do bônus, snapshot do emissor no documento, espelho/painel da EAMA com reenvio
+  sem crédito, metering por emissor. Split de módulos EMISSAO_PROPRIA × EMISSAO_DELEGADA.
+  Pendências de polish na §12 da spec (UI superadmin, grandfathering do portão da própria).
 
 ### Portal do cliente (P0–P4 completos)
 - Identidade própria (login e-mail/CPF, role CLIENTE, vínculo explícito — nunca JIT),

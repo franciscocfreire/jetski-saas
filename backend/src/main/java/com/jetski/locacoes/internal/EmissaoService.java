@@ -59,6 +59,8 @@ public class EmissaoService {
     private final DocumentoPdfService documentoPdfService;
     private final ClienteAnexoService clienteAnexoService;
     private final com.jetski.creditos.CreditoService creditoService;
+    private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
+    private final VinculoEmissaoService vinculoEmissaoService;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final com.jetski.shared.assinatura.CarimboTempoService carimboTempoService;
@@ -103,11 +105,17 @@ public class EmissaoService {
 
         byte[] assinatura = lerAssinatura(aceite.getAssinaturaS3Key());
 
-        DocumentoPdfService.DadosDocumento dados = montarDados(reserva, cliente, hab, tenant);
-        DocumentoConfig cfg = configDocumento(tenant);
-
         // CHA = cliente já habilitado: não há documentação NORMAM nem envio à Marinha.
         boolean marinhaAplicavel = hab.getVia() == ReservaHabilitacao.Via.EMA;
+
+        // Emissão delegada (V048): sem EMISSAO_PROPRIA no plano, a documentação
+        // NORMAM sai em nome da EAMA parceira — vínculo ATIVO obrigatório,
+        // identidade/instrutor/Capitania de destino são do EMISSOR.
+        VinculoEmissaoService.DelegacaoContext delegacao =
+            resolverDelegacao(reserva.getTenantId(), hab, marinhaAplicavel);
+
+        DocumentoPdfService.DadosDocumento dados = montarDados(reserva, cliente, hab, tenant, delegacao);
+        DocumentoConfig cfg = configDocumento(tenant);
 
         // Créditos: só o documento com destino à Marinha consome. Fail-fast ANTES do
         // trabalho pesado (PDF/carimbo/assinatura); o débito definitivo vem após o save.
@@ -149,7 +157,8 @@ public class EmissaoService {
                 pdfMarinha.conteudo(), "application/pdf");
         }
 
-        String marinhaEmail = tenant.getMarinhaEmail();
+        // Delegada: o destino Marinha é o e-mail do EMISSOR (editável pela EAMA, §8.E)
+        String marinhaEmail = delegacao != null ? delegacao.marinhaEmail() : tenant.getMarinhaEmail();
         String clienteEmail = cliente.getEmail();
 
         DocumentoEmitido doc = documentoRepository.save(DocumentoEmitido.builder()
@@ -159,12 +168,22 @@ public class EmissaoService {
             .hashSha256(pdfCliente.sha256())
             .destinos(destinosJson(marinhaEmail, clienteEmail))
             .emitidoEm(Instant.now())
+            .emissorTenantId(delegacao != null ? delegacao.emissorTenantId() : null)
+            .emissorSnapshot(delegacao != null ? snapshotEmissor(delegacao) : null)
             .build());
 
         // Débito síncrono na mesma transação: sem saldo, a emissão inteira reverte
         // (nem a via do cliente sai). Advisory lock por tenant impede corrida.
+        // Delegada: o crédito é da OPERADORA (§8.C) — nada muda aqui.
         if (marinhaAplicavel) {
             creditoService.debitarEmissaoDocumento(reserva.getTenantId(), doc.getId(), reservaId);
+        }
+
+        // Espelho no tenant emissor (§3.5): a trilha da EAMA, na mesma transação.
+        if (delegacao != null) {
+            vinculoEmissaoService.registrarEspelho(delegacao, doc.getId(), pdfCliente.sha256(),
+                keyMarinha(reserva.getTenantId(), reservaId), tenant.getRazaoSocial(),
+                cliente.getNome(), cliente.getDocumento(), hab.getGruNumero(), doc.getEmitidoEm());
         }
 
         // Documentação completa? Só com tudo cumprido a Marinha pode receber o e-mail.
@@ -204,9 +223,19 @@ public class EmissaoService {
             "Seus documentos foram emitidos 🎉",
             "A documentação da sua habilitação foi emitida pela loja e enviada por e-mail.",
             "/conta/reservas/" + reservaId + "/habilitacao");
+
+        // Notificação à EAMA emissora (best-effort): documento saiu em nome dela.
+        if (delegacao != null && delegacao.contatoEmail() != null && !delegacao.contatoEmail().isBlank()) {
+            enviar(delegacao.contatoEmail(),
+                "Documento emitido em seu nome — " + tenant.getRazaoSocial(),
+                corpoNotificacaoEmissor(tenant, cliente, hab, pdfCliente.sha256()),
+                pdfMarinha != null ? pdfMarinha.conteudo() : pdfCliente.conteudo());
+        }
+
         eventPublisher.publishEvent(DocumentosEmitidosEvent.of(
             reserva.getTenantId(), reservaId, doc.getId(),
-            destinosResumo(enviadoMarinha, enviadoCliente), TenantContext.getUsuarioId()));
+            destinosResumo(enviadoMarinha, enviadoCliente), TenantContext.getUsuarioId(),
+            delegacao != null ? delegacao.emissorTenantId() : null));
 
         String downloadUrl = storageService.generatePresignedDownloadUrl(key, 15).getUrl();
         log.info("Documentos emitidos: reservaId={}, docId={}, marinha={}, cliente={}",
@@ -389,7 +418,10 @@ public class EmissaoService {
         ReservaAceite aceite = aceiteRepository.findFirstByReservaIdOrderByAceitoEmDesc(reservaId).orElse(null);
         byte[] assinatura = (aceite != null) ? lerAssinatura(aceite.getAssinaturaS3Key()) : null;
 
-        DocumentoPdfService.DadosDocumento dados = montarDados(reserva, cliente, hab, tenant);
+        // Prévia também respeita a delegação: identidade/instrutor da EAMA parceira
+        VinculoEmissaoService.DelegacaoContext delegacao = resolverDelegacao(
+            reserva.getTenantId(), hab, hab.getVia() == ReservaHabilitacao.Via.EMA);
+        DocumentoPdfService.DadosDocumento dados = montarDados(reserva, cliente, hab, tenant, delegacao);
         DocumentoConfig cfg = configDocumento(tenant);
         DocumentoConfig.Destino destinoCfg = (destino == Destino.MARINHA) ? cfg.marinha() : cfg.cliente();
 
@@ -406,34 +438,110 @@ public class EmissaoService {
         return pdf;
     }
 
+    /**
+     * Resolve o contexto delegado quando o plano da loja NÃO inclui emissão
+     * própria (§8.K: portão comercial). Só se aplica ao caminho EMA (Marinha);
+     * a emissão própria segue como sempre — inclusive para planos NULL (todos
+     * os módulos), preservando o comportamento das lojas existentes.
+     */
+    private VinculoEmissaoService.DelegacaoContext resolverDelegacao(
+            UUID tenantId, ReservaHabilitacao hab, boolean marinhaAplicavel) {
+        if (!marinhaAplicavel
+                || planoLimiteService.moduloHabilitado(tenantId, com.jetski.tenant.ModuloPlano.EMISSAO_PROPRIA)) {
+            return null;
+        }
+        return vinculoEmissaoService.resolverParaEmissao(tenantId, hab.getInstrutorId());
+    }
+
+    /** Snapshot imutável do emissor gravado no documento (§3.4). */
+    private String snapshotEmissor(VinculoEmissaoService.DelegacaoContext d) {
+        try {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("vinculoId", d.vinculoId());
+            m.put("emissorTenantId", d.emissorTenantId());
+            m.put("razaoSocial", d.razaoSocial());
+            m.put("cnpj", d.cnpj());
+            m.put("cidade", d.cidade());
+            m.put("uf", d.uf());
+            m.put("capitania", d.capitaniaCodigo());
+            if (d.instrutorId() != null) {
+                Map<String, Object> i = new LinkedHashMap<>();
+                i.put("id", d.instrutorId());
+                i.put("nome", d.instrutorNome());
+                i.put("cpf", d.instrutorCpf());
+                i.put("cha", d.instrutorCha());
+                m.put("instrutor", i);
+            }
+            return objectMapper.writeValueAsString(m);
+        } catch (Exception e) {
+            log.warn("Snapshot do emissor não serializado (segue sem): {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private String corpoNotificacaoEmissor(Tenant operadora, Cliente c, ReservaHabilitacao hab, String hash) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<p>A operadora parceira <b>").append(safe(operadora.getRazaoSocial()))
+          .append("</b> emitiu documentação NORMAM-212 <b>em nome da sua EAMA</b>.</p>");
+        sb.append("<p>Condutor: <b>").append(safe(c.getNome())).append("</b> (CPF ")
+          .append(safe(c.getDocumento())).append(")</p>");
+        if (hab != null && hab.getGruNumero() != null && !hab.getGruNumero().isBlank()) {
+            sb.append("<p>GRU: <b>").append(safe(hab.getGruNumero())).append("</b></p>");
+        }
+        sb.append("<p>Hash SHA-256: <code>").append(safe(hash)).append("</code></p>");
+        sb.append("<p>O registro completo está no painel Emissões delegadas do seu backoffice, ")
+          .append("onde você pode reenviar o PDF à Capitania ou bloquear a parceria.</p>");
+        return sb.toString();
+    }
+
     private DocumentoPdfService.DadosDocumento montarDados(Reserva reserva, Cliente cliente,
-                                                          ReservaHabilitacao hab, Tenant tenant) {
+                                                          ReservaHabilitacao hab, Tenant tenant,
+                                                          VinculoEmissaoService.DelegacaoContext delegacao) {
         String[] end = parseEndereco(cliente.getEnderecoJson());
-        com.jetski.locacoes.domain.Instrutor instrutor = (hab.getInstrutorId() != null)
-            ? instrutorRepository.findById(hab.getInstrutorId()).orElse(null)
-            : null;
-        byte[] instrutorAssinatura = (instrutor != null)
-            ? lerAssinatura(instrutor.getAssinaturaS3Key())
-            : null;
-        String instrutorDataEmissao = (instrutor != null && instrutor.getDataEmissao() != null)
-            ? String.format("%02d/%02d/%d", instrutor.getDataEmissao().getDayOfMonth(),
-                instrutor.getDataEmissao().getMonthValue(), instrutor.getDataEmissao().getYear())
+
+        // Identidade da emissora no PDF: da EAMA parceira quando delegada (§8.J —
+        // a operadora fica invisível no documento), senão do próprio tenant.
+        String emissoraRazao = delegacao != null ? delegacao.razaoSocial() : tenant.getRazaoSocial();
+        String emissoraCnpj = delegacao != null ? delegacao.cnpj() : tenant.getCnpj();
+        String emissoraCidade = delegacao != null ? delegacao.cidade() : tenant.getCidade();
+
+        String insNome, insRg, insOrgao, insCpf, insCha;
+        java.time.LocalDate insData;
+        byte[] instrutorAssinatura;
+        if (delegacao != null) {
+            insNome = delegacao.instrutorNome();
+            insRg = delegacao.instrutorRg();
+            insOrgao = delegacao.instrutorOrgaoEmissor();
+            insCpf = delegacao.instrutorCpf();
+            insCha = delegacao.instrutorCha();
+            insData = delegacao.instrutorDataEmissao();
+            instrutorAssinatura = lerAssinatura(delegacao.instrutorAssinaturaS3Key());
+        } else {
+            com.jetski.locacoes.domain.Instrutor instrutor = (hab.getInstrutorId() != null)
+                ? instrutorRepository.findById(hab.getInstrutorId()).orElse(null)
+                : null;
+            insNome = instrutor != null ? instrutor.getNome() : null;
+            insRg = instrutor != null ? instrutor.getRg() : null;
+            insOrgao = instrutor != null ? instrutor.getOrgaoEmissor() : null;
+            insCpf = instrutor != null ? instrutor.getCpf() : null;
+            insCha = instrutor != null ? instrutor.getCha() : null;
+            insData = instrutor != null ? instrutor.getDataEmissao() : null;
+            instrutorAssinatura = instrutor != null ? lerAssinatura(instrutor.getAssinaturaS3Key()) : null;
+        }
+        String instrutorDataEmissao = insData != null
+            ? String.format("%02d/%02d/%d", insData.getDayOfMonth(), insData.getMonthValue(), insData.getYear())
             : null;
         return new DocumentoPdfService.DadosDocumento(
             cliente.getNome(), cliente.getDocumento(), cliente.getRg(), cliente.getOrgaoEmissor(),
             cliente.getNacionalidade(), cliente.getNaturalidade(),
             cliente.getTelefone(), cliente.getWhatsapp(), cliente.getEmail(),
             end[0], end[1], end[2],
-            tenant.getRazaoSocial(), tenant.getCnpj(),
-            tenant.getCidade(), dataExtenso(), dataCurta(),
+            emissoraRazao, emissoraCnpj,
+            emissoraCidade, dataExtenso(), dataCurta(),
             hab.getVia() != null ? hab.getVia().name() : "EMA",
             Boolean.TRUE.equals(hab.getAnexoResidencia()),
             Boolean.TRUE.equals(hab.getUsaLentes()), Boolean.TRUE.equals(hab.getUsaAparelho()), true,
-            instrutor != null ? instrutor.getNome() : null,
-            instrutor != null ? instrutor.getRg() : null,
-            instrutor != null ? instrutor.getOrgaoEmissor() : null,
-            instrutor != null ? instrutor.getCpf() : null,
-            instrutor != null ? instrutor.getCha() : null,
+            insNome, insRg, insOrgao, insCpf, insCha,
             instrutorDataEmissao, instrutorAssinatura,
             hab.getGruNumero(), hab.getGruValor() != null ? hab.getGruValor().toPlainString() : null,
             Boolean.TRUE.equals(cliente.getEstrangeiro()));

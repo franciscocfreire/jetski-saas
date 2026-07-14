@@ -98,6 +98,56 @@ public class CreditoService {
             tenantId, documentoId, reservaId, saldoAtual, saldoAtual - 1);
     }
 
+    /** Prefixo do motivo do estorno de bônus (usado no cálculo do bônus restante). */
+    public static final String MOTIVO_ESTORNO_BONUS = "Estorno de bônus";
+
+    /**
+     * Anti-fraude da emissão delegada (EMISSAO_DELEGADA_SPEC §4.1.4/§8.H):
+     * zera o bônus de adesão REMANESCENTE da operadora na ativação do vínculo.
+     * Estorno append-only limitado ao saldo (nunca negativa) e ao bônus ainda
+     * não consumido — créditos COMPRADOS são preservados. Idempotente por
+     * vínculo ({@code referencia_id = vinculoId}).
+     *
+     * <p>Flush explícito no fim: o chamador pode estar rodando numa janela
+     * RLS de outro tenant (set_config local) — o INSERT precisa ir ao banco
+     * ainda dentro da janela da operadora (gotcha flush×RLS).
+     *
+     * @return créditos estornados (0 se nada a estornar ou já estornado)
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int estornarBonusDelegacao(UUID tenantId, UUID vinculoId, UUID actor) {
+        if (repository.existsByTenantIdAndReferenciaId(tenantId, vinculoId)) {
+            log.debug("Estorno de bônus já aplicado para o vínculo {} (tenant {})", vinculoId, tenantId);
+            return 0;
+        }
+        lockTenant(tenantId);
+        int saldoAtual = repository.saldo(tenantId);
+        int bonusRestante = repository.bonusRestante(
+            tenantId, TipoLancamento.ADESAO, TipoLancamento.ESTORNO, MOTIVO_ESTORNO_BONUS + "%");
+        int quantidade = Math.min(saldoAtual, Math.max(0, bonusRestante));
+        if (quantidade <= 0) {
+            log.info("Nada a estornar de bônus (tenant={}, saldo={}, bonusRestante={})",
+                tenantId, saldoAtual, bonusRestante);
+            return 0;
+        }
+        CreditoLancamento lanc = repository.save(CreditoLancamento.builder()
+            .tenantId(tenantId)
+            .tipo(TipoLancamento.ESTORNO)
+            .quantidade(-quantidade)
+            .saldoApos(saldoAtual - quantidade)
+            .referenciaId(vinculoId)
+            .motivo(MOTIVO_ESTORNO_BONUS + " — ativação da parceria de emissão delegada")
+            .criadoPor(actor)
+            .build());
+        entityManager.flush();
+        eventPublisher.publishEvent(CreditoLancadoEvent.of(
+            tenantId, lanc.getTipo().name(), lanc.getQuantidade(), lanc.getSaldoApos(),
+            lanc.getMotivo(), actor));
+        log.info("Bônus estornado na delegação: tenant={}, vinculo={}, quantidade={}, saldo {} -> {}",
+            tenantId, vinculoId, quantidade, saldoAtual, saldoAtual - quantidade);
+        return quantidade;
+    }
+
     /** Grant de adesão (idempotente pelo unique parcial — 1 ADESAO por tenant). */
     @Transactional
     public void lancarAdesao(UUID tenantId) {

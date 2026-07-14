@@ -7,7 +7,8 @@ import { FileDown, CheckCircle2, Anchor, Mail, Printer, AlertTriangle, Ship } fr
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { DocumentoPreviewButtons } from '@/components/documento-preview-buttons'
-import { reservasService, documentosService, instrutoresService, habilitacaoService } from '@/lib/api/services'
+import { reservasService, documentosService, instrutoresService, habilitacaoService, emissaoDelegadaService } from '@/lib/api/services'
+import { useTenantStore } from '@/lib/store/tenant-store'
 import {
   Select,
   SelectContent,
@@ -37,9 +38,21 @@ export function StepEmissao({
   const [instrutorId, setInstrutorId] = useState(atendimento.instrutorId ?? '')
   const [salvandoInstrutor, setSalvandoInstrutor] = useState(false)
 
+  // Emissão delegada (V048): sem EMISSAO_PROPRIA no plano, o instrutor que
+  // assina o 5-B-1 é SEMPRE da EAMA parceira (exposto só como id + nome).
+  const { currentTenant } = useTenantStore()
+  const emissaoDelegada =
+    !!currentTenant?.modulos && !currentTenant.modulos.includes('EMISSAO_PROPRIA')
   const { data: instrutores } = useQuery({
-    queryKey: ['instrutores-emissao'],
-    queryFn: () => instrutoresService.list(),
+    queryKey: ['instrutores-emissao', emissaoDelegada],
+    queryFn: async () =>
+      emissaoDelegada
+        ? (await emissaoDelegadaService.instrutoresParceiro()).map((i) => ({
+            id: i.id,
+            nome: i.nome,
+            cha: undefined as string | undefined,
+          }))
+        : instrutoresService.list(),
     enabled: !atendimento.temCha,
   })
 

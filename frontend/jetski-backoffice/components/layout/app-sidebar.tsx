@@ -31,6 +31,7 @@ import {
   CalendarSearch,
   GraduationCap,
   Landmark,
+  Handshake,
   ShieldCheck,
 } from 'lucide-react'
 import {
@@ -63,8 +64,12 @@ type NavItem = {
   title: string
   href: string
   icon: LucideIcon
-  /** Chave do ModuloPlano quando o item é gateável por plano; ausente = core. */
-  modulo?: string
+  /**
+   * Chave(s) do ModuloPlano quando o item é gateável por plano; ausente = core.
+   * Array = basta UM dos módulos no plano (ex.: Documentos/GRUs pertencem à
+   * emissão própria E à delegada — split V047).
+   */
+  modulo?: string | string[]
 }
 
 const mainNavItems: NavItem[] = [
@@ -136,7 +141,9 @@ const managementItems: NavItem[] = [
     title: 'Instrutores',
     href: '/dashboard/instrutores',
     icon: GraduationCap,
-    modulo: 'EMISSAO_MARINHA',
+    // Cadastro de instrutores é exclusivo da emissão própria (operadora
+    // delegada usa os instrutores da EAMA parceira)
+    modulo: 'EMISSAO_PROPRIA',
   },
   {
     title: 'Reservas',
@@ -147,13 +154,20 @@ const managementItems: NavItem[] = [
     title: 'Documentos',
     href: '/dashboard/documentos',
     icon: FileText,
-    modulo: 'EMISSAO_MARINHA',
+    modulo: ['EMISSAO_PROPRIA', 'EMISSAO_DELEGADA'],
   },
   {
     title: 'GRUs',
     href: '/dashboard/grus',
     icon: Landmark,
-    modulo: 'EMISSAO_MARINHA',
+    modulo: ['EMISSAO_PROPRIA', 'EMISSAO_DELEGADA'],
+  },
+  {
+    title: 'Emissão delegada',
+    href: '/dashboard/emissao-delegada',
+    icon: Handshake,
+    // sem gate de módulo: a EAMA emissora precisa do painel/kill switch mesmo
+    // que o plano dela não inclua EMISSAO_DELEGADA
   },
 ]
 
@@ -255,13 +269,16 @@ export function AppSidebar() {
   })
 
   // Gating de oferta (V046): item com `modulo` fora do plano some do menu.
-  // null/ausente = todos os módulos; superadmin sempre vê tudo. A API tem o
+  // null/ausente = todos os módulos; superadmin sempre vê tudo; array = basta
+  // um dos módulos (split emissão própria × delegada, V047). A API tem o
   // enforcement de verdade (ModuloPlanoInterceptor) — aqui é só UX.
-  const moduloHabilitado = (modulo?: string) =>
+  const moduloHabilitado = (modulo?: string | string[]) =>
     !modulo ||
     accessType === 'UNRESTRICTED' ||
     !currentTenant?.modulos ||
-    currentTenant.modulos.includes(modulo)
+    (Array.isArray(modulo)
+      ? modulo.some((m) => currentTenant.modulos!.includes(m))
+      : currentTenant.modulos.includes(modulo))
 
   const handleSignOut = () => {
     // Navegar para a página de logout que:

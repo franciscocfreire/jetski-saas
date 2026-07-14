@@ -157,6 +157,41 @@ public class PlatformTenantService {
         return new TenantStatusResult(tenantId, tenant.getStatus().name(), "Empresa reativada.");
     }
 
+    /**
+     * Habilita a empresa como EAMA emissora (V047) — portão CADASTRAL da
+     * emissão, após o super admin validar o registro na Capitania. Exige
+     * capitania e registro EAMA declarados pela empresa.
+     */
+    @Transactional
+    public com.jetski.tenant.api.dto.EmissoraStatusResult habilitarEmissora(UUID tenantId) {
+        Tenant tenant = require(tenantId);
+        if (tenant.getCapitaniaId() == null) {
+            throw new com.jetski.shared.exception.BusinessException(
+                "Empresa sem capitania declarada — peça para ela preencher o perfil de emissão antes de habilitar");
+        }
+        if (tenant.getEamaRegistro() == null || tenant.getEamaRegistro().isBlank()) {
+            throw new com.jetski.shared.exception.BusinessException(
+                "Empresa sem registro EAMA declarado — peça para ela preencher o perfil de emissão antes de habilitar");
+        }
+        tenant.setEmissoraHabilitada(true);
+        tenantRepository.save(tenant);
+        log.info("[PLATFORM] Emissora habilitada: tenant={}, capitania={}, registro={}, por={}",
+            tenantId, tenant.getCapitaniaId(), tenant.getEamaRegistro(), actor());
+        return new com.jetski.tenant.api.dto.EmissoraStatusResult(
+            tenantId, true, "Empresa habilitada como EAMA emissora.");
+    }
+
+    /** Desabilita a empresa como EAMA emissora (revalidação/irregularidade). */
+    @Transactional
+    public com.jetski.tenant.api.dto.EmissoraStatusResult desabilitarEmissora(UUID tenantId) {
+        Tenant tenant = require(tenantId);
+        tenant.setEmissoraHabilitada(false);
+        tenantRepository.save(tenant);
+        log.info("[PLATFORM] Emissora desabilitada: tenant={}, por={}", tenantId, actor());
+        return new com.jetski.tenant.api.dto.EmissoraStatusResult(
+            tenantId, false, "Habilitação de emissora removida.");
+    }
+
     private Tenant require(UUID tenantId) {
         return tenantRepository.findById(tenantId)
             .orElseThrow(() -> new NotFoundException("Tenant não encontrado: " + tenantId));
