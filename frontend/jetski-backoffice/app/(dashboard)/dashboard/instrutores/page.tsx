@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, GraduationCap, Edit, MoreHorizontal } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, GraduationCap, Edit, MoreHorizontal, Handshake } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
-import { instrutoresService } from '@/lib/api/services'
+import { instrutoresService, emissaoDelegadaService } from '@/lib/api/services'
 import type { Instrutor, InstrutorCreateRequest } from '@/lib/api/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,6 +58,12 @@ export default function InstrutoresPage() {
     enabled: !!currentTenant,
   })
 
+  // Emissão delegada (V048): quem assina o 5-B-1 é instrutor da EAMA parceira.
+  // A página vira visão informativa — os da EAMA em destaque, os próprios
+  // aparecem desativados (não são usados na emissão delegada).
+  const emissaoDelegada =
+    !!currentTenant?.modulos && !currentTenant.modulos.includes('EMISSAO_PROPRIA')
+
   const salvar = useMutation({
     mutationFn: () =>
       editing
@@ -94,6 +101,10 @@ export default function InstrutoresPage() {
       dataEmissao: i.dataEmissao ?? '',
     })
     setOpen(true)
+  }
+
+  if (emissaoDelegada) {
+    return <InstrutoresDelegadaView proprios={instrutores} carregandoProprios={isLoading} />
   }
 
   return (
@@ -229,6 +240,142 @@ export default function InstrutoresPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+/**
+ * Visão da OPERADORA (emissão delegada): os instrutores que assinam seus
+ * documentos são da EAMA parceira — aqui ela vê quem está disponível
+ * (respeitando a designação da EAMA) e os instrutores próprios aparecem
+ * desativados, sem ações (não são usados na emissão delegada).
+ */
+function InstrutoresDelegadaView({
+  proprios,
+  carregandoProprios,
+}: {
+  proprios?: Instrutor[]
+  carregandoProprios: boolean
+}) {
+  const {
+    data: parceiros,
+    isLoading: carregandoParceiros,
+    error: erroParceria,
+  } = useQuery({
+    queryKey: ['instrutores-parceiro'],
+    queryFn: () => emissaoDelegadaService.instrutoresParceiro(),
+    retry: false,
+  })
+
+  const semParceria = !!erroParceria
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <GraduationCap className="h-7 w-7 text-primary" />
+        <div>
+          <h1 className="text-2xl font-bold">Instrutores</h1>
+          <p className="text-sm text-muted-foreground">
+            Atestado de Demonstração (Anexo 5-B-1, CHA-MTA-E).
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
+        <div className="flex items-start gap-3">
+          <Handshake className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div className="text-sm">
+            <p className="font-medium">Sua emissão é delegada a uma EAMA parceira.</p>
+            <p className="text-muted-foreground">
+              Quem assina o Atestado de Demonstração é sempre um instrutor <b>da EAMA</b>,
+              designado por ela — o cadastro e os dados (CPF, CHA, assinatura) ficam com a
+              emissora e entram direto no documento.
+            </p>
+          </div>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/dashboard/emissao-delegada">
+            <Handshake className="mr-1 h-4 w-4" /> Ver parceria
+          </Link>
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        <h2 className="text-sm font-semibold">Disponíveis para suas emissões</h2>
+        {carregandoParceiros ? (
+          <Skeleton className="h-16 w-full" />
+        ) : semParceria ? (
+          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            Não há parceria de emissão ativa com uma EAMA.{' '}
+            <Link href="/dashboard/emissao-delegada" className="font-medium text-primary hover:underline">
+              Convide uma EAMA parceira →
+            </Link>
+          </div>
+        ) : (parceiros ?? []).length === 0 ? (
+          <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+            A EAMA parceira ainda não tem instrutores disponíveis para você — peça a ela
+            para cadastrar ou designar instrutores para a parceria.
+          </div>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {(parceiros ?? []).map((p) => (
+              <div key={p.id} className="flex items-center gap-3 rounded-lg border p-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <GraduationCap className="h-4 w-4 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{p.nome}</p>
+                  <Badge variant="outline" className="mt-0.5 text-[10px]">
+                    EAMA parceira
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {(carregandoProprios || (proprios ?? []).length > 0) && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-muted-foreground">
+            Seus instrutores — desativados na emissão delegada
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Cadastros da sua empresa não assinam documentos enquanto a emissão for
+            delegada; voltam a valer se o seu plano incluir emissão própria.
+          </p>
+          {carregandoProprios ? (
+            <Skeleton className="h-12 w-full" />
+          ) : (
+            <div className="rounded-md border opacity-60">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>CPF</TableHead>
+                    <TableHead>Nº CHA</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(proprios ?? []).map((i) => (
+                    <TableRow key={i.id} className="text-muted-foreground">
+                      <TableCell className="font-medium line-through decoration-muted-foreground/40">
+                        {i.nome}
+                      </TableCell>
+                      <TableCell>{i.cpf || '-'}</TableCell>
+                      <TableCell>{i.cha || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">Não utilizado</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

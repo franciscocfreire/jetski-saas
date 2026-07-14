@@ -196,18 +196,19 @@ class ModuloPlanoIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("emissão delegada: cobre documentos/grus mas NÃO instrutores; qualquer módulo de emissão no plano libera o path compartilhado")
+    @DisplayName("emissão delegada: cobre documentos/grus/instrutores (lista informativa); path fora dos dois módulos nega")
     void splitEmissaoPropriaDelegada() throws Exception {
-        // patterns: instrutores é exclusivo da emissão própria
         assertThat(ModuloPlano.EMISSAO_DELEGADA.cobre("documentos")).isTrue();
         assertThat(ModuloPlano.EMISSAO_DELEGADA.cobre("grus/123")).isTrue();
         assertThat(ModuloPlano.EMISSAO_DELEGADA.cobre(
             "reservas/" + UUID.randomUUID() + "/emitir-documentos")).isTrue();
-        assertThat(ModuloPlano.EMISSAO_DELEGADA.cobre("instrutores")).isFalse();
+        // instrutores coberto pelos DOIS: a operadora lista (visão informativa),
+        // mas a emissão delegada só aceita instrutor da EAMA (resolverParaEmissao)
+        assertThat(ModuloPlano.EMISSAO_DELEGADA.cobre("instrutores")).isTrue();
         assertThat(ModuloPlano.EMISSAO_PROPRIA.cobre("instrutores")).isTrue();
 
-        // interceptor: plano só com EMISSAO_DELEGADA → documentos passa (path coberto
-        // pelos dois módulos de emissão, basta um), instrutores nega com 400
+        // interceptor: plano só com EMISSAO_DELEGADA → documentos e instrutores
+        // passam; path de módulo ausente (manutenções) nega com 400
         jdbc.update("UPDATE plano SET modulos = '[\"EMISSAO_DELEGADA\"]'::jsonb "
             + "WHERE nome = 'Modulos Teste'");
         limparCache();
@@ -216,6 +217,10 @@ class ModuloPlanoIntegrationTest extends AbstractIntegrationTest {
                 .with(jwtAdmin()))
             .andExpect(status().isOk());
         mockMvc.perform(get("/v1/tenants/{t}/instrutores", TENANT)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(status().isOk());
+        mockMvc.perform(get("/v1/tenants/{t}/manutencoes", TENANT)
                 .header("X-Tenant-Id", TENANT.toString())
                 .with(jwtAdmin()))
             .andExpect(status().isBadRequest())

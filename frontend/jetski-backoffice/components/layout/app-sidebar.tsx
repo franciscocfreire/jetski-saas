@@ -141,9 +141,9 @@ const managementItems: NavItem[] = [
     title: 'Instrutores',
     href: '/dashboard/instrutores',
     icon: GraduationCap,
-    // Cadastro de instrutores é exclusivo da emissão própria (operadora
-    // delegada usa os instrutores da EAMA parceira)
-    modulo: 'EMISSAO_PROPRIA',
+    // Emissão própria: CRUD normal. Delegada: a página vira visão informativa
+    // (instrutores da EAMA em destaque; os próprios aparecem desativados).
+    modulo: ['EMISSAO_PROPRIA', 'EMISSAO_DELEGADA'],
   },
   {
     title: 'Reservas',
