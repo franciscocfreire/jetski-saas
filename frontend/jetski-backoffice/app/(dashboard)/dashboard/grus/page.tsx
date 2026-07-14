@@ -252,7 +252,9 @@ export default function GrusPage() {
                         disabled={!g.documentoId || reenviandoId === g.documentoId}
                         onClick={() => g.documentoId && reenviar(g.documentoId)}
                       >
-                        {reenviandoId === g.documentoId ? (
+                        {/* !!g.documentoId evita o falso-spinner: sem documento,
+                            reenviandoId === documentoId dava null === null (true) */}
+                        {!!g.documentoId && reenviandoId === g.documentoId ? (
                           <Loader2 size={14} className="mr-1 animate-spin" />
                         ) : (
                           <Mail size={14} className="mr-1" />
