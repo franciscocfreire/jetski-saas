@@ -67,14 +67,17 @@ export default function DashboardLayout({
           let current = currentTenant
           if (current) {
             // Reconcilia o tenant persistido (zustand/localStorage) com a resposta
-            // fresca: o status muda no servidor (aprovação/suspensão) e o snapshot
-            // local não pode prender o usuário num gate desatualizado até relogar.
+            // fresca — SEMPRE que existir: status (aprovação/suspensão) e módulos
+            // do plano (V046/V047) mudam no servidor, e o snapshot local não pode
+            // prender o usuário em gate/menu desatualizado até relogar.
             const fresh = memberships.find((t) => t.id === current!.id)
-            if (fresh && fresh.status !== current.status) {
-              console.log('🔄 Tenant status atualizado:', current.status, '→', fresh.status)
+            if (fresh) {
+              if (fresh.status !== current.status) {
+                console.log('🔄 Tenant status atualizado:', current.status, '→', fresh.status)
+              }
               setCurrentTenant(fresh)
+              current = fresh
             }
-            if (fresh) current = fresh
           }
           if (!current && memberships.length > 0) {
             current = memberships[0]

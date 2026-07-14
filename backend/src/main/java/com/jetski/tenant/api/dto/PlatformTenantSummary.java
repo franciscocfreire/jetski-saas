@@ -26,14 +26,21 @@ public record PlatformTenantSummary(
     /** EAMA emissora validada (V047) — portão cadastral da emissão própria/delegada. */
     boolean emissoraHabilitada,
     /** Registro EAMA declarado pela empresa (null = ainda não preenchido). */
-    String eamaRegistro
+    String eamaRegistro,
+    /**
+     * Módulos do plano (V046); null = todos. Necessário aqui porque o switcher
+     * do superadmin usa ESTA lista como TenantSummary — sem os módulos, o god
+     * mode enxergava toda empresa como "plano completo" (gating de menu errado).
+     */
+    List<String> modulos
 ) {
     public static PlatformTenantSummary of(UUID id, String slug, String razaoSocial, String status,
                                            String plano, LocalDate assinaturaFim,
                                            java.time.Instant exclusaoAgendadaEm,
-                                           boolean emissoraHabilitada, String eamaRegistro) {
+                                           boolean emissoraHabilitada, String eamaRegistro,
+                                           List<String> modulos) {
         return new PlatformTenantSummary(
             id.toString(), slug, razaoSocial, status, List.of("ADMIN_TENANT"), plano,
-            assinaturaFim, exclusaoAgendadaEm, emissoraHabilitada, eamaRegistro);
+            assinaturaFim, exclusaoAgendadaEm, emissoraHabilitada, eamaRegistro, modulos);
     }
 }

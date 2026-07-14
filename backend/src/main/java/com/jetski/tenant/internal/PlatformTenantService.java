@@ -43,6 +43,7 @@ public class PlatformTenantService {
     private static final int TRIAL_DAYS = 14;
 
     private final TenantRepository tenantRepository;
+    private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
     private final ApplicationEventPublisher eventPublisher;
 
     @PersistenceContext
@@ -62,13 +63,15 @@ public class PlatformTenantService {
             .sorted((a, b) -> a.getRazaoSocial().compareToIgnoreCase(b.getRazaoSocial()))
             .map(t -> {
                 Object[] assinatura = assinaturaAtiva(t.getId());
+                List<String> modulos = planoLimiteService.modulosDoPlano(t.getId());
                 return PlatformTenantSummary.of(
                     t.getId(), t.getSlug(), t.getRazaoSocial(), t.getStatus().name(),
                     assinatura != null ? (String) assinatura[0] : null,
                     assinatura != null && assinatura[1] != null
                         ? ((java.sql.Date) assinatura[1]).toLocalDate() : null,
                     t.getExclusaoAgendadaEm(),
-                    Boolean.TRUE.equals(t.getEmissoraHabilitada()), t.getEamaRegistro());
+                    Boolean.TRUE.equals(t.getEmissoraHabilitada()), t.getEamaRegistro(),
+                    modulos.contains("*") ? null : modulos);
             })
             .toList();
     }

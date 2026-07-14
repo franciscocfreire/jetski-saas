@@ -46,6 +46,9 @@ class PlatformTenantServiceTest {
     private TenantRepository tenantRepository;
 
     @Mock
+    private com.jetski.tenant.PlanoLimiteService planoLimiteService;
+
+    @Mock
     private EntityManager entityManager;
 
     @Mock
