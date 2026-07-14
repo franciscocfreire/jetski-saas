@@ -191,7 +191,12 @@
       "Bash(systemctl status *)",
       "Bash(git -C /home/franciscocfreire/repos/jetski mv 'frontend/jetski-backoffice/app/\\(public\\)/loja/[slug]/page.tsx' 'frontend/jetski-backoffice/app/loja/[slug]/page.tsx')",
       "Bash(mv '/home/franciscocfreire/repos/jetski/frontend/jetski-backoffice/app/\\(public\\)/loja/[slug]/page.tsx' '/home/franciscocfreire/repos/jetski/frontend/jetski-backoffice/app/loja/[slug]/page.tsx')",
-      "Bash(rmdir '/home/franciscocfreire/repos/jetski/frontend/jetski-backoffice/app/\\(public\\)/loja/[slug]' '/home/franciscocfreire/repos/jetski/frontend/jetski-backoffice/app/\\(public\\)/loja')"
+      "Bash(rmdir '/home/franciscocfreire/repos/jetski/frontend/jetski-backoffice/app/\\(public\\)/loja/[slug]' '/home/franciscocfreire/repos/jetski/frontend/jetski-backoffice/app/\\(public\\)/loja')",
+      "Bash(APP_PUBLIC_URL=https://app.pegaojet.com.br PORTAL_PUBLIC_URL=https://cliente.pegaojet.com.br docker compose up -d keycloak)",
+      "Bash(unzip -p /home/franciscocfreire/.m2/repository/org/keycloak/keycloak-admin-client/26.0.0/keycloak-admin-client-26.0.0.jar org/keycloak/admin/client/resource/RealmResource.class)",
+      "Bash(unzip -l /home/franciscocfreire/.m2/repository/org/keycloak/keycloak-admin-client/26.0.0/keycloak-admin-client-26.0.0.jar)",
+      "Bash(unzip -o -q /home/franciscocfreire/.m2/repository/org/keycloak/keycloak-admin-client/26.0.0/keycloak-admin-client-26.0.0.jar org/keycloak/admin/client/resource/RealmResource.class)",
+      "Bash(javap -p org/keycloak/admin/client/resource/RealmResource.class)"
     ],
     "deny": [],
     "ask": [],
