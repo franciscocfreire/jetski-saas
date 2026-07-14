@@ -266,8 +266,16 @@ function InstrutoresDelegadaView({
     queryFn: () => emissaoDelegadaService.instrutoresParceiro(),
     retry: false,
   })
+  const { data: vinculos } = useQuery({
+    queryKey: ['vinculos-emissao'],
+    queryFn: () => emissaoDelegadaService.listVinculos(),
+    retry: false,
+  })
 
   const semParceria = !!erroParceria
+  const nomeEama = (vinculos ?? []).find(
+    (v) => v.papel === 'OPERADORA' && (v.status === 'ATIVO' || v.status === 'BLOQUEADO')
+  )?.parceiroNome
 
   return (
     <div className="space-y-6">
@@ -301,7 +309,10 @@ function InstrutoresDelegadaView({
       </div>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold">Disponíveis para suas emissões</h2>
+        <h2 className="text-sm font-semibold">
+          Disponíveis para suas emissões
+          {nomeEama ? <span className="text-muted-foreground"> — instrutores de {nomeEama}</span> : null}
+        </h2>
         {carregandoParceiros ? (
           <Skeleton className="h-16 w-full" />
         ) : semParceria ? (
@@ -326,7 +337,7 @@ function InstrutoresDelegadaView({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{p.nome}</p>
                   <Badge variant="outline" className="mt-0.5 text-[10px]">
-                    EAMA parceira
+                    Instrutor de {nomeEama ?? 'EAMA parceira'}
                   </Badge>
                 </div>
               </div>
