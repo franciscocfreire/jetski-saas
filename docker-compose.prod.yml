@@ -127,12 +127,15 @@ services:
 
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
-      # SMTP transacional da plataforma (Brevo/SES/etc.) — vazio = cai no Gmail acima
-      PLATFORM_SMTP_HOST: ${PLATFORM_SMTP_HOST:-}
-      PLATFORM_SMTP_PORT: ${PLATFORM_SMTP_PORT:-}
-      PLATFORM_SMTP_USERNAME: ${PLATFORM_SMTP_USERNAME:-}
-      PLATFORM_SMTP_PASSWORD: ${PLATFORM_SMTP_PASSWORD:-}
-      PLATFORM_SMTP_FROM: ${PLATFORM_SMTP_FROM:-}
+      # SMTP transacional da plataforma (Brevo/SES/etc.) — sem valor, cai no Gmail.
+      # O fallback PRECISA ser resolvido aqui no compose: var materializada como
+      # string vazia conta como "definida" para o Spring e engole o default do
+      # application-prod.yml (foi o que deixou o sender sem senha em prod).
+      PLATFORM_SMTP_HOST: ${PLATFORM_SMTP_HOST:-smtp.gmail.com}
+      PLATFORM_SMTP_PORT: ${PLATFORM_SMTP_PORT:-587}
+      PLATFORM_SMTP_USERNAME: ${PLATFORM_SMTP_USERNAME:-${GMAIL_USER:-}}
+      PLATFORM_SMTP_PASSWORD: ${PLATFORM_SMTP_PASSWORD:-${GMAIL_APP_PASSWORD:-}}
+      PLATFORM_SMTP_FROM: ${PLATFORM_SMTP_FROM:-${GMAIL_USER:-noreply@meujet.com.br}}
 
       # Chave-mestra p/ cifrar segredos em repouso (senha SMTP do tenant).
       # Sem fallback vazio: cipher no-op silencioso guardaria segredos em texto
