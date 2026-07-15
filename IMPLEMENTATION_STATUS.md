@@ -45,6 +45,10 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   contas por CPF: gate obrigatório no primeiro acesso (escape p/ estrangeiro) e
   colisão de CPF vira unificação verificada por OTP (código ao e-mail da conta
   dona; identidade Google transferida, duplicata descartada, auditoria global V051).
+- Tela de login com a marca Meu Jet: tema Keycloak "meujet" em React/Keycloakify
+  (`infra/keycloak-theme/`, 13 telas, pt-BR/en), servido por imagem custom do
+  Keycloak buildada no deploy; "esqueci minha senha" cria senha para conta
+  só-Google (orientado na própria tela).
 
 ### Plataforma (super admin)
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão
