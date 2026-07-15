@@ -1,5 +1,7 @@
 {
   "realm": "jetski-saas",
+  "displayName": "Meu Jet",
+  "displayNameHtml": "Meu Jet",
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": false,
@@ -417,5 +419,36 @@
   "attributes": {
     "frontendUrl": "${REALM_FRONTEND_URL:http://localhost:8080}"
   },
+  "identityProviders": [
+    {
+      "alias": "google",
+      "displayName": "Google",
+      "providerId": "google",
+      "enabled": "${GOOGLE_IDP_ENABLED:false}",
+      "trustEmail": true,
+      "storeToken": false,
+      "addReadTokenRoleOnCreate": false,
+      "authenticateByDefault": false,
+      "linkOnly": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "${GOOGLE_CLIENT_ID:nao-configurado.apps.googleusercontent.com}",
+        "clientSecret": "${GOOGLE_CLIENT_SECRET:nao-configurado}",
+        "syncMode": "IMPORT",
+        "useJwksUrl": "true"
+      }
+    }
+  ],
+  "identityProviderMappers": [
+    {
+      "name": "google-role-cliente",
+      "identityProviderAlias": "google",
+      "identityProviderMapper": "oidc-hardcoded-role-idp-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "role": "CLIENTE"
+      }
+    }
+  ],
   "loginWithEmailAllowed": true
 }

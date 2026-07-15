@@ -6,6 +6,7 @@ import com.jetski.locacoes.event.ClaimEnviadoEvent;
 import com.jetski.locacoes.event.ClienteAnexoAtualizadoEvent;
 import com.jetski.locacoes.event.ClienteIdentidadeSincronizadaEvent;
 import com.jetski.locacoes.event.ContaAtivadaEvent;
+import com.jetski.locacoes.event.ContaCpfMergeEvent;
 import com.jetski.locacoes.event.DataCheckInAlteradaEvent;
 import com.jetski.locacoes.event.ChaMtaeConfirmadaEvent;
 import com.jetski.locacoes.event.HabilitacaoTemporariaReusadaEvent;
@@ -759,6 +760,36 @@ public class AuditEventListener {
             log.info("Audit: CONTA_ATIVADA clienteId={}, auditId={}", event.clienteId(), auditoria.getId());
         } catch (Exception e) {
             log.error("Failed to audit CONTA_ATIVADA: clienteId={}, error={}", event.clienteId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Contas do portal unificadas por CPF (OTP verificado; identidade Google
+     * transferida e duplicata descartada). Evento global — sem tenant.
+     */
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onContaCpfMerge(ContaCpfMergeEvent event) {
+        try {
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("ownerProviderUserId", event.ownerProviderUserId());
+            dadosNovos.put("dupProviderUserId", event.dupProviderUserId());
+            dadosNovos.put("cpf", event.cpfMascarado());
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(null)
+                    .acao("CONTA_CPF_MERGE")
+                    .entidade("CUSTOMER_PROFILE")
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: CONTA_CPF_MERGE owner={}, dup={}, auditId={}",
+                    event.ownerProviderUserId(), event.dupProviderUserId(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit CONTA_CPF_MERGE: owner={}, error={}",
+                    event.ownerProviderUserId(), e.getMessage(), e);
         }
     }
 

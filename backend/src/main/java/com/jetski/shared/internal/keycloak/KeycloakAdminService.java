@@ -11,6 +11,7 @@ import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.FederatedIdentityRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.beans.factory.annotation.Value;
@@ -362,6 +363,131 @@ public class KeycloakAdminService {
         } catch (Exception e) {
             log.warn("Não foi possível marcar e-mail verificado no Keycloak: userId={}, err={}",
                 keycloakUserId, e.getMessage());
+        }
+    }
+
+    /**
+     * E-mail do usuário pelo id (sub). Usado no merge de contas por CPF para
+     * descobrir o destino do OTP — nunca exposto em claro ao chamador HTTP.
+     *
+     * @return e-mail ou null se usuário inexistente/sem e-mail/erro
+     */
+    public String findEmailById(String keycloakUserId) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            return keycloak.realm(targetRealm).users().get(keycloakUserId)
+                .toRepresentation().getEmail();
+        } catch (Exception e) {
+            log.error("Erro ao buscar e-mail por id no Keycloak: userId={}, error={}",
+                keycloakUserId, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Busca usuário por username EXATO. Após {@link #definirCpf} o username do
+     * cliente É o CPF (dígitos) — permite achar o dono de um CPF que existe só
+     * no Keycloak (sem linha em customer_profile).
+     *
+     * @return Keycloak user ID ou null se não existir (ou em erro)
+     */
+    public String findUserIdByUsername(String username) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            List<UserRepresentation> found =
+                keycloak.realm(targetRealm).users().searchByUsername(username, true);
+            return found.isEmpty() ? null : found.get(0).getId();
+        } catch (Exception e) {
+            log.error("Erro ao buscar usuário por username no Keycloak: error={}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Identidade federada (IdP broker) do usuário para o alias dado.
+     *
+     * @return identidade ou null se o usuário não tem link com esse IdP (ou em erro)
+     */
+    public com.jetski.shared.security.FederatedIdentity findFederatedIdentity(
+            String keycloakUserId, String idpAlias) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            return keycloak.realm(targetRealm).users().get(keycloakUserId)
+                .getFederatedIdentity().stream()
+                .filter(f -> idpAlias.equals(f.getIdentityProvider()))
+                .findFirst()
+                .map(f -> new com.jetski.shared.security.FederatedIdentity(
+                    f.getIdentityProvider(), f.getUserId(), f.getUserName()))
+                .orElse(null);
+        } catch (Exception e) {
+            log.error("Erro ao consultar federated identity no Keycloak: userId={}, idp={}, error={}",
+                keycloakUserId, idpAlias, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Move o link do IdP externo de uma conta para outra (merge de contas por
+     * CPF): remove do usuário duplicado e adiciona no dono. O realm exige
+     * unicidade de (idp, idpUserId) — por isso a ordem remove→add. Se o add
+     * falhar, tenta devolver o link ao usuário original (rollback best-effort).
+     *
+     * @return true se o link ficou no usuário destino
+     */
+    public boolean transferFederatedIdentity(String fromUserId, String toUserId, String idpAlias) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            RealmResource realmResource = keycloak.realm(targetRealm);
+            UserResource fromResource = realmResource.users().get(fromUserId);
+
+            FederatedIdentityRepresentation rep = fromResource.getFederatedIdentity().stream()
+                .filter(f -> idpAlias.equals(f.getIdentityProvider()))
+                .findFirst()
+                .orElse(null);
+            if (rep == null) {
+                log.warn("Transferência de federated identity sem link no origem: from={}, idp={}",
+                    fromUserId, idpAlias);
+                return false;
+            }
+
+            fromResource.removeFederatedIdentity(idpAlias);
+            try (Response response = realmResource.users().get(toUserId)
+                    .addFederatedIdentity(idpAlias, rep)) {
+                if (response.getStatus() >= 300) {
+                    log.error("Falha ao adicionar federated identity no destino (status={}) — "
+                        + "devolvendo link ao origem: from={}, to={}", response.getStatus(),
+                        fromUserId, toUserId);
+                    fromResource.addFederatedIdentity(idpAlias, rep).close();
+                    return false;
+                }
+            }
+            log.info("Federated identity transferida: idp={}, from={}, to={}",
+                idpAlias, fromUserId, toUserId);
+            return true;
+        } catch (Exception e) {
+            log.error("Erro ao transferir federated identity no Keycloak: from={}, to={}, idp={}, error={}",
+                fromUserId, toUserId, idpAlias, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Remove o usuário do realm (descartar conta duplicada após merge por CPF).
+     *
+     * @return true se removido (204)
+     */
+    public boolean deleteUser(String keycloakUserId) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            try (Response response = keycloak.realm(targetRealm).users().delete(keycloakUserId)) {
+                boolean ok = response.getStatus() == 204;
+                if (ok) {
+                    log.info("Usuário removido do Keycloak: userId={}", keycloakUserId);
+                } else {
+                    log.error("Falha ao remover usuário do Keycloak: userId={}, status={}",
+                        keycloakUserId, response.getStatus());
+                }
+                return ok;
+            }
+        } catch (Exception e) {
+            log.error("Erro ao remover usuário do Keycloak: userId={}, error={}",
+                keycloakUserId, e.getMessage(), e);
+            return false;
         }
     }
 

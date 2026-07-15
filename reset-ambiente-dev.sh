@@ -45,6 +45,21 @@ PUBLIC_URL="${1:-${PUBLIC_URL:-$DEFAULT_PUBLIC_URL}}"
 # import do realm (jetski-backoffice público + redirects do túnel).
 export PUBLIC_URL
 
+# Login com Google (opcional): habilita o IdP no import do realm se houver
+# credenciais no ambiente ou no .env da raiz. Sem credenciais o IdP nasce
+# DESABILITADO (nenhum botão na tela do Keycloak, nada quebra).
+# grep|cut em vez de source para não sobrescrever outras vars do script.
+if [ -f .env ]; then
+    : "${GOOGLE_CLIENT_ID:=$(grep -E '^GOOGLE_CLIENT_ID=' .env | head -1 | cut -d= -f2-)}"
+    : "${GOOGLE_CLIENT_SECRET:=$(grep -E '^GOOGLE_CLIENT_SECRET=' .env | head -1 | cut -d= -f2-)}"
+fi
+if [ -n "${GOOGLE_CLIENT_ID:-}" ] && [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
+    GOOGLE_IDP_ENABLED=true
+else
+    GOOGLE_IDP_ENABLED=false
+fi
+export GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_IDP_ENABLED
+
 echo -e "${BLUE}========================================"
 echo "  RESET AMBIENTE DEV (Docker) - MeuJet"
 echo -e "========================================${NC}"
@@ -55,6 +70,11 @@ echo "   Keycloak:   ${KC_HOST}:${KC_PORT}"
 echo "   Database:   ${PG_DB}"
 if [ -n "$PUBLIC_URL" ]; then
     echo -e "   ${GREEN}Tunel:      ${PUBLIC_URL}${NC}"
+fi
+if [ "$GOOGLE_IDP_ENABLED" = "true" ]; then
+    echo -e "   ${GREEN}Login Google: habilitado (credenciais encontradas)${NC}"
+else
+    echo "   Login Google: desabilitado (sem GOOGLE_CLIENT_ID/SECRET no .env)"
 fi
 echo ""
 
@@ -762,6 +782,21 @@ UPDATE public.tenant t
  WHERE emissora_habilitada = false
    AND (EXISTS (SELECT 1 FROM public.documento_emitido d WHERE d.tenant_id = t.id)
      OR t.marinha_email IS NOT NULL);
+
+-- V051: auditoria global (tenant_id NULL) — merge de contas por CPF do portal.
+-- Policy INSERT-ONLY: grava linhas globais sem expô-las em SELECT de tenant.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname = 'public' AND tablename = 'auditoria'
+          AND policyname = 'auditoria_global_insert'
+    ) THEN
+        CREATE POLICY auditoria_global_insert ON public.auditoria
+            FOR INSERT
+            WITH CHECK (tenant_id IS NULL);
+    END IF;
+END $$;
 
 -- V045: billing manual assistido — fatura mensal da assinatura (PIX plataforma)
 CREATE TABLE IF NOT EXISTS public.fatura (

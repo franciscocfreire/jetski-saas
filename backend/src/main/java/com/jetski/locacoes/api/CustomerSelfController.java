@@ -2,6 +2,7 @@ package com.jetski.locacoes.api;
 
 import com.jetski.locacoes.domain.CustomerProfile;
 import com.jetski.locacoes.internal.CustomerAccountService;
+import com.jetski.locacoes.internal.CustomerCpfMergeService;
 import com.jetski.locacoes.internal.CustomerProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -39,6 +40,7 @@ public class CustomerSelfController {
 
     private final CustomerAccountService customerAccountService;
     private final CustomerProfileService customerProfileService;
+    private final CustomerCpfMergeService customerCpfMergeService;
     private final com.jetski.locacoes.internal.CustomerAnexoService customerAnexoService;
 
     public record AtualizarPerfilRequest(
@@ -153,5 +155,31 @@ public class CustomerSelfController {
                 request.nacionalidade(), request.naturalidade(),
                 request.estrangeiro(), request.dataNascimento()));
         return ResponseEntity.ok(Identidade.of(atualizado));
+    }
+
+    // ---- Unificação de contas por CPF (409 CPF_EM_USO → merge por OTP) ----
+
+    public record CpfMergeEnviarRequest(@NotBlank @Size(max = 20) String cpf) {}
+
+    public record CpfMergeVerificarRequest(
+        @NotBlank @Size(max = 20) String cpf,
+        @NotBlank @Size(min = 6, max = 6) String codigo) {}
+
+    @PostMapping("/cpf-merge/enviar")
+    @Operation(summary = "Envia OTP ao e-mail da conta dona do CPF para unificar as contas")
+    public ResponseEntity<CustomerCpfMergeService.EnvioResultado> cpfMergeEnviar(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody CpfMergeEnviarRequest request) {
+        return ResponseEntity.ok(customerCpfMergeService.enviar(
+            jwt.getSubject(), jwt.getClaimAsString("name"), request.cpf()));
+    }
+
+    @PostMapping("/cpf-merge/verificar")
+    @Operation(summary = "Confere o OTP e unifica as contas (Google → conta dona do CPF)")
+    public ResponseEntity<CustomerCpfMergeService.MergeResultado> cpfMergeVerificar(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody CpfMergeVerificarRequest request) {
+        return ResponseEntity.ok(customerCpfMergeService.verificar(
+            jwt.getSubject(), request.cpf(), request.codigo()));
     }
 }

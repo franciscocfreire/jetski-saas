@@ -108,6 +108,9 @@ d["attributes"] = a
 # login por e-mail OU CPF: username editável (vira o CPF quando definido)
 d["editUsernameAllowed"] = True
 d["loginWithEmailAllowed"] = True
+# marca na tela de login hospedada (em vez do nome técnico do realm)
+d["displayName"] = "Meu Jet"
+d["displayNameHtml"] = "Meu Jet"
 json.dump(d, open("/tmp/kc_realm.json","w"))
 '
 curl -s -o /dev/null -w ">> PUT realm http=%{http_code}\n" -X PUT \

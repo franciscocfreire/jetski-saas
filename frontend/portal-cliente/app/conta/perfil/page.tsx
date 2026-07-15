@@ -13,7 +13,7 @@ import {
   inputCls,
   Badge,
 } from "@/components/ui";
-import { getSelf, updateSelf, updateContatoLoja, getAnexosLoja, getAnexoLoja, uploadAnexoLoja, getHabilitacoes, getHabilitacaoDocumento, ApiError, type CustomerSelf, type IdentidadeCliente, type VinculoLoja, type HabilitacaoTemporaria } from "@/lib/api";
+import { getSelf, updateSelf, updateContatoLoja, getAnexosLoja, getAnexoLoja, uploadAnexoLoja, getHabilitacoes, getHabilitacaoDocumento, ApiError, isCpfEmUso, type CustomerSelf, type IdentidadeCliente, type VinculoLoja, type HabilitacaoTemporaria } from "@/lib/api";
 import { UploadTile } from "@/components/UploadTile";
 import { Award, Copy, FileDown, Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard, Briefcase, ExternalLink } from "lucide-react";
 import { maskCpf } from "@/lib/masks";
@@ -75,6 +75,11 @@ export default function PerfilPage() {
       setSelf(dados);
       setIdent(dados.identidade ?? {});
     } catch (e) {
+      if (isCpfEmUso(e)) {
+        // CPF pertence a outra conta → fluxo de unificação em /conta/cpf
+        router.push("/conta/cpf");
+        return;
+      }
       const msg = e instanceof ApiError ? e.message : "Não foi possível salvar.";
       setErro(msg);
       toast(msg, "erro");

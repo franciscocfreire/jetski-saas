@@ -348,8 +348,11 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
         assertThat(visiveis.get(0)[0]).isEqualTo(instrutorId);
 
         // emissão com instrutor NÃO designado é bloqueada (mesmo sendo da EAMA)
+        // CPF exclusivo desta classe: criarPreConta busca por documento SEM
+        // escopo de tenant nos testes (superuser bypassa RLS) — CPF repetido
+        // em outra classe vira falha dependente de ordem.
         Cliente cliente = clienteService.criarPreConta(Cliente.builder()
-            .tenantId(operadora).nome("Cliente Designacao").documento("111.444.777-35").build());
+            .tenantId(operadora).nome("Cliente Designacao").documento("242.821.368-71").build());
         UUID reservaId = UUID.randomUUID();
         jdbc.update("""
             INSERT INTO reserva (id, tenant_id, modelo_id, cliente_id, data_inicio, data_fim_prevista)
@@ -383,8 +386,9 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
     @DisplayName("operadora sem vínculo ativo não emite via EMA (mensagem de parceria)")
     void semVinculoNega() {
         seedCreditos(0, 5);
+        // CPF exclusivo desta classe (ver comentário no teste de designação)
         Cliente cliente = clienteService.criarPreConta(Cliente.builder()
-            .tenantId(operadora).nome("Sem Parceria").documento("390.533.447-05").build());
+            .tenantId(operadora).nome("Sem Parceria").documento("075.201.033-66").build());
         UUID reservaId = UUID.randomUUID();
         jdbc.update("""
             INSERT INTO reserva (id, tenant_id, modelo_id, cliente_id, data_inicio, data_fim_prevista)

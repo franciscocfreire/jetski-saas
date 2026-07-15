@@ -116,6 +116,32 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
+     * Handle CpfEmUsoException (CPF pertence a outra conta — portal oferece merge)
+     * HTTP Status: 409 Conflict, details.code = CPF_EM_USO
+     */
+    @ExceptionHandler(CpfEmUsoException.class)
+    public ResponseEntity<ErrorResponse> handleCpfEmUsoException(
+            CpfEmUsoException ex,
+            HttpServletRequest request) {
+
+        log.warn("CPF em uso por outra conta: path={}", request.getRequestURI());
+
+        ErrorResponse error = ErrorResponse.builder()
+                .status(HttpStatus.CONFLICT.value())
+                .error(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .details(Map.of(
+                        "code", "CPF_EM_USO",
+                        "mergeDisponivel", ex.isMergeDisponivel()))
+                .build();
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(error);
+    }
+
+    /**
      * Handle ConflictException (resource conflicts)
      * HTTP Status: 409 Conflict
      */

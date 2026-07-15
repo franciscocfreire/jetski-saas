@@ -111,4 +111,32 @@ class KeycloakUserProvisioningAdapter implements UserProvisioningService {
     public boolean definirCpf(String providerUserId, String cpfDigits) {
         return keycloakAdminService.definirCpf(providerUserId, cpfDigits);
     }
+
+    @Override
+    public String findEmailById(String providerUserId) {
+        return keycloakAdminService.findEmailById(providerUserId);
+    }
+
+    @Override
+    public String findUserIdByUsername(String username) {
+        return keycloakAdminService.findUserIdByUsername(username);
+    }
+
+    @Override
+    public com.jetski.shared.security.FederatedIdentity findFederatedIdentity(
+            String providerUserId, String idpAlias) {
+        return keycloakAdminService.findFederatedIdentity(providerUserId, idpAlias);
+    }
+
+    @Override
+    public boolean transferFederatedIdentity(
+            String fromProviderUserId, String toProviderUserId, String idpAlias) {
+        return keycloakAdminService.transferFederatedIdentity(
+            fromProviderUserId, toProviderUserId, idpAlias);
+    }
+
+    @Override
+    public boolean deleteUser(String providerUserId) {
+        return keycloakAdminService.deleteUser(providerUserId);
+    }
 }

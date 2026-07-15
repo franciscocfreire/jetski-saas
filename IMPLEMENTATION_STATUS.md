@@ -40,6 +40,11 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
 - Identidade própria (login e-mail/CPF, role CLIENTE, vínculo explícito — nunca JIT),
   perfil global (`customer_profile`), reserva online com sinal PIX 30% + comprovante,
   termos/CHA remotos, EMA/GRU self-service, histórico, avaliações, white-label por loja.
+- Login com Google (IdP broker no realm; botões no portal e no backoffice via
+  `kc_idp_hint`; sem credenciais `GOOGLE_*` o IdP fica desabilitado) + dedupe de
+  contas por CPF: gate obrigatório no primeiro acesso (escape p/ estrangeiro) e
+  colisão de CPF vira unificação verificada por OTP (código ao e-mail da conta
+  dona; identidade Google transferida, duplicata descartada, auditoria global V051).
 
 ### Plataforma (super admin)
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão

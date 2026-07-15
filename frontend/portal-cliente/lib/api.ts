@@ -42,20 +42,31 @@ export interface CustomerSelf {
 }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+    public details?: Record<string, unknown>
+  ) {
     super(message);
   }
 }
 
 async function parseError(res: Response): Promise<never> {
   let message = `Erro ${res.status}`;
+  let details: Record<string, unknown> | undefined;
   try {
     const body = await res.json();
     message = body.message ?? message;
+    details = body.details;
   } catch {
     // corpo não-JSON — mantém mensagem genérica
   }
-  throw new ApiError(res.status, message);
+  throw new ApiError(res.status, message, details);
+}
+
+/** 409 do backend com details.code=CPF_EM_USO → oferecer unificação de contas. */
+export function isCpfEmUso(e: unknown): boolean {
+  return e instanceof ApiError && e.status === 409 && e.details?.code === "CPF_EM_USO";
 }
 
 /** Cadastro público — cria a identidade global (Keycloak envia o e-mail de verificação). */
@@ -108,6 +119,51 @@ export async function updateSelf(
     body: JSON.stringify({ nome, ...(identidade ?? {}) }),
   });
   if (!res.ok) await parseError(res);
+}
+
+// ---- Unificação de contas por CPF (409 CPF_EM_USO → merge por OTP) ----
+
+export interface CpfMergeEnvio {
+  disponivel: boolean;
+  emailMascarado?: string;
+  motivo?: string;
+  mensagem: string;
+}
+
+/** Envia OTP ao e-mail da conta dona do CPF (nunca revelado em claro). */
+export async function enviarCpfMerge(accessToken: string, cpf: string): Promise<CpfMergeEnvio> {
+  const res = await fetch(`${API_URL}/v1/customers/self/cpf-merge/enviar`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ cpf }),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+export interface CpfMergeResultado {
+  verificado: boolean;
+  mergeConcluido: boolean;
+  mensagem?: string;
+}
+
+/** Confere o OTP e executa a unificação (Google → conta dona do CPF). */
+export async function verificarCpfMerge(
+  accessToken: string, cpf: string, codigo: string
+): Promise<CpfMergeResultado> {
+  const res = await fetch(`${API_URL}/v1/customers/self/cpf-merge/verificar`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ cpf, codigo }),
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
 }
 
 /** Atualiza telefone/WhatsApp do cliente NUMA loja (contato é por loja). */

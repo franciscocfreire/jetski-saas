@@ -142,12 +142,14 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.message",
                 org.hamcrest.Matchers.containsString("não pode ser alterado")));
 
-        // outra conta com o MESMO CPF → 400 (unicidade global)
+        // outra conta com o MESMO CPF → 409 estruturado (portal oferece merge)
         mockMvc.perform(put("/v1/customers/self")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nome\":\"Outra Conta\",\"cpf\":\"111.222.333-96\"}")
                 .with(cliente(SUB2, "perfil2@test.com")))
-            .andExpect(status().isBadRequest())
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.details.code").value("CPF_EM_USO"))
+            .andExpect(jsonPath("$.details.mergeDisponivel").value(true))
             .andExpect(jsonPath("$.message",
                 org.hamcrest.Matchers.containsString("vinculado a outra conta")));
     }

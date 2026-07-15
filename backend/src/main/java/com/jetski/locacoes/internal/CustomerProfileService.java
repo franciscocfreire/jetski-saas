@@ -6,6 +6,7 @@ import com.jetski.locacoes.event.ClienteIdentidadeSincronizadaEvent;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.locacoes.internal.repository.CustomerProfileRepository;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.exception.CpfEmUsoException;
 import com.jetski.shared.security.DuplicateUserException;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.shared.security.UserProvisioningService;
@@ -178,10 +179,10 @@ public class CustomerProfileService {
                 "O CPF do seu cadastro não pode ser alterado pelo portal — fale com a loja.");
         }
 
-        repository.findByCpf(cpf).ifPresent(outro -> {
+        repository.findByCpfNormalizado(normalizar(cpf)).ifPresent(outro -> {
             if (!outro.getId().equals(p.getId())) {
-                throw new BusinessException(
-                    "Este CPF já está vinculado a outra conta — fale com a loja para regularizar.");
+                throw new CpfEmUsoException(
+                    "Este CPF já está vinculado a outra conta.", true);
             }
         });
 
@@ -238,8 +239,8 @@ public class CustomerProfileService {
         try {
             userProvisioningService.definirCpf(sub, normalizar(cpf));
         } catch (DuplicateUserException e) {
-            throw new BusinessException(
-                "Este CPF já está vinculado a outra conta — fale com a loja para regularizar.");
+            throw new CpfEmUsoException(
+                "Este CPF já está vinculado a outra conta.", true);
         } catch (Exception e) {
             // não bloqueia a operação de negócio; login por CPF fica pendente
             log.warn("Falha ao sincronizar CPF no Keycloak (login por CPF adiado): sub={}, err={}",

@@ -99,6 +99,11 @@ services:
       PORTAL_REDIRECT: ${PORTAL_PUBLIC_URL:-http://localhost:3003}/*
       # Base pública dos links gerados pelo realm (e-mails de verificação etc.)
       REALM_FRONTEND_URL: ${PUBLIC_URL:-http://localhost:8080}
+      # Login social Google (IdP broker no import do realm). Sem credenciais o
+      # IdP nasce desabilitado — nenhum botão aparece na tela do Keycloak.
+      GOOGLE_IDP_ENABLED: ${GOOGLE_IDP_ENABLED:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
 
       # Logging
       KC_LOG_LEVEL: INFO

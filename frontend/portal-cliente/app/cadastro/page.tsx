@@ -7,6 +7,7 @@ import { Anchor, MailCheck, Loader2 } from "lucide-react";
 import { signIn } from "next-auth/react";
 import { signup, ApiError } from "@/lib/api";
 import { Button, Card, Field, inputCls } from "@/components/ui";
+import { GoogleIcon } from "@/components/GoogleIcon";
 
 /**
  * Cadastro REAL: cria a identidade global no backend
@@ -77,6 +78,25 @@ export default function CadastroPage() {
       </div>
 
       <Card className="mt-6 p-6">
+        <Button
+          variant="outline"
+          className="w-full gap-2"
+          size="lg"
+          onClick={() => {
+            if (indo) return;
+            setIndo(true);
+            // Cadastro via Google = first broker login do Keycloak: cria a
+            // conta na hora, sem senha e sem e-mail de verificação.
+            signIn("keycloak", { callbackUrl: withBase("/conta/perfil") }, { kc_idp_hint: "google" });
+          }}
+          disabled={indo}
+        >
+          <GoogleIcon size={16} /> Cadastrar com Google
+        </Button>
+        <div className="my-4 flex items-center gap-2 text-xs text-slate-300">
+          <div className="h-px flex-1 bg-slate-200" /> ou{" "}
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
         <div className="grid gap-3">
           <Field label="Nome completo">
             <input

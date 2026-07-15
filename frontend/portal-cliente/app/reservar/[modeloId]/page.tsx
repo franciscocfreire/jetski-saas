@@ -22,6 +22,7 @@ import {
   getSelf,
   getHabilitacoes,
   ApiError,
+  isCpfEmUso,
   type MarketplaceModelo,
   type HabilitacaoTemporaria,
   type CustomerSelf,
@@ -76,6 +77,12 @@ function Wizard() {
       getSelf(session.accessToken)
         .then((s) => {
           const doc = s.identidade?.cpf;
+          // Gate de CPF (dedupe de contas): sem CPF e não-estrangeiro →
+          // resolve em /conta/cpf antes de reservar (colisão vira merge lá).
+          if (!doc && s.identidade?.estrangeiro !== true) {
+            router.replace(`/conta/cpf?next=${encodeURIComponent(`/reservar/${modeloId}`)}`);
+            return;
+          }
           if (doc) {
             setCpfCadastro(doc);
             setCpf(doc);
@@ -152,6 +159,11 @@ function Wizard() {
       });
       router.push(`/conta/reservas/${reserva.id}/pagamento?tipo=${tipo}`);
     } catch (e) {
+      if (isCpfEmUso(e)) {
+        // defesa em profundidade: colisão detectada na reserva → fluxo de merge
+        router.push(`/conta/cpf?next=${encodeURIComponent(`/reservar/${modeloId}`)}`);
+        return;
+      }
       setErro(e instanceof ApiError ? e.message : "Não foi possível criar a reserva.");
       setCriando(false);
     }

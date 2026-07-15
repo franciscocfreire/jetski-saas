@@ -143,4 +143,44 @@ public interface UserProvisioningService {
      * @return {@code true} se sincronizado com sucesso
      */
     boolean definirCpf(String providerUserId, String cpfDigits);
+
+    /**
+     * E-mail do usuário no provedor — destino do OTP no merge de contas por
+     * CPF (nunca exposto em claro ao cliente HTTP; só mascarado).
+     *
+     * @return e-mail ou {@code null} se inexistente/sem e-mail
+     */
+    String findEmailById(String providerUserId);
+
+    /**
+     * Usuário por username EXATO. Após {@link #definirCpf} o username do
+     * cliente É o CPF (dígitos) — acha o dono de um CPF que só existe no
+     * provedor (sem linha em customer_profile).
+     *
+     * @return provider user id ou {@code null}
+     */
+    String findUserIdByUsername(String username);
+
+    /**
+     * Identidade federada (IdP broker, ex.: Google) do usuário para o alias.
+     *
+     * @return identidade ou {@code null} se não houver link
+     */
+    FederatedIdentity findFederatedIdentity(String providerUserId, String idpAlias);
+
+    /**
+     * Move o link do IdP externo de uma conta para outra (merge de contas por
+     * CPF): remove do duplicado, adiciona no dono; rollback best-effort se o
+     * add falhar.
+     *
+     * @return {@code true} se o link ficou na conta destino
+     */
+    boolean transferFederatedIdentity(String fromProviderUserId, String toProviderUserId, String idpAlias);
+
+    /**
+     * Remove o usuário do provedor (descarte da conta duplicada pós-merge).
+     *
+     * @return {@code true} se removido
+     */
+    boolean deleteUser(String providerUserId);
 }

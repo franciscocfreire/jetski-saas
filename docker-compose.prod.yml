@@ -63,6 +63,11 @@ services:
       SMTP_USER: ${PLATFORM_SMTP_USERNAME:-${GMAIL_USER:-}}
       SMTP_PASSWORD: ${PLATFORM_SMTP_PASSWORD:-${GMAIL_APP_PASSWORD:-}}
       SMTP_FROM: ${PLATFORM_SMTP_FROM:-${GMAIL_USER:-noreply@meujet.com.br}}
+      # IdP Google (Entrar com Google) — aplica no import de realm NOVO; realm
+      # existente é convergido via admin API no deploy (configure-keycloak-google-idp.sh).
+      GOOGLE_IDP_ENABLED: ${GOOGLE_IDP_ENABLED:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     ports: !override
       - "127.0.0.1:8080:8080"
     mem_limit: 1200m
