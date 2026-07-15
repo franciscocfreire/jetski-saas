@@ -102,12 +102,18 @@ echo -e "${GREEN}   OK - Volumes removidos!${NC}"
 # 3. Rebuild e iniciar containers
 echo -e "${YELLOW}3. Iniciando containers (com rebuild)...${NC}"
 if [ -n "$PUBLIC_URL" ]; then
+    # Backoffice no subdomínio app.* (deriva do www, como no rebuild.sh). Sem
+    # APP_PUBLIC_URL, o import do realm registra o redirect do jetski-backoffice
+    # só no host www — e o login em app.* quebra ("Parâmetro inválido:
+    # redirect_uri") após todo reset.
+    APP_PUBLIC_URL="${APP_PUBLIC_URL:-$(echo "$PUBLIC_URL" | sed 's#//www\.#//app.#')}"
     # Iniciar com variaveis do ngrok
-    NEXTAUTH_URL="$PUBLIC_URL" \
+    NEXTAUTH_URL="$APP_PUBLIC_URL" \
+    APP_PUBLIC_URL="$APP_PUBLIC_URL" \
     PORTAL_PUBLIC_URL="${PORTAL_PUBLIC_URL:-$(echo "$PUBLIC_URL" | sed 's#//www\.#//cliente.#')}" \
     PORTAL_NEXTAUTH_URL="${PORTAL_PUBLIC_URL:-$(echo "$PUBLIC_URL" | sed 's#//www\.#//cliente.#')}" \
     KEYCLOAK_ISSUER="$PUBLIC_URL/realms/jetski-saas" \
-    JETSKI_FRONTEND_URL="$PUBLIC_URL" \
+    JETSKI_FRONTEND_URL="$APP_PUBLIC_URL" \
     JETSKI_EXTERNAL_URL="$PUBLIC_URL" \
     docker compose up -d --build
 else

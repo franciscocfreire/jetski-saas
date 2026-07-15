@@ -13,6 +13,7 @@ import { setAuthToken, setTenantId } from '@/lib/api/client'
 import { userTenantsService, platformService } from '@/lib/api/services'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TenantStatusGate } from '@/components/tenant-status-gate'
+import { NoTenantGate } from '@/components/no-tenant-gate'
 
 const OPERATIONAL_STATUSES = ['ATIVO', 'TRIAL']
 
@@ -23,7 +24,7 @@ export default function DashboardLayout({
 }) {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const { currentTenant, accessType, setTenants, setCurrentTenant, setAccessType, clearTenant, _hasHydrated } = useTenantStore()
+  const { currentTenant, tenants, accessType, setTenants, setCurrentTenant, setAccessType, clearTenant, _hasHydrated } = useTenantStore()
   const [tenantsLoaded, setTenantsLoaded] = useState(false)
   const lastTokenRef = useRef<string | null>(null)
 
@@ -126,6 +127,13 @@ export default function DashboardLayout({
 
   if (status === 'unauthenticated') {
     return null
+  }
+
+  // Gate de "sem vínculo": autenticou mas não pertence a NENHUMA empresa (conta
+  // de cliente, Google no host errado, convite ainda não enviado). Sem isto o
+  // dashboard renderizava vazio. Tela própria, sem sidebar (não há o que exibir).
+  if (tenantsLoaded && accessType !== 'UNRESTRICTED' && tenants.length === 0) {
+    return <NoTenantGate />
   }
 
   // Gate de status: empresa selecionada não operacional (pendente/suspensa/etc.)

@@ -175,6 +175,24 @@ class UserTenantsControllerTest extends AbstractIntegrationTest {
             .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("Autenticado SEM cadastro staff (cliente/Google novo) → 200 com zero vínculos, não 404")
+    void testListUserTenants_SemCadastroStaff() throws Exception {
+        // Given: sub válido no JWT mas sem mapeamento usuario_identity_provider
+        // (cliente do portal, conta Google recém-criada ou usuário removido)
+        when(identityMappingService.resolveUsuarioId(anyString(), anyString()))
+            .thenThrow(new com.jetski.shared.exception.NotFoundException(
+                "User not found for provider 'keycloak' with ID 'x'"));
+
+        // When/Then: 200 LIMITED vazio — o backoffice mostra a tela de
+        // orientação (NoTenantGate) em vez de tratar como erro
+        mockMvc.perform(get("/v1/user/tenants")
+                .with(jwt().jwt(jwt -> jwt.subject(UUID.randomUUID().toString()))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessType").value("LIMITED"))
+            .andExpect(jsonPath("$.tenants").isEmpty());
+    }
+
     // ========================================================================
     // Helper Methods
     // ========================================================================

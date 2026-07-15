@@ -6,6 +6,7 @@ import com.jetski.usuarios.api.dto.TenantSummary;
 import com.jetski.usuarios.api.dto.UserTenantsResponse;
 import com.jetski.usuarios.domain.Membro;
 import com.jetski.usuarios.api.IdentityProviderMappingService;
+import com.jetski.shared.exception.NotFoundException;
 import com.jetski.usuarios.internal.TenantAccessService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -73,18 +74,11 @@ public class UserTenantsController {
     public ResponseEntity<UserTenantsResponse> listUserTenants(
             @AuthenticationPrincipal Jwt jwt) {
 
-        // DEBUG: Log JWT details (using WARN to ensure it shows)
-        log.warn("🔍 JWT DEBUG - TOKEN COMPLETO: {}", jwt != null ? jwt.getTokenValue() : "JWT is null");
-        log.warn("🔍 JWT DEBUG - claims: {}", jwt != null ? jwt.getClaims() : "JWT is null");
-        log.warn("🔍 JWT DEBUG - subject: {}", jwt != null ? jwt.getSubject() : "JWT is null");
-        log.warn("🔍 JWT DEBUG - issuer: {}", jwt != null ? jwt.getIssuer() : "JWT is null");
-
         // Resolve Keycloak UUID to PostgreSQL UUID using identity provider mapping
         // Try getSubject() first, fallback to "sub" claim directly
         String providerUserId = jwt.getSubject();
         if (providerUserId == null && jwt.hasClaim("sub")) {
             providerUserId = jwt.getClaimAsString("sub");
-            log.warn("🔍 JWT DEBUG - Got sub from claims directly: {}", providerUserId);
         }
 
         // WORKAROUND: se sub não existe, use email para buscar usuário
@@ -92,10 +86,13 @@ public class UserTenantsController {
         if (providerUserId == null) {
             if (jwt.hasClaim("email")) {
                 String email = jwt.getClaimAsString("email");
-                log.warn("⚠️ JWT sem 'sub' claim! Usando email como fallback: {}", email);
-                // Buscar usuário por email ao invés de por provider_user_id
-                UUID usuarioId = identityMappingService.resolveUsuarioIdByEmail(email);
-                log.warn("🔍 JWT DEBUG - Resolved usuarioId by email: {}", usuarioId);
+                log.warn("JWT sem 'sub' claim — usando e-mail como fallback");
+                UUID usuarioId;
+                try {
+                    usuarioId = identityMappingService.resolveUsuarioIdByEmail(email);
+                } catch (NotFoundException e) {
+                    return ResponseEntity.ok(semVinculos());
+                }
 
                 // Count total tenants
                 long count = tenantAccessService.countUserTenants(usuarioId);
@@ -122,8 +119,17 @@ public class UserTenantsController {
             }
         }
 
-        log.warn("🔍 JWT DEBUG - Final providerUserId: {}", providerUserId);
-        UUID usuarioId = identityMappingService.resolveUsuarioId("keycloak", providerUserId);
+        UUID usuarioId;
+        try {
+            usuarioId = identityMappingService.resolveUsuarioId("keycloak", providerUserId);
+        } catch (NotFoundException e) {
+            // Autenticado mas sem cadastro de STAFF (cliente do portal, conta
+            // Google recém-criada, sessão de usuário removido): não é erro — é
+            // "zero vínculos". 200 vazio deixa o backoffice mostrar a tela de
+            // orientação (NoTenantGate) sem spam de 404/retry.
+            log.info("JWT válido sem usuário staff (sub={}) — respondendo sem vínculos", providerUserId);
+            return ResponseEntity.ok(semVinculos());
+        }
 
         // Count total tenants
         long count = tenantAccessService.countUserTenants(usuarioId);
@@ -147,6 +153,11 @@ public class UserTenantsController {
         return ResponseEntity.ok(
             UserTenantsResponse.limited(tenantSummaries, count)
         );
+    }
+
+    /** Resposta para autenticado sem cadastro staff: acesso LIMITED com zero tenants. */
+    private static UserTenantsResponse semVinculos() {
+        return UserTenantsResponse.limited(List.of(), 0);
     }
 
     /**
