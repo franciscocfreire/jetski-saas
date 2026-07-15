@@ -101,7 +101,7 @@ export default function LoginUpdatePassword(props: PageProps<Extract<KcContext, 
                                 "kcButtonLargeClass"
                             )}
                             type="submit"
-                            value={msgStr("doSubmit")}
+                            value={msgStr("mjSalvarSenha")}
                         />
                         {isAppInitiatedAction && (
                             <button

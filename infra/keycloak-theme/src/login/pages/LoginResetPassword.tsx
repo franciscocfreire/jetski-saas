@@ -73,7 +73,7 @@ export default function LoginResetPassword(props: PageProps<Extract<KcContext, {
                         <input
                             className={kcClsx("kcButtonClass", "kcButtonPrimaryClass", "kcButtonBlockClass", "kcButtonLargeClass")}
                             type="submit"
-                            value={msgStr("doSubmit")}
+                            value={msgStr("mjEnviarLink")}
                         />
                     </div>
                 </div>

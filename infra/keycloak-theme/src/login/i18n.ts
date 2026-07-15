@@ -19,11 +19,14 @@ const { useI18n, ofTypeI18n } = i18nBuilder
             rememberMe: "Continuar conectado",
             "identity-provider-login-label": "ou continue com",
 
-            // Reset de senha
+            // Reset de senha (vale também para quem só entra com Google:
+            // o link cria uma senha para a conta)
             emailForgotTitle: "Recuperar acesso",
             emailInstruction:
-                "Informe seu e-mail (ou CPF) e enviaremos um link para você redefinir a senha.",
-            doSubmit: "Enviar link",
+                "Informe seu e-mail (ou CPF) e enviaremos um link para você redefinir a senha. " +
+                "Se você entra com Google, este passo cria uma senha para a sua conta.",
+            mjEnviarLink: "Enviar link",
+            mjSalvarSenha: "Salvar nova senha",
             backToLogin: "« Voltar para o login",
 
             // Nova senha (senha temporária do balcão / reset)
@@ -78,8 +81,11 @@ const { useI18n, ofTypeI18n } = i18nBuilder
             "identity-provider-login-label": "or continue with",
 
             emailForgotTitle: "Recover access",
-            emailInstruction: "Enter your e-mail (or CPF) and we will send you a link to reset your password.",
-            doSubmit: "Send link",
+            emailInstruction:
+                "Enter your e-mail (or CPF) and we will send you a link to reset your password. " +
+                "If you sign in with Google, this step creates a password for your account.",
+            mjEnviarLink: "Send link",
+            mjSalvarSenha: "Save new password",
             backToLogin: "« Back to login",
 
             updatePasswordTitle: "Set your new password",
