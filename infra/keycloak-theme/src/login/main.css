@@ -1,0 +1,487 @@
+/* =========================================================================
+   Tema de login Meu Jet — tokens e layout (ver BRAND.md na raiz do repo)
+   doUseDefaultCss=false: NADA do PatternFly — todo o visual nasce aqui.
+   ========================================================================= */
+
+:root {
+    --mj-navy-950: #0a1628;
+    --mj-navy-900: #12263f;
+    --mj-navy-700: #1e4266;
+    --mj-navy-500: #33689a;
+    --mj-navy-400: #5e95c3;
+    --mj-gold-500: #c9a24b;
+    --mj-gold-600: #b78934;
+    --mj-gold-300: #e3cf9e;
+    --mj-sand-50: #fcfaf6;
+    --mj-sand-100: #f8f4ea;
+    --mj-sand-300: #e3d9c2;
+    --mj-destructive: #d64545;
+    --mj-success: #2c965d;
+    --mj-warning: #dfa11a;
+    --mj-info: #33689a;
+    --mj-font-display: "Playfair Display", Georgia, "Times New Roman", serif;
+    --mj-font-sans: "Geist Sans", "Inter", system-ui, -apple-system, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html.mj-html {
+    height: 100%;
+}
+
+body.mj-body {
+    margin: 0;
+    min-height: 100%;
+    font-family: var(--mj-font-sans);
+    color: var(--mj-navy-900);
+    /* Navy abissal com respiro no topo + marca d'água da onda dourada */
+    background-color: var(--mj-navy-950);
+    background-image:
+        radial-gradient(ellipse 120% 70% at 50% -10%, rgba(51, 104, 154, 0.35), transparent 60%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 40' width='256' height='160'%3E%3Cpath d='M5 15.5 C 15 15.5, 19 6, 30 6 C 39.5 6, 42 12.5, 59 10.5' stroke='%23C9A24B' stroke-width='2' stroke-linecap='round' fill='none' opacity='0.05'/%3E%3Cpath d='M5 29 C 13 29, 18.5 20.5, 28 20.5 C 37 20.5, 42.5 27.5, 59 25' stroke='%23F8F4EA' stroke-width='1.6' stroke-linecap='round' fill='none' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------- Layout ------------------------------- */
+
+.mj-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 32px 16px;
+}
+
+.mj-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--mj-sand-50);
+    border-radius: 12px;
+    border-top: 3px solid var(--mj-gold-500);
+    box-shadow:
+        0 24px 48px -12px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(248, 244, 234, 0.06);
+    padding: 32px 28px 28px;
+}
+
+/* ------------------------------- Marca -------------------------------- */
+
+.mj-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.mj-logo {
+    width: 56px;
+    height: 35px;
+}
+
+.mj-wordmark {
+    font-family: var(--mj-font-display);
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: 0.2em;
+    color: var(--mj-navy-700);
+    /* compensa o letter-spacing do último caractere */
+    margin-right: -0.2em;
+}
+
+.mj-header {
+    text-align: center;
+    margin-bottom: 18px;
+}
+
+.mj-title {
+    font-family: var(--mj-font-display);
+    font-weight: 600;
+    font-size: 22px;
+    color: var(--mj-navy-900);
+    margin: 8px 0 0;
+}
+
+.mj-required-hint {
+    font-size: 12px;
+    color: #6b7280;
+    margin: 6px 0 0;
+}
+
+.mj-required,
+.required,
+span.required {
+    color: var(--mj-destructive);
+}
+
+.mj-attempted-username {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 8px;
+    font-weight: 600;
+}
+
+.mj-attempted-username a {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* ------------------------------ Mensagens ------------------------------ */
+
+.mj-alert {
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    line-height: 1.45;
+    margin-bottom: 14px;
+    border: 1px solid;
+}
+
+.mj-alert--error {
+    background: rgba(214, 69, 69, 0.08);
+    border-color: rgba(214, 69, 69, 0.45);
+    color: var(--mj-destructive);
+}
+
+.mj-alert--success {
+    background: rgba(44, 150, 93, 0.08);
+    border-color: rgba(44, 150, 93, 0.45);
+    color: var(--mj-success);
+}
+
+.mj-alert--warning {
+    background: rgba(223, 161, 26, 0.09);
+    border-color: rgba(223, 161, 26, 0.5);
+    color: #8a6414;
+}
+
+.mj-alert--info {
+    background: rgba(51, 104, 154, 0.08);
+    border-color: rgba(51, 104, 154, 0.4);
+    color: var(--mj-navy-500);
+}
+
+/* ------------------------- Formulários (genérico) ----------------------
+   As páginas default do Keycloakify saem SEM classes (doUseDefaultCss=false
+   + classes vazias) — estilizamos por elemento dentro do card. */
+
+.mj-card label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--mj-navy-900);
+    margin: 14px 0 6px;
+}
+
+.mj-card input[type="text"],
+.mj-card input[type="email"],
+.mj-card input[type="password"],
+.mj-card input[type="tel"],
+.mj-card input[type="number"],
+.mj-card select,
+.mj-card textarea {
+    width: 100%;
+    padding: 11px 12px;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--mj-navy-900);
+    background: #ffffff;
+    border: 1px solid var(--mj-sand-300);
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.mj-card input:focus,
+.mj-card select:focus,
+.mj-card textarea:focus {
+    border-color: var(--mj-navy-500);
+    box-shadow: 0 0 0 3px rgba(51, 104, 154, 0.18);
+}
+
+.mj-card input[aria-invalid="true"] {
+    border-color: var(--mj-destructive);
+}
+
+/* erros por campo (spans id="input-error*" emitidos pelas páginas default) */
+.mj-card [id^="input-error"] {
+    display: block;
+    color: var(--mj-destructive);
+    font-size: 13px;
+    margin-top: 5px;
+}
+
+/* wrapper de senha com botão de revelar */
+.mj-card div:has(> input[type="password"]) {
+    position: relative;
+}
+
+.mj-card button[type="button"][aria-controls] {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--mj-navy-500);
+    font-size: 14px;
+    padding: 4px 6px;
+}
+
+/* Botões */
+.mj-card input[type="submit"],
+.mj-card button[type="submit"],
+.mj-btn-primary {
+    display: block;
+    width: 100%;
+    margin-top: 18px;
+    padding: 12px 16px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #ffffff;
+    background: var(--mj-navy-700);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.mj-card input[type="submit"]:hover,
+.mj-card button[type="submit"]:hover,
+.mj-btn-primary:hover {
+    background: var(--mj-navy-900);
+}
+
+.mj-card input[type="submit"]:disabled,
+.mj-card button[type="submit"]:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* botão/ação secundária (cancelar de AIA, "Entrar com senha" do idp-link) */
+.mj-btn-secondary,
+.mj-card button[name="cancel-aia"],
+.mj-card input[name="cancel-aia"] {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 11px 16px;
+    font-size: 15px;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--mj-navy-700);
+    background: transparent;
+    border: 1px solid var(--mj-sand-300);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+    text-align: center;
+}
+
+.mj-btn-secondary:hover,
+.mj-card button[name="cancel-aia"]:hover,
+.mj-card input[name="cancel-aia"]:hover {
+    background: var(--mj-sand-100);
+}
+
+/* Links */
+.mj-card a,
+.mj-link {
+    color: var(--mj-gold-600);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.mj-card a:hover,
+.mj-link:hover {
+    text-decoration: underline;
+}
+
+/* checkbox (lembrar de mim, aceite do logout etc.) */
+.mj-card input[type="checkbox"] {
+    accent-color: var(--mj-navy-700);
+    width: 15px;
+    height: 15px;
+    margin-right: 6px;
+    vertical-align: -2px;
+}
+
+/* linha "lembrar de mim / esqueceu a senha" (tela de login custom) */
+.mj-form-options-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    font-size: 14px;
+}
+
+.mj-form-options-row label {
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+    font-weight: 400;
+    font-size: 14px;
+    color: var(--mj-navy-900);
+}
+
+/* --------------------------- Login social ----------------------------- */
+
+.mj-social {
+    margin-top: 6px;
+}
+
+.mj-social-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #9ca3af;
+    font-size: 12px;
+    margin: 18px 0 12px;
+}
+
+.mj-social-divider::before,
+.mj-social-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--mj-sand-300);
+}
+
+.mj-social-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+}
+
+/* especificidade > ".mj-card a" para o texto não sair dourado */
+.mj-card a.mj-social-link,
+.mj-social-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 11px 16px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--mj-navy-900);
+    background: #ffffff;
+    border: 1px solid var(--mj-sand-300);
+    border-radius: 10px;
+    transition: background 0.15s;
+}
+
+.mj-social-link:hover {
+    background: var(--mj-sand-100);
+    text-decoration: none !important;
+}
+
+/* --------------------------- Info / rodapé ----------------------------- */
+
+.mj-info {
+    margin-top: 16px;
+    text-align: center;
+    font-size: 14px;
+    color: #4b5563;
+}
+
+.mj-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: rgba(248, 244, 234, 0.6);
+}
+
+.mj-footer nav {
+    display: flex;
+    gap: 14px;
+}
+
+.mj-footer a {
+    color: rgba(248, 244, 234, 0.75);
+    text-decoration: none;
+}
+
+.mj-footer a:hover {
+    color: var(--mj-gold-300);
+}
+
+/* -------------------------- Seletor de idioma -------------------------- */
+
+.mj-locale {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+}
+
+.mj-locale-dropdown summary {
+    list-style: none;
+    cursor: pointer;
+    color: rgba(248, 244, 234, 0.7);
+    font-size: 13px;
+    padding: 4px 8px;
+    border-radius: 8px;
+}
+
+.mj-locale-dropdown summary::-webkit-details-marker {
+    display: none;
+}
+
+.mj-locale-dropdown summary::after {
+    content: " ▾";
+    font-size: 10px;
+}
+
+.mj-locale-dropdown[open] summary,
+.mj-locale-dropdown summary:hover {
+    background: rgba(248, 244, 234, 0.1);
+    color: var(--mj-sand-100);
+}
+
+.mj-locale-list {
+    position: absolute;
+    right: 0;
+    margin: 6px 0 0;
+    padding: 6px;
+    list-style: none;
+    background: var(--mj-sand-50);
+    border-radius: 10px;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+    min-width: 140px;
+    z-index: 10;
+}
+
+.mj-locale-list a {
+    display: block;
+    padding: 7px 10px;
+    border-radius: 7px;
+    color: var(--mj-navy-900);
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.mj-locale-list a:hover {
+    background: var(--mj-sand-100);
+}
+
+/* ------------------------------ Mobile --------------------------------- */
+
+@media (max-width: 480px) {
+    .mj-page {
+        padding: 20px 12px;
+    }
+
+    .mj-card {
+        padding: 26px 20px 22px;
+    }
+}

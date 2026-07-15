@@ -35,10 +35,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Defaults
+# Defaults (keycloak é opt-in: só rebuilda quando pedido explicitamente)
 REBUILD_BACKEND=true
 REBUILD_FRONTEND=true
 REBUILD_PORTAL=true
+REBUILD_KEYCLOAK=false
 NO_CACHE=""
 USE_LOCAL=false
 RUN_MIGRATE=false
@@ -66,6 +67,15 @@ for arg in "$@"; do
             REBUILD_BACKEND=false
             REBUILD_FRONTEND=false
             ;;
+        keycloak)
+            # Imagem custom com o tema de login meujet (infra/keycloak-theme).
+            # Recreate derruba sessões SSO ativas (irrelevante em dev); dados e
+            # realm ficam no volume keycloak_data.
+            REBUILD_BACKEND=false
+            REBUILD_FRONTEND=false
+            REBUILD_PORTAL=false
+            REBUILD_KEYCLOAK=true
+            ;;
         --no-cache)
             NO_CACHE="--no-cache"
             ;;
@@ -79,12 +89,13 @@ for arg in "$@"; do
             CLEAR_CACHE=true
             ;;
         -h|--help)
-            echo "Uso: $0 [backend|frontend|portal] [--no-cache] [--local] [--migrate] [--clear-cache]"
+            echo "Uso: $0 [backend|frontend|portal|keycloak] [--no-cache] [--local] [--migrate] [--clear-cache]"
             echo ""
             echo "Opções:"
             echo "  backend       Rebuild apenas o backend"
             echo "  frontend      Rebuild apenas o frontend"
             echo "  portal        Rebuild apenas o portal do cliente"
+            echo "  keycloak      Rebuild da imagem do Keycloak (tema de login meujet)"
             echo "  --no-cache    Rebuild sem cache Docker (mais lento)"
             echo "  --local       Usa localhost em vez de ngrok (para desenvolvimento local)"
             echo "  --migrate     Executa migrations pendentes do Flyway"
@@ -138,6 +149,9 @@ if [ "$REBUILD_FRONTEND" = true ]; then
 fi
 if [ "$REBUILD_PORTAL" = true ]; then
     SERVICES="$SERVICES portal"
+fi
+if [ "$REBUILD_KEYCLOAK" = true ]; then
+    SERVICES="$SERVICES keycloak"
 fi
 
 if [ -z "$SERVICES" ]; then
@@ -216,6 +230,10 @@ if [ "$REBUILD_PORTAL" = true ]; then
     echo -e "${YELLOW}  -> Portal do cliente (Next.js, basePath /portal)...${NC}"
     docker compose build $NO_CACHE portal
 fi
+if [ "$REBUILD_KEYCLOAK" = true ]; then
+    echo -e "${YELLOW}  -> Keycloak (tema de login meujet via Keycloakify)...${NC}"
+    docker compose build $NO_CACHE keycloak
+fi
 
 # Step 6: Start services with environment variables
 # --force-recreate ensures containers are recreated with new env vars
@@ -228,6 +246,7 @@ STORAGE_MINIO_PUBLIC_URL="$BASE_URL" \
 KEYCLOAK_ISSUER="$KEYCLOAK_ISSUER" \
 JETSKI_FRONTEND_URL="$APP_PUBLIC_URL" \
 JETSKI_EXTERNAL_URL="$BASE_URL" \
+PUBLIC_URL="$BASE_URL" \
 docker compose up -d --force-recreate $SERVICES
 
 # Wait for services to be healthy

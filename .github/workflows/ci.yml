@@ -96,3 +96,33 @@ jobs:
 
       - name: npm run build
         run: npm run build
+
+  keycloak-theme:
+    name: Tema Keycloak — keycloakify build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/keycloak-theme
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20 + cache npm
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: infra/keycloak-theme/package-lock.json
+
+      # Maven já vem no runner ubuntu-latest; o setup-java fixa o JDK (o
+      # keycloakify empacota o JAR do tema via mvn)
+      - name: Setup JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: npm ci
+        run: npm ci
+
+      - name: keycloakify build (tsc + vite + jar)
+        run: npm run build-keycloak-theme

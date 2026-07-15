@@ -70,6 +70,15 @@ if [ "${NO_PULL:-0}" != "1" ]; then
 fi
 
 # 2. Infra base
+# Keycloak agora é imagem custom (tema de login meujet — infra/keycloak-theme).
+# Build COM cache: as camadas só invalidam quando o tema muda; deploy sem
+# mudança de tema = no-op de segundos e o container não é recriado (sessões
+# SSO preservadas). Diferente de backend/frontend, não há risco de cache stale
+# (o COPY invalida por checksum de conteúdo).
+if [ "${NO_BUILD:-0}" != "1" ]; then
+  log "build da imagem keycloak (tema de login meujet)..."
+  $COMPOSE build keycloak
+fi
 log "subindo infra base (postgres/redis/keycloak/opa/minio)..."
 $COMPOSE up -d postgres redis keycloak opa minio
 
