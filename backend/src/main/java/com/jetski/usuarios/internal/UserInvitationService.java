@@ -56,6 +56,7 @@ public class UserInvitationService {
     private final ApplicationEventPublisher eventPublisher;
     private final EmailService emailService;
     private final MagicLinkTokenService magicLinkTokenService;
+    private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
 
     @PersistenceContext
     private final EntityManager entityManager;
@@ -109,22 +110,42 @@ public class UserInvitationService {
         // 5. Generate temporary password (Option 2 flow)
         String temporaryPassword = generateTemporaryPassword();
 
-        // 6. Create invitation
-        Convite convite = Convite.builder()
-            .tenantId(tenantId)
-            .email(request.getEmail())
-            .nome(request.getNome())
-            .papeis(request.getPapeis())
-            .token(token)
-            .expiresAt(expiresAt)
-            .createdBy(invitedBy)
-            .status(Convite.ConviteStatus.PENDING)
-            .build();
+        // 6. Create invitation — ou REUTILIZA a linha de um convite anterior
+        // (cancelado/expirado/ativado-e-removido): o UNIQUE (tenant_id, email)
+        // vale para QUALQUER status, então um INSERT novo estouraria 23505 →
+        // 500 em produção (visto em 16/jul). PENDING já foi barrado no passo 2.
+        Convite convite = conviteRepository.findByTenantIdAndEmail(tenantId, request.getEmail())
+            .map(existente -> {
+                log.info("Reconvite: reutilizando convite {} (status anterior {})",
+                    existente.getId(), existente.getStatus());
+                existente.setNome(request.getNome());
+                existente.setPapeis(request.getPapeis());
+                existente.setToken(token);
+                existente.setExpiresAt(expiresAt);
+                existente.setStatus(Convite.ConviteStatus.PENDING);
+                existente.setCreatedBy(invitedBy);
+                existente.setActivatedAt(null);
+                existente.setEmailSentCount(0);
+                return existente;
+            })
+            .orElseGet(() -> Convite.builder()
+                .tenantId(tenantId)
+                .email(request.getEmail())
+                .nome(request.getNome())
+                .papeis(request.getPapeis())
+                .token(token)
+                .expiresAt(expiresAt)
+                .createdBy(invitedBy)
+                .status(Convite.ConviteStatus.PENDING)
+                .build());
 
         // 7. Set temporary password (will be hashed with BCrypt inside Convite)
         convite.setTemporaryPassword(temporaryPassword);
 
-        conviteRepository.save(convite);
+        // saveAndFlush: qualquer violação de constraint estoura AQUI, antes do
+        // envio — sem isto o INSERT era adiado para depois do e-mail e o
+        // convidado recebia um link morto quando o insert falhava.
+        conviteRepository.saveAndFlush(convite);
 
         log.info("Invitation created: {} for tenant {} expires at {} (with temporary password)",
             convite.getId(), tenantId, expiresAt);
@@ -327,33 +348,13 @@ public class UserInvitationService {
      * Checks if tenant has reached maximum users allowed by plan.
      */
     private void validatePlanLimits(UUID tenantId) {
-        // Query to get plan limit
-        Integer maxUsuarios = (Integer) entityManager.createNativeQuery(
-            "SELECT (p.limites->>'usuarios_max')::int " +
-            "FROM assinatura a " +
-            "JOIN plano p ON a.plano_id = p.id " +
-            "WHERE a.tenant_id = ?1 AND a.status = 'ativa'"
-        )
-        .setParameter(1, tenantId)
-        .getSingleResult();
-
-        if (maxUsuarios == null) {
-            throw new BusinessException("Tenant não possui assinatura ativa");
-        }
-
-        // Count current active members
-        Long currentUsers = membroRepository.countByTenantIdAndAtivo(tenantId, true);
-
-        if (currentUsers >= maxUsuarios) {
-            throw new ForbiddenException(
-                String.format(
-                    "Limite de usuários atingido. Plano permite %d usuários, você já tem %d. Faça upgrade do seu plano para convidar mais usuários.",
-                    maxUsuarios, currentUsers
-                )
-            );
-        }
-
-        log.debug("Plan validation passed: {}/{} users", currentUsers, maxUsuarios);
+        // Resolvedor canônico (PlanoLimiteService): limite ausente, -1 ou tenant
+        // SEM assinatura ativa = ilimitado — o gate de status do tenant é quem
+        // barra empresa não-operacional. A query antiga usava getSingleResult(),
+        // que LANÇA exceção com zero linhas (tenant sem assinatura → 500 em
+        // produção, visto em 16/jul) — o null-check nunca rodava.
+        long currentUsers = membroRepository.countByTenantIdAndAtivo(tenantId, true);
+        planoLimiteService.verificar(tenantId, "usuarios_max", currentUsers, "usuários");
     }
 
     /**

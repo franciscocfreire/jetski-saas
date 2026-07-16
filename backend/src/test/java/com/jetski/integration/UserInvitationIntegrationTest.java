@@ -13,6 +13,7 @@ import com.jetski.usuarios.internal.repository.ConviteRepository;
 import com.jetski.usuarios.internal.repository.MembroRepository;
 import com.jetski.usuarios.internal.TenantAccessService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -65,6 +66,9 @@ class UserInvitationIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private jakarta.persistence.EntityManager entityManager;
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @MockBean
     private OPAAuthorizationService opaAuthorizationService;
@@ -295,6 +299,90 @@ class UserInvitationIntegrationTest extends AbstractIntegrationTest {
                 anyString(),
                 anyString()  // Temporary password (generated randomly)
         );
+    }
+
+    @Test
+    @DisplayName("Reconvite após cancelamento REUTILIZA a linha (unique tenant+email) — não 500")
+    void shouldReinviteAfterCancellationReusingRow() throws Exception {
+        // Given: convite anterior CANCELADO (unique (tenant_id,email) vale para
+        // qualquer status — INSERT novo estourava 23505 → 500 em produção)
+        InviteUserRequest request = InviteUserRequest.builder()
+                .email("reconvite@example.com")
+                .nome("Reconvite")
+                .papeis(new String[]{"OPERADOR"})
+                .build();
+        var jwtAdmin = jwt()
+                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))
+                .jwt(jwt -> jwt
+                        .claim("tenant_id", TEST_TENANT_ID.toString())
+                        .claim("roles", List.of("ADMIN_TENANT"))
+                        .subject(ADMIN_USER_ID.toString()));
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/users/invite", TEST_TENANT_ID)
+                        .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(jwtAdmin))
+                .andExpect(status().isOk());
+
+        Convite original = conviteRepository
+                .findByTenantIdAndEmail(TEST_TENANT_ID, "reconvite@example.com").get();
+        String tokenOriginal = original.getToken();
+        original.cancel();
+        conviteRepository.saveAndFlush(original);
+
+        // When: convida o MESMO e-mail de novo (com papel diferente)
+        InviteUserRequest reconvite = InviteUserRequest.builder()
+                .email("reconvite@example.com")
+                .nome("Reconvite Dois")
+                .papeis(new String[]{"VENDEDOR"})
+                .build();
+        mockMvc.perform(post("/v1/tenants/{tenantId}/users/invite", TEST_TENANT_ID)
+                        .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(reconvite))
+                        .with(jwtAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("reconvite@example.com"));
+
+        // Then: a MESMA linha foi reutilizada, agora PENDING com token novo
+        Convite reutilizado = conviteRepository
+                .findByTenantIdAndEmail(TEST_TENANT_ID, "reconvite@example.com").get();
+        assertThat(reutilizado.getId()).isEqualTo(original.getId());
+        assertThat(reutilizado.getStatus()).isEqualTo(Convite.ConviteStatus.PENDING);
+        assertThat(reutilizado.getToken()).isNotEqualTo(tokenOriginal);
+        assertThat(reutilizado.getNome()).isEqualTo("Reconvite Dois");
+        assertThat(reutilizado.getPapeis()).containsExactly("VENDEDOR");
+    }
+
+    @Test
+    @DisplayName("Tenant SEM assinatura ativa convida normalmente (ilimitado) — não 500")
+    void shouldInviteWhenTenantHasNoActiveSubscription() throws Exception {
+        // Given: nenhuma assinatura ativa (getSingleResult() da query antiga
+        // lançava NoResultException → 500 em produção, visto em 16/jul).
+        // Convenção do PlanoLimiteService: sem assinatura ativa = ilimitado.
+        jdbcTemplate.update(
+                "UPDATE assinatura SET status = 'cancelada' WHERE tenant_id = ? AND status = 'ativa'",
+                TEST_TENANT_ID);
+
+        InviteUserRequest request = InviteUserRequest.builder()
+                .email("sem.assinatura@example.com")
+                .nome("Sem Assinatura")
+                .papeis(new String[]{"OPERADOR"})
+                .build();
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/users/invite", TEST_TENANT_ID)
+                        .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(jwt()
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TEST_TENANT_ID.toString())
+                                        .claim("roles", List.of("ADMIN_TENANT"))
+                                        .subject(ADMIN_USER_ID.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conviteId").exists());
     }
 
     /**
@@ -650,8 +738,11 @@ class UserInvitationIntegrationTest extends AbstractIntegrationTest {
                                         .claim("tenant_id", TEST_TENANT_ID.toString())
                                         .claim("roles", List.of("ADMIN_TENANT"))
                                         .subject(ADMIN_USER_ID.toString()))))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403))
+                // 400 (deny de NEGÓCIO, convenção do projeto) — o limite agora é
+                // validado pelo resolvedor canônico PlanoLimiteService.verificar,
+                // o mesmo dos limites de frota/locações.
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message", containsString("Limite")));
     }
 
