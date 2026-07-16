@@ -53,11 +53,15 @@ public class PlatformMeteringService {
             List<Object[]> counts = entityManager.createNativeQuery(
                     """
                     SELECT tipo, count(*) FROM emissao_uso
-                    WHERE ocorrido_em >= ?1 AND ocorrido_em < ?2
+                    WHERE tenant_id = ?3
+                      AND ocorrido_em >= ?1 AND ocorrido_em < ?2
                     GROUP BY tipo
                     """)
                 .setParameter(1, inicio)
                 .setParameter(2, fim)
+                // tenant explícito ALÉM do GUC/RLS (regra nº 1: nunca confiar só na
+                // RLS — como superuser, cada tenant mostraria a contagem GLOBAL)
+                .setParameter(3, tenantId)
                 .getResultList();
 
             long documento = 0;

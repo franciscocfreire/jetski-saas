@@ -243,23 +243,27 @@ class CustomerCpfMergeIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("reserva do portal com CPF de outra conta → 409 CPF_EM_USO")
     void testReservaComCpfDeOutraConta() throws Exception {
-        // seed mínimo do marketplace (mesmo padrão do CustomerReservaIntegrationTest)
-        UUID modeloId = UUID.fromString("77777777-7777-4777-8777-000000000091");
-        UUID jetskiId = UUID.fromString("77777777-7777-4777-8777-000000000092");
-        jdbc.update("UPDATE tenant SET exibir_no_marketplace = true, pix_chave = 'pix@acme.com.br' " +
-                    "WHERE id = ?", TENANT_ACME);
+        // Seed na MARINA-BAY (não no ACME): jetski/modelo extras no ACME poluem
+        // testes de agenda/fuel de outras classes (o ACME é o tenant mais
+        // disputado da suíte). Mesmos IDs/valores do CustomerProfileIntegrationTest
+        // (ON CONFLICT DO NOTHING — seed compartilhado e idempotente).
+        UUID tenantMarina = UUID.fromString("b0000000-0000-0000-0000-000000000001");
+        UUID modeloId = UUID.fromString("77777777-7777-4777-8777-000000000041");
+        UUID jetskiId = UUID.fromString("77777777-7777-4777-8777-000000000042");
+        jdbc.update("UPDATE tenant SET status = 'ATIVO', exibir_no_marketplace = true, " +
+                    "pix_chave = 'pix@marina.com.br' WHERE id = ?", tenantMarina);
         jdbc.update("""
             INSERT INTO modelo (id, tenant_id, nome, fabricante, potencia_hp, capacidade_pessoas,
                                 preco_base_hora, tolerancia_min, taxa_hora_extra, caucao,
-                                inclui_combustivel, ativo, exibir_no_marketplace)
-            VALUES (?, ?, 'GTX Merge 170', 'Sea-Doo', 170, 2, 200.00, 5, 50.00, 300.00, FALSE, TRUE, TRUE)
+                                inclui_combustivel, ativo)
+            VALUES (?, ?, 'Marina Modelo', 'Yamaha', 110, 2, 100.00, 5, 50.00, 300.00, FALSE, TRUE)
             ON CONFLICT (id) DO NOTHING
-            """, modeloId, TENANT_ACME);
+            """, modeloId, tenantMarina);
         jdbc.update("""
             INSERT INTO jetski (id, tenant_id, modelo_id, serie, ano, horimetro_atual, status, ativo)
-            VALUES (?, ?, ?, 'JET-MERGE-1', 2024, 10.0, 'DISPONIVEL', TRUE)
+            VALUES (?, ?, ?, 'JET-MARINA-1', 2024, 1.0, 'DISPONIVEL', TRUE)
             ON CONFLICT (id) DO NOTHING
-            """, jetskiId, TENANT_ACME, modeloId);
+            """, jetskiId, tenantMarina, modeloId);
 
         java.time.LocalDateTime inicio = java.time.LocalDateTime.now()
             .plusDays(3).withHour(10).withMinute(0).withSecond(0).withNano(0);
@@ -268,7 +272,7 @@ class CustomerCpfMergeIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/v1/customers/reservas")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"lojaSlug":"acme","modeloId":"%s","dataInicio":"%s","dataFimPrevista":"%s",
+                    {"lojaSlug":"marina-bay","modeloId":"%s","dataInicio":"%s","dataFimPrevista":"%s",
                      "pagamentoTipo":"SINAL","cpf":"%s","telefone":"48999990000"}
                     """.formatted(modeloId, iso.format(inicio), iso.format(inicio.plusHours(1)), CPF_OWNER))
                 .with(cliente(SUB_GOOGLE, "merge-dup@test.com")))

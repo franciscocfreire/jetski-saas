@@ -70,6 +70,18 @@ class FuelPolicyControllerIntegrationTest extends AbstractIntegrationTest {
         // Ensure test entities exist (idempotent)
         ensureTestEntitiesExist();
 
+        // Estado conhecido: EXATAMENTE UMA política GLOBAL ativa (a seed 999).
+        // Os próprios testes de POST desta classe criam outras GLOBAL ativas e
+        // não há teardown — dependendo da ordem (CI ≠ local), o "applicable"
+        // achava 2 ativas → NonUniqueResultException → 500 (visto 15-16/jul,
+        // contaminando também Abastecimento/Metering que usam o mesmo tenant).
+        jdbcTemplate.update(
+            "UPDATE fuel_policy SET ativo = false " +
+            "WHERE tenant_id = ? AND aplicavel_a = 'GLOBAL' AND id <> 999",
+            TENANT_ID);
+        jdbcTemplate.update(
+            "UPDATE fuel_policy SET ativo = true WHERE id = 999");
+
         // Mock tenant access with conditional logic for tenant matching
         when(tenantAccessService.validateAccess(any(String.class), eq(USER_ID.toString()), any(UUID.class)))
             .thenAnswer(invocation -> {

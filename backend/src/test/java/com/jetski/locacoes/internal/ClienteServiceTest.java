@@ -44,7 +44,7 @@ class ClienteServiceTest {
     @Test
     @DisplayName("criação nova → salva PRE_CONTA/BALCAO e publica evento origem=BALCAO")
     void criacaoNovaPublicaEvento() {
-        when(clienteRepo.findByDocumento("469.441.130-66")).thenReturn(Optional.empty());
+        when(clienteRepo.findByTenantIdAndDocumento(tenant, "469.441.130-66")).thenReturn(Optional.empty());
         when(clienteRepo.save(any(Cliente.class))).thenAnswer(i -> {
             Cliente c = i.getArgument(0);
             c.setId(UUID.randomUUID());
@@ -69,7 +69,7 @@ class ClienteServiceTest {
         Cliente existente = dados();
         existente.setId(UUID.randomUUID());
         existente.setStatusConta(Cliente.StatusConta.PRE_CONTA);
-        when(clienteRepo.findByDocumento("469.441.130-66")).thenReturn(Optional.of(existente));
+        when(clienteRepo.findByTenantIdAndDocumento(tenant, "469.441.130-66")).thenReturn(Optional.of(existente));
 
         Cliente r = service.criarPreConta(dados());
 
@@ -87,7 +87,7 @@ class ClienteServiceTest {
         Cliente ativa = dados();
         ativa.setId(UUID.randomUUID());
         ativa.setStatusConta(Cliente.StatusConta.ATIVA);
-        when(clienteRepo.findByDocumento("469.441.130-66")).thenReturn(Optional.of(ativa));
+        when(clienteRepo.findByTenantIdAndDocumento(tenant, "469.441.130-66")).thenReturn(Optional.of(ativa));
 
         assertThatThrownBy(() -> service.criarPreConta(dados()))
             .isInstanceOf(BusinessException.class);
@@ -100,7 +100,7 @@ class ClienteServiceTest {
         UUID operador = UUID.randomUUID();
         TenantContext.setUsuarioId(operador);
         try {
-            when(clienteRepo.findByDocumento("469.441.130-66")).thenReturn(Optional.empty());
+            when(clienteRepo.findByTenantIdAndDocumento(tenant, "469.441.130-66")).thenReturn(Optional.empty());
             when(clienteRepo.save(any(Cliente.class))).thenAnswer(i -> {
                 Cliente c = i.getArgument(0);
                 c.setId(UUID.randomUUID());
@@ -129,7 +129,7 @@ class ClienteServiceTest {
         existente.setId(UUID.randomUUID());
         existente.setStatusConta(Cliente.StatusConta.PRE_CONTA);
         existente.setCapturadoPor(capturadorOriginal);
-        when(clienteRepo.findByDocumento("469.441.130-66")).thenReturn(Optional.of(existente));
+        when(clienteRepo.findByTenantIdAndDocumento(tenant, "469.441.130-66")).thenReturn(Optional.of(existente));
 
         TenantContext.setUsuarioId(UUID.randomUUID()); // outro operador reaproveitando
         try {

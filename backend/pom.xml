@@ -426,6 +426,12 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <argLine>@{argLine} -Duser.timezone=America/Sao_Paulo</argLine>
+                    <!-- Ordem DETERMINÍSTICA e igual em qualquer máquina: o default
+                         (filesystem) varia entre runners e o CI sorteava ordens que
+                         expõem poluição de dados entre classes (15-16/jul: fuel_policy
+                         GLOBAL duplicada → NonUnique → 500 em cascata). Com
+                         alphabetical, `mvn clean test` local reproduz o CI. -->
+                    <runOrder>alphabetical</runOrder>
                 </configuration>
             </plugin>
         </plugins>

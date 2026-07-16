@@ -73,6 +73,20 @@ class VendedorControllerTest extends AbstractIntegrationTest {
         TenantContext.setTenantId(TENANT_ID);
 
         // Clean up dependent tables first (from V999 seed data) - in correct order
+        // Dependentes primeiro (ordem de FK): sobras de OUTRAS classes (comissão,
+        // fechamento, avaliação, fólio, docs) referenciam locacao/reserva do ACME e
+        // quebravam esta limpeza quando a ordem das classes muda (CI 15-16/jul).
+        jdbcTemplate.execute("DELETE FROM comissao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM avaliacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_lancamento WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM locacao_item_opcional WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM foto WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM abastecimento WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM documento_emitido WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_aceite WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_comprovante WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_habilitacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM locacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM locacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM reserva WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM politica_comissao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
@@ -87,7 +101,26 @@ class VendedorControllerTest extends AbstractIntegrationTest {
         }
 
         // Clean up any existing data first
-        vendedorRepository.deleteAll();
+        // tenant-scoped (deleteAll() cruzava tenants e esbarrava em FKs de
+        // dados de outras classes — ex.: reservas do tenant E2E)
+        jdbcTemplate.execute("DELETE FROM comissao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM avaliacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_lancamento WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM locacao_item_opcional WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM foto WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM abastecimento WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM os_manutencao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM locacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM documento_emitido WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_aceite WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_comprovante WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_habilitacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM bonus_vendedor WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM pagamento_vendedor WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM presenca_vendedor WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM politica_comissao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM vendedor WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
 
         // Mock OPA to allow all requests
         OPADecision allowDecision = OPADecision.builder()
@@ -111,7 +144,26 @@ class VendedorControllerTest extends AbstractIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        vendedorRepository.deleteAll();
+        // tenant-scoped (deleteAll() cruzava tenants e esbarrava em FKs de
+        // dados de outras classes — ex.: reservas do tenant E2E)
+        jdbcTemplate.execute("DELETE FROM comissao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM avaliacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_lancamento WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM locacao_item_opcional WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM foto WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM abastecimento WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM os_manutencao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM locacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM documento_emitido WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_aceite WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_comprovante WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_habilitacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM bonus_vendedor WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM pagamento_vendedor WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM presenca_vendedor WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM politica_comissao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM vendedor WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         TenantContext.clear();
     }
 

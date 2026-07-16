@@ -139,7 +139,10 @@ public class ClienteService {
         if (documento == null || documento.isBlank()) {
             return Optional.empty();
         }
-        return clienteRepository.findByDocumento(documento.trim());
+        // Tenant-scoped EXPLÍCITO (regra nº 1: nunca confiar só na RLS — testes
+        // rodam como superuser e CPF repetido em outro tenant virava NonUnique).
+        return clienteRepository.findByTenantIdAndDocumento(
+            TenantContext.getTenantId(), documento.trim());
     }
 
     /**
@@ -176,7 +179,12 @@ public class ClienteService {
 
         String documento = dados.getDocumento();
         if (documento != null && !documento.isBlank()) {
-            Optional<Cliente> existente = clienteRepository.findByDocumento(documento.trim());
+            // Tenant-scoped explícito (mesma razão do buscarPorDocumento): o dedupe
+            // do balcão é POR LOJA — cliente com o mesmo CPF em outra loja é outra
+            // ficha, não um reuso.
+            Optional<Cliente> existente = clienteRepository.findByTenantIdAndDocumento(
+                dados.getTenantId() != null ? dados.getTenantId() : TenantContext.getTenantId(),
+                documento.trim());
             if (existente.isPresent()) {
                 Cliente c = existente.get();
                 if (c.getStatusConta() == Cliente.StatusConta.ATIVA) {

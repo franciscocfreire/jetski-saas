@@ -211,12 +211,25 @@ class MeteringIntegrationTest extends AbstractIntegrationTest {
 
         String competencia = YearMonth.now(ZoneId.of("America/Sao_Paulo")).toString();
 
+        // Asserta contra a VERDADE do banco, não contra contagem absoluta:
+        // listeners @Async de testes anteriores (desta e de outras classes)
+        // podem pousar linhas DEPOIS do limparUsos do setUp — o que se valida
+        // aqui é a AGREGAÇÃO cross-tenant do endpoint, não o total exato.
+        int docsAcme = jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM emissao_uso WHERE tenant_id = ? AND tipo = 'DOCUMENTO' " +
+            "AND to_char(ocorrido_em AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM') = ?",
+            Integer.class, TENANT_ACME, competencia);
+        int grusMarina = jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM emissao_uso WHERE tenant_id = ? AND tipo = 'GRU' " +
+            "AND to_char(ocorrido_em AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM') = ?",
+            Integer.class, TENANT_MARINA, competencia);
+
         mockMvc.perform(get("/v1/platform/metering/emissoes?competencia=" + competencia)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .with(admin()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[?(@.slug == 'acme')].documento").value(1))
-            .andExpect(jsonPath("$[?(@.slug == 'marina-bay')].gru").value(1));
+            .andExpect(jsonPath("$[?(@.slug == 'acme')].documento").value(docsAcme))
+            .andExpect(jsonPath("$[?(@.slug == 'marina-bay')].gru").value(grusMarina));
     }
 
     @Test

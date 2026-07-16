@@ -96,6 +96,20 @@ class LocacaoControllerTest extends AbstractIntegrationTest {
         TenantContext.setTenantId(TENANT_ID);
 
         // Clean up in correct FK dependency order (most dependent first)
+        // Dependentes primeiro (ordem de FK): sobras de OUTRAS classes (comissão,
+        // fechamento, avaliação, fólio, docs) referenciam locacao/reserva do ACME e
+        // quebravam esta limpeza quando a ordem das classes muda (CI 15-16/jul).
+        jdbcTemplate.execute("DELETE FROM comissao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM avaliacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_lancamento WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM locacao_item_opcional WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM foto WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM abastecimento WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM documento_emitido WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_aceite WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_comprovante WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM reserva_habilitacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
+        jdbcTemplate.execute("DELETE FROM locacao WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM foto WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM abastecimento WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         // Break circular FK: reserva ↔ locacao

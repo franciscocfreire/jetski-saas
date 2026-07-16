@@ -83,16 +83,18 @@ public class FuelPriceDayService {
         Optional<FuelPriceDay> existing = fuelPriceDayRepository.findByTenantIdAndData(tenantId, data);
 
         if (existing.isPresent()) {
-            // Atualizar existente
+            // Atualizar existente. Null-safe: a linha do dia pode ter sido criada
+            // pelo lançamento MANUAL de preço (totais nulos) — sem isto, o próximo
+            // abastecimento do dia estourava NPE → 500.
             FuelPriceDay priceDay = existing.get();
             priceDay.setTotalLitrosAbastecidos(
-                priceDay.getTotalLitrosAbastecidos().add(litros)
+                zeroSeNulo(priceDay.getTotalLitrosAbastecidos()).add(litros)
             );
             priceDay.setTotalCusto(
-                priceDay.getTotalCusto().add(custo)
+                zeroSeNulo(priceDay.getTotalCusto()).add(custo)
             );
             priceDay.setQtdAbastecimentos(
-                priceDay.getQtdAbastecimentos() + 1
+                (priceDay.getQtdAbastecimentos() == null ? 0 : priceDay.getQtdAbastecimentos()) + 1
             );
             priceDay.recalcularPrecoMedio();
 
@@ -185,5 +187,9 @@ public class FuelPriceDayService {
         } else {
             return fuelPriceDayRepository.findByTenantIdOrderByDataDesc(tenantId);
         }
+    }
+
+    private static BigDecimal zeroSeNulo(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v;
     }
 }

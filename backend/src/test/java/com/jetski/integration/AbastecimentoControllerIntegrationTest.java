@@ -72,6 +72,20 @@ class AbastecimentoControllerIntegrationTest extends AbstractIntegrationTest {
         // Ensure test entities exist (idempotent - INSERT ... ON CONFLICT DO NOTHING)
         ensureTestEntitiesExist();
 
+        // Estado conhecido de fuel_policy: no máximo UMA GLOBAL ativa (seed 999
+        // do FuelPolicyControllerIntegrationTest). Os POSTs daquela classe criam
+        // outras GLOBAL ativas sem teardown e, dependendo da ordem, o cálculo do
+        // abastecimento achava 2 ativas → NonUnique → 500 (visto 15-16/jul).
+        jdbcTemplate.update(
+            "UPDATE fuel_policy SET ativo = false " +
+            "WHERE tenant_id = ? AND aplicavel_a = 'GLOBAL' AND id <> 999",
+            TENANT_ID);
+
+        // Estado conhecido de fuel_price_day: outra classe pode ter lançado o
+        // preço do dia (via controller, totais nulos) — os asserts de preço
+        // médio desta classe assumem acumulação a partir do zero.
+        jdbcTemplate.update("DELETE FROM fuel_price_day WHERE tenant_id = ?", TENANT_ID);
+
         // Mock tenant access with conditional logic for tenant matching
         when(tenantAccessService.validateAccess(any(String.class), eq(USER_ID.toString()), any(UUID.class)))
             .thenAnswer(invocation -> {
