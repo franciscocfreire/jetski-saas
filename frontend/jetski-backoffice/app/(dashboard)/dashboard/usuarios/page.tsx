@@ -46,6 +46,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 
 import { membrosService, convitesService } from '@/lib/api/services'
 import { useTenantStore } from '@/lib/store/tenant-store'
@@ -319,8 +320,10 @@ export default function UsuariosPage() {
 
   const { data: invitations, isLoading: loadingInvitations } = useQuery({
     queryKey: ['invitations', currentTenant?.id],
+    // Sem gate por aba: o contador "Convites Pendentes (N)" precisa vir
+    // correto já no primeiro paint, não só depois do clique na aba.
     queryFn: () => convitesService.listPending(),
-    enabled: !!currentTenant && activeTab === 'convites',
+    enabled: !!currentTenant,
   })
 
   // Mutations
@@ -469,16 +472,18 @@ export default function UsuariosPage() {
         {/* Members Tab */}
         <TabsContent value="membros" className="space-y-4">
           {/* Filters */}
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
+          <div className="flex items-center gap-4 rounded-lg border bg-muted/40 px-4 py-2.5">
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium">
+              <Switch
                 checked={showInactive}
-                onChange={(e) => setShowInactive(e.target.checked)}
-                className="rounded"
+                onCheckedChange={setShowInactive}
+                aria-label="Mostrar membros inativos"
               />
               Mostrar inativos
             </label>
+            <span className="text-xs text-muted-foreground">
+              Membros desativados podem ser reativados pelo menu ⋯ (não gastam vaga do plano enquanto inativos).
+            </span>
           </div>
 
           {/* Members Table */}
