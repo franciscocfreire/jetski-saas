@@ -134,6 +134,15 @@ function InviteUserDialog({
     },
   })
 
+  // O backend devolve mensagens acionáveis (limite do plano, membro inativo,
+  // convite duplicado) — elas precisam aparecer NO modal, não só no console.
+  const erroApi = inviteMutation.error as
+    | { response?: { data?: { message?: string } }; message?: string }
+    | null
+  const erroConvite = erroApi
+    ? erroApi.response?.data?.message || erroApi.message || 'Não foi possível enviar o convite.'
+    : null
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (formData.papeis.length === 0) {
@@ -143,7 +152,13 @@ function InviteUserDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(aberto) => {
+        if (!aberto) inviteMutation.reset()
+        onOpenChange(aberto)
+      }}
+    >
       <DialogContent className="sm:max-w-[500px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
@@ -188,6 +203,15 @@ function InviteUserDialog({
               />
             </div>
           </div>
+
+          {erroConvite && (
+            <p
+              role="alert"
+              className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {erroConvite}
+            </p>
+          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
