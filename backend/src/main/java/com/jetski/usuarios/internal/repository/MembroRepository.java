@@ -93,6 +93,18 @@ public interface MembroRepository extends JpaRepository<Membro, Integer> {
         @Param("email") String email
     );
 
+    /** Variante só de membros ATIVOS — desambigua o 409 do convite (ativo × inativo). */
+    @Query("""
+        SELECT CASE WHEN COUNT(m) > 0 THEN true ELSE false END
+        FROM Membro m
+        JOIN Usuario u ON m.usuarioId = u.id
+        WHERE m.tenantId = :tenantId AND u.email = :email AND m.ativo = true
+    """)
+    boolean existsByTenantIdAndEmailAndAtivo(
+        @Param("tenantId") UUID tenantId,
+        @Param("email") String email
+    );
+
     /**
      * Count active members in a tenant.
      * Used to validate plan limits.

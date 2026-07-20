@@ -96,10 +96,17 @@ public class UserInvitationService {
             );
         }
 
-        // 3. Validate email not already member
+        // 3. Validate email not already member — membro INATIVO orienta a
+        // reativação (Usuários → Mostrar inativos) em vez de só bloquear.
         if (membroRepository.existsByTenantIdAndEmail(tenantId, request.getEmail())) {
+            if (membroRepository.existsByTenantIdAndEmailAndAtivo(tenantId, request.getEmail())) {
+                throw new ConflictException(
+                    "Este email já é membro deste tenant"
+                );
+            }
             throw new ConflictException(
-                "Este email já é membro deste tenant"
+                "Este email pertence a um membro inativo deste tenant. "
+                + "Em Usuários → Membros, marque \"Mostrar inativos\" e use Reativar."
             );
         }
 
