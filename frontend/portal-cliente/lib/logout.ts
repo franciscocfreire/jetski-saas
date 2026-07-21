@@ -1,24 +1,13 @@
-import { signOut } from "next-auth/react";
 import { withBase } from "@/lib/base";
 
 /**
- * Logout FEDERADO (fix do "Sair que não sai"): o signOut do NextAuth limpa
- * só o cookie do portal — a sessão SSO do Keycloak continua viva e o
- * próximo "Entrar" loga de volta sem pedir senha. Aqui encerramos as duas:
- * cookie local + end_session no Keycloak (id_token_hint) com retorno ao
- * /login do portal.
+ * Logout FEDERADO (fix do "Sair que não sai"): encerrar SÓ o cookie do
+ * portal deixa a sessão SSO do Keycloak viva — o próximo "Entrar" loga de
+ * volta sem senha. A montagem da URL de end_session vive no servidor
+ * (/api/logout): o issuer está no host dedicado sso.* e só o servidor o
+ * conhece (KEYCLOAK_ISSUER). A rota limpa os cookies e redireciona ao
+ * Keycloak com id_token_hint.
  */
-export async function sairDaConta(idToken?: string) {
-  await signOut({ redirect: false });
-  const base = window.location.origin;
-  const destino = `${base}${withBase("/login")}`;
-  if (idToken) {
-    const url =
-      `${base}/realms/jetski-saas/protocol/openid-connect/logout` +
-      `?post_logout_redirect_uri=${encodeURIComponent(destino)}` +
-      `&id_token_hint=${encodeURIComponent(idToken)}`;
-    window.location.href = url;
-  } else {
-    window.location.href = destino;
-  }
+export function sairDaConta(_idToken?: string) {
+  window.location.href = withBase("/api/logout");
 }

@@ -287,7 +287,6 @@ services:
     environment:
       # Public URLs (relative - work with any host/ngrok)
       NEXT_PUBLIC_API_URL: /api
-      NEXT_PUBLIC_KEYCLOAK_URL: /realms/jetski-saas
 
       # NextAuth Configuration
       # Use ngrok URL for public access, or localhost for local dev
