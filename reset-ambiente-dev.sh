@@ -107,12 +107,17 @@ if [ -n "$PUBLIC_URL" ]; then
     # só no host www — e o login em app.* quebra ("Parâmetro inválido:
     # redirect_uri") após todo reset.
     APP_PUBLIC_URL="${APP_PUBLIC_URL:-$(echo "$PUBLIC_URL" | sed 's#//www\.#//app.#')}"
+    # Keycloak no host dedicado sso.* (deriva do www, como app./cliente.).
+    # O issuer dos tokens e o frontendUrl do realm nascem aqui — sem isso,
+    # todo reset voltaria o issuer para o www e o login quebraria.
+    SSO_PUBLIC_URL="${SSO_PUBLIC_URL:-$(echo "$PUBLIC_URL" | sed 's#//www\.#//sso.#')}"
     # Iniciar com variaveis do ngrok
     NEXTAUTH_URL="$APP_PUBLIC_URL" \
     APP_PUBLIC_URL="$APP_PUBLIC_URL" \
     PORTAL_PUBLIC_URL="${PORTAL_PUBLIC_URL:-$(echo "$PUBLIC_URL" | sed 's#//www\.#//cliente.#')}" \
     PORTAL_NEXTAUTH_URL="${PORTAL_PUBLIC_URL:-$(echo "$PUBLIC_URL" | sed 's#//www\.#//cliente.#')}" \
-    KEYCLOAK_ISSUER="$PUBLIC_URL/realms/jetski-saas" \
+    SSO_PUBLIC_URL="$SSO_PUBLIC_URL" \
+    KEYCLOAK_ISSUER="${SSO_PUBLIC_URL%/}/realms/jetski-saas" \
     JETSKI_FRONTEND_URL="$APP_PUBLIC_URL" \
     JETSKI_EXTERNAL_URL="$PUBLIC_URL" \
     docker compose up -d --build

@@ -124,13 +124,11 @@ if [ "$USE_LOCAL" = true ]; then
     KEYCLOAK_ISSUER="http://localhost:8080/realms/jetski-saas"
 else
     BASE_URL="${PUBLIC_URL:-$DEFAULT_PUBLIC_URL}"
-    KEYCLOAK_ISSUER="${BASE_URL}/realms/jetski-saas"
-    # Host dedicado do Keycloak (migração sso.*): opt-in via SSO_PUBLIC_URL
-    # (ex.: https://sso.pegaojet.com.br). Exige DNS/ingress no Cloudflare —
-    # sem a var, o issuer continua no host www.
-    if [ -n "${SSO_PUBLIC_URL:-}" ]; then
-        KEYCLOAK_ISSUER="${SSO_PUBLIC_URL%/}/realms/jetski-saas"
-    fi
+    # Keycloak no host dedicado sso.* (deriva do www, como app./cliente.).
+    # Cutover de 21/jul/2026: o issuer dos tokens vive em sso.*; um rebuild
+    # sem esta var reverteria o issuer para o www e quebraria o login.
+    SSO_PUBLIC_URL="${SSO_PUBLIC_URL:-$(echo "$BASE_URL" | sed 's#//www\.#//sso.#')}"
+    KEYCLOAK_ISSUER="${SSO_PUBLIC_URL%/}/realms/jetski-saas"
     JETSKI_FRONTEND_URL="${BASE_URL}"
     JETSKI_EXTERNAL_URL="${BASE_URL}"
 fi
@@ -250,6 +248,7 @@ PORTAL_NEXTAUTH_URL="$PORTAL_PUBLIC_URL" \
 PORTAL_PUBLIC_URL="$PORTAL_PUBLIC_URL" \
 STORAGE_MINIO_PUBLIC_URL="$BASE_URL" \
 KEYCLOAK_ISSUER="$KEYCLOAK_ISSUER" \
+SSO_PUBLIC_URL="${SSO_PUBLIC_URL:-}" \
 JETSKI_FRONTEND_URL="$APP_PUBLIC_URL" \
 JETSKI_EXTERNAL_URL="$BASE_URL" \
 PUBLIC_URL="$BASE_URL" \
