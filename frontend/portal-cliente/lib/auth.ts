@@ -26,6 +26,7 @@ declare module "next-auth/jwt" {
     accessToken?: string;
     refreshToken?: string;
     expiresAt?: number;
+    refreshExpiresAt?: number;
     idToken?: string;
     emailVerified?: boolean;
     error?: string;
@@ -58,6 +59,11 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
       accessToken: refreshed.access_token,
       refreshToken: refreshed.refresh_token ?? token.refreshToken,
       expiresAt: Math.floor(Date.now() / 1000) + refreshed.expires_in,
+      // Validade do próprio refresh token (janela deslizante do SSO idle) —
+      // usada no callback jwt p/ não tentar renovar com token já vencido.
+      refreshExpiresAt: refreshed.refresh_expires_in
+        ? Math.floor(Date.now() / 1000) + refreshed.refresh_expires_in
+        : token.refreshExpiresAt,
       idToken: refreshed.id_token ?? token.idToken,
       error: undefined,
     };
@@ -103,11 +109,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, account, profile }) {
       if (account) {
+        const refreshExpiresIn = account.refresh_expires_in as number | undefined;
         return {
           ...token,
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
           expiresAt: account.expires_at,
+          refreshExpiresAt: refreshExpiresIn
+            ? Math.floor(Date.now() / 1000) + refreshExpiresIn
+            : undefined,
           idToken: account.id_token,
           emailVerified:
             profile && typeof profile === "object" && "email_verified" in profile
@@ -119,6 +129,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const expiresAt = token.expiresAt as number | undefined;
       if (expiresAt && Date.now() < (expiresAt - 60) * 1000) {
         return token;
+      }
+      // Refresh token vencido (idle além do ssoSessionIdleTimeout): não chama
+      // o Keycloak — a chamada é condenada e só geraria REFRESH_TOKEN_ERROR
+      // no log. Marca a sessão como morta e deixa o front forçar re-login.
+      if (token.refreshExpiresAt && Date.now() >= token.refreshExpiresAt * 1000) {
+        return { ...token, error: "RefreshAccessTokenError" };
       }
       return refreshAccessToken(token);
     },

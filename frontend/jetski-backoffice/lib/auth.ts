@@ -17,6 +17,7 @@ declare module "next-auth/jwt" {
     accessToken?: string
     refreshToken?: string
     expiresAt?: number
+    refreshExpiresAt?: number
     idToken?: string
     tenantId?: string
     error?: string
@@ -77,6 +78,12 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
       accessToken: refreshedTokens.access_token,
       refreshToken: refreshedTokens.refresh_token ?? token.refreshToken, // Fall back to old refresh token
       expiresAt: Math.floor(Date.now() / 1000) + refreshedTokens.expires_in,
+      // Validade do PRÓPRIO refresh token (espelha o ssoSessionIdleTimeout,
+      // deslizante: cada refresh bem-sucedido renova a janela). Usada no
+      // callback jwt para nem tentar renovar com um token já vencido.
+      refreshExpiresAt: refreshedTokens.refresh_expires_in
+        ? Math.floor(Date.now() / 1000) + refreshedTokens.refresh_expires_in
+        : token.refreshExpiresAt,
       idToken: refreshedTokens.id_token ?? token.idToken,
       error: undefined, // Clear any previous error
     }
@@ -118,11 +125,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // Initial sign in - store tokens from account
       if (account) {
         console.log("[Auth] Initial sign in, storing tokens. Expires at:", account.expires_at)
+        // Keycloak devolve refresh_expires_in na resposta do token; o NextAuth
+        // repassa os campos extras no account (tipados como unknown).
+        const refreshExpiresIn = account.refresh_expires_in as number | undefined
         return {
           ...token,
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
           expiresAt: account.expires_at,
+          refreshExpiresAt: refreshExpiresIn
+            ? Math.floor(Date.now() / 1000) + refreshExpiresIn
+            : undefined,
           idToken: account.id_token,
           tenantId: profile && typeof profile === 'object' && 'tenant_id' in profile
             ? (profile.tenant_id as string)
@@ -138,6 +151,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (expiresAt && Date.now() < (expiresAt - bufferSeconds) * 1000) {
         // Token is still valid
         return token
+      }
+
+      // Refresh token já vencido (aba parada além do ssoSessionIdleTimeout):
+      // NÃO chama o Keycloak — a chamada é condenada e só geraria
+      // REFRESH_TOKEN_ERROR no log do servidor. Marca a sessão como morta
+      // localmente; o front trata o erro com signOut.
+      if (token.refreshExpiresAt && Date.now() >= token.refreshExpiresAt * 1000) {
+        console.log("[Auth] Refresh token expired, skipping doomed refresh call")
+        return { ...token, error: "RefreshAccessTokenError" }
       }
 
       // Token has expired or is about to expire - refresh it
