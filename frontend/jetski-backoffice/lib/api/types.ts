@@ -1809,3 +1809,21 @@ export const STATUS_DESPESA_MANUTENCAO = [
   { value: 'PAGA', label: 'Paga', color: 'green' },
   { value: 'CANCELADA', label: 'Cancelada', color: 'gray' },
 ] as const
+
+// ============================================================================
+// Perfil do usuário staff (/v1/user/me)
+// ============================================================================
+
+export interface UserProfile {
+  id: string
+  nome: string
+  email: string
+  emailVerified: boolean | null
+  telefone: string | null
+  /** Data URL base64 para exibição direta em <img>; null se sem avatar. */
+  avatarDataUrl: string | null
+  /** Tem credencial de senha própria (false = conta só-Google ou provedor indisponível). */
+  senhaGerenciavel: boolean
+  /** Tem vínculo Google (IdP broker) — distingue a mensagem da seção de senha. */
+  idpFederado: boolean
+}

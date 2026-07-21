@@ -138,6 +138,11 @@ keycloak:
     username: ${KEYCLOAK_ADMIN_USERNAME:admin}
     password: ${KEYCLOAK_ADMIN_PASSWORD}
     target-realm: ${KEYCLOAK_ADMIN_TARGET_REALM:jetski-saas}
+  # Client confidencial dedicado à validação de senha atual (perfil self-service).
+  # Sem secret configurado a troca de senha fica indisponível (fail-closed).
+  password-check:
+    client-id: ${KEYCLOAK_PASSWORD_CHECK_CLIENT_ID:jetski-password-check}
+    client-secret: ${KEYCLOAK_PASSWORD_CHECK_CLIENT_SECRET:}
 
 # Storage Configuration (MinIO S3-compatible)
 storage:

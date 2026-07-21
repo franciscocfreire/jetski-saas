@@ -183,4 +183,39 @@ public interface UserProvisioningService {
      * @return {@code true} se removido
      */
     boolean deleteUser(String providerUserId);
+
+    /**
+     * Resultado da validação de senha atual (perfil self-service).
+     *
+     * <p>{@code UNAVAILABLE} = provedor inacessível/mal configurado — o chamador
+     * deve falhar com erro genérico, NUNCA tratar como senha errada (evita
+     * mensagem enganosa e lockout por brute-force do realm).
+     */
+    enum PasswordCheck { VALID, INVALID, UNAVAILABLE }
+
+    /**
+     * Valida a senha ATUAL do usuário contra o provedor (direct grant em client
+     * dedicado). Pré-requisito da troca de senha self-service.
+     *
+     * <p>Atenção: senha errada repetida conta para o brute-force do realm; o
+     * chamador não deve fazer retry.
+     *
+     * @param username username no provedor (staff: e-mail)
+     */
+    PasswordCheck validatePassword(String username, String password);
+
+    /**
+     * Usuário possui credencial de senha própria? Conta criada só via IdP
+     * externo (Google) não tem — a troca de senha self-service fica bloqueada.
+     * Fail-closed: erro de comunicação retorna {@code false}.
+     */
+    boolean hasPasswordCredential(String providerUserId);
+
+    /**
+     * Redefine a senha (definitiva) do usuário. Em fluxo self-service, chamar
+     * SOMENTE após {@link #validatePassword} retornar {@code VALID}.
+     *
+     * @return {@code true} se redefinida
+     */
+    boolean resetPassword(String providerUserId, String novaSenha);
 }

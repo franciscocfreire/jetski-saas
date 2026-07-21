@@ -114,6 +114,10 @@ services:
       KEYCLOAK_ADMIN_SERVER_URL: http://keycloak:8080
       KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      # Validação de senha atual (perfil self-service) — sem secret, o fluxo de
+      # troca de senha fica indisponível (fail-closed). Converge no deploy via
+      # infra/prod/configure-keycloak-password-check.sh
+      KEYCLOAK_PASSWORD_CHECK_CLIENT_SECRET: ${KEYCLOAK_PASSWORD_CHECK_CLIENT_SECRET:-}
 
       JETSKI_OPA_BASE_URL: http://opa:8181
 

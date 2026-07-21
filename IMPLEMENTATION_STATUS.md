@@ -19,6 +19,10 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   (RN04, hierarquia campanha → modelo → faixa → default) e bônus/pagamento de vendedores.
 - Clientes: ficha completa, captura de lead (V040), anexos/documentos LGPD com propagação de
   identidade, pré-conta com convite (claim-token).
+- Perfil self-service do staff (`/dashboard/perfil`, V052): nome/telefone/avatar (tabela global
+  `usuario`, storage `usuarios/{id}/`), troca de senha in-app com validação da senha atual via
+  direct grant (client `jetski-password-check`) — oculta para conta só-Google; menu do usuário
+  na sidebar com nome/foto reais e links Perfil/Configurações.
 
 ### Documentação náutica (NORMAM-212)
 - Emissão CHA/EMA com anexos 5-B-1/5-B-2/5-C, instrutores, envio à Marinha por e-mail com

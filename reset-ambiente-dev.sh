@@ -804,6 +804,12 @@ BEGIN
     END IF;
 END $$;
 
+-- V052: perfil self-service do staff — telefone e avatar na tabela GLOBAL usuario
+-- (sem tenant_id/RLS; avatar no storage sob prefixo global usuarios/{id}/...)
+ALTER TABLE public.usuario ADD COLUMN IF NOT EXISTS telefone varchar(30);
+ALTER TABLE public.usuario ADD COLUMN IF NOT EXISTS avatar_key varchar(255);
+ALTER TABLE public.usuario ADD COLUMN IF NOT EXISTS avatar_content_type varchar(100);
+
 -- V045: billing manual assistido — fatura mensal da assinatura (PIX plataforma)
 CREATE TABLE IF NOT EXISTS public.fatura (
     id              uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
@@ -1579,6 +1585,11 @@ echo -e "${GREEN}   OK - Client mobile configurado!${NC}"
 echo -e "${YELLOW}11. Configurando client backoffice...${NC}"
 KEYCLOAK_URL="http://${KC_HOST}:${KC_PORT}" bash "$SCRIPT_DIR/infra/keycloak-setup/add-backoffice-client-dev.sh" 2>/dev/null || true
 echo -e "${GREEN}   OK - Client backoffice configurado!${NC}"
+
+# 11.0.1 Client de validação de senha (perfil self-service do staff)
+echo -e "${YELLOW}11.0.1 Configurando client password-check...${NC}"
+KEYCLOAK_URL="http://${KC_HOST}:${KC_PORT}" bash "$SCRIPT_DIR/infra/keycloak-setup/add-password-check-client-dev.sh" 2>/dev/null || true
+echo -e "${GREEN}   OK - Client password-check configurado!${NC}"
 
 # 11.1 Configurar URLs do túnel no client backoffice (se fornecido)
 if [ -n "$PUBLIC_URL" ]; then

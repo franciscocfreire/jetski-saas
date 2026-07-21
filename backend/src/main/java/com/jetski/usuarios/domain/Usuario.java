@@ -34,6 +34,16 @@ public class Usuario {
 
     private String nome;
 
+    @Column(length = 30)
+    private String telefone;
+
+    // Avatar no storage global usuarios/{id}/avatar.{ext} (fora do escopo por tenant)
+    @Column(name = "avatar_key", length = 255)
+    private String avatarKey;
+
+    @Column(name = "avatar_content_type", length = 100)
+    private String avatarContentType;
+
     @Column(nullable = false)
     private Boolean ativo = true;
 

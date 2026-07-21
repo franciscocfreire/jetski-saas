@@ -260,6 +260,11 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
                action.startsWith("health:") ||
                action.startsWith("metrics:") ||
                action.equals("user:list") ||   // Listar tenants não requer tenant específico
+               // Perfil self-service (/v1/user/me[/senha|/avatar]): escopo =
+               // exclusivamente o próprio sub do JWT — sem tenant, sem papel
+               action.equals("user:me") ||
+               action.equals("user:senha") ||
+               action.equals("user:avatar") ||
                action.equals("capitania:list") ||   // Catálogo de capitanias (V047) — autenticado, sem tenant específico
                action.equals("capitania:view") ||
                action.equals("user:invite") ||   // Convidar usuário - validação por Spring Security roles

@@ -37,6 +37,7 @@ import java.util.UUID;
 class KeycloakUserProvisioningAdapter implements UserProvisioningService {
 
     private final KeycloakAdminService keycloakAdminService;
+    private final KeycloakPasswordValidator keycloakPasswordValidator;
 
     @Override
     public String provisionUserWithPassword(
@@ -138,5 +139,20 @@ class KeycloakUserProvisioningAdapter implements UserProvisioningService {
     @Override
     public boolean deleteUser(String providerUserId) {
         return keycloakAdminService.deleteUser(providerUserId);
+    }
+
+    @Override
+    public PasswordCheck validatePassword(String username, String password) {
+        return keycloakPasswordValidator.validatePassword(username, password);
+    }
+
+    @Override
+    public boolean hasPasswordCredential(String providerUserId) {
+        return keycloakAdminService.hasPasswordCredential(providerUserId);
+    }
+
+    @Override
+    public boolean resetPassword(String providerUserId, String novaSenha) {
+        return keycloakAdminService.resetPassword(providerUserId, novaSenha);
     }
 }

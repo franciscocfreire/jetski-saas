@@ -492,6 +492,51 @@ public class KeycloakAdminService {
     }
 
     /**
+     * Redefine a senha do usuário (definitiva, temporary=false).
+     *
+     * Usado pelo perfil self-service do staff APÓS validar a senha atual via
+     * direct grant ({@link KeycloakPasswordValidator}) — nunca chamar sem essa
+     * validação em fluxo self-service.
+     *
+     * @return true se a senha foi redefinida
+     */
+    public boolean resetPassword(String keycloakUserId, String novaSenha) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            UserResource userResource = keycloak.realm(targetRealm).users().get(keycloakUserId);
+            CredentialRepresentation credential = new CredentialRepresentation();
+            credential.setType(CredentialRepresentation.PASSWORD);
+            credential.setValue(novaSenha);
+            credential.setTemporary(false);
+            userResource.resetPassword(credential);
+            log.info("Senha redefinida no Keycloak: userId={}", keycloakUserId);
+            return true;
+        } catch (Exception e) {
+            log.error("Erro ao redefinir senha no Keycloak: userId={}, error={}",
+                keycloakUserId, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Usuário possui credencial de senha própria? Conta criada só via Google
+     * (IdP broker) não tem — a seção "trocar senha" do perfil fica oculta.
+     *
+     * <p>Fail-closed: erro de comunicação retorna false (a troca de senha é
+     * bloqueada; o log distingue as causas).
+     */
+    public boolean hasPasswordCredential(String keycloakUserId) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            return keycloak.realm(targetRealm).users().get(keycloakUserId)
+                .credentials().stream()
+                .anyMatch(c -> CredentialRepresentation.PASSWORD.equals(c.getType()));
+        } catch (Exception e) {
+            log.error("Erro ao consultar credenciais no Keycloak: userId={}, error={}",
+                keycloakUserId, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
      * Estatísticas de sessões ativas por client do realm alvo
      * (Admin API {@code GET /admin/realms/{realm}/client-session-stats}).
      *

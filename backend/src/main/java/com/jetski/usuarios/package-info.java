@@ -28,6 +28,7 @@
  *   <li>{@code shared::security} - Contexto de tenant, autenticação e provisionamento de usuários</li>
  *   <li>{@code shared::exception} - Exceções de negócio</li>
  *   <li>{@code shared::email} - Serviço de envio de emails para notificações</li>
+ *   <li>{@code shared::storage} - Avatar do perfil self-service (prefixo global usuarios/)</li>
  * </ul>
  *
  * <p><strong>Arquitetura orientada a eventos:</strong><br>
@@ -38,6 +39,6 @@
  */
 @org.springframework.modulith.ApplicationModule(
     displayName = "Users and Members",
-    allowedDependencies = {"shared::security", "shared::exception", "shared::email", "tenant", "tenant::domain", "tenant::events"}
+    allowedDependencies = {"shared::security", "shared::exception", "shared::email", "shared::storage", "tenant", "tenant::domain", "tenant::events"}
 )
 package com.jetski.usuarios;

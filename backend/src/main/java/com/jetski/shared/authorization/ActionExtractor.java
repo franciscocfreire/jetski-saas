@@ -237,7 +237,10 @@ public class ActionExtractor {
             "registrar-pagamento", "no-show", "registrar-estorno", "extrato",
             // Emissão delegada (V048/V049): vínculo operadora×EAMA + painel do emissor
             "aceitar", "bloquear", "liberar", "revogar", "termo",
-            "instrutores-parceiro", "contagens", "instrutores-designados"
+            "instrutores-parceiro", "contagens", "instrutores-designados",
+            // Perfil self-service do staff (/v1/user/me[/senha|/avatar]) —
+            // ações user:me/user:senha/user:avatar puladas no ABACAuthorizationInterceptor
+            "me", "senha", "avatar"
         };
 
         for (String subAction : knownSubActions) {

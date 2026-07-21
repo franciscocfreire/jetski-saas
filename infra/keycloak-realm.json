@@ -200,6 +200,21 @@
       ]
     },
     {
+      "clientId": "jetski-password-check",
+      "name": "Validação de senha (perfil self-service)",
+      "description": "Client confidencial dedicado ao direct grant que valida a senha ATUAL na troca de senha do perfil staff — sem standard flow, sem service account",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "${KEYCLOAK_PASSWORD_CHECK_CLIENT_SECRET:dev-password-check-secret}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [],
+      "webOrigins": []
+    },
+    {
       "clientId": "grafana",
       "name": "Grafana (observabilidade)",
       "description": "OIDC do Grafana — acesso restrito às roles grafana_admin/grafana_viewer",

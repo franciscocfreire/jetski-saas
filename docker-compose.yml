@@ -213,6 +213,9 @@ services:
       KEYCLOAK_ADMIN_SERVER_URL: http://keycloak:8080
       KEYCLOAK_ADMIN_USERNAME: admin
       KEYCLOAK_ADMIN_PASSWORD: Mazuca@123
+      # Client confidencial da validação de senha atual (perfil self-service);
+      # default igual ao secret do realm dev (infra/keycloak-realm.json)
+      KEYCLOAK_PASSWORD_CHECK_CLIENT_SECRET: ${KEYCLOAK_PASSWORD_CHECK_CLIENT_SECRET:-dev-password-check-secret}
 
       # OPA
       JETSKI_OPA_BASE_URL: http://opa:8181

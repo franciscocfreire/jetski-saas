@@ -54,11 +54,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Logo } from '@/components/logo'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { useQuery } from '@tanstack/react-query'
-import { configuracoesService } from '@/lib/api/services'
+import { useSession } from 'next-auth/react'
+import { configuracoesService, perfilService } from '@/lib/api/services'
 
 type NavItem = {
   title: string
@@ -258,6 +259,7 @@ const platformItems: NavItem[] = [
 export function AppSidebar() {
   const pathname = usePathname()
   const { currentTenant, tenants, setCurrentTenant, accessType } = useTenantStore()
+  const { data: session } = useSession()
 
   // Logo white-label do tenant (mesma query do TenantThemeProvider — deduplicada)
   const { data: branding } = useQuery({
@@ -267,6 +269,24 @@ export function AppSidebar() {
     staleTime: 5 * 60 * 1000,
     retry: false,
   })
+
+  // Nome/avatar reais do usuário (mesma query da página de perfil — invalidada
+  // ao salvar lá; staleTime evita bater no Keycloak a cada navegação)
+  const { data: perfil } = useQuery({
+    queryKey: ['user-profile'],
+    queryFn: () => perfilService.getMe(),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  })
+
+  const displayName = perfil?.nome || session?.user?.name || 'Usuário'
+  const iniciais =
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]!.toUpperCase())
+      .join('') || 'U'
 
   // Gating de oferta (V046): item com `modulo` fora do plano some do menu.
   // null/ausente = todos os módulos; superadmin sempre vê tudo; array = basta
@@ -485,10 +505,11 @@ export function AppSidebar() {
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
                   <Avatar className="size-8">
-                    <AvatarFallback>U</AvatarFallback>
+                    {perfil?.avatarDataUrl && <AvatarImage src={perfil.avatarDataUrl} alt="" />}
+                    <AvatarFallback>{iniciais}</AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col gap-0.5 leading-none">
-                    <span className="font-medium">Usuário</span>
+                    <span className="max-w-[140px] truncate font-medium">{displayName}</span>
                     <span className="text-xs text-muted-foreground">
                       {currentTenant?.roles?.join(', ') || 'Carregando...'}
                     </span>
@@ -500,8 +521,18 @@ export function AppSidebar() {
                 className="w-[--radix-dropdown-menu-trigger-width]"
                 align="start"
               >
-                <DropdownMenuItem>Perfil</DropdownMenuItem>
-                <DropdownMenuItem>Configurações</DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/perfil">
+                    <UserCircle className="mr-2 size-4" />
+                    Perfil
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/configuracoes">
+                    <Settings className="mr-2 size-4" />
+                    Configurações
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/dashboard/usuarios">
                     <Users className="mr-2 size-4" />
