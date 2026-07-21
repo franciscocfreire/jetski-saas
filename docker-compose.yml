@@ -89,8 +89,9 @@ services:
       KC_DB_SCHEMA: keycloak
 
       # Hostname config - importante para funcionar atrás do túnel (Cloudflare)
+      # (KC_HOSTNAME_STRICT_HTTPS é opção do hostname v1, removida no KC 26 —
+      # só gerava warning no boot; hostname dinâmico já cobre o caso do túnel)
       KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
 

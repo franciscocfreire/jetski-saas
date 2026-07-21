@@ -35,7 +35,11 @@ services:
     restart: unless-stopped
 
   keycloak:
-    # start-dev por trás do tunnel (proxy=edge via headers) — comprovado com ngrok.
+    # Modo produção (start): valida a config no boot, liga cache de theme e
+    # remove o warning "dev mode" dos logs. TLS termina no Cloudflare, então
+    # KC_HTTP_ENABLED + KC_PROXY_HEADERS (herdados do base) continuam valendo.
+    # O --import-realm funciona igual no start (realm existente = import skipped).
+    command: start --import-realm
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
@@ -44,8 +48,12 @@ services:
       KC_DB_USERNAME: jetski
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
       KC_DB_SCHEMA: keycloak
-      KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME_STRICT_HTTPS: "false"
+      # Hostname v2: URL pública fixa (mesmo issuer que backend/frontends já
+      # validam). O backchannel dinâmico é OBRIGATÓRIO: backend (JWKS, admin
+      # API, ROPC do password-check) e os scripts configure-keycloak-*.sh
+      # falam com http://keycloak:8080 — sem ele, essas chamadas quebram.
+      KC_HOSTNAME: ${PUBLIC_URL}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
