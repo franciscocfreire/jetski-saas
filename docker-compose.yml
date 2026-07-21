@@ -207,8 +207,11 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
 
-      # Keycloak OAuth2
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/jetski-saas
+      # Keycloak OAuth2 — o decoder (SecurityConfig) valida o iss do token
+      # contra este valor (+ variantes de dev). Com SSO_PUBLIC_URL definida
+      # (host dedicado sso.*), os tokens nascem com esse iss e o issuer
+      # configurado precisa acompanhar; o JWKS continua interno.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${SSO_PUBLIC_URL:-http://keycloak:8080}/realms/jetski-saas
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/jetski-saas/protocol/openid-connect/certs
 
       # Keycloak Admin
