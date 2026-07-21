@@ -81,7 +81,7 @@ public class TenantSignupService {
      * ser registrados por empresas.
      */
     private static final Set<String> SLUGS_RESERVADOS = Set.of(
-        "www", "api", "app", "portal", "cliente", "admin", "auth", "keycloak", "login", "signup",
+        "www", "api", "app", "portal", "cliente", "admin", "auth", "keycloak", "login", "signup", "sso",
         "excalidraw", "drawio", "kroki",
         "mail", "smtp", "email", "webmail", "ftp", "cdn", "static", "assets",
         "grafana", "prometheus", "alertmanager", "minio", "storage", "mailpit",

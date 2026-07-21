@@ -52,7 +52,9 @@ services:
       # validam). O backchannel dinâmico é OBRIGATÓRIO: backend (JWKS, admin
       # API, ROPC do password-check) e os scripts configure-keycloak-*.sh
       # falam com http://keycloak:8080 — sem ele, essas chamadas quebram.
-      KC_HOSTNAME: ${PUBLIC_URL}
+      # SSO_PUBLIC_URL (ex.: https://sso.meujet.com.br) faz o cutover para o
+      # host dedicado do Keycloak; sem ela, o issuer continua no host www.
+      KC_HOSTNAME: ${SSO_PUBLIC_URL:-${PUBLIC_URL}}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
@@ -116,7 +118,7 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
 
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${PUBLIC_URL}/realms/jetski-saas
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${SSO_PUBLIC_URL:-${PUBLIC_URL}}/realms/jetski-saas
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/jetski-saas/protocol/openid-connect/certs
 
       KEYCLOAK_ADMIN_SERVER_URL: http://keycloak:8080
@@ -187,7 +189,7 @@ services:
       AUTH_TRUST_HOST: "true"
       KEYCLOAK_CLIENT_ID: jetski-customer-portal
       KEYCLOAK_CLIENT_SECRET: ""
-      KEYCLOAK_ISSUER: ${PUBLIC_URL}/realms/jetski-saas
+      KEYCLOAK_ISSUER: ${SSO_PUBLIC_URL:-${PUBLIC_URL}}/realms/jetski-saas
     ports: !override
       - "127.0.0.1:3003:3000"
     mem_limit: 500m
@@ -204,7 +206,7 @@ services:
       KEYCLOAK_CLIENT_ID: jetski-backoffice
       # client público + PKCE (NextAuth não usa secret)
       KEYCLOAK_CLIENT_SECRET: ""
-      KEYCLOAK_ISSUER: ${PUBLIC_URL}/realms/jetski-saas
+      KEYCLOAK_ISSUER: ${SSO_PUBLIC_URL:-${PUBLIC_URL}}/realms/jetski-saas
     ports: !override
       - "127.0.0.1:3001:3000"
     mem_limit: 700m

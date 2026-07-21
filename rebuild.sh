@@ -125,6 +125,12 @@ if [ "$USE_LOCAL" = true ]; then
 else
     BASE_URL="${PUBLIC_URL:-$DEFAULT_PUBLIC_URL}"
     KEYCLOAK_ISSUER="${BASE_URL}/realms/jetski-saas"
+    # Host dedicado do Keycloak (migração sso.*): opt-in via SSO_PUBLIC_URL
+    # (ex.: https://sso.pegaojet.com.br). Exige DNS/ingress no Cloudflare —
+    # sem a var, o issuer continua no host www.
+    if [ -n "${SSO_PUBLIC_URL:-}" ]; then
+        KEYCLOAK_ISSUER="${SSO_PUBLIC_URL%/}/realms/jetski-saas"
+    fi
     JETSKI_FRONTEND_URL="${BASE_URL}"
     JETSKI_EXTERNAL_URL="${BASE_URL}"
 fi

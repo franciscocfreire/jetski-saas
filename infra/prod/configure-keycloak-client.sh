@@ -95,11 +95,13 @@ converge_client "jetski-backoffice" "${APP_PUBLIC_URL:-$PUBLIC_URL}" "Jetski Bac
 converge_client "jetski-customer-portal" "${PORTAL_PUBLIC_URL:-$PUBLIC_URL}" "Meu Jet — Portal do Cliente"
 
 # Frontend URL do realm: base pública dos links gerados (e-mails de verificação,
-# action-tokens). Sem isso, e-mails disparados por chamadas internas do backend
-# saem com http://keycloak:8080.
-echo ">> Realm frontendUrl: ${PUBLIC_URL%/}"
+# action-tokens) E do issuer efetivo (sobrepõe o KC_HOSTNAME). Sem isso,
+# e-mails disparados por chamadas internas do backend saem com
+# http://keycloak:8080. SSO_PUBLIC_URL (host dedicado sso.*) tem precedência.
+SSO_BASE="${SSO_PUBLIC_URL:-$PUBLIC_URL}"
+echo ">> Realm frontendUrl: ${SSO_BASE%/}"
 curl -s "$KC/admin/realms/$REALM" -H "Authorization: Bearer $TOKEN" \
-  | BASE="${PUBLIC_URL%/}" python3 -c '
+  | BASE="${SSO_BASE%/}" python3 -c '
 import sys, json, os
 d = json.load(sys.stdin)
 a = d.get("attributes") or {}
