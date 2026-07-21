@@ -1,4 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import { signOut } from 'next-auth/react'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8090/api'
 
@@ -19,6 +20,24 @@ const processQueue = (error: Error | null, token: string | null = null) => {
     }
   })
   failedQueue = []
+}
+
+// Prevents duplicate signOut() calls when multiple pollers hit a dead
+// refresh token around the same time (each would otherwise redirect once).
+let signingOut = false
+
+/**
+ * Terminate the session for real when the refresh token is dead.
+ * Clearing sessionStorage alone leaves the NextAuth httpOnly cookie (and its
+ * dead refresh token) in place, so every subsequent poller keeps retrying
+ * the refresh against Keycloak forever. signOut() clears that cookie too.
+ */
+async function forceSignOut() {
+  if (typeof window === 'undefined' || signingOut) return
+  signingOut = true
+  sessionStorage.removeItem('accessToken')
+  sessionStorage.removeItem('tenantId')
+  await signOut({ callbackUrl: '/login?error=SessionExpired' })
 }
 
 /**
@@ -133,23 +152,14 @@ apiClient.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${newToken}`
           return apiClient(originalRequest)
         } else {
-          // Refresh failed - redirect to login
+          // Refresh failed - session is dead, terminate it for real
           processQueue(new Error('Token refresh failed'), null)
-          if (typeof window !== 'undefined') {
-            // Clear stored tokens
-            sessionStorage.removeItem('accessToken')
-            sessionStorage.removeItem('tenantId')
-            window.location.href = '/login?error=SessionExpired'
-          }
+          await forceSignOut()
           return Promise.reject(error)
         }
       } catch (refreshError) {
         processQueue(refreshError as Error, null)
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem('accessToken')
-          sessionStorage.removeItem('tenantId')
-          window.location.href = '/login?error=SessionExpired'
-        }
+        await forceSignOut()
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false
