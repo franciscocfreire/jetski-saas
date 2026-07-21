@@ -267,6 +267,50 @@ groups:
                 - evaluator: { type: lt, params: [1] }
 
       # ------------------------------------------------------------------
+      # Falhas de renovação de token (REFRESH_TOKEN_ERROR). Desde os fixes de
+      # jul/2026 o front NÃO tenta renovar token vencido, então o normal é ~0.
+      # Volume sustentado indica regressão no client (sessão zumbi retentando)
+      # ou replay de token. Limiar absoluto (não razão): com pouco tráfego a
+      # razão explode com 1 usuário; revisar o limiar quando a base crescer.
+      - uid: refresh-falhas-altas
+        title: Falhas de renovação de token
+        condition: C
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: >-
+            Mais de 15 REFRESH_TOKEN_ERROR em 15 minutos no Keycloak, por 10
+            minutos seguidos. Normal é ~zero (o front não renova token vencido).
+            Suspeitos: regressão do fix de sessão zumbi no NextAuth ou replay
+            de token. Ver "Renovações de token" no dashboard Usuários &
+            Autenticação e os eventos no log do Keycloak (type=REFRESH_TOKEN_ERROR).
+        isPaused: false
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: Prometheus
+            model:
+              expr: >-
+                sum(increase(keycloak_user_events_total{realm="jetski-saas",
+                event="refresh_token", error!=""}[15m]))
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [15] }
+
+      # ------------------------------------------------------------------
       # Backup diário: marcador last-success com mais de 26h = o backup das
       # 04:00 falhou/não rodou. Em DEV o arquivo não existe → noDataState OK
       # (sem falso alarme).

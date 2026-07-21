@@ -378,6 +378,88 @@
           "refId": "B"
         }
       ]
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "Renovações de token: sucesso × falha",
+      "description": "Refreshes server-side do NextAuth (backoffice e portal). Falha aqui é sinal real: revogação server-side, logout em outro dispositivo ou replay — o front não tenta renovar token já vencido desde jul/2026.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1, "barAlignment": 0,
+            "stacking": { "mode": "normal", "group": "A" },
+            "showPoints": "never", "spanNulls": false,
+            "axisLabel": "", "axisPlacement": "auto", "scaleDistribution": { "type": "linear" },
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum by (client_id) (increase(keycloak_user_events_total{realm=\"jetski-saas\", event=\"refresh_token\", error=\"\"}[$__interval]))",
+          "legendFormat": "ok — {{client_id}}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "sum by (client_id, error) (increase(keycloak_user_events_total{realm=\"jetski-saas\", event=\"refresh_token\", error!=\"\"}[$__interval]))",
+          "legendFormat": "FALHA {{error}} — {{client_id}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Taxa de falha de renovação (%)",
+      "description": "REFRESH_TOKEN_ERROR / total de refreshes. Ruído normal ≈ 0-2%; salto sustentado = regressão no client (sessão zumbi) ou tentativa de replay. Alerta dispara por volume absoluto sustentado (ver regra \"Falhas de renovação de token\").",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "barAlignment": 0,
+            "stacking": { "mode": "none", "group": "A" },
+            "showPoints": "never", "spanNulls": false,
+            "axisLabel": "", "axisPlacement": "auto", "scaleDistribution": { "type": "linear" },
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "unit": "percent",
+          "decimals": 1,
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "expr": "100 * sum(rate(keycloak_user_events_total{realm=\"jetski-saas\", event=\"refresh_token\", error!=\"\"}[15m])) / sum(rate(keycloak_user_events_total{realm=\"jetski-saas\", event=\"refresh_token\"}[15m]))",
+          "legendFormat": "taxa de falha (janela 15m)",
+          "refId": "A"
+        }
+      ]
     }
   ]
 }
