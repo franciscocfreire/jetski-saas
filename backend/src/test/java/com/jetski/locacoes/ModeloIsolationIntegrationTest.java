@@ -2,6 +2,8 @@ package com.jetski.locacoes;
 
 import com.jetski.integration.AbstractIntegrationTest;
 import com.jetski.locacoes.api.ModeloService;
+import com.jetski.locacoes.domain.Jetski;
+import com.jetski.locacoes.internal.JetskiService;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.security.TenantContext;
 import org.junit.jupiter.api.AfterEach;
@@ -28,6 +30,7 @@ class ModeloIsolationIntegrationTest extends AbstractIntegrationTest {
     private static final UUID TENANT_ACME = UUID.fromString("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
 
     @Autowired ModeloService modeloService;
+    @Autowired JetskiService jetskiService;
     @Autowired JdbcTemplate jdbc;
 
     private UUID outroTenant;
@@ -96,5 +99,24 @@ class ModeloIsolationIntegrationTest extends AbstractIntegrationTest {
             .build());
         assertThat(criado.getId()).isNotNull();
         jdbc.update("DELETE FROM modelo WHERE id = ?", criado.getId());
+    }
+
+    /**
+     * Regressão do incidente de 21/jul/2026 (prod): jetski criado com modelo de
+     * OUTRO tenant (aceito pelo antigo existsById sem escopo) gera FK
+     * cross-tenant e trava o reset/exclusão da empresa dona do modelo.
+     */
+    @Test
+    @DisplayName("criar jetski com modelo de outro tenant → 'Modelo não encontrado'")
+    void createJetskiRejeitaModeloDeOutroTenant() {
+        TenantContext.setTenantId(outroTenant);
+
+        assertThatThrownBy(() -> jetskiService.createJetski(Jetski.builder()
+                .tenantId(outroTenant)
+                .modeloId(modeloAcmeMarketplace)
+                .serie("LEAK-CROSS-001")
+                .build()))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("Modelo não encontrado");
     }
 }

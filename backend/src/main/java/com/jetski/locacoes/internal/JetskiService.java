@@ -136,8 +136,11 @@ public class JetskiService {
         planoLimiteService.verificar(jetski.getTenantId(), "frota_max",
             jetskiRepository.countByTenantIdAndAtivoTrue(jetski.getTenantId()), "jetskis ativos");
 
-        // Validate model exists
-        if (!modeloRepository.existsById(jetski.getModeloId())) {
+        // Modelo DO TENANT — a policy marketplace_public_read torna modelos de
+        // outros tenants visíveis à RLS; existsById aceitaria modelo alheio e
+        // criaria FK cross-tenant (visto em prod: jetskis apontando para modelo
+        // de outro tenant travam o reset/exclusão da empresa dona do modelo).
+        if (!modeloRepository.existsByIdAndTenantId(jetski.getModeloId(), jetski.getTenantId())) {
             throw new BusinessException("Modelo não encontrado");
         }
 

@@ -47,6 +47,9 @@ public interface ModeloRepository extends JpaRepository<Modelo, UUID> {
     /** Busca por id DO TENANT — nunca devolve modelo de marketplace alheio. */
     Optional<Modelo> findByIdAndTenantId(UUID id, UUID tenantId);
 
+    /** Existência por id DO TENANT — modelo de marketplace alheio conta como inexistente. */
+    boolean existsByIdAndTenantId(UUID id, UUID tenantId);
+
     /**
      * Nome já usado DO TENANT (unicidade por tenant — o filtro explícito evita
      * colisão falsa com modelo homônimo de outro tenant exibido no marketplace).
