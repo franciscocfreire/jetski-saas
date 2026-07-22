@@ -15,7 +15,12 @@ export default function EmailCodeId(props: PageProps<Extract<KcContext, { pageId
 
     const { kcClsx } = getKcClsx({ doUseDefaultCss, classes });
 
-    const { url, mjSocial } = kcContext;
+    const { url, client, mjSocial } = kcContext;
+
+    // CTA de signup de EMPRESA: só no client do backoffice (o portal do
+    // cliente não cria tenant). client.baseUrl chega RESOLVIDO do Keycloak
+    // (rootUrl+baseUrl → https://app.{domínio}/), sem hardcode de domínio.
+    const signupUrl = client.clientId === "jetski-backoffice" && client.baseUrl ? `${client.baseUrl.replace(/\/$/, "")}/signup` : undefined;
 
     const { msg, msgStr } = i18n;
 
@@ -48,6 +53,14 @@ export default function EmailCodeId(props: PageProps<Extract<KcContext, { pageId
                                 ))}
                             </ul>
                         </div>
+                    )}
+                    {signupUrl !== undefined && (
+                        <>
+                            <div className="mj-social-divider">{msg("mjEcNewHere")}</div>
+                            <a id="mj-create-account" className="mj-btn-secondary" href={signupUrl}>
+                                {msg("mjEcCreateAccount")}
+                            </a>
+                        </>
                     )}
                 </>
             }

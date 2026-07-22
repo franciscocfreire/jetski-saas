@@ -333,6 +333,14 @@ span.required {
 
 /* ---------------- Login sem senha (email-code, SPI meujet) ------------ */
 
+/* CTA "Criar conta gratuita" (âncora vestida de botão secundário) — vence a
+   regra genérica de links do card, que vem depois no arquivo */
+.mj-card a.mj-btn-secondary,
+.mj-card a.mj-btn-secondary:hover {
+    color: var(--mj-navy-700);
+    text-decoration: none;
+}
+
 /* texto de instrução acima do form (telas do código por e-mail) */
 .mj-instruction {
     margin: 0 0 14px;

@@ -47,6 +47,8 @@ const { useI18n, ofTypeI18n } = i18nBuilder
             mjEcSendCode: "Receber código por e-mail",
             mjEcPasswordRequired: "Digite sua senha para entrar.",
             mjEcCodeRequired: "Digite o código de 6 dígitos.",
+            mjEcNewHere: "novo por aqui?",
+            mjEcCreateAccount: "Criar conta gratuita",
 
             // Reset de senha (vale também para quem só entra com Google:
             // o link cria uma senha para a conta)
@@ -133,6 +135,8 @@ const { useI18n, ofTypeI18n } = i18nBuilder
             mjEcSendCode: "Get code by e-mail",
             mjEcPasswordRequired: "Enter your password to sign in.",
             mjEcCodeRequired: "Enter the 6-digit code.",
+            mjEcNewHere: "new here?",
+            mjEcCreateAccount: "Create free account",
 
             emailForgotTitle: "Recover access",
             emailInstruction:

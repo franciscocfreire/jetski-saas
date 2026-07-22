@@ -17,6 +17,9 @@ export type KcContextExtension = {
 export type KcContextExtensionPerPage = {
     "email-code-id.ftl": {
         mjSocial?: Array<{ alias: string; displayName: string; loginUrl: string }>;
+        /** Presente no kcContext em runtime (ClientBean resolve rootUrl+baseUrl),
+         *  mas fora do tipo base das páginas custom do Keycloakify. */
+        client: { baseUrl?: string };
     };
     "email-code-verify.ftl": {
         /** "password" = senha à frente (default) | "code" = código já pedido. */

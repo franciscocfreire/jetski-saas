@@ -1,11 +1,24 @@
 'use client'
 
-import { signIn } from 'next-auth/react'
+import { Suspense, useEffect, useState } from 'react'
+import { signIn, useSession } from 'next-auth/react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/logo'
 
-/** "G" oficial do Google (lucide não tem marcas). */
+/**
+ * Trampolim de login (mesmo padrão do portal do cliente): a tela de
+ * credenciais é a do Keycloak (e-mail/CPF → senha ou código + Google +
+ * "Criar conta gratuita" para este client) — esta página só redireciona.
+ *
+ * Guardas anti-loop (não remover):
+ * - `?error=` (pages.error do NextAuth aponta pra cá): NÃO auto-redireciona;
+ *   mostra o card manual, senão erro de auth viraria loop infinito.
+ * - `authenticated`: vai direto pro dashboard sem novo fluxo OIDC.
+ * - latch `entrando`: um clique/efeito duplo não abre dois fluxos PKCE.
+ */
 function GoogleIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
@@ -18,133 +31,118 @@ function GoogleIcon({ size = 18 }: { size?: number }) {
 }
 
 export default function LoginPage() {
-  const handleLogin = () => {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-auth-gradient text-muted-foreground">
+          <Loader2 className="animate-spin" />
+          <p className="text-sm">Carregando…</p>
+        </div>
+      }
+    >
+      <LoginInner />
+    </Suspense>
+  )
+}
+
+function LoginInner() {
+  const params = useSearchParams()
+  const router = useRouter()
+  const { status } = useSession()
+  const veioComErro = !!params.get('error')
+  const [entrando, setEntrando] = useState(false)
+
+  function entrar() {
+    if (entrando) return
+    setEntrando(true)
     signIn('keycloak', { callbackUrl: '/dashboard' })
   }
 
-  const handleLoginGoogle = () => {
+  function entrarComGoogle() {
+    if (entrando) return
+    setEntrando(true)
     // kc_idp_hint: o Keycloak pula a própria tela e vai direto ao Google.
-    // Conta staff existente com o mesmo e-mail passa pela confirmação do
-    // Keycloak ("conta já existe") e mantém papéis/tenant.
     signIn('keycloak', { callbackUrl: '/dashboard' }, { kc_idp_hint: 'google' })
   }
 
-  return (
-    <div className="flex min-h-screen">
-      {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-ocean-gradient items-center justify-center p-12">
-        <div className="text-center text-white">
-          <div className="mb-8">
-            <Logo variant="full" theme="dark" size={56} className="mx-auto mb-4 flex-col gap-4" />
-            <p className="mt-4 text-xl text-white/80">
-              Gestão completa para sua frota de jet skis
-            </p>
-          </div>
-          <div className="mt-12 space-y-4 text-left max-w-md mx-auto">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
-                <span className="text-lg">1</span>
-              </div>
-              <p className="text-white/90">Controle de reservas e locações em tempo real</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
-                <span className="text-lg">2</span>
-              </div>
-              <p className="text-white/90">Check-in e check-out com fotos obrigatórias</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
-                <span className="text-lg">3</span>
-              </div>
-              <p className="text-white/90">Gestão de manutenção e combustível</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
-                <span className="text-lg">4</span>
-              </div>
-              <p className="text-white/90">Comissões e fechamentos automatizados</p>
-            </div>
-          </div>
-        </div>
+  // Fluxo normal (sem erro): já logado → dashboard; deslogado → Keycloak direto.
+  useEffect(() => {
+    if (veioComErro || status === 'loading') return
+    if (status === 'authenticated') {
+      router.replace('/dashboard')
+      return
+    }
+    entrar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [veioComErro, status])
+
+  if (!veioComErro) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-auth-gradient text-muted-foreground">
+        <Loader2 className="animate-spin" />
+        <p className="text-sm">Abrindo login seguro…</p>
       </div>
+    )
+  }
 
-      {/* Right side - Login Form */}
-      <div className="flex w-full lg:w-1/2 items-center justify-center bg-auth-gradient p-8">
-        <div className="w-full max-w-md space-y-8">
-          {/* Mobile Logo */}
-          <div className="lg:hidden mb-8 flex justify-center">
-            <Logo variant="full" theme="light" size={40} />
-          </div>
+  // Fallback com ?error= (sessão expirada / falha de auth): acesso manual.
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-auth-gradient p-8">
+      <div className="w-full max-w-md space-y-8">
+        <div className="flex justify-center">
+          <Logo variant="full" theme="light" size={40} />
+        </div>
 
-          <div className="rounded-xl bg-white p-8 shadow-xl">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold tracking-tight">
-                Bem-vindo de volta!
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Acesse sua conta para gerenciar sua frota
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <Button
-                onClick={handleLogin}
-                className="w-full h-12 text-base font-semibold"
-                size="lg"
-              >
-                Entrar com sua conta
-              </Button>
-
-              <Button
-                onClick={handleLoginGoogle}
-                variant="outline"
-                className="w-full h-12 text-base gap-2"
-                size="lg"
-              >
-                <GoogleIcon /> Entrar com Google
-              </Button>
-
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-muted-foreground">
-                    Novo por aqui?
-                  </span>
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                className="w-full h-12 text-base border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-all"
-                size="lg"
-                asChild
-              >
-                <Link href="/signup">
-                  Criar Conta Gratuita
-                </Link>
-              </Button>
-            </div>
-
-            <p className="mt-6 text-center text-xs text-muted-foreground">
-              Ao continuar, você concorda com nossos{' '}
-              <a href="/termos" target="_blank" className="text-primary hover:underline">Termos de Uso</a>
-              {' '}e{' '}
-              <a href="/privacidade" target="_blank" className="text-primary hover:underline">Política de Privacidade</a>.
+        <div className="rounded-xl bg-white p-8 shadow-xl">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold tracking-tight">Bem-vindo de volta!</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Sua sessão expirou ou o login não pôde ser concluído. Tente novamente.
             </p>
           </div>
 
-          <p className="text-center text-sm text-muted-foreground">
-            Precisa de ajuda? Veja a{' '}
-            <a href="/ajuda" className="text-primary hover:underline font-medium">Central de Ajuda</a>
-            {' '}ou{' '}
-            <a href="mailto:suporte@meujet.com.br" className="text-primary hover:underline font-medium">
-              fale conosco
-            </a>
+          <div className="space-y-4">
+            <Button onClick={entrar} disabled={entrando} className="w-full h-12 text-base font-semibold" size="lg">
+              Entrar com sua conta
+            </Button>
+
+            <Button onClick={entrarComGoogle} disabled={entrando} variant="outline" className="w-full h-12 text-base gap-2" size="lg">
+              <GoogleIcon /> Entrar com Google
+            </Button>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-muted-foreground">Novo por aqui?</span>
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full h-12 text-base border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-all"
+              size="lg"
+              asChild
+            >
+              <Link href="/signup">Criar Conta Gratuita</Link>
+            </Button>
+          </div>
+
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            Ao continuar, você concorda com nossos{' '}
+            <a href="/termos" target="_blank" className="text-primary hover:underline">Termos de Uso</a>
+            {' '}e{' '}
+            <a href="/privacidade" target="_blank" className="text-primary hover:underline">Política de Privacidade</a>.
           </p>
         </div>
+
+        <p className="text-center text-sm text-muted-foreground">
+          Precisa de ajuda? Veja a{' '}
+          <a href="/ajuda" className="text-primary hover:underline font-medium">Central de Ajuda</a>
+          {' '}ou{' '}
+          <a href="mailto:suporte@meujet.com.br" className="text-primary hover:underline font-medium">fale conosco</a>
+        </p>
       </div>
     </div>
   )

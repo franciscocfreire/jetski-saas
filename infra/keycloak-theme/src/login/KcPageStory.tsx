@@ -19,7 +19,8 @@ const kcContextExtensionPerPage: KcContextExtensionPerPage = {
                 displayName: "Google",
                 loginUrl: "#"
             }
-        ]
+        ],
+        client: { baseUrl: undefined }
     },
     "email-code-verify.ftl": {
         mjMode: "code",

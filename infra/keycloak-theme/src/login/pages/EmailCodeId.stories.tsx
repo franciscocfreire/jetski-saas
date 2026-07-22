@@ -26,6 +26,19 @@ export const SemSocial: Story = {
     )
 };
 
+export const BackofficeComCriarConta: Story = {
+    render: () => (
+        <KcPageStory
+            kcContext={{
+                client: {
+                    clientId: "jetski-backoffice",
+                    baseUrl: "https://app.meujet.com.br/"
+                }
+            }}
+        />
+    )
+};
+
 export const CodigoExpirado: Story = {
     render: () => (
         <KcPageStory
