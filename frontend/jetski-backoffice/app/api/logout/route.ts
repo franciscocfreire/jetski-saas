@@ -26,18 +26,21 @@ export async function GET() {
       }
     }
 
-    // Clear all auth cookies
+    // Clear all auth cookies. GOTCHA (mesmo bug corrigido no portal): a
+    // deleção de cookie __Secure-* PRECISA sair com o atributo Secure —
+    // cookieStore.delete() não o emite e o Chrome rejeita em silêncio, a
+    // sessão sobrevivia e o /login (trampolim) relogava direto no dashboard.
+    const secure = (process.env.NEXTAUTH_URL ?? '').startsWith('https')
     const cookieStore = await cookies()
     const allCookies = cookieStore.getAll()
 
-    // Delete all auth-related cookies
     for (const cookie of allCookies) {
       if (
         cookie.name.includes('authjs') ||
         cookie.name.includes('next-auth') ||
         cookie.name.includes('session')
       ) {
-        cookieStore.delete(cookie.name)
+        cookieStore.set(cookie.name, '', { expires: new Date(0), path: '/', secure })
       }
     }
 
