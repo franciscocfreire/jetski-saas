@@ -38,11 +38,12 @@ export function useAppUrl(): string {
   return url
 }
 
-/** Âncora para o portal (para uso em server components, ex.: footer). */
+/** Âncora para o portal (para uso em server components, ex.: footer).
+ *  Abre em nova aba: o visitante não perde o site público/marketplace. */
 export function PortalLink({ className, children }: {
   className?: string
   children: React.ReactNode
 }) {
   const url = usePortalUrl()
-  return <a href={url} className={className}>{children}</a>
+  return <a href={url} className={className} target="_blank" rel="noopener noreferrer">{children}</a>
 }

@@ -66,13 +66,13 @@ export function Navbar() {
             className="text-white/70 hover:text-white hover:bg-white/10 transition-all duration-300"
             asChild
           >
-            <a href={loginUrl}>Portal da Empresa</a>
+            <a href={loginUrl} target="_blank" rel="noopener noreferrer">Portal da Empresa</a>
           </Button>
           <Button
             className="bg-gold text-[#231A05] hover:bg-gold/90 transition-all duration-300 rounded-none font-medium"
             asChild
           >
-            <a href={portalUrl}>Portal do Cliente</a>
+            <a href={portalUrl} target="_blank" rel="noopener noreferrer">Portal do Cliente</a>
           </Button>
         </div>
 
@@ -111,14 +111,14 @@ export function Navbar() {
           ))}
           <div className="pt-6 border-t border-white/10 space-y-3">
             <Button className="w-full bg-gold text-[#231A05] hover:bg-gold/90 rounded-none font-medium" asChild>
-              <a href={portalUrl} onClick={() => setMobileMenuOpen(false)}>Portal do Cliente</a>
+              <a href={portalUrl} target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)}>Portal do Cliente</a>
             </Button>
             <Button
               variant="outline"
               className="w-full bg-transparent border-white/30 text-white hover:bg-white/10 hover:text-white rounded-none"
               asChild
             >
-              <a href={loginUrl} onClick={() => setMobileMenuOpen(false)}>Portal da Empresa</a>
+              <a href={loginUrl} target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)}>Portal da Empresa</a>
             </Button>
           </div>
         </div>
