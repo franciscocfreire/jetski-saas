@@ -9,6 +9,30 @@ export type KcContextExtension = {
     // See: https://docs.keycloakify.dev/faq-and-help/some-values-you-need-are-missing-from-in-kccontext
 };
 
-export type KcContextExtensionPerPage = {};
+/**
+ * Páginas custom renderizadas pelo SPI meujet-email-code
+ * (infra/keycloak-extensions/email-code) — atributos setados via
+ * form.setAttribute() no EmailCodeAuthenticator aparecem no topo do kcContext.
+ */
+export type KcContextExtensionPerPage = {
+    "email-code-id.ftl": {
+        mjSocial?: Array<{ alias: string; displayName: string; loginUrl: string }>;
+    };
+    "email-code-verify.ftl": {
+        /** "password" = senha à frente (default) | "code" = código já pedido. */
+        mjMode?: string;
+        mjSocial?: Array<{ alias: string; displayName: string; loginUrl: string }>;
+        /** E-mail digitado na tela 1 ("" quando o cliente entrou por CPF). */
+        mjDest?: string;
+        /** Identificador digitado (e-mail ou CPF) — exibido no "Entrando como". */
+        mjTyped?: string;
+        /** Segundos restantes do cooldown de reenvio. */
+        mjCooldown?: number;
+        /** Presentes no kcContext em runtime (UrlBean/RealmBean), mas fora do
+         *  tipo base das páginas custom do Keycloakify. */
+        realm: { resetPasswordAllowed: boolean };
+        url: { loginResetCredentialsUrl: string };
+    };
+};
 
 export type KcContext = ExtendKcContext<KcContextExtension, KcContextExtensionPerPage>;

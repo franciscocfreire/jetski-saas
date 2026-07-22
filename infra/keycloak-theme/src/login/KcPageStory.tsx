@@ -11,7 +11,26 @@ const kcContextExtension: KcContextExtension = {
         ...kcEnvDefaults
     }
 };
-const kcContextExtensionPerPage: KcContextExtensionPerPage = {};
+const kcContextExtensionPerPage: KcContextExtensionPerPage = {
+    "email-code-id.ftl": {
+        mjSocial: [
+            {
+                alias: "google",
+                displayName: "Google",
+                loginUrl: "#"
+            }
+        ]
+    },
+    "email-code-verify.ftl": {
+        mjMode: "code",
+        mjSocial: [{ alias: "google", displayName: "Google", loginUrl: "#" }],
+        mjDest: "cliente@exemplo.com.br",
+        mjTyped: "cliente@exemplo.com.br",
+        mjCooldown: 42,
+        realm: { resetPasswordAllowed: true },
+        url: { loginResetCredentialsUrl: "#" }
+    }
+};
 
 export const { getKcContextMock } = createGetKcContextMock({
     kcContextExtension,

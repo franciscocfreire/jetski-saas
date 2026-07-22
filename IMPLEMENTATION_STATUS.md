@@ -50,9 +50,23 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   colisão de CPF vira unificação verificada por OTP (código ao e-mail da conta
   dona; identidade Google transferida, duplicata descartada, auditoria global V051).
 - Tela de login com a marca Meu Jet: tema Keycloak "meujet" em React/Keycloakify
-  (`infra/keycloak-theme/`, 13 telas, pt-BR/en), servido por imagem custom do
+  (`infra/keycloak-theme/`, 15 telas, pt-BR/en), servido por imagem custom do
   Keycloak buildada no deploy; "esqueci minha senha" cria senha para conta
   só-Google (orientado na própria tela).
+- Login identifier-first no portal: cliente digita e-mail ou CPF → tela 2 com
+  SENHA à frente ("Entrando como X", esqueci minha senha) e "Receber código
+  por e-mail" sob demanda — nenhum e-mail sai sem o cliente pedir (código de
+  6 dígitos: TTL 10 min, 5 tentativas, cooldown 60 s, single-use). Ambos
+  validados no próprio SPI; anti-enumeração nas duas vias (tela 2 aparece
+  sempre, erro genérico único) e brute force do realm contando explicitamente
+  (código e senha; reset no sucesso). Google segue na tela 1. SPI próprio
+  `meujet-email-code`
+  (`infra/keycloak-extensions/email-code/`, com testes) + flow `portal-browser`
+  com override só no client do portal (backoffice intocado); e-mail via email
+  theme `meujet-email` no JAR do SPI (Mailpit dev / Gmail prod). Realm vivo
+  converge via `infra/prod/configure-keycloak-email-code.sh` (`ROLLBACK=1` =
+  kill switch, volta ao flow de senha sem restart); login por código também
+  marca e-mail verificado e limpa `UPDATE_PASSWORD` pendente do balcão.
 
 ### Plataforma (super admin)
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão

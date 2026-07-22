@@ -19,6 +19,35 @@ const { useI18n, ofTypeI18n } = i18nBuilder
             rememberMe: "Continuar conectado",
             "identity-provider-login-label": "ou continue com",
 
+            // Login sem senha por código de e-mail (SPI meujet-email-code).
+            // As chaves mjEc* também são resolvidas server-side (form.setError
+            // do SPI) — o Keycloakify grava estas traduções nos
+            // messages_*.properties do JAR do tema.
+            mjEcInstruction: "Digite seu e-mail ou CPF para continuar.",
+            mjEcContinue: "Continuar",
+            mjEcVerifyTitle: "Digite o código",
+            mjEcSentTo:
+                "Se existir uma conta para {0}, enviamos um código de 6 dígitos. " +
+                "Confira também a caixa de spam.",
+            mjEcSentGeneric:
+                "Se existir uma conta para o CPF informado, enviamos um código de " +
+                "6 dígitos ao e-mail cadastrado. Confira também a caixa de spam.",
+            mjEcCodeLabel: "Código de 6 dígitos",
+            mjEcResend: "Reenviar código",
+            mjEcResendIn: "Reenviar em {0}s",
+            mjEcBack: "Usar outro e-mail ou CPF",
+            mjEcInvalidCode: "Código inválido ou expirado.",
+            mjEcExpired: "Código expirado — peça um novo.",
+            mjEcOrPassword: "ou, se preferir",
+            mjEcPasswordSubmit: "Entrar com senha",
+            mjEcBadCredentials: "Dados de acesso inválidos.",
+            mjEcPasswordTitle: "Digite sua senha",
+            mjEcTypedAs: "Entrando como",
+            mjEcNoPassword: "sem senha ou esqueceu? entre por e-mail",
+            mjEcSendCode: "Receber código por e-mail",
+            mjEcPasswordRequired: "Digite sua senha para entrar.",
+            mjEcCodeRequired: "Digite o código de 6 dígitos.",
+
             // Reset de senha (vale também para quem só entra com Google:
             // o link cria uma senha para a conta)
             emailForgotTitle: "Recuperar acesso",
@@ -79,6 +108,31 @@ const { useI18n, ofTypeI18n } = i18nBuilder
             doForgotPassword: "Forgot your password?",
             rememberMe: "Stay signed in",
             "identity-provider-login-label": "or continue with",
+
+            mjEcInstruction: "Enter your e-mail or CPF to continue.",
+            mjEcContinue: "Continue",
+            mjEcVerifyTitle: "Enter the code",
+            mjEcSentTo:
+                "If an account exists for {0}, we sent a 6-digit code. " +
+                "Also check your spam folder.",
+            mjEcSentGeneric:
+                "If an account exists for that CPF, we sent a 6-digit code to " +
+                "the registered e-mail. Also check your spam folder.",
+            mjEcCodeLabel: "6-digit code",
+            mjEcResend: "Resend code",
+            mjEcResendIn: "Resend in {0}s",
+            mjEcBack: "Use another e-mail or CPF",
+            mjEcInvalidCode: "Invalid or expired code.",
+            mjEcExpired: "Code expired — request a new one.",
+            mjEcOrPassword: "or, if you prefer",
+            mjEcPasswordSubmit: "Sign in with password",
+            mjEcBadCredentials: "Invalid credentials.",
+            mjEcPasswordTitle: "Enter your password",
+            mjEcTypedAs: "Signing in as",
+            mjEcNoPassword: "no password or forgot it? sign in by e-mail",
+            mjEcSendCode: "Get code by e-mail",
+            mjEcPasswordRequired: "Enter your password to sign in.",
+            mjEcCodeRequired: "Enter the 6-digit code.",
 
             emailForgotTitle: "Recover access",
             emailInstruction:

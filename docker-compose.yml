@@ -66,11 +66,13 @@ services:
 
   # ============ AUTH ============
   keycloak:
-    # Imagem custom = oficial 26.4 + tema de login "meujet" (Keycloakify) em
-    # /opt/keycloak/providers — ver infra/keycloak-theme/. Rebuild em dev:
-    # ./rebuild.sh keycloak
+    # Imagem custom = oficial 26.4 + tema de login "meujet" (Keycloakify) +
+    # SPI de login por código de e-mail — ver infra/keycloak-theme/ e
+    # infra/keycloak-extensions/. Contexto = ./infra para o Dockerfile enxergar
+    # os dois diretórios. Rebuild em dev: ./rebuild.sh keycloak
     build:
-      context: ./infra/keycloak-theme
+      context: ./infra
+      dockerfile: keycloak-theme/Dockerfile
     image: jetski-keycloak:latest
     container_name: jetski-keycloak
     command: start-dev --import-realm

@@ -11,6 +11,8 @@ const UserProfileFormFields = lazy(
 );
 
 const Login = lazy(() => import("./pages/Login"));
+const EmailCodeId = lazy(() => import("./pages/EmailCodeId"));
+const EmailCodeVerify = lazy(() => import("./pages/EmailCodeVerify"));
 const LoginUpdatePassword = lazy(() => import("./pages/LoginUpdatePassword"));
 const LoginResetPassword = lazy(() => import("./pages/LoginResetPassword"));
 const LoginVerifyEmail = lazy(() => import("./pages/LoginVerifyEmail"));
@@ -48,6 +50,11 @@ export default function KcPage(props: { kcContext: KcContext }) {
                 switch (kcContext.pageId) {
                     case "login.ftl":
                         return <Login kcContext={kcContext} {...common} />;
+                    // páginas do SPI meujet-email-code (login sem senha do portal)
+                    case "email-code-id.ftl":
+                        return <EmailCodeId kcContext={kcContext} {...common} />;
+                    case "email-code-verify.ftl":
+                        return <EmailCodeVerify kcContext={kcContext} {...common} />;
                     case "login-update-password.ftl":
                         return <LoginUpdatePassword kcContext={kcContext} {...common} />;
                     case "login-reset-password.ftl":

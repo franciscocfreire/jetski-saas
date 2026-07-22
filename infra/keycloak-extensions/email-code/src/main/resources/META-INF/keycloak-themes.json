@@ -1,0 +1,8 @@
+{
+    "themes": [
+        {
+            "name": "meujet-email",
+            "types": ["email"]
+        }
+    ]
+}

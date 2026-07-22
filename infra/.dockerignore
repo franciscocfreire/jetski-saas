@@ -1,0 +1,13 @@
+# Contexto de build da imagem jetski-keycloak é ./infra inteiro (para enxergar
+# keycloak-theme/ e keycloak-extensions/) — sem estas exclusões o upload do
+# contexto explode com node_modules e artefatos de build.
+keycloak-theme/node_modules
+keycloak-theme/dist
+keycloak-theme/dist_keycloak
+keycloak-theme/.storybook-static
+keycloak-extensions/email-code/target
+observability
+nginx
+prod
+keycloak-setup
+*.md

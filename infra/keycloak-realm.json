@@ -3,6 +3,7 @@
   "displayName": "Meu Jet",
   "displayNameHtml": "Meu Jet",
   "loginTheme": "meujet",
+  "emailTheme": "meujet-email",
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": false,
@@ -133,6 +134,9 @@
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "+"
+      },
+      "authenticationFlowBindingOverrides": {
+        "browser": "af10c0de-0000-4000-8000-000000000001"
       },
       "protocolMappers": [
         {
@@ -466,5 +470,59 @@
       }
     }
   ],
-  "loginWithEmailAllowed": true
+  "loginWithEmailAllowed": true,
+  "authenticationFlows": [
+    {
+      "id": "af10c0de-0000-4000-8000-000000000001",
+      "alias": "portal-browser",
+      "description": "Browser flow do portal do cliente — código por e-mail (SPI meujet-email-code) como tela padrão, senha e Google como alternativas. IDs fixos: o override do client jetski-customer-portal referencia por id. Realm vivo (prod/dev com volume) converge via infra/prod/configure-keycloak-email-code.sh — mudou aqui, mude lá.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "identity-provider-redirector",
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
+          "flowAlias": "portal-browser-forms",
+          "authenticatorFlow": true,
+          "autheticatorFlow": true,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "af10c0de-0000-4000-8000-000000000002",
+      "alias": "portal-browser-forms",
+      "description": "Forms do portal: identifier-first no SPI meujet-email-code (código OU senha na tela 2 — o password-form separado foi absorvido pelo SPI)",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "meujet-email-code",
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    }
+  ]
 }

@@ -331,6 +331,45 @@ span.required {
     color: var(--mj-navy-900);
 }
 
+/* ---------------- Login sem senha (email-code, SPI meujet) ------------ */
+
+/* texto de instrução acima do form (telas do código por e-mail) */
+.mj-instruction {
+    margin: 0 0 14px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--mj-navy-900);
+}
+
+/* botão que se veste de link (reenviar código / trocar e-mail) — precisa
+   vencer o seletor .mj-card button[type="submit"] que pinta tudo de primário */
+.mj-card button.mj-link-button,
+.mj-card button.mj-link-button:hover {
+    display: inline;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--mj-gold-600);
+    background: none;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.mj-card button.mj-link-button:hover {
+    text-decoration: underline;
+}
+
+.mj-card button.mj-link-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    text-decoration: none;
+}
+
 /* --------------------------- Login social ----------------------------- */
 
 .mj-social {
