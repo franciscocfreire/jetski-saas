@@ -322,11 +322,13 @@ public class EmailCodeAuthenticator implements Authenticator {
         // desafio garante uso único mesmo com outra sessão em paralelo.
         suo.remove(challengeKey(userId));
         user.setEmailVerified(true);
-        // Cliente criado no balcão nasce com UPDATE_PASSWORD pendente (senha
-        // temporária). No login sem senha isso jogaria o cliente numa tela
-        // "defina sua senha" — removemos: quem quiser senha usa o "Recuperar
-        // acesso" depois.
-        user.removeRequiredAction(UserModel.RequiredAction.UPDATE_PASSWORD);
+        // SÓ para CLIENTE: o balcão cria cliente com senha temporária +
+        // UPDATE_PASSWORD; no login sem senha removemos a pendência (quem
+        // quiser senha usa o "Recuperar acesso"). STAFF (backoffice usa o
+        // mesmo flow) mantém a troca obrigatória do convite.
+        if (user.getRealmRoleMappingsStream().anyMatch(r -> "CLIENTE".equals(r.getName()))) {
+            user.removeRequiredAction(UserModel.RequiredAction.UPDATE_PASSWORD);
+        }
         concluirLogin(context, user);
     }
 

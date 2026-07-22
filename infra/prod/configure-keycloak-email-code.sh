@@ -21,7 +21,9 @@ KC="${KC_URL:-http://127.0.0.1:8080}"
 REALM="${KC_REALM:-jetski-saas}"
 FLOW_ALIAS="portal-browser"
 FORMS_ALIAS="portal-browser-forms"
-CLIENT_ID="jetski-customer-portal"
+# Portal do cliente E backoffice usam o mesmo flow (tela neutra; a autorização
+# de população — CLIENTE × Membro — é da aplicação, não do login)
+CLIENTS="jetski-customer-portal jetski-backoffice"
 PROVIDER="meujet-email-code"
 
 # Em prod a senha vem do .env; em dev ela é fixa no docker-compose.yml (o .env
@@ -35,29 +37,30 @@ TOKEN=$(curl -s -X POST "$KC/realms/master/protocol/openid-connect/token" \
 auth=(-H "Authorization: Bearer $TOKEN")
 json=(-H "Content-Type: application/json")
 
-# --- client uuid (precisamos dele p/ override e rollback) -------------------
-CLIENT_UUID=$(curl -s "${auth[@]}" "$KC/admin/realms/$REALM/clients?clientId=$CLIENT_ID" \
-  | python3 -c 'import sys,json;cs=json.load(sys.stdin);print(cs[0]["id"] if cs else "")')
-[ -n "$CLIENT_UUID" ] || { echo "ERRO: client $CLIENT_ID não encontrado" >&2; exit 1; }
-
 # helper: PUT parcial do client preservando a representação atual
-atualizar_override_client() { # $1 = json do campo authenticationFlowBindingOverrides
-  curl -s "${auth[@]}" "$KC/admin/realms/$REALM/clients/$CLIENT_UUID" \
-    | OVERRIDES="$1" python3 -c '
+atualizar_override_client() { # $1 = clientId; $2 = json do campo authenticationFlowBindingOverrides
+  local client_id="$1" overrides="$2" client_uuid
+  client_uuid=$(curl -s "${auth[@]}" "$KC/admin/realms/$REALM/clients?clientId=$client_id" \
+    | python3 -c 'import sys,json;cs=json.load(sys.stdin);print(cs[0]["id"] if cs else "")')
+  [ -n "$client_uuid" ] || { echo "ERRO: client $client_id não encontrado" >&2; return 1; }
+  curl -s "${auth[@]}" "$KC/admin/realms/$REALM/clients/$client_uuid" \
+    | OVERRIDES="$overrides" python3 -c '
 import sys, json, os
 rep = json.load(sys.stdin)
 rep["authenticationFlowBindingOverrides"] = json.loads(os.environ["OVERRIDES"])
 print(json.dumps(rep))' \
-    | curl -s -o /dev/null -w ">> PUT client $CLIENT_ID overrides http=%{http_code}\n" \
-        -X PUT "$KC/admin/realms/$REALM/clients/$CLIENT_UUID" "${auth[@]}" "${json[@]}" -d @-
+    | curl -s -o /dev/null -w ">> PUT client $client_id overrides http=%{http_code}\n" \
+        -X PUT "$KC/admin/realms/$REALM/clients/$client_uuid" "${auth[@]}" "${json[@]}" -d @-
 }
 
-# --- rollback: só desbinda o override e sai ---------------------------------
+# --- rollback: só desbinda os overrides e sai --------------------------------
 # GOTCHA Keycloak: map vazio {} é NO-OP no update (só processa chaves
 # presentes); remover binding exige valor vazio {"browser": ""}.
 if [ "${ROLLBACK:-0}" = "1" ]; then
-  atualizar_override_client '{"browser": ""}'
-  echo ">> ROLLBACK: portal voltou ao browser flow padrão (senha + Google)."
+  for c in $CLIENTS; do
+    atualizar_override_client "$c" '{"browser": ""}'
+  done
+  echo ">> ROLLBACK: portal e backoffice voltaram ao browser flow padrão (senha + Google)."
   exit 0
 fi
 
@@ -134,8 +137,10 @@ for e in json.load(sys.stdin):
         -X DELETE "$KC/admin/realms/$REALM/authentication/executions/$exec_id" "${auth[@]}"
     done
 
-# --- override do browser flow no client (sempre converge) --------------------
-atualizar_override_client "{\"browser\":\"$FLOW_ID\"}"
+# --- override do browser flow nos clients (sempre converge) ------------------
+for c in $CLIENTS; do
+  atualizar_override_client "$c" "{\"browser\":\"$FLOW_ID\"}"
+done
 
 # --- emailTheme do realm (template do e-mail do código vive no JAR do SPI) ---
 curl -s "${auth[@]}" "$KC/admin/realms/$REALM" \
@@ -147,4 +152,4 @@ print(json.dumps(rep))' \
   | curl -s -o /dev/null -w ">> PUT realm emailTheme=meujet-email http=%{http_code}\n" \
       -X PUT "$KC/admin/realms/$REALM" "${auth[@]}" "${json[@]}" -d @-
 
-echo ">> Login por código de e-mail configurado no portal ($CLIENT_ID → $FLOW_ALIAS)."
+echo ">> Login por código de e-mail configurado ($CLIENTS → $FLOW_ALIAS)."

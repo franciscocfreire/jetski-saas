@@ -52,6 +52,9 @@
     },
     {
       "clientId": "jetski-backoffice",
+      "authenticationFlowBindingOverrides": {
+        "browser": "af10c0de-0000-4000-8000-000000000001"
+      },
       "name": "Jetski Backoffice",
       "description": "Next.js backoffice application",
       "enabled": true,
