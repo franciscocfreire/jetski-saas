@@ -29,10 +29,17 @@ export async function GET() {
     // sem sessão legível, cai no redirect simples para o /login
   }
 
+  // Apaga a sessão do portal. Os cookies têm nome CUSTOM "[__Secure-]portal.*"
+  // (lib/auth.ts) — o filtro antigo por "authjs"/"next-auth" nunca casava e o
+  // cookie sobrevivia ao logout (o /login via a sessão viva e mandava de volta
+  // pro perfil = "Sair que não sai"). Deleção precisa do atributo Secure em
+  // https: browser REJEITA Set-Cookie de cookie __Secure-* sem ele.
+  const secure = (process.env.NEXTAUTH_URL ?? "").startsWith("https");
   const cookieStore = await cookies();
   for (const cookie of cookieStore.getAll()) {
-    if (cookie.name.includes("authjs") || cookie.name.includes("next-auth")) {
-      cookieStore.delete(cookie.name);
+    const nome = cookie.name;
+    if (nome.includes("portal.") || nome.includes("authjs") || nome.includes("next-auth")) {
+      cookieStore.set(nome, "", { expires: new Date(0), path: "/", secure });
     }
   }
 
