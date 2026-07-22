@@ -22,7 +22,15 @@ export async function GET() {
       const idToken = sessionWithIdToken.idToken
 
       if (idToken && process.env.KEYCLOAK_ISSUER) {
-        keycloakLogoutUrl = `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/logout?id_token_hint=${idToken}&post_logout_redirect_uri=${encodeURIComponent(loginUrl)}`
+        // Volta no /api/logout/finish (não direto no /login): a página /logout
+        // monta o SessionProvider, que dispara um GET /api/auth/session — e o
+        // Auth.js RE-EMITE o cookie de sessão a cada leitura (expiração
+        // deslizante). Se essa resposta chega depois da nossa deleção, o
+        // cookie RESSUSCITA (corrida real vista em prod). O finish deleta de
+        // novo após o roundtrip ao Keycloak, quando não há mais renovação em
+        // voo.
+        const finishUrl = `${baseUrl}/api/logout/finish`
+        keycloakLogoutUrl = `${process.env.KEYCLOAK_ISSUER}/protocol/openid-connect/logout?id_token_hint=${idToken}&post_logout_redirect_uri=${encodeURIComponent(finishUrl)}`
       }
     }
 
