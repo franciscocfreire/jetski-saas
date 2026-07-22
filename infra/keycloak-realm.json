@@ -475,7 +475,7 @@
     {
       "id": "af10c0de-0000-4000-8000-000000000001",
       "alias": "portal-browser",
-      "description": "Browser flow do portal do cliente — código por e-mail (SPI meujet-email-code) como tela padrão, senha e Google como alternativas. IDs fixos: o override do client jetski-customer-portal referencia por id. Realm vivo (prod/dev com volume) converge via infra/prod/configure-keycloak-email-code.sh — mudou aqui, mude lá.",
+      "description": "Browser flow do portal do cliente (SPI meujet-email-code, IDs fixos). Realm vivo converge via configure-keycloak-email-code.sh — mudou aqui, mude lá. Limite: 255 chars.",
       "providerId": "basic-flow",
       "topLevel": true,
       "builtIn": false,
