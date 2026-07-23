@@ -42,6 +42,7 @@ public class CustomerSelfController {
     private final CustomerProfileService customerProfileService;
     private final CustomerCpfMergeService customerCpfMergeService;
     private final com.jetski.locacoes.internal.CustomerAnexoService customerAnexoService;
+    private final com.jetski.shared.security.UserProvisioningService userProvisioningService;
 
     public record AtualizarPerfilRequest(
         @NotBlank @Size(min = 3, max = 120) String nome,
@@ -90,6 +91,17 @@ public class CustomerSelfController {
             .identidade(Identidade.of(profile))
             .lojas(customerAccountService.vinculosComContato(jwt.getSubject()))
             .build());
+    }
+
+    /**
+     * Fatores de verificação em duas etapas (TOTP/WebAuthn) do cliente.
+     * Somente leitura — cadastro/remoção via AIA no Keycloak (kc_action).
+     */
+    @GetMapping("/credentials")
+    @Operation(summary = "Fatores 2FA cadastrados (TOTP/WebAuthn)")
+    public ResponseEntity<java.util.List<java.util.Map<String, Object>>> credenciais(
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(userProvisioningService.listSecondFactorCredentials(jwt.getSubject()));
     }
 
     public record ContatoLojaRequest(

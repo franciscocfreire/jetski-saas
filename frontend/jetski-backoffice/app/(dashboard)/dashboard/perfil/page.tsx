@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Camera, KeyRound, Loader2, Trash2, UserCircle } from 'lucide-react'
+import { BadgeCheck, Camera, KeyRound, Loader2, ShieldCheck, Smartphone, Trash2, UserCircle } from 'lucide-react'
+import { signIn } from 'next-auth/react'
 import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { perfilService } from '@/lib/api/services'
@@ -327,6 +328,90 @@ export default function PerfilPage() {
           )}
         </CardContent>
       </Card>
+
+      <TwoFactorCard />
     </div>
+  )
+}
+
+/**
+ * Verificação em duas etapas (identidade única no Keycloak): lista os fatores
+ * cadastrados e dispara cadastro/remoção via AIA (kc_action) — as cerimônias
+ * acontecem nas telas temadas do Keycloak, com step-up na remoção.
+ */
+function TwoFactorCard() {
+  const { data: fatores, isLoading } = useQuery({
+    queryKey: ['user-credentials'],
+    queryFn: () => perfilService.getCredentials(),
+    staleTime: 60 * 1000,
+    retry: false,
+  })
+
+  const acao = (kcAction: string) =>
+    signIn('keycloak', { callbackUrl: '/dashboard/perfil' }, { kc_action: kcAction })
+
+  const rotulo = (tipo: string) =>
+    tipo === 'otp' ? 'Aplicativo autenticador (TOTP)' : 'Passkey / chave de segurança'
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="size-5" />
+          Verificação em duas etapas
+        </CardTitle>
+        <CardDescription>
+          Vale para todos os acessos da sua conta (código por e-mail, senha e Google).
+          Opcional — mas recomendado para quem administra a operação.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <Skeleton className="h-16 w-full" />
+        ) : fatores && fatores.length > 0 ? (
+          <ul className="space-y-3">
+            {fatores.map((f) => (
+              <li key={f.id} className="flex items-center justify-between rounded-md border p-3">
+                <div className="flex items-center gap-3">
+                  {f.type === 'otp' ? (
+                    <Smartphone className="size-5 text-muted-foreground" />
+                  ) : (
+                    <KeyRound className="size-5 text-muted-foreground" />
+                  )}
+                  <div>
+                    <p className="text-sm font-medium">{f.userLabel || rotulo(f.type)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {rotulo(f.type)}
+                      {f.createdDate
+                        ? ` · desde ${new Date(f.createdDate).toLocaleDateString('pt-BR')}`
+                        : ''}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => acao(`delete_credential:${f.id}`)}
+                >
+                  Remover
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Nenhum fator cadastrado — seu login usa só a primeira etapa.
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => acao('CONFIGURE_TOTP')}>
+            <Smartphone className="mr-2 size-4" /> Configurar app autenticador
+          </Button>
+          <Button variant="outline" onClick={() => acao('webauthn-register')}>
+            <KeyRound className="mr-2 size-4" /> Cadastrar passkey
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

@@ -98,6 +98,24 @@ export async function validarClaim(token: string, senhaTemporaria: string): Prom
   return res.json();
 }
 
+/** Fatores 2FA (TOTP/WebAuthn) cadastrados no Keycloak — somente leitura;
+ *  cadastro/remoção via AIA (kc_action) no próprio Keycloak. */
+export interface SecondFactorCredential {
+  id: string;
+  type: "otp" | "webauthn" | "webauthn-passwordless";
+  userLabel?: string | null;
+  createdDate?: number | null;
+}
+
+export async function getCredentials(accessToken: string): Promise<SecondFactorCredential[]> {
+  const res = await fetch(`${API_URL}/v1/customers/self/credentials`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
 export async function getSelf(accessToken: string): Promise<CustomerSelf> {
   const res = await fetch(`${API_URL}/v1/customers/self`, {
     headers: { Authorization: `Bearer ${accessToken}` },

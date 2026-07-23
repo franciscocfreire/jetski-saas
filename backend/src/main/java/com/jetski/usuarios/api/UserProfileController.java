@@ -46,6 +46,7 @@ public class UserProfileController {
 
     private final UserProfileService userProfileService;
     private final IdentityProviderMappingService identityMappingService;
+    private final com.jetski.shared.security.UserProvisioningService userProvisioningService;
 
     public record UpdateProfileRequest(
         @NotBlank @Size(min = 3, max = 120) String nome,
@@ -56,6 +57,17 @@ public class UserProfileController {
         @NotBlank String senhaAtual,
         @NotBlank @Size(min = 8, max = 128) String novaSenha
     ) {}
+
+    /**
+     * Fatores de verificação em duas etapas (TOTP/WebAuthn) do próprio usuário.
+     * Somente leitura — cadastro/remoção via AIA no Keycloak (kc_action).
+     * O sub do JWT É o id do usuário no Keycloak.
+     */
+    @GetMapping("/credentials")
+    public ResponseEntity<java.util.List<java.util.Map<String, Object>>> credenciais(
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(userProvisioningService.listSecondFactorCredentials(jwt.getSubject()));
+    }
 
     @GetMapping
     @Operation(

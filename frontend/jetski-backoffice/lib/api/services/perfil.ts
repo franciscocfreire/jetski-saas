@@ -33,4 +33,18 @@ export const perfilService = {
     const { data } = await apiClient.delete<UserProfile>('/v1/user/me/avatar')
     return data
   },
+
+  /** Fatores 2FA (TOTP/WebAuthn) cadastrados no Keycloak — somente leitura;
+   *  cadastro/remoção via AIA (kc_action) no próprio Keycloak. */
+  async getCredentials(): Promise<SecondFactorCredential[]> {
+    const { data } = await apiClient.get<SecondFactorCredential[]>('/v1/user/me/credentials')
+    return data
+  },
+}
+
+export interface SecondFactorCredential {
+  id: string
+  type: 'otp' | 'webauthn' | 'webauthn-passwordless'
+  userLabel?: string | null
+  createdDate?: number | null
 }

@@ -152,6 +152,11 @@ class KeycloakUserProvisioningAdapter implements UserProvisioningService {
     }
 
     @Override
+    public java.util.List<java.util.Map<String, Object>> listSecondFactorCredentials(String providerUserId) {
+        return keycloakAdminService.listSecondFactorCredentials(providerUserId);
+    }
+
+    @Override
     public boolean resetPassword(String providerUserId, String novaSenha) {
         return keycloakAdminService.resetPassword(providerUserId, novaSenha);
     }

@@ -454,6 +454,7 @@
       "authenticateByDefault": false,
       "linkOnly": false,
       "firstBrokerLoginFlowAlias": "first broker login",
+      "postBrokerLoginFlowAlias": "post-broker-2fa",
       "config": {
         "clientId": "${GOOGLE_CLIENT_ID:nao-configurado.apps.googleusercontent.com}",
         "clientSecret": "${GOOGLE_CLIENT_SECRET:nao-configurado}",
@@ -512,20 +513,124 @@
     {
       "id": "af10c0de-0000-4000-8000-000000000002",
       "alias": "portal-browser-forms",
-      "description": "Forms do portal: identifier-first no SPI meujet-email-code (código OU senha na tela 2 — o password-form separado foi absorvido pelo SPI)",
+      "description": "Forms do portal: identifier-first no SPI meujet-email-code + 2FA condicional (opt-in). Converge via configure-keycloak-2fa.sh.",
       "providerId": "basic-flow",
       "topLevel": false,
       "builtIn": false,
       "authenticationExecutions": [
         {
           "authenticator": "meujet-email-code",
-          "requirement": "ALTERNATIVE",
+          "requirement": "REQUIRED",
           "priority": 10,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "requirement": "CONDITIONAL",
+          "priority": 20,
+          "flowAlias": "portal-2fa",
+          "authenticatorFlow": true,
+          "autheticatorFlow": true,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "af10c0de-0000-4000-8000-000000000003",
+      "alias": "portal-2fa",
+      "description": "2FA opt-in: exige TOTP/WebAuthn de quem cadastrou (condition-user-configured)",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "webauthn-authenticator",
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "af10c0de-0000-4000-8000-000000000005",
+      "alias": "post-broker-2fa",
+      "description": "Pós-broker (Google): mesmo degrau de 2FA opt-in do flow do portal",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "requirement": "CONDITIONAL",
+          "priority": 10,
+          "flowAlias": "post-broker-2fa-cond",
+          "authenticatorFlow": true,
+          "autheticatorFlow": true,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "af10c0de-0000-4000-8000-000000000006",
+      "alias": "post-broker-2fa-cond",
+      "description": "Condicional 2FA do pós-broker: TOTP/WebAuthn de quem cadastrou",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "conditional-user-configured",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "webauthn-authenticator",
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "requirement": "ALTERNATIVE",
+          "priority": 30,
           "authenticatorFlow": false,
           "autheticatorFlow": false,
           "userSetupAllowed": false
         }
       ]
     }
-  ]
+  ],
+  "webAuthnPolicyRpEntityName": "Meu Jet",
+  "webAuthnPolicyRpId": "",
+  "webAuthnPolicySignatureAlgorithms": ["ES256", "RS256"],
+  "webAuthnPolicyAttestationConveyancePreference": "not specified",
+  "webAuthnPolicyAuthenticatorAttachment": "not specified",
+  "webAuthnPolicyRequireResidentKey": "not specified",
+  "webAuthnPolicyUserVerificationRequirement": "preferred",
+  "webAuthnPolicyCreateTimeout": 0,
+  "webAuthnPolicyAvoidSameAuthenticatorRegister": false,
+  "webAuthnPolicyAcceptableAaguids": []
 }

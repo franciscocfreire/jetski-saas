@@ -13,9 +13,10 @@ import {
   inputCls,
   Badge,
 } from "@/components/ui";
-import { getSelf, updateSelf, updateContatoLoja, getAnexosLoja, getAnexoLoja, uploadAnexoLoja, getHabilitacoes, getHabilitacaoDocumento, ApiError, isCpfEmUso, type CustomerSelf, type IdentidadeCliente, type VinculoLoja, type HabilitacaoTemporaria } from "@/lib/api";
+import { getSelf, updateSelf, updateContatoLoja, getAnexosLoja, getAnexoLoja, uploadAnexoLoja, getHabilitacoes, getHabilitacaoDocumento, getCredentials, ApiError, isCpfEmUso, type CustomerSelf, type IdentidadeCliente, type VinculoLoja, type HabilitacaoTemporaria, type SecondFactorCredential } from "@/lib/api";
 import { UploadTile } from "@/components/UploadTile";
-import { Award, Copy, FileDown, Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard, Briefcase, ExternalLink } from "lucide-react";
+import { Award, Copy, FileDown, Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard, Briefcase, ExternalLink, ShieldCheck, Smartphone, KeyRound } from "lucide-react";
+import { signIn } from "next-auth/react";
 import { maskCpf } from "@/lib/masks";
 import { PhoneInput } from "@/components/PhoneInput";
 import { useToast } from "@/components/Toast";
@@ -215,6 +216,10 @@ export default function PerfilPage() {
           Sou estrangeiro(a)
         </label>
       </Card>
+
+      {session?.accessToken && (
+        <SegurancaCard token={session.accessToken} />
+      )}
 
       {session?.accessToken && (
         <MinhasHabilitacoes token={session.accessToken} />
@@ -479,6 +484,88 @@ function MinhasHabilitacoes({ token }: { token: string }) {
             </Badge>
           </div>
         ))}
+      </div>
+    </Card>
+  );
+}
+
+/**
+ * Verificação em duas etapas (identidade única no Keycloak): lista os fatores
+ * e dispara cadastro/remoção via AIA (kc_action) — cerimônias nas telas
+ * temadas do Keycloak, com step-up na remoção.
+ */
+function SegurancaCard({ token }: { token: string }) {
+  const [fatores, setFatores] = useState<SecondFactorCredential[] | null>(null);
+
+  useEffect(() => {
+    getCredentials(token).then(setFatores).catch(() => setFatores([]));
+  }, [token]);
+
+  const acao = (kcAction: string) =>
+    signIn("keycloak", { callbackUrl: withBase("/conta/perfil") }, { kc_action: kcAction });
+
+  const rotulo = (tipo: string) =>
+    tipo === "otp" ? "Aplicativo autenticador" : "Passkey / chave de segurança";
+
+  return (
+    <Card className="mt-4 p-6">
+      <h3 className="flex items-center gap-2 font-semibold text-ink-900">
+        <ShieldCheck size={18} /> Segurança
+      </h3>
+      <p className="mt-1 text-sm text-slate-500">
+        Verificação em duas etapas (opcional): além do código por e-mail, senha
+        ou Google, pedimos um fator só seu — app autenticador ou passkey.
+      </p>
+      {fatores === null ? (
+        <div className="mt-3 flex items-center gap-2 text-sm text-slate-400">
+          <Loader2 size={16} className="animate-spin" /> Carregando…
+        </div>
+      ) : fatores.length > 0 ? (
+        <ul className="mt-3 space-y-2">
+          {fatores.map((f) => (
+            <li
+              key={f.id}
+              className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3"
+            >
+              <div className="flex items-center gap-3">
+                {f.type === "otp" ? (
+                  <Smartphone size={18} className="text-slate-400" />
+                ) : (
+                  <KeyRound size={18} className="text-slate-400" />
+                )}
+                <div>
+                  <p className="text-sm font-medium text-ink-900">
+                    {f.userLabel || rotulo(f.type)}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {rotulo(f.type)}
+                    {f.createdDate
+                      ? ` · desde ${new Date(f.createdDate).toLocaleDateString("pt-BR")}`
+                      : ""}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => acao(`delete_credential:${f.id}`)}
+              >
+                Remover
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-sm text-slate-500">
+          Nenhum fator cadastrado — seu login usa só a primeira etapa.
+        </p>
+      )}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button variant="outline" onClick={() => acao("CONFIGURE_TOTP")}>
+          <Smartphone size={16} className="mr-2" /> Configurar app autenticador
+        </Button>
+        <Button variant="outline" onClick={() => acao("webauthn-register")}>
+          <KeyRound size={16} className="mr-2" /> Cadastrar passkey
+        </Button>
       </div>
     </Card>
   );

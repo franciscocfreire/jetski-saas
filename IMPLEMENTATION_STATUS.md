@@ -67,6 +67,15 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   converge via `infra/prod/configure-keycloak-email-code.sh` (`ROLLBACK=1` =
   kill switch, volta ao flow de senha sem restart); login por código também
   marca e-mail verificado e limpa `UPDATE_PASSWORD` pendente do balcão.
+- 2FA opt-in unificado (TOTP + WebAuthn/passkey): fatores vivem no Keycloak e
+  valem pra QUALQUER porta de entrada da conta — código, senha e Google (via
+  post-broker flow no IdP) — nos dois apps (identidade única). Subflow
+  condicional `portal-2fa` (condition-user-configured: só exige de quem
+  cadastrou); cadastro/remoção self-service nos perfis do portal e do
+  backoffice via AIA (`kc_action=CONFIGURE_TOTP` / `webauthn-register` /
+  `delete_credential:id`, remoção com step-up); listagem via
+  `/v1/user/me/credentials` e `/v1/customers/self/credentials`. Converge via
+  `infra/prod/configure-keycloak-2fa.sh` (`ROLLBACK=1` = kill switch).
 
 ### Plataforma (super admin)
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão

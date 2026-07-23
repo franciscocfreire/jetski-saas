@@ -212,6 +212,14 @@ public interface UserProvisioningService {
     boolean hasPasswordCredential(String providerUserId);
 
     /**
+     * Fatores de 2ª etapa (TOTP/WebAuthn) cadastrados pelo usuário — cada item
+     * com {@code id}, {@code type} (otp | webauthn | webauthn-passwordless),
+     * {@code userLabel} e {@code createdDate} (epoch ms). Somente leitura:
+     * cadastro/remoção acontecem no IdP via AIA (kc_action), com step-up.
+     */
+    List<java.util.Map<String, Object>> listSecondFactorCredentials(String providerUserId);
+
+    /**
      * Redefine a senha (definitiva) do usuário. Em fluxo self-service, chamar
      * SOMENTE após {@link #validatePassword} retornar {@code VALID}.
      *

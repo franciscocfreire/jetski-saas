@@ -537,6 +537,41 @@ public class KeycloakAdminService {
     }
 
     /**
+     * Fatores de 2ª etapa (TOTP/WebAuthn) cadastrados pelo usuário — para a
+     * seção "Verificação em duas etapas" do perfil (portal e backoffice).
+     *
+     * <p>Somente leitura de propósito: cadastro e remoção acontecem no próprio
+     * Keycloak via AIA ({@code kc_action=CONFIGURE_TOTP / webauthn-register /
+     * delete_credential:id}), que exige re-autenticação (step-up).
+     *
+     * <p>Cada item: {@code id}, {@code type} (otp | webauthn |
+     * webauthn-passwordless), {@code userLabel}, {@code createdDate} (epoch ms).
+     * Fail-closed: erro de comunicação retorna lista vazia.
+     */
+    public java.util.List<java.util.Map<String, Object>> listSecondFactorCredentials(String keycloakUserId) {
+        final java.util.Set<String> tiposSegundoFator =
+            java.util.Set.of("otp", "webauthn", "webauthn-passwordless");
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            return keycloak.realm(targetRealm).users().get(keycloakUserId)
+                .credentials().stream()
+                .filter(c -> tiposSegundoFator.contains(c.getType()))
+                .map(c -> {
+                    java.util.Map<String, Object> item = new java.util.LinkedHashMap<>();
+                    item.put("id", c.getId());
+                    item.put("type", c.getType());
+                    item.put("userLabel", c.getUserLabel());
+                    item.put("createdDate", c.getCreatedDate());
+                    return item;
+                })
+                .toList();
+        } catch (Exception e) {
+            log.error("Erro ao listar credenciais 2FA no Keycloak: userId={}, error={}",
+                keycloakUserId, e.getMessage(), e);
+            return java.util.List.of();
+        }
+    }
+
+    /**
      * Estatísticas de sessões ativas por client do realm alvo
      * (Admin API {@code GET /admin/realms/{realm}/client-session-stats}).
      *
