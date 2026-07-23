@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { PixQrCode } from '@/components/pix-qrcode'
+import { FileUpload, type UploadedFile } from '@/components/file-upload'
+import { VerComprovanteButton } from '@/components/creditos/ver-comprovante-button'
 import { Loader2, Gauge, FileCheck2, Landmark, Eye, Coins, Copy, ShoppingCart, QrCode } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -42,12 +44,12 @@ const STATUS_COMPRA: Record<string, { label: string; variant: 'default' | 'secon
 const brl = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-/** Compra manual v1: escolhe a QUANTIDADE, vê o valor, transfere via PIX e informa o txid. */
+/** Compra manual v1: escolhe a QUANTIDADE, vê o valor, transfere via PIX e envia o comprovante. */
 function ComprarCreditosCard() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [quantidade, setQuantidade] = useState('50')
-  const [pixTxid, setPixTxid] = useState('')
+  const [comprovante, setComprovante] = useState<UploadedFile | null>(null)
   const [pix, setPix] = useState<{ copiaECola: string; valor: number; quantidade: number } | null>(null)
 
   const { data: config } = useQuery({
@@ -73,10 +75,13 @@ function ComprarCreditosCard() {
   })
 
   const solicitar = useMutation({
-    mutationFn: () => creditosService.solicitarCompra(Number(quantidade), pixTxid),
+    mutationFn: () => {
+      if (!comprovante) throw new Error('Envie a foto do comprovante antes de continuar.')
+      return creditosService.solicitarCompra(Number(quantidade), comprovante.dataUrl)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['creditos-compras'] })
-      setPixTxid('')
+      setComprovante(null)
       setPix(null)
       toast({
         title: 'Solicitação enviada',
@@ -120,7 +125,7 @@ function ComprarCreditosCard() {
       <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
         <li>Escolha quantas emissões quer comprar e gere o PIX com o valor exato.</li>
         <li>Pague pelo QR Code ou copia-e-cola no app do seu banco.</li>
-        <li>Informe o número da transação (comprovante) — o Meu Jet confere e libera os créditos.</li>
+        <li>Envie a foto do comprovante — o Meu Jet confere e libera os créditos.</li>
       </ol>
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <div className="space-y-1">
@@ -131,7 +136,7 @@ function ComprarCreditosCard() {
             min={1}
             step="1"
             value={quantidade}
-            onChange={(e) => { setQuantidade(e.target.value); setPix(null) }}
+            onChange={(e) => { setQuantidade(e.target.value); setPix(null); setComprovante(null) }}
             className="w-36 tabular-nums"
           />
         </div>
@@ -163,18 +168,17 @@ function ComprarCreditosCard() {
             </div>
             <div className="flex flex-wrap items-end gap-2 pt-1">
               <div className="min-w-0 flex-1 basis-56 space-y-1">
-                <label className="text-xs font-medium" htmlFor="compra-txid">Número da transação (comprovante)</label>
-                <Input
-                  id="compra-txid"
-                  value={pixTxid}
-                  onChange={(e) => setPixTxid(e.target.value)}
-                  placeholder="Ex.: E12345678202607021234"
-                  maxLength={80}
+                <span className="text-xs font-medium">Foto do comprovante</span>
+                <FileUpload
+                  label="Foto do comprovante (imagem ou PDF)"
+                  accept="image/*,application/pdf"
+                  tipoDocumento="GRU_COMPROVANTE"
+                  onChange={setComprovante}
                 />
               </div>
               <Button
                 onClick={() => solicitar.mutate()}
-                disabled={solicitar.isPending || !pixTxid.trim()}
+                disabled={solicitar.isPending || !comprovante}
                 className="gap-2"
               >
                 {solicitar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
@@ -191,14 +195,20 @@ function ComprarCreditosCard() {
             const st = STATUS_COMPRA[c.status] ?? { label: c.status, variant: 'secondary' as const }
             return (
               <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
-                <div className="min-w-0">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <span className="font-medium tabular-nums">+{c.quantidade} créditos</span>
                   {c.valorPago != null && (
-                    <span className="ml-2 text-xs text-muted-foreground tabular-nums">({brl(c.valorPago)})</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">({brl(c.valorPago)})</span>
                   )}
-                  <span className="ml-2 font-mono text-xs text-muted-foreground">{c.pixTxid}</span>
+                  {c.temComprovante ? (
+                    <VerComprovanteButton fetchBlob={() => creditosService.getComprovante(c.id)} />
+                  ) : (
+                    c.pixTxid && (
+                      <span className="font-mono text-xs text-muted-foreground">{c.pixTxid}</span>
+                    )
+                  )}
                   {c.observacao && (
-                    <span className="ml-2 text-xs text-destructive">{c.observacao}</span>
+                    <span className="text-xs text-destructive">{c.observacao}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-3">

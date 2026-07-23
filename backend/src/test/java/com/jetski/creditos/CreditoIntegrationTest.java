@@ -78,6 +78,12 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
             .authorities(new SimpleGrantedAuthority("ROLE_ADMIN_TENANT"));
     }
 
+    /** Comprovante fake como data-URL PNG — conteúdo distinto por semente (dedupe é por sha256). */
+    private static String comprovantePng(String semente) {
+        return "data:image/png;base64," + java.util.Base64.getEncoder()
+            .encodeToString(("PNG-COMPROVANTE-" + semente).getBytes());
+    }
+
     // ============================== Ledger / regras ==============================
 
     @Test
@@ -222,14 +228,16 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Fluxo de compra: solicitar → pendente na plataforma → aprovar credita no ledger")
     void testCompraFluxoCompleto() throws Exception {
-        // Tenant solicita informando o txid do PIX
+        // Tenant solicita anexando o comprovante (txid opcional/legado ainda aceito)
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"quantidade\": 30, \"pixTxid\": \"E12345678202607021234\"}")
+                .content("{\"quantidade\": 30, \"pixTxid\": \"E12345678202607021234\", " +
+                         "\"comprovanteBase64\": \"" + comprovantePng("fluxo-completo") + "\"}")
                 .with(admin()))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.status").value("PENDENTE"));
+            .andExpect(jsonPath("$.status").value("PENDENTE"))
+            .andExpect(jsonPath("$.temComprovante").value(true));
 
         // Aparece na fila do super admin
         mockMvc.perform(get("/v1/platform/creditos/compras")
@@ -237,6 +245,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
                 .with(admin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].pixTxid").value("E12345678202607021234"))
+            .andExpect(jsonPath("$[0].temComprovante").value(true))
             .andExpect(jsonPath("$[0].quantidade").value(30));
 
         String compraId = jdbcTemplate.queryForObject(
@@ -258,11 +267,12 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
                 .with(admin()))
             .andExpect(status().isBadRequest());
 
-        // Mesmo txid de novo → 400
+        // Mesmo txid de novo (comprovante diferente) → 400
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"quantidade\": 10, \"pixTxid\": \"E12345678202607021234\"}")
+                .content("{\"quantidade\": 10, \"pixTxid\": \"E12345678202607021234\", " +
+                         "\"comprovanteBase64\": \"" + comprovantePng("txid-repetido") + "\"}")
                 .with(admin()))
             .andExpect(status().isBadRequest());
     }
@@ -273,7 +283,8 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"quantidade\": 10, \"pixTxid\": \"TX-REJ-1\"}")
+                .content("{\"quantidade\": 10, \"pixTxid\": \"TX-REJ-1\", " +
+                         "\"comprovanteBase64\": \"" + comprovantePng("rejeitada") + "\"}")
                 .with(admin()))
             .andExpect(status().isOk());
         String compraId = jdbcTemplate.queryForObject(
@@ -299,6 +310,161 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         assertThat(creditoService.saldo(TENANT_ACME)).isZero();
     }
 
+    // ==================== Comprovante PIX por upload (V053) ====================
+
+    @Test
+    @DisplayName("Compra sem txid: comprovante basta; aprovação usa o id da compra no motivo")
+    void testCompraSoComComprovante() throws Exception {
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"quantidade\": 20, \"comprovanteBase64\": \"" + comprovantePng("sem-txid") + "\"}")
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("PENDENTE"))
+            .andExpect(jsonPath("$.pixTxid").doesNotExist())
+            .andExpect(jsonPath("$.temComprovante").value(true));
+
+        String compraId = jdbcTemplate.queryForObject(
+            "SELECT id::text FROM credito_compra WHERE tenant_id = ? AND pix_txid IS NULL",
+            String.class, TENANT_ACME);
+
+        mockMvc.perform(post("/v1/platform/creditos/compras/{t}/{c}/aprovar", TENANT_ACME, compraId)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("APROVADA"));
+
+        String motivo = jdbcTemplate.queryForObject(
+            "SELECT motivo FROM credito_lancamento WHERE tenant_id = ? AND tipo = 'AJUSTE'",
+            String.class, TENANT_ACME);
+        assertThat(motivo).isEqualTo("Compra de créditos — comprovante " + compraId.substring(0, 8));
+        assertThat(creditoService.saldo(TENANT_ACME)).isEqualTo(20);
+    }
+
+    @Test
+    @DisplayName("Comprovante é obrigatório (400 sem ele)")
+    void testCompraSemComprovante() throws Exception {
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"quantidade\": 10, \"pixTxid\": \"TX-SEM-COMPROVANTE\"}")
+                .with(admin()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Envie o comprovante do PIX (foto ou PDF)"));
+    }
+
+    @Test
+    @DisplayName("Mesmo comprovante (sha256) não pode ser usado duas vezes")
+    void testDedupePorSha256() throws Exception {
+        String comprovante = comprovantePng("dedupe");
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"quantidade\": 10, \"comprovanteBase64\": \"" + comprovante + "\"}")
+                .with(admin()))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"quantidade\": 5, \"comprovanteBase64\": \"" + comprovante + "\"}")
+                .with(admin()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Este comprovante já foi usado em outra compra."));
+    }
+
+    @Test
+    @DisplayName("Base64 inválido e mime não aceito → 400 com mensagem clara")
+    void testComprovanteInvalido() throws Exception {
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"quantidade\": 10, \"comprovanteBase64\": \"data:image/png;base64,%%%nao-e-base64%%%\"}")
+                .with(admin()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Comprovante inválido — envie a foto ou o PDF do comprovante"));
+
+        String txt = java.util.Base64.getEncoder().encodeToString("apenas texto".getBytes());
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"quantidade\": 10, \"comprovanteBase64\": \"data:text/plain;base64," + txt + "\"}")
+                .with(admin()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Formato do comprovante não suportado (use JPG, PNG, WEBP ou PDF)"));
+    }
+
+    @Test
+    @DisplayName("Base64 puro sem data-URL: PDF identificado pelos magic bytes")
+    void testComprovantePdfPuro() throws Exception {
+        String pdf = java.util.Base64.getEncoder().encodeToString("%PDF-1.4 comprovante fake".getBytes());
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"quantidade\": 10, \"comprovanteBase64\": \"" + pdf + "\"}")
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.temComprovante").value(true));
+
+        String ct = jdbcTemplate.queryForObject(
+            "SELECT comprovante_content_type FROM credito_compra WHERE tenant_id = ?",
+            String.class, TENANT_ACME);
+        assertThat(ct).isEqualTo("application/pdf");
+    }
+
+    @Test
+    @DisplayName("Download do comprovante: tenant e plataforma servem os bytes com o content type")
+    void testDownloadComprovante() throws Exception {
+        byte[] conteudo = "PNG-COMPROVANTE-download".getBytes();
+        mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .contentType("application/json")
+                .content("{\"quantidade\": 10, \"comprovanteBase64\": \"data:image/png;base64,"
+                    + java.util.Base64.getEncoder().encodeToString(conteudo) + "\"}")
+                .with(admin()))
+            .andExpect(status().isOk());
+        String compraId = jdbcTemplate.queryForObject(
+            "SELECT id::text FROM credito_compra WHERE tenant_id = ?", String.class, TENANT_ACME);
+
+        mockMvc.perform(get("/v1/tenants/{tenantId}/creditos/compras/{compraId}/comprovante",
+                    TENANT_ACME, compraId)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Content-Type", "image/png"))
+            .andExpect(content().bytes(conteudo));
+
+        mockMvc.perform(get("/v1/platform/creditos/compras/{t}/{c}/comprovante", TENANT_ACME, compraId)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .with(admin()))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Content-Type", "image/png"))
+            .andExpect(content().bytes(conteudo));
+    }
+
+    @Test
+    @DisplayName("Download sem comprovante (compra legado) ou compra inexistente → 404")
+    void testDownloadComprovante404() throws Exception {
+        // Compra legado (pré-V053): só txid, sem comprovante
+        UUID compraLegado = UUID.randomUUID();
+        jdbcTemplate.update(
+            "INSERT INTO credito_compra (id, tenant_id, quantidade, pix_txid, status) " +
+            "VALUES (?, ?, 10, 'TX-LEGADO-1', 'PENDENTE')", compraLegado, TENANT_ACME);
+
+        mockMvc.perform(get("/v1/tenants/{tenantId}/creditos/compras/{compraId}/comprovante",
+                    TENANT_ACME, compraLegado)
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .with(admin()))
+            .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/v1/platform/creditos/compras/{t}/{c}/comprovante",
+                    TENANT_ACME, UUID.randomUUID())
+                .header("X-Tenant-Id", TENANT_ACME.toString())
+                .with(admin()))
+            .andExpect(status().isNotFound());
+    }
+
     @Test
     @DisplayName("Preço configurável: PUT muda o preço e novas compras usam o valor novo")
     void testPrecoConfiguravel() throws Exception {
@@ -315,7 +481,8 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"quantidade\": 15, \"pixTxid\": \"TX-PRECO-1\"}")
+                .content("{\"quantidade\": 15, \"pixTxid\": \"TX-PRECO-1\", " +
+                         "\"comprovanteBase64\": \"" + comprovantePng("preco") + "\"}")
                 .with(admin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.quantidade").value(15))
@@ -326,7 +493,8 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/v1/tenants/{tenantId}/creditos/compras", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
-                .content("{\"quantidade\": 0, \"pixTxid\": \"TX-PRECO-2\"}")
+                .content("{\"quantidade\": 0, \"pixTxid\": \"TX-PRECO-2\", " +
+                         "\"comprovanteBase64\": \"" + comprovantePng("preco-qtd-invalida") + "\"}")
                 .with(admin()))
             .andExpect(status().isBadRequest());
 

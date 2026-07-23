@@ -427,7 +427,7 @@ CREATE TABLE IF NOT EXISTS public.credito_compra (
     id            uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     tenant_id     uuid NOT NULL REFERENCES public.tenant(id) ON DELETE RESTRICT,
     quantidade    integer NOT NULL CHECK (quantidade > 0),
-    pix_txid      varchar(80) NOT NULL,
+    pix_txid      varchar(80),
     status        varchar(20) NOT NULL DEFAULT 'PENDENTE' CHECK (status IN ('PENDENTE', 'APROVADA', 'REJEITADA')),
     criado_por    uuid,
     decidido_por  uuid,
@@ -456,6 +456,15 @@ ON CONFLICT (chave) DO NOTHING;
 ALTER TABLE public.credito_compra
     ADD COLUMN IF NOT EXISTS valor_pago     numeric(10,2),
     ADD COLUMN IF NOT EXISTS preco_unitario numeric(10,2);
+
+-- V053: comprovante PIX por upload (foto/PDF) — pix_txid vira opcional
+ALTER TABLE public.credito_compra ALTER COLUMN pix_txid DROP NOT NULL;
+ALTER TABLE public.credito_compra
+    ADD COLUMN IF NOT EXISTS comprovante_key          varchar(255),
+    ADD COLUMN IF NOT EXISTS comprovante_content_type varchar(100),
+    ADD COLUMN IF NOT EXISTS comprovante_sha256       varchar(64);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_credito_compra_comprovante ON public.credito_compra (tenant_id, comprovante_sha256)
+    WHERE comprovante_sha256 IS NOT NULL;
 
 -- V034: reserva por modelo — controle de estoque opcional por tenant
 ALTER TABLE public.reserva_config

@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { ImagemConfigCard } from '@/components/dashboard/imagem-config-card'
+import { VerComprovanteButton } from '@/components/creditos/ver-comprovante-button'
 
 type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline'
 
@@ -460,7 +461,7 @@ function ComprasPendentesCard({ enabled }: { enabled: boolean }) {
           <Coins className="size-5" /> Compras de créditos aguardando conferência
         </CardTitle>
         <CardDescription>
-          Confira o PIX no extrato bancário pelo número da transação antes de aprovar.
+          Confira o comprovante enviado (e o PIX no extrato bancário) antes de aprovar.
           A aprovação credita no ledger (imutável e auditado).
         </CardDescription>
       </CardHeader>
@@ -471,7 +472,7 @@ function ComprasPendentesCard({ enabled }: { enabled: boolean }) {
               <TableHead>Empresa</TableHead>
               <TableHead className="text-right">Valor pago</TableHead>
               <TableHead className="text-right">Créditos</TableHead>
-              <TableHead>Transação PIX</TableHead>
+              <TableHead>Comprovante</TableHead>
               <TableHead>Solicitada em</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -496,7 +497,15 @@ function ComprasPendentesCard({ enabled }: { enabled: boolean }) {
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="font-mono text-xs">{c.pixTxid}</TableCell>
+                <TableCell>
+                  {c.temComprovante ? (
+                    <VerComprovanteButton
+                      fetchBlob={() => creditosService.getPlatformComprovante(c.tenantId, c.id)}
+                    />
+                  ) : (
+                    <span className="font-mono text-xs">{c.pixTxid ?? '—'}</span>
+                  )}
+                </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {new Date(c.createdAt).toLocaleString('pt-BR')}
                 </TableCell>

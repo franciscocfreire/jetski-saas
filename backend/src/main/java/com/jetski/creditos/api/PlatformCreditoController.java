@@ -77,6 +77,16 @@ public class PlatformCreditoController {
         return CompraResponse.from(platformCreditoService.aprovarCompra(tenantId, compraId));
     }
 
+    @GetMapping("/compras/{tenantId}/{compraId}/comprovante")
+    @Operation(summary = "Baixar o comprovante PIX da compra (streaming; 404 se não houver)")
+    public org.springframework.http.ResponseEntity<byte[]> comprovante(
+            @PathVariable UUID tenantId, @PathVariable UUID compraId) {
+        var arquivo = platformCreditoService.comprovante(tenantId, compraId);
+        return org.springframework.http.ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.parseMediaType(arquivo.contentType()))
+            .body(arquivo.bytes());
+    }
+
     @PostMapping("/compras/{tenantId}/{compraId}/rejeitar")
     @Operation(summary = "Rejeitar compra — motivo obrigatório")
     public CompraResponse rejeitar(

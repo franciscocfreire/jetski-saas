@@ -33,9 +33,20 @@ public class CreditoCompra {
     @Column(name = "quantidade", nullable = false, updatable = false)
     private Integer quantidade;
 
-    /** Número/identificador da transação PIX informado pelo tenant. */
-    @Column(name = "pix_txid", nullable = false, length = 80, updatable = false)
+    /** Número/identificador da transação PIX (legado — opcional desde a V053). */
+    @Column(name = "pix_txid", length = 80, updatable = false)
     private String pixTxid;
+
+    /** Key do comprovante PIX no storage ({tenant}/creditos/compras/{compra}/comprovante.ext). */
+    @Column(name = "comprovante_key", length = 255, updatable = false)
+    private String comprovanteKey;
+
+    @Column(name = "comprovante_content_type", length = 100, updatable = false)
+    private String comprovanteContentType;
+
+    /** SHA-256 do binário — dedupe: o mesmo comprovante não pode ser usado 2x. */
+    @Column(name = "comprovante_sha256", length = 64, updatable = false)
+    private String comprovanteSha256;
 
     /** Valor transferido (R$) informado pelo tenant. */
     @Column(name = "valor_pago", precision = 10, scale = 2, updatable = false)

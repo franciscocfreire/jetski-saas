@@ -13,6 +13,7 @@ public record CompraResponse(
         BigDecimal valorPago,
         BigDecimal precoUnitario,
         String pixTxid,
+        boolean temComprovante,
         String status,
         String observacao,
         Instant createdAt,
@@ -20,6 +21,7 @@ public record CompraResponse(
 ) {
     public static CompraResponse from(CreditoCompra c) {
         return new CompraResponse(c.getId(), c.getQuantidade(), c.getValorPago(), c.getPrecoUnitario(),
-            c.getPixTxid(), c.getStatus().name(), c.getObservacao(), c.getCreatedAt(), c.getDecididoEm());
+            c.getPixTxid(), c.getComprovanteKey() != null, c.getStatus().name(), c.getObservacao(),
+            c.getCreatedAt(), c.getDecididoEm());
     }
 }

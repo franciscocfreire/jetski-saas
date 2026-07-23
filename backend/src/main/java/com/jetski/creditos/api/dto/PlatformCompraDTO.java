@@ -16,10 +16,12 @@ public record PlatformCompraDTO(
         BigDecimal valorPago,
         BigDecimal precoUnitario,
         String pixTxid,
+        boolean temComprovante,
         Instant createdAt
 ) {
     public static PlatformCompraDTO from(CreditoCompra c, String slug, String razaoSocial) {
         return new PlatformCompraDTO(c.getId(), c.getTenantId(), slug, razaoSocial,
-            c.getQuantidade(), c.getValorPago(), c.getPrecoUnitario(), c.getPixTxid(), c.getCreatedAt());
+            c.getQuantidade(), c.getValorPago(), c.getPrecoUnitario(), c.getPixTxid(),
+            c.getComprovanteKey() != null, c.getCreatedAt());
     }
 }

@@ -16,4 +16,6 @@ public interface CreditoCompraRepository extends JpaRepository<CreditoCompra, UU
     Optional<CreditoCompra> findByIdAndTenantId(UUID id, UUID tenantId);
 
     boolean existsByTenantIdAndPixTxid(UUID tenantId, String pixTxid);
+
+    boolean existsByTenantIdAndComprovanteSha256(UUID tenantId, String comprovanteSha256);
 }

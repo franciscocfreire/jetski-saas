@@ -1590,7 +1590,10 @@ export interface CompraCreditos {
   quantidade: number
   valorPago?: number | null
   precoUnitario?: number | null
-  pixTxid: string
+  /** Legado: número da transação digitado (compras antigas, antes do upload de comprovante). */
+  pixTxid?: string | null
+  /** Compra tem foto/PDF do comprovante anexado (baixar via endpoint de comprovante). */
+  temComprovante: boolean
   status: 'PENDENTE' | 'APROVADA' | 'REJEITADA'
   observacao?: string | null
   createdAt: string
@@ -1606,7 +1609,10 @@ export interface PlatformCompraCreditos {
   quantidade: number
   valorPago?: number | null
   precoUnitario?: number | null
-  pixTxid: string
+  /** Legado: número da transação digitado (compras antigas, antes do upload de comprovante). */
+  pixTxid?: string | null
+  /** Compra tem foto/PDF do comprovante anexado (baixar via endpoint de comprovante). */
+  temComprovante: boolean
   createdAt: string
 }
 

@@ -73,7 +73,20 @@ public class CreditoController {
             @RequestBody SolicitarCompraRequest request) {
         log.info("POST /v1/tenants/{}/creditos/compras quantidade={}", tenantId, request.quantidade());
         return ResponseEntity.ok(CompraResponse.from(
-            creditoService.solicitarCompra(tenantId, request.quantidade(), request.pixTxid())));
+            creditoService.solicitarCompra(tenantId, request.quantidade(),
+                request.pixTxid(), request.comprovanteBase64())));
+    }
+
+    @GetMapping("/compras/{compraId}/comprovante")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Baixar o comprovante PIX da compra (streaming; 404 se não houver)")
+    public ResponseEntity<byte[]> comprovante(
+            @PathVariable UUID tenantId,
+            @PathVariable UUID compraId) {
+        var arquivo = creditoService.comprovante(tenantId, compraId);
+        return ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.parseMediaType(arquivo.contentType()))
+            .body(arquivo.bytes());
     }
 
     @GetMapping("/compras")

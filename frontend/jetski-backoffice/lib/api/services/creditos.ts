@@ -61,11 +61,37 @@ export const creditosService = {
     return data
   },
 
-  /** Compra por QUANTIDADE: o valor a transferir (qtd × preço) é calculado no backend. */
-  async solicitarCompra(quantidade: number, pixTxid: string): Promise<CompraCreditos> {
+  /**
+   * Compra por QUANTIDADE: o valor a transferir (qtd × preço) é calculado no backend.
+   * `comprovanteBase64` é o data-URL da foto/PDF do comprovante (obrigatório);
+   * `pixTxid` é opcional/legado.
+   */
+  async solicitarCompra(
+    quantidade: number,
+    comprovanteBase64: string,
+    pixTxid?: string
+  ): Promise<CompraCreditos> {
     const { data } = await apiClient.post<CompraCreditos>(
       `/v1/tenants/${getTenantId()}/creditos/compras`,
-      { quantidade, pixTxid }
+      { quantidade, comprovanteBase64, ...(pixTxid ? { pixTxid } : {}) }
+    )
+    return data
+  },
+
+  /** Comprovante (imagem ou PDF) de uma compra do tenant — bytes com Content-Type correto. */
+  async getComprovante(compraId: string): Promise<Blob> {
+    const { data } = await apiClient.get<Blob>(
+      `/v1/tenants/${getTenantId()}/creditos/compras/${compraId}/comprovante`,
+      { responseType: 'blob' }
+    )
+    return data
+  },
+
+  /** Super admin: comprovante (imagem ou PDF) de uma compra de qualquer empresa. */
+  async getPlatformComprovante(tenantId: string, compraId: string): Promise<Blob> {
+    const { data } = await apiClient.get<Blob>(
+      `/v1/platform/creditos/compras/${tenantId}/${compraId}/comprovante`,
+      { responseType: 'blob' }
     )
     return data
   },

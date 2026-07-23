@@ -74,6 +74,13 @@ public class PlatformCreditoService {
         return creditoService.rejeitarCompra(tenantId, compraId, observacao, actorOrNull());
     }
 
+    /** Comprovante PIX da compra (cross-tenant via set_config, mesma doutrina). */
+    @Transactional(readOnly = true)
+    public CreditoService.ComprovanteArquivo comprovante(UUID tenantId, UUID compraId) {
+        setTenant(tenantId);
+        return creditoService.comprovante(tenantId, compraId);
+    }
+
     /** Preço do crédito (config global — sem escopo de tenant). */
     public java.math.BigDecimal precoUnitario() {
         return creditoService.precoUnitario();

@@ -8,6 +8,8 @@ import com.jetski.creditos.domain.StatusCompra;
 import com.jetski.creditos.domain.TipoLancamento;
 import com.jetski.creditos.domain.event.CreditoLancadoEvent;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.exception.NotFoundException;
+import com.jetski.shared.storage.StorageService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +44,7 @@ public class CreditoService {
     private final CreditoCompraRepository compraRepository;
     private final EntityManager entityManager;
     private final ApplicationEventPublisher eventPublisher;
+    private final StorageService storageService;
 
     @Value("${jetski.creditos.adesao:5}")
     private int creditosAdesao;
@@ -279,14 +282,28 @@ public class CreditoService {
         return normalizado;
     }
 
+    /** Limite do comprovante decodificado (foto/PDF). */
+    private static final int COMPROVANTE_MAX_BYTES = 10 * 1024 * 1024;
+
+    /** Tipos aceitos para o comprovante PIX. */
+    private static final java.util.Set<String> COMPROVANTE_MIMES = java.util.Set.of(
+        "image/jpeg", "image/png", "image/webp", "application/pdf");
+
     /**
      * Registra a solicitação de compra POR QUANTIDADE: o tenant escolhe quantas
      * emissões quer e o valor a transferir = quantidade × preço vigente
      * (exato, sem arredondamento — facilita a conferência no extrato bancário).
      * Snapshot do preço fica na solicitação; os créditos só entram na aprovação.
+     *
+     * <p>O comprovante PIX (foto/PDF em base64) é obrigatório e vai para o
+     * storage; o dedupe é pelo SHA-256 do binário (mesmo comprovante não pode
+     * ser usado 2x). O txid é opcional (legado). O putObject roda dentro da
+     * transação: se falhar, a compra reverte junto (mesma ordem do
+     * ClienteAnexoService — órfão possível é só o arquivo, nunca a linha).
      */
     @Transactional
-    public CreditoCompra solicitarCompra(UUID tenantId, int quantidade, String pixTxid) {
+    public CreditoCompra solicitarCompra(UUID tenantId, int quantidade, String pixTxid,
+                                         String comprovanteBase64) {
         if (quantidade < 1) {
             throw new BusinessException("Informe a quantidade de emissões desejada");
         }
@@ -296,15 +313,19 @@ public class CreditoService {
         BigDecimal preco = precoUnitario();
         BigDecimal valorEsperado = preco.multiply(BigDecimal.valueOf(quantidade))
             .setScale(2, RoundingMode.HALF_UP);
-        String txid = pixTxid == null ? "" : pixTxid.trim();
-        if (txid.isEmpty()) {
-            throw new BusinessException("Informe o número da transação PIX (comprovante)");
+        String txid = pixTxid == null || pixTxid.isBlank() ? null : pixTxid.trim();
+        if (txid != null) {
+            if (txid.length() > 80) {
+                throw new BusinessException("Número da transação PIX muito longo (máx. 80 caracteres)");
+            }
+            if (compraRepository.existsByTenantIdAndPixTxid(tenantId, txid)) {
+                throw new BusinessException("Esta transação PIX já foi usada em outra solicitação");
+            }
         }
-        if (txid.length() > 80) {
-            throw new BusinessException("Número da transação PIX muito longo (máx. 80 caracteres)");
-        }
-        if (compraRepository.existsByTenantIdAndPixTxid(tenantId, txid)) {
-            throw new BusinessException("Esta transação PIX já foi usada em outra solicitação");
+        ComprovanteDecodificado comprovante = decodificarComprovante(comprovanteBase64);
+        String sha256 = sha256Hex(comprovante.bytes());
+        if (compraRepository.existsByTenantIdAndComprovanteSha256(tenantId, sha256)) {
+            throw new BusinessException("Este comprovante já foi usado em outra compra.");
         }
         CreditoCompra compra = compraRepository.save(CreditoCompra.builder()
             .tenantId(tenantId)
@@ -312,12 +333,128 @@ public class CreditoService {
             .valorPago(valorEsperado)
             .precoUnitario(preco)
             .pixTxid(txid)
+            .comprovanteContentType(comprovante.mime())
+            .comprovanteSha256(sha256)
             .status(StatusCompra.PENDENTE)
             .criadoPor(actorOrNull())
             .build());
-        log.info("Compra de créditos solicitada: tenant={}, quantidade={}, valor=R${}, preco=R${}, txid={}",
-            tenantId, quantidade, valorEsperado, preco, txid);
+        // A key depende do id (gerado no persist) e a coluna é updatable=false
+        // (o Hibernate a omitiria num UPDATE de entidade): grava-se via UPDATE
+        // nativo na mesma transação — write-once garantido pelo mapeamento.
+        String key = String.format("%s/creditos/compras/%s/comprovante.%s",
+            tenantId, compra.getId(), extensao(comprovante.mime()));
+        compra.setComprovanteKey(key);
+        entityManager.flush();
+        entityManager.createNativeQuery(
+                "UPDATE credito_compra SET comprovante_key = ?1 WHERE id = ?2 AND tenant_id = ?3")
+            .setParameter(1, key)
+            .setParameter(2, compra.getId())
+            .setParameter(3, tenantId)
+            .executeUpdate();
+        storageService.putObject(key, comprovante.bytes(), comprovante.mime());
+        log.info("Compra de créditos solicitada: tenant={}, compra={}, quantidade={}, valor=R${}, preco=R${}, txid={}, comprovante={}",
+            tenantId, compra.getId(), quantidade, valorEsperado, preco, txid, key);
         return compra;
+    }
+
+    /** Comprovante PIX pronto para streaming autenticado (bytes + content type). */
+    public record ComprovanteArquivo(byte[] bytes, String contentType) {}
+
+    /**
+     * Lê o comprovante da compra no storage.
+     *
+     * @throws NotFoundException se a compra não existir ou não tiver comprovante
+     */
+    @Transactional(readOnly = true)
+    public ComprovanteArquivo comprovante(UUID tenantId, UUID compraId) {
+        CreditoCompra compra = compraRepository.findByIdAndTenantId(compraId, tenantId)
+            .orElseThrow(() -> new NotFoundException("Solicitação de compra não encontrada"));
+        if (compra.getComprovanteKey() == null) {
+            throw new NotFoundException("Esta solicitação não tem comprovante anexado");
+        }
+        String ct = compra.getComprovanteContentType() != null
+            ? compra.getComprovanteContentType() : "image/jpeg";
+        return new ComprovanteArquivo(storageService.getObject(compra.getComprovanteKey()), ct);
+    }
+
+    private record ComprovanteDecodificado(byte[] bytes, String mime) {}
+
+    /**
+     * Decodifica o comprovante (data-URL ou base64 puro). O mime declarado no
+     * data-URL é validado contra a whitelist; base64 puro é identificado pelos
+     * magic bytes do arquivo.
+     */
+    private ComprovanteDecodificado decodificarComprovante(String conteudo) {
+        String b64 = conteudo == null ? "" : conteudo.trim();
+        if (b64.isEmpty()) {
+            throw new BusinessException("Envie o comprovante do PIX (foto ou PDF)");
+        }
+        String mimeDeclarado = null;
+        if (b64.startsWith("data:")) {
+            int comma = b64.indexOf(',');
+            if (comma > 0) {
+                String header = b64.substring(5, comma); // ex.: image/jpeg;base64
+                mimeDeclarado = header.split(";")[0].trim().toLowerCase();
+                b64 = b64.substring(comma + 1);
+            }
+        }
+        byte[] bytes;
+        try {
+            bytes = java.util.Base64.getDecoder().decode(b64.replaceAll("\\s", ""));
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("Comprovante inválido — envie a foto ou o PDF do comprovante");
+        }
+        if (bytes.length == 0) {
+            throw new BusinessException("Envie o comprovante do PIX (foto ou PDF)");
+        }
+        if (bytes.length > COMPROVANTE_MAX_BYTES) {
+            throw new BusinessException("Comprovante muito grande (máximo 10 MB)");
+        }
+        String mime = mimeDeclarado != null ? mimeDeclarado : detectarMime(bytes);
+        if (mime == null || !COMPROVANTE_MIMES.contains(mime)) {
+            throw new BusinessException("Formato do comprovante não suportado (use JPG, PNG, WEBP ou PDF)");
+        }
+        return new ComprovanteDecodificado(bytes, mime);
+    }
+
+    /** Identifica o tipo pelos magic bytes (base64 puro, sem header data-URL). */
+    private static String detectarMime(byte[] b) {
+        if (b.length >= 4 && b[0] == 0x25 && b[1] == 0x50 && b[2] == 0x44 && b[3] == 0x46) {
+            return "application/pdf"; // %PDF
+        }
+        if (b.length >= 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8 && (b[2] & 0xFF) == 0xFF) {
+            return "image/jpeg";
+        }
+        if (b.length >= 8 && (b[0] & 0xFF) == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47) {
+            return "image/png"; // \x89PNG
+        }
+        if (b.length >= 12 && b[0] == 0x52 && b[1] == 0x49 && b[2] == 0x46 && b[3] == 0x46
+                && b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50) {
+            return "image/webp"; // RIFF....WEBP
+        }
+        return null;
+    }
+
+    private static String extensao(String mime) {
+        return switch (mime) {
+            case "image/png" -> "png";
+            case "image/webp" -> "webp";
+            case "application/pdf" -> "pdf";
+            default -> "jpg";
+        };
+    }
+
+    private static String sha256Hex(byte[] bytes) {
+        try {
+            byte[] hash = java.security.MessageDigest.getInstance("SHA-256").digest(bytes);
+            StringBuilder sb = new StringBuilder(hash.length * 2);
+            for (byte x : hash) {
+                sb.append(Character.forDigit((x >> 4) & 0xF, 16)).append(Character.forDigit(x & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 indisponível", e);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -342,8 +479,10 @@ public class CreditoService {
         if (compra.getStatus() != StatusCompra.PENDENTE) {
             throw new BusinessException("Solicitação já foi " + compra.getStatus().name().toLowerCase());
         }
-        CreditoLancamento lanc = lancarAjuste(tenantId, compra.getQuantidade(),
-            "Compra de créditos — PIX " + compra.getPixTxid(), actor);
+        String motivo = compra.getPixTxid() != null && !compra.getPixTxid().isBlank()
+            ? "Compra de créditos — PIX " + compra.getPixTxid()
+            : "Compra de créditos — comprovante " + compra.getId().toString().substring(0, 8);
+        CreditoLancamento lanc = lancarAjuste(tenantId, compra.getQuantidade(), motivo, actor);
         compra.setStatus(StatusCompra.APROVADA);
         compra.setDecididoPor(actor);
         compra.setDecididoEm(java.time.Instant.now());
