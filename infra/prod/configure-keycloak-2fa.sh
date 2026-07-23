@@ -155,7 +155,17 @@ if [ -z "$(flow_id "$PB_ALIAS")" ]; then
       "${auth[@]}" "${json[@]}" -d "{\"provider\":\"$prov\"}"
   done
 fi
+# allow-access: sem ele, post-broker 100% pulado (usuário sem fator) explode
+# com AuthenticationFlowException — condição falsa precisa de UM sucesso.
+tem_allow=$(curl -s "${auth[@]}" "$KC/admin/realms/$REALM/authentication/flows/$PB_ALIAS/executions" \
+  | python3 -c 'import sys,json;print(any(e.get("providerId")=="allow-access-authenticator" for e in json.load(sys.stdin)))')
+if [ "$tem_allow" != "True" ]; then
+  curl -s -o /dev/null -w ">> POST execution allow-access http=%{http_code}\n" -X POST \
+    "$KC/admin/realms/$REALM/authentication/flows/$PB_ALIAS/executions/execution" \
+    "${auth[@]}" "${json[@]}" -d '{"provider":"allow-access-authenticator"}'
+fi
 set_requirement "$PB_ALIAS" "$PB_COND_ALIAS" "CONDITIONAL"
+set_requirement "$PB_ALIAS" "allow-access-authenticator" "ALTERNATIVE"
 set_requirement "$PB_COND_ALIAS" "conditional-user-configured" "REQUIRED"
 set_requirement "$PB_COND_ALIAS" "webauthn-authenticator" "ALTERNATIVE"
 set_requirement "$PB_COND_ALIAS" "auth-otp-form" "ALTERNATIVE"

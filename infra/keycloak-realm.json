@@ -573,7 +573,7 @@
     {
       "id": "af10c0de-0000-4000-8000-000000000005",
       "alias": "post-broker-2fa",
-      "description": "Pós-broker (Google): mesmo degrau de 2FA opt-in do flow do portal",
+      "description": "Pós-broker (Google): degrau 2FA opt-in + allow-access (flow 100% pulado = AuthenticationFlowException sem ele)",
       "providerId": "basic-flow",
       "topLevel": true,
       "builtIn": false,
@@ -584,6 +584,14 @@
           "flowAlias": "post-broker-2fa-cond",
           "authenticatorFlow": true,
           "autheticatorFlow": true,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "allow-access-authenticator",
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
           "userSetupAllowed": false
         }
       ]
