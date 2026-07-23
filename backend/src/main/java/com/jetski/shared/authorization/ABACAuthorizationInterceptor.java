@@ -265,6 +265,10 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
                action.equals("user:me") ||
                action.equals("user:senha") ||
                action.equals("user:avatar") ||
+               // Permissões efetivas (/v1/user/permissions): TenantFilter já validou o
+               // vínculo e resolveu os roles; payload derivado só dos roles do próprio
+               // usuário — sem essa exceção haveria deny circular (ação fora do RBAC)
+               action.equals("user:permissions") ||
                action.equals("capitania:list") ||   // Catálogo de capitanias (V047) — autenticado, sem tenant específico
                action.equals("capitania:view") ||
                action.equals("user:invite") ||   // Convidar usuário - validação por Spring Security roles

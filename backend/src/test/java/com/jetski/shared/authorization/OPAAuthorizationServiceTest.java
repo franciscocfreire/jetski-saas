@@ -495,4 +495,67 @@ class OPAAuthorizationServiceTest {
         assertThat(decision.requiresApproval()).isTrue();
         assertThat(decision.getAprovadorRequerido()).isEqualTo("ADMIN_TENANT");
     }
+
+    // ========== User Permissions / Role Permissions Matrix ==========
+
+    @Test
+    void shouldReturnUserPermissionsFromOpa() {
+        // Given
+        OPAResponse<java.util.List<String>> mockResponse =
+                new OPAResponse<>(java.util.List.of("locacao:list", "reserva:*"));
+
+        when(responseSpec.bodyToMono(any(ParameterizedTypeReference.class)))
+                .thenReturn(Mono.just(mockResponse));
+
+        // When
+        java.util.List<String> permissions =
+                opaService.getUserPermissions(java.util.List.of("OPERADOR"));
+
+        // Then
+        assertThat(permissions).containsExactly("locacao:list", "reserva:*");
+        verify(requestBodyUriSpec).uri("/v1/data/jetski/rbac/user_permissions");
+    }
+
+    @Test
+    void shouldReturnEmptyPermissionsOnOpaError() {
+        // Given
+        when(responseSpec.bodyToMono(any(ParameterizedTypeReference.class)))
+                .thenReturn(Mono.error(new RuntimeException("OPA down")));
+
+        // When
+        java.util.List<String> permissions =
+                opaService.getUserPermissions(java.util.List.of("OPERADOR"));
+
+        // Then: fail-safe — menu conservador, nunca exceção
+        assertThat(permissions).isEmpty();
+    }
+
+    @Test
+    void shouldReturnRolePermissionsMatrixFromOpa() {
+        // Given
+        OPAResponse<java.util.Map<String, java.util.List<String>>> mockResponse =
+                new OPAResponse<>(java.util.Map.of(
+                        "ADMIN_TENANT", java.util.List.of("*"),
+                        "OPERADOR", java.util.List.of("locacao:list")));
+
+        when(responseSpec.bodyToMono(any(ParameterizedTypeReference.class)))
+                .thenReturn(Mono.just(mockResponse));
+
+        // When
+        java.util.Map<String, java.util.List<String>> matrix = opaService.getRolePermissionsMatrix();
+
+        // Then
+        assertThat(matrix).containsEntry("ADMIN_TENANT", java.util.List.of("*"));
+        verify(requestBodyUriSpec).uri("/v1/data/jetski/rbac/role_permissions");
+    }
+
+    @Test
+    void shouldReturnEmptyMatrixOnOpaError() {
+        // Given
+        when(responseSpec.bodyToMono(any(ParameterizedTypeReference.class)))
+                .thenReturn(Mono.error(new RuntimeException("OPA down")));
+
+        // When / Then
+        assertThat(opaService.getRolePermissionsMatrix()).isEmpty();
+    }
 }

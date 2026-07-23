@@ -25,6 +25,8 @@ import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail, F
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Logo } from '@/components/logo'
 import { PlanoUsoTab } from '@/components/configuracoes/plano-uso-tab'
+import { PermissoesTab } from '@/components/configuracoes/permissoes-tab'
+import { usePermissions } from '@/lib/hooks/use-permissions'
 
 export default function ConfiguracoesPage() {
   return (
@@ -34,11 +36,16 @@ export default function ConfiguracoesPage() {
   )
 }
 
-const TABS_VALIDAS = ['comissoes', 'empresa', 'documentos', 'assinatura', 'marca', 'plano']
+const TABS_VALIDAS = ['comissoes', 'empresa', 'documentos', 'assinatura', 'marca', 'plano', 'permissoes']
 
 function ConfiguracoesConteudo() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  // Gate preventivo: sem config:list nem chega a disparar as queries (o item
+  // já some do menu; isto cobre acesso direto por URL). O 403 do backend
+  // continua como backstop.
+  const { can, isLoading: permsLoading } = usePermissions()
+  const podeAcessar = !permsLoading && can('config:list')
   // Deep-link p/ uma aba (?tab=empresa) — usado pelo checklist "Primeiros passos"
   const searchParams = useSearchParams()
   const tabParam = searchParams.get('tab')
@@ -56,6 +63,7 @@ function ConfiguracoesConteudo() {
   const { data: config, isLoading, error } = useQuery({
     queryKey: ['comissao-config'],
     queryFn: () => configuracoesService.getComissaoConfig(),
+    enabled: podeAcessar,
   })
 
   // Dados gerais / e-mail da empresa
@@ -76,6 +84,7 @@ function ConfiguracoesConteudo() {
   const { data: geral } = useQuery({
     queryKey: ['tenant-geral-config'],
     queryFn: () => configuracoesService.getTenantConfig(),
+    enabled: podeAcessar,
   })
   useEffect(() => {
     if (geral) {
@@ -125,6 +134,7 @@ function ConfiguracoesConteudo() {
   const { data: docConfig } = useQuery({
     queryKey: ['documento-config'],
     queryFn: () => configuracoesService.getDocumentoConfig(),
+    enabled: podeAcessar,
   })
   useEffect(() => {
     if (docConfig) setDocCfg(docConfig)
@@ -166,6 +176,7 @@ function ConfiguracoesConteudo() {
   const { data: assConfig } = useQuery({
     queryKey: ['assinatura-config'],
     queryFn: () => configuracoesService.getAssinaturaConfig(),
+    enabled: podeAcessar,
   })
   useEffect(() => {
     if (assConfig) setAssCfg(assConfig)
@@ -187,6 +198,7 @@ function ConfiguracoesConteudo() {
   const { data: brandConfig } = useQuery({
     queryKey: ['branding-config'],
     queryFn: () => configuracoesService.getBrandingConfig(),
+    enabled: podeAcessar,
   })
   useEffect(() => {
     if (brandConfig) setBrandCfg(brandConfig)
@@ -336,10 +348,24 @@ function ConfiguracoesConteudo() {
     updateMutation.mutate(request)
   }
 
-  if (isLoading) {
+  if (permsLoading || isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!podeAcessar) {
+    return (
+      <div className="container mx-auto p-6">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Você não tem permissão para acessar as configurações da empresa. Fale com o
+            administrador ou gerente da sua loja se precisar de acesso.
+          </AlertDescription>
+        </Alert>
       </div>
     )
   }
@@ -404,6 +430,10 @@ function ConfiguracoesConteudo() {
           <TabsTrigger value="plano" className="gap-2">
             <Gauge className="h-4 w-4" />
             Plano e Uso
+          </TabsTrigger>
+          <TabsTrigger value="permissoes" className="gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            Permissões
           </TabsTrigger>
         </TabsList>
 
@@ -1271,6 +1301,10 @@ function ConfiguracoesConteudo() {
 
         <TabsContent value="plano" className="space-y-6">
           <PlanoUsoTab />
+        </TabsContent>
+
+        <TabsContent value="permissoes" className="space-y-6">
+          <PermissoesTab />
         </TabsContent>
       </Tabs>
 

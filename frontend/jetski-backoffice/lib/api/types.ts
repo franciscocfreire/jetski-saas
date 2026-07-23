@@ -1058,6 +1058,23 @@ export const AVAILABLE_ROLES = [
 
 export type RoleValue = typeof AVAILABLE_ROLES[number]['value']
 
+/**
+ * Permissões efetivas do usuário no tenant atual (GET /v1/user/permissions).
+ * `permissions` é CRUA como no rbac.rego: pode conter "*" e "recurso:*" —
+ * use matchesPermission() de lib/hooks/use-permissions para o matching.
+ */
+export interface UserPermissionsResponse {
+  tenantId: string
+  roles: string[]
+  permissions: string[]
+  unrestricted: boolean
+}
+
+/** Matriz papel → permissões cruas (GET /v1/tenants/{id}/config/permissions-matrix). */
+export interface PermissionsMatrixResponse {
+  roles: Record<string, string[]>
+}
+
 // ==========================================
 // Tenant Signup Types
 // ==========================================

@@ -240,7 +240,10 @@ public class ActionExtractor {
             "instrutores-parceiro", "contagens", "instrutores-designados",
             // Perfil self-service do staff (/v1/user/me[/senha|/avatar]) —
             // ações user:me/user:senha/user:avatar puladas no ABACAuthorizationInterceptor
-            "me", "senha", "avatar"
+            "me", "senha", "avatar",
+            // Permissões efetivas do usuário no tenant (/v1/user/permissions) —
+            // user:permissions pulada no ABACAuthorizationInterceptor
+            "permissions"
         };
 
         for (String subAction : knownSubActions) {

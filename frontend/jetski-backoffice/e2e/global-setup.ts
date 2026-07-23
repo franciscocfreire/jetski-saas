@@ -282,29 +282,48 @@ async function performTraditionalLogin(
   const page = await context.newPage();
 
   try {
-    // 1. Navigate to login page
+    // 1. Navigate to login page — /login redireciona direto ao Keycloak
+    // (desde 5b8b1c5 não há mais botão "Entrar" intermediário; mantemos o
+    // clique como fallback para ambientes com a tela antiga)
     await page.goto(`${baseURL}/login`);
     console.log('   ➡️  Navegou para /login');
 
-    // 2. Click login button (redirects to Keycloak)
-    const loginButton = page.locator('button:has-text("Entrar"), button:has-text("Login"), button:has-text("Keycloak")');
-    await loginButton.waitFor({ state: 'visible', timeout: 10000 });
-    await loginButton.click();
-    console.log('   ➡️  Clicou no botão de login');
+    const keycloakUrlPattern = /.*\/realms\/.*\/protocol\/openid-connect\/auth.*/;
 
-    // 3. Wait for Keycloak redirect
-    await page.waitForURL(/.*\/realms\/.*\/protocol\/openid-connect\/auth.*/, {
-      timeout: 15000,
-    });
+    // 2. Wait for Keycloak (redirect automático) ou clicar no botão legado
+    const chegouNoKeycloak = await page
+      .waitForURL(keycloakUrlPattern, { timeout: 15000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (!chegouNoKeycloak) {
+      const loginButton = page.locator('button:has-text("Entrar"), button:has-text("Login"), button:has-text("Keycloak")');
+      await loginButton.waitFor({ state: 'visible', timeout: 10000 });
+      await loginButton.click();
+      console.log('   ➡️  Clicou no botão de login (tela legada)');
+      await page.waitForURL(keycloakUrlPattern, { timeout: 15000 });
+    }
     console.log('   ➡️  Redirecionado para Keycloak');
 
-    // 4. Fill credentials
-    await page.fill('#username', email);
-    await page.fill('#password', password);
-    console.log('   ➡️  Preencheu credenciais');
+    // 4/5. Fill credentials + submit — tema meujet (identifier-first, duas
+    // etapas: e-mail → Continuar → senha) ou tema Keycloak clássico
+    const identifierInput = page.locator('#identifier');
+    const temaNovo = await identifierInput
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .then(() => true)
+      .catch(() => false);
 
-    // 5. Submit form
-    await page.click('#kc-login');
+    if (temaNovo) {
+      await identifierInput.fill(email);
+      await page.click('#mj-send-code');
+      console.log('   ➡️  Informou identificador (tema meujet)');
+      await page.fill('#password', password);
+      await page.click('#mj-login-password');
+    } else {
+      await page.fill('#username', email);
+      await page.fill('#password', password);
+      await page.click('#kc-login');
+    }
     console.log('   ➡️  Submeteu login');
 
     // 6. Handle password update if required (first login)

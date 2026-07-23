@@ -4,6 +4,7 @@ import com.jetski.tenant.api.dto.BrandingRequest;
 import com.jetski.tenant.api.dto.BrandingResponse;
 import com.jetski.tenant.api.dto.ComissaoConfigRequest;
 import com.jetski.tenant.api.dto.ComissaoConfigResponse;
+import com.jetski.tenant.api.dto.PermissionsMatrixResponse;
 import com.jetski.tenant.api.dto.TenantGeralConfigRequest;
 import com.jetski.tenant.api.dto.TenantGeralConfigResponse;
 import com.jetski.tenant.domain.AssinaturaConfig;
@@ -46,6 +47,7 @@ import java.util.UUID;
 public class TenantConfigController {
 
     private final TenantConfigService tenantConfigService;
+    private final com.jetski.shared.authorization.OPAAuthorizationService opaAuthorizationService;
 
     /**
      * Get the current commission and bonus configuration for the tenant.
@@ -219,6 +221,23 @@ public class TenantConfigController {
         log.info("DELETE /v1/tenants/{}/config/branding/logo", tenantId);
         Branding cfg = tenantConfigService.removeLogo(tenantId);
         return ResponseEntity.ok(toBrandingResponse(tenantId, cfg));
+    }
+
+    // ========== MATRIZ DE PERMISSÕES (read-only) ==========
+
+    @GetMapping("/permissions-matrix")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Matriz papel × permissões (read-only)",
+        description = "Retorna o mapa completo papel → permissões do rbac.rego via OPA. " +
+                      "Permissões cruas, podem conter wildcards (\"*\", \"recurso:*\")."
+    )
+    public ResponseEntity<PermissionsMatrixResponse> getPermissionsMatrix(
+            @Parameter(description = "UUID do tenant")
+            @PathVariable UUID tenantId) {
+        log.info("GET /v1/tenants/{}/config/permissions-matrix", tenantId);
+        return ResponseEntity.ok(
+            new PermissionsMatrixResponse(opaAuthorizationService.getRolePermissionsMatrix()));
     }
 
     private BrandingResponse toBrandingResponse(UUID tenantId, Branding cfg) {

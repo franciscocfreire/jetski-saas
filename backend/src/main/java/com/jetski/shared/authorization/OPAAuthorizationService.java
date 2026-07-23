@@ -13,6 +13,8 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Service para autorização via OPA (Open Policy Agent).
@@ -30,6 +32,8 @@ public class OPAAuthorizationService {
     private static final String RBAC_ENDPOINT = "/v1/data/jetski/authz/rbac/allow";
     private static final String ALCADA_ENDPOINT = "/v1/data/jetski/authz/alcada";
     private static final String AUTHORIZATION_ENDPOINT = "/v1/data/jetski/authorization/result";
+    private static final String USER_PERMISSIONS_ENDPOINT = "/v1/data/jetski/rbac/user_permissions";
+    private static final String ROLE_PERMISSIONS_ENDPOINT = "/v1/data/jetski/rbac/role_permissions";
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(5);
 
     private final WebClient opaWebClient;
@@ -187,6 +191,73 @@ public class OPAAuthorizationService {
         } catch (Exception e) {
             log.error("Erro inesperado ao consultar OPA Authorization", e);
             return denyDecision("Unexpected error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Permissões efetivas (cruas, com wildcards "*" e "recurso:*") da união dos
+     * papéis informados, conforme o mapa role_permissions do rbac.rego.
+     *
+     * Consulta OPA endpoint: /v1/data/jetski/rbac/user_permissions
+     * Erro → lista vazia (fail-safe: menu conservador, nunca 500; o enforcement
+     * real continua no ABACAuthorizationInterceptor).
+     *
+     * @param roles papéis do usuário no tenant atual (TenantContext)
+     * @return permissões cruas, deduplicadas e ordenadas pelo OPA
+     */
+    public List<String> getUserPermissions(List<String> roles) {
+        OPAInput input = OPAInput.builder()
+            .user(OPAInput.UserContext.builder().roles(roles).build())
+            .build();
+
+        try {
+            OPAResponse<List<String>> response = opaWebClient
+                .post()
+                .uri(USER_PERMISSIONS_ENDPOINT)
+                .bodyValue(OPARequest.of(input))
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<OPAResponse<List<String>>>() {})
+                .timeout(DEFAULT_TIMEOUT)
+                .block();
+
+            List<String> permissions = response != null && response.getResult() != null
+                ? response.getResult()
+                : List.of();
+
+            log.debug("User permissions: roles={}, count={}", roles, permissions.size());
+            return permissions;
+
+        } catch (Exception e) {
+            log.error("Erro ao consultar OPA user_permissions: roles={}", roles, e);
+            return List.of();
+        }
+    }
+
+    /**
+     * Matriz completa papel → permissões (documento role_permissions do rbac.rego),
+     * para a tela read-only de permissões do backoffice.
+     *
+     * Consulta OPA endpoint: /v1/data/jetski/rbac/role_permissions
+     * Erro → mapa vazio.
+     */
+    public Map<String, List<String>> getRolePermissionsMatrix() {
+        try {
+            OPAResponse<Map<String, List<String>>> response = opaWebClient
+                .post()
+                .uri(ROLE_PERMISSIONS_ENDPOINT)
+                .bodyValue(OPARequest.of(OPAInput.builder().build()))
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<OPAResponse<Map<String, List<String>>>>() {})
+                .timeout(DEFAULT_TIMEOUT)
+                .block();
+
+            return response != null && response.getResult() != null
+                ? response.getResult()
+                : Map.of();
+
+        } catch (Exception e) {
+            log.error("Erro ao consultar OPA role_permissions", e);
+            return Map.of();
         }
     }
 

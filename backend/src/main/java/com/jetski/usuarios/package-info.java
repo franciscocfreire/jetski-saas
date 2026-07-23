@@ -39,6 +39,6 @@
  */
 @org.springframework.modulith.ApplicationModule(
     displayName = "Users and Members",
-    allowedDependencies = {"shared::security", "shared::exception", "shared::email", "shared::storage", "tenant", "tenant::domain", "tenant::events"}
+    allowedDependencies = {"shared::security", "shared::authorization", "shared::exception", "shared::email", "shared::storage", "tenant", "tenant::domain", "tenant::events"}
 )
 package com.jetski.usuarios;

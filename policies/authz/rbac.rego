@@ -1,5 +1,6 @@
 package jetski.rbac
 
+import future.keywords.contains
 import future.keywords.if
 import future.keywords.in
 
@@ -310,6 +311,20 @@ allow_platform if {
 allow_platform if {
     is_platform_admin
     startswith(input.action, "platform:")
+}
+
+# =============================================================================
+# Permissões efetivas (menu do backoffice / tela de permissões)
+# =============================================================================
+
+# União das permissões CRUAS (com wildcards "*" e "recurso:*") dos roles do
+# input. Consumida por GET /v1/user/permissions via data API:
+#   POST /v1/data/jetski/rbac/user_permissions
+#   { "input": { "user": { "roles": ["OPERADOR", ...] } } }
+# O cliente aplica o mesmo matching de action_matches_permission.
+user_permissions contains permission if {
+    some role in input.user.roles
+    some permission in role_permissions[role]
 }
 
 # =============================================================================

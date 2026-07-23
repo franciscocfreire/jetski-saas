@@ -67,23 +67,42 @@ export const test = base.extend<AuthFixtures>({
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        // Navigate to login first
+        // Navigate to login first — /login redirects straight to Keycloak
+        // (legacy screens had an intermediate "Entrar" button — kept as fallback)
         await page.goto(`${baseURL}/login`);
-        await page.waitForLoadState('networkidle');
 
-        // Click login button
-        const loginButton = page.locator('button:has-text("Entrar")');
-        await loginButton.waitFor({ state: 'visible', timeout: 10000 });
-        await loginButton.click();
+        const keycloakUrlPattern = /.*\/realms\/.*\/protocol\/openid-connect\/auth.*/;
+        const reachedKeycloak = await page
+          .waitForURL(keycloakUrlPattern, { timeout: 15000 })
+          .then(() => true)
+          .catch(() => false);
 
-        // Wait for Keycloak
-        await page.waitForURL(/.*\/realms\/.*\/protocol\/openid-connect\/auth.*/, { timeout: 15000 });
+        if (!reachedKeycloak) {
+          const loginButton = page.locator('button:has-text("Entrar")');
+          await loginButton.waitFor({ state: 'visible', timeout: 10000 });
+          await loginButton.click();
+          await page.waitForURL(keycloakUrlPattern, { timeout: 15000 });
+        }
         console.log('   ➡️  Redirected to Keycloak');
 
-        // Fill credentials
-        await page.fill('#username', creds.email);
-        await page.fill('#password', creds.password);
-        await page.click('#kc-login');
+        // Fill credentials — meujet theme (identifier-first, two steps:
+        // e-mail → Continuar → password) or classic Keycloak theme
+        const identifierInput = page.locator('#identifier');
+        const meujetTheme = await identifierInput
+          .waitFor({ state: 'visible', timeout: 5000 })
+          .then(() => true)
+          .catch(() => false);
+
+        if (meujetTheme) {
+          await identifierInput.fill(creds.email);
+          await page.click('#mj-send-code');
+          await page.fill('#password', creds.password);
+          await page.click('#mj-login-password');
+        } else {
+          await page.fill('#username', creds.email);
+          await page.fill('#password', creds.password);
+          await page.click('#kc-login');
+        }
         console.log('   ➡️  Submitted credentials');
 
         // Wait for redirect back to app (not on Keycloak anymore)

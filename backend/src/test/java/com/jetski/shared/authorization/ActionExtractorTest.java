@@ -224,6 +224,32 @@ class ActionExtractorTest {
 
             assertThat(action).isEqualTo("foto:upload");
         }
+
+        @Test
+        @DisplayName("GET /v1/user/permissions → user:permissions")
+        void shouldExtractUserPermissionsAction() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setMethod("GET");
+            request.setContextPath("/api");
+            request.setRequestURI("/api/v1/user/permissions");
+
+            String action = actionExtractor.extractAction(request);
+
+            assertThat(action).isEqualTo("user:permissions");
+        }
+
+        @Test
+        @DisplayName("GET /v1/tenants/{id}/config/permissions-matrix → config:list")
+        void shouldExtractPermissionsMatrixAsConfigList() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setMethod("GET");
+            request.setContextPath("/api");
+            request.setRequestURI("/api/v1/tenants/123e4567-e89b-12d3-a456-426614174000/config/permissions-matrix");
+
+            String action = actionExtractor.extractAction(request);
+
+            assertThat(action).isEqualTo("config:list");
+        }
     }
 
     @Nested

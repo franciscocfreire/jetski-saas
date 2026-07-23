@@ -346,3 +346,33 @@ test_mecanico_cannot_confirmar_sinal if {
 test_mecanico_cannot_emitir_documentos if {
     not allow_rbac with input as {"user": {"role": "MECANICO"}, "action": "reserva:emitir-documentos"}
 }
+
+# =============================================================================
+# user_permissions (permissões efetivas para o menu/tela de permissões)
+# =============================================================================
+
+test_user_permissions_operador_contains_locacao_list if {
+    "locacao:list" in user_permissions with input as {"user": {"roles": ["OPERADOR"]}}
+}
+
+test_user_permissions_operador_not_contains_os_create if {
+    not "os:create" in user_permissions with input as {"user": {"roles": ["OPERADOR"]}}
+}
+
+test_user_permissions_multi_role_is_union if {
+    perms := user_permissions with input as {"user": {"roles": ["OPERADOR", "MECANICO"]}}
+    "locacao:checkin" in perms  # de OPERADOR
+    "os:create" in perms        # de MECANICO
+}
+
+test_user_permissions_admin_is_wildcard if {
+    user_permissions == {"*"} with input as {"user": {"roles": ["ADMIN_TENANT"]}}
+}
+
+test_user_permissions_empty_roles_is_empty if {
+    count(user_permissions) == 0 with input as {"user": {"roles": []}}
+}
+
+test_user_permissions_unknown_role_is_empty if {
+    count(user_permissions) == 0 with input as {"user": {"roles": ["PAPEL_INEXISTENTE"]}}
+}
