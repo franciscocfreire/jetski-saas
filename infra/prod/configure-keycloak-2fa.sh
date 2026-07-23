@@ -141,37 +141,42 @@ set_requirement "$TFA_ALIAS" "webauthn-authenticator" "ALTERNATIVE"
 set_requirement "$TFA_ALIAS" "auth-otp-form" "ALTERNATIVE"
 
 # --- flow post-broker-2fa + bind no IdP google -------------------------------
-# ESTRUTURA (aprendida na fonte do DefaultAuthenticationFlow): CONDITIONAL
-# conta como REQUIRED na triagem e um ALTERNATIVE irmão é DESCARTADO
-# ("REQUIRED and ALTERNATIVE elements at same level"). Por isso o degrau fica
-# num subflow-portão ALTERNATIVE, com allow-access como 2º ALTERNATIVE:
+# ESTRUTURA (a única que fecha as três restrições do DefaultAuthenticationFlow):
 #   post-broker-2fa
-#   ├─ post-broker-2fa-gate ALTERNATIVE → [post-broker-2fa-cond CONDITIONAL]
-#   └─ allow-access ALTERNATIVE (sem fator: portão falha silencioso e este passa)
-# Shape antigo (cond direto no topo) é derrubado e recriado.
+#   ├─ allow-access REQUIRED   ← piso de sucesso (flow 100% pulado = exception)
+#   └─ post-broker-2fa-cond CONDITIONAL [condition + webauthn ALT + otp ALT]
+# NUNCA allow-access como ALTERNATIVE: (a) irmão de CONDITIONAL é descartado
+# ("REQUIRED and ALTERNATIVE at same level"); (b) em outro arranjo ele vira
+# opção SELECIONÁVEL no "try another way" = BYPASS do 2FA (bug real, 23/jul).
+# Shapes antigos (gate, allow ALTERNATIVE) são derrubados e recriados.
 tem_gate=$(flow_id "$PB_GATE_ALIAS")
 PB_ID=$(flow_id "$PB_ALIAS")
-if [ -n "$PB_ID" ] && [ -z "$tem_gate" ]; then
+allow_req=""
+if [ -n "$PB_ID" ]; then
+  allow_req=$(curl -s "${auth[@]}" "$KC/admin/realms/$REALM/authentication/flows/$PB_ALIAS/executions" \
+    | python3 -c 'import sys,json
+print(next((e["requirement"] for e in json.load(sys.stdin) if e.get("providerId")=="allow-access-authenticator" and e.get("level")==0), ""))')
+fi
+if [ -n "$PB_ID" ] && { [ -n "$tem_gate" ] || [ "$allow_req" != "REQUIRED" ]; }; then
   echo ">> shape antigo detectado — recriando $PB_ALIAS..."
   atualizar_post_broker_idp ""   # desbinda antes de deletar (flow em uso)
   curl -s -o /dev/null -w ">> DELETE flow $PB_ALIAS http=%{http_code}\n" \
     -X DELETE "$KC/admin/realms/$REALM/authentication/flows/$PB_ID" "${auth[@]}"
+  GATE_ID=$(flow_id "$PB_GATE_ALIAS")
+  [ -n "$GATE_ID" ] && curl -s -o /dev/null -w ">> DELETE flow órfão $PB_GATE_ALIAS http=%{http_code}\n" \
+    -X DELETE "$KC/admin/realms/$REALM/authentication/flows/$GATE_ID" "${auth[@]}"
   PB_ID=""
 fi
 if [ -z "$PB_ID" ]; then
-  echo ">> criando flow $PB_ALIAS (gate + allow-access)..."
+  echo ">> criando flow $PB_ALIAS (allow-access REQUIRED + cond CONDITIONAL)..."
   curl -s -o /dev/null -w ">> POST flow $PB_ALIAS http=%{http_code}\n" -X POST \
     "$KC/admin/realms/$REALM/authentication/flows" "${auth[@]}" "${json[@]}" \
     -d "{\"alias\":\"$PB_ALIAS\",\"description\":\"2FA pós-broker (Google)\",\"providerId\":\"basic-flow\",\"topLevel\":true,\"builtIn\":false}"
-  curl -s -o /dev/null -w ">> POST subflow $PB_GATE_ALIAS http=%{http_code}\n" -X POST \
-    "$KC/admin/realms/$REALM/authentication/flows/$PB_ALIAS/executions/flow" \
-    "${auth[@]}" "${json[@]}" \
-    -d "{\"alias\":\"$PB_GATE_ALIAS\",\"type\":\"basic-flow\",\"description\":\"portão 2FA\",\"provider\":\"registration-page-form\"}"
   curl -s -o /dev/null -w ">> POST execution allow-access http=%{http_code}\n" -X POST \
     "$KC/admin/realms/$REALM/authentication/flows/$PB_ALIAS/executions/execution" \
     "${auth[@]}" "${json[@]}" -d '{"provider":"allow-access-authenticator"}'
   curl -s -o /dev/null -w ">> POST subflow $PB_COND_ALIAS http=%{http_code}\n" -X POST \
-    "$KC/admin/realms/$REALM/authentication/flows/$PB_GATE_ALIAS/executions/flow" \
+    "$KC/admin/realms/$REALM/authentication/flows/$PB_ALIAS/executions/flow" \
     "${auth[@]}" "${json[@]}" \
     -d "{\"alias\":\"$PB_COND_ALIAS\",\"type\":\"basic-flow\",\"description\":\"condicional 2FA\",\"provider\":\"registration-page-form\"}"
   for prov in conditional-user-configured webauthn-authenticator auth-otp-form; do
@@ -180,9 +185,8 @@ if [ -z "$PB_ID" ]; then
       "${auth[@]}" "${json[@]}" -d "{\"provider\":\"$prov\"}"
   done
 fi
-set_requirement "$PB_ALIAS" "$PB_GATE_ALIAS" "ALTERNATIVE"
-set_requirement "$PB_ALIAS" "allow-access-authenticator" "ALTERNATIVE"
-set_requirement "$PB_GATE_ALIAS" "$PB_COND_ALIAS" "CONDITIONAL"
+set_requirement "$PB_ALIAS" "allow-access-authenticator" "REQUIRED"
+set_requirement "$PB_ALIAS" "$PB_COND_ALIAS" "CONDITIONAL"
 set_requirement "$PB_COND_ALIAS" "conditional-user-configured" "REQUIRED"
 set_requirement "$PB_COND_ALIAS" "webauthn-authenticator" "ALTERNATIVE"
 set_requirement "$PB_COND_ALIAS" "auth-otp-form" "ALTERNATIVE"

@@ -573,40 +573,22 @@
     {
       "id": "af10c0de-0000-4000-8000-000000000005",
       "alias": "post-broker-2fa",
-      "description": "Pós-broker (Google): gate 2FA ALTERNATIVE + allow-access ALTERNATIVE. CONDITIONAL conta como REQUIRED na triagem e descartaria um ALTERNATIVE irmão — por isso o aninhamento.",
+      "description": "Pós-broker (Google): allow-access REQUIRED (piso de sucesso, NUNCA ALTERNATIVE — viraria bypass selecionável no try-another-way) + degrau 2FA CONDITIONAL por cima.",
       "providerId": "basic-flow",
       "topLevel": true,
       "builtIn": false,
       "authenticationExecutions": [
         {
-          "requirement": "ALTERNATIVE",
-          "priority": 10,
-          "flowAlias": "post-broker-2fa-gate",
-          "authenticatorFlow": true,
-          "autheticatorFlow": true,
-          "userSetupAllowed": false
-        },
-        {
           "authenticator": "allow-access-authenticator",
-          "requirement": "ALTERNATIVE",
-          "priority": 20,
+          "requirement": "REQUIRED",
+          "priority": 10,
           "authenticatorFlow": false,
           "autheticatorFlow": false,
           "userSetupAllowed": false
-        }
-      ]
-    },
-    {
-      "id": "af10c0de-0000-4000-8000-000000000007",
-      "alias": "post-broker-2fa-gate",
-      "description": "Portão do 2FA pós-broker: sem fator, falha silencioso e o allow-access do pai passa",
-      "providerId": "basic-flow",
-      "topLevel": false,
-      "builtIn": false,
-      "authenticationExecutions": [
+        },
         {
           "requirement": "CONDITIONAL",
-          "priority": 10,
+          "priority": 20,
           "flowAlias": "post-broker-2fa-cond",
           "authenticatorFlow": true,
           "autheticatorFlow": true,
