@@ -86,7 +86,7 @@ if [ "${ROLLBACK:-0}" = "1" ]; then
   exit 0
 fi
 
-# --- required actions: cadastro (AIA) e remoção com step-up ------------------
+# --- required actions built-in: cadastro (AIA) e remoção com step-up ---------
 for RA in webauthn-register delete_credential; do
   RA_JSON=$(curl -s "${auth[@]}" "$KC/admin/realms/$REALM/authentication/required-actions/$RA")
   if [ -n "$RA_JSON" ] && [ "$RA_JSON" != "null" ]; then
@@ -98,6 +98,34 @@ for RA in webauthn-register delete_credential; do
     echo ">> AVISO: required action $RA não registrada neste Keycloak"
   fi
 done
+
+# --- required action CUSTOM mj-2fa-disable: registrar (nasce unregistered) ----
+DISABLE_RA="mj-2fa-disable"
+ja_registrada=$(curl -s "${auth[@]}" "$KC/admin/realms/$REALM/authentication/required-actions/$DISABLE_RA" \
+  | python3 -c 'import sys,json
+try:
+    d=json.load(sys.stdin); print(bool(d) and d.get("alias")==sys.argv[1])
+except Exception: print(False)' "$DISABLE_RA")
+if [ "$ja_registrada" != "True" ]; then
+  NOME=$(curl -s "${auth[@]}" "$KC/admin/realms/$REALM/authentication/unregistered-required-actions" \
+    | python3 -c 'import sys,json
+pid=sys.argv[1]
+print(next((a.get("name") for a in json.load(sys.stdin) if a.get("providerId")==pid), ""))' "$DISABLE_RA")
+  if [ -n "$NOME" ]; then
+    curl -s -o /dev/null -w ">> POST register-required-action $DISABLE_RA http=%{http_code}\n" -X POST \
+      "$KC/admin/realms/$REALM/authentication/register-required-action" "${auth[@]}" "${json[@]}" \
+      -d "{\"providerId\":\"$DISABLE_RA\",\"name\":\"$NOME\"}"
+  else
+    echo ">> AVISO: RA $DISABLE_RA ausente em unregistered (imagem sem o SPI novo?) — pulei"
+  fi
+fi
+RA_JSON=$(curl -s "${auth[@]}" "$KC/admin/realms/$REALM/authentication/required-actions/$DISABLE_RA")
+if [ -n "$RA_JSON" ] && [ "$RA_JSON" != "null" ]; then
+  printf '%s' "$RA_JSON" | python3 -c 'import sys,json;d=json.load(sys.stdin);d["enabled"]=True;print(json.dumps(d))' \
+    | curl -s -o /dev/null -w ">> PUT required-action $DISABLE_RA enabled http=%{http_code}\n" \
+        -X PUT "$KC/admin/realms/$REALM/authentication/required-actions/$DISABLE_RA" \
+        "${auth[@]}" "${json[@]}" -d @-
+fi
 
 # --- webAuthnPolicy do realm -------------------------------------------------
 curl -s "${auth[@]}" "$KC/admin/realms/$REALM" \

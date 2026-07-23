@@ -335,9 +335,11 @@ export default function PerfilPage() {
 }
 
 /**
- * Verificação em duas etapas (identidade única no Keycloak): lista os fatores
- * cadastrados e dispara cadastro/remoção via AIA (kc_action) — as cerimônias
- * acontecem nas telas temadas do Keycloak, com step-up na remoção.
+ * Verificação em duas etapas (identidade única no Keycloak). Toggle explícito:
+ * cadastrar um fator ativa; "Desativar" remove todos de uma vez (RA custom
+ * mj-2fa-disable). Ações que reduzem segurança (remover fator, desativar)
+ * levam max_age=0 → o Keycloak reautentica e desafia o próprio fator
+ * (step-up). As cerimônias rodam nas telas temadas do Keycloak.
  */
 function TwoFactorCard() {
   const { data: fatores, isLoading } = useQuery({
@@ -347,19 +349,45 @@ function TwoFactorCard() {
     retry: false,
   })
 
-  const acao = (kcAction: string) =>
-    signIn('keycloak', { callbackUrl: '/dashboard/perfil' }, { kc_action: kcAction })
+  // max_age=0 força reautenticação (step-up); omitido = usa a sessão atual.
+  const acao = (kcAction: string, stepUp = false) =>
+    signIn(
+      'keycloak',
+      { callbackUrl: '/dashboard/perfil' },
+      stepUp ? { kc_action: kcAction, max_age: '0' } : { kc_action: kcAction },
+    )
+
+  const desativar = () => {
+    if (
+      window.confirm(
+        'Desativar a verificação em duas etapas? Todos os fatores serão removidos e ' +
+          'você precisará confirmar sua identidade agora.',
+      )
+    ) {
+      acao('mj-2fa-disable', true)
+    }
+  }
 
   const rotulo = (tipo: string) =>
     tipo === 'otp' ? 'Aplicativo autenticador (TOTP)' : 'Passkey / chave de segurança'
 
+  const ativo = !!fatores && fatores.length > 0
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ShieldCheck className="size-5" />
-          Verificação em duas etapas
-        </CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2">
+            <ShieldCheck className="size-5" />
+            Verificação em duas etapas
+          </CardTitle>
+          {!isLoading &&
+            (ativo ? (
+              <Badge className="bg-emerald-600 hover:bg-emerald-600">Ativado</Badge>
+            ) : (
+              <Badge variant="outline">Desativado</Badge>
+            ))}
+        </div>
         <CardDescription>
           Vale para todos os acessos da sua conta (código por e-mail, senha e Google).
           Opcional — mas recomendado para quem administra a operação.
@@ -368,49 +396,62 @@ function TwoFactorCard() {
       <CardContent className="space-y-4">
         {isLoading ? (
           <Skeleton className="h-16 w-full" />
-        ) : fatores && fatores.length > 0 ? (
-          <ul className="space-y-3">
-            {fatores.map((f) => (
-              <li key={f.id} className="flex items-center justify-between rounded-md border p-3">
-                <div className="flex items-center gap-3">
-                  {f.type === 'otp' ? (
-                    <Smartphone className="size-5 text-muted-foreground" />
-                  ) : (
-                    <KeyRound className="size-5 text-muted-foreground" />
-                  )}
-                  <div>
-                    <p className="text-sm font-medium">{f.userLabel || rotulo(f.type)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {rotulo(f.type)}
-                      {f.createdDate
-                        ? ` · desde ${new Date(f.createdDate).toLocaleDateString('pt-BR')}`
-                        : ''}
-                    </p>
+        ) : ativo ? (
+          <>
+            <ul className="space-y-3">
+              {fatores!.map((f) => (
+                <li key={f.id} className="flex items-center justify-between rounded-md border p-3">
+                  <div className="flex items-center gap-3">
+                    {f.type === 'otp' ? (
+                      <Smartphone className="size-5 text-muted-foreground" />
+                    ) : (
+                      <KeyRound className="size-5 text-muted-foreground" />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">{f.userLabel || rotulo(f.type)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {rotulo(f.type)}
+                        {f.createdDate
+                          ? ` · desde ${new Date(f.createdDate).toLocaleDateString('pt-BR')}`
+                          : ''}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => acao(`delete_credential:${f.id}`)}
-                >
-                  Remover
-                </Button>
-              </li>
-            ))}
-          </ul>
+                  {/* remover fator = downgrade → step-up */}
+                  <Button variant="outline" size="sm" onClick={() => acao(`delete_credential:${f.id}`, true)}>
+                    Remover
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => acao('CONFIGURE_TOTP')}>
+                <Smartphone className="mr-2 size-4" /> Adicionar app autenticador
+              </Button>
+              <Button variant="outline" onClick={() => acao('webauthn-register')}>
+                <KeyRound className="mr-2 size-4" /> Adicionar passkey
+              </Button>
+              <Button variant="destructive" onClick={desativar}>
+                Desativar verificação em duas etapas
+              </Button>
+            </div>
+          </>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Nenhum fator cadastrado — seu login usa só a primeira etapa.
-          </p>
+          <>
+            <p className="text-sm text-muted-foreground">
+              Desativada — seu login usa só a primeira etapa. Ative para exigir também um
+              aplicativo autenticador ou uma passkey.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => acao('CONFIGURE_TOTP')}>
+                <Smartphone className="mr-2 size-4" /> Ativar com app autenticador
+              </Button>
+              <Button variant="outline" onClick={() => acao('webauthn-register')}>
+                <KeyRound className="mr-2 size-4" /> Ativar com passkey
+              </Button>
+            </div>
+          </>
         )}
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => acao('CONFIGURE_TOTP')}>
-            <Smartphone className="mr-2 size-4" /> Configurar app autenticador
-          </Button>
-          <Button variant="outline" onClick={() => acao('webauthn-register')}>
-            <KeyRound className="mr-2 size-4" /> Cadastrar passkey
-          </Button>
-        </div>
       </CardContent>
     </Card>
   )

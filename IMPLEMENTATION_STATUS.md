@@ -75,7 +75,11 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   backoffice via AIA (`kc_action=CONFIGURE_TOTP` / `webauthn-register` /
   `delete_credential:id`, remoção com step-up); listagem via
   `/v1/user/me/credentials` e `/v1/customers/self/credentials`. Converge via
-  `infra/prod/configure-keycloak-2fa.sh` (`ROLLBACK=1` = kill switch).
+  `infra/prod/configure-keycloak-2fa.sh` (`ROLLBACK=1` = kill switch). Toggle
+  explícito ativar/desativar nos perfis: ativar = cadastrar fator; **desativar
+  = remove TODOS os fatores de uma vez** (Required Action custom `mj-2fa-disable`
+  no SPI) — sempre com **step-up** (`max_age=0` força reautenticação completa,
+  desafiando o próprio fator antes de removê-lo); remover fator individual idem.
 
 ### Plataforma (super admin)
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão
