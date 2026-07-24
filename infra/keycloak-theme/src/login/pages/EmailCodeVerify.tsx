@@ -27,7 +27,7 @@ export default function EmailCodeVerify(props: PageProps<Extract<KcContext, { pa
 
     const { kcClsx } = getKcClsx({ doUseDefaultCss, classes });
 
-    const { url, realm, mjMode, mjSocial, mjDest, mjTyped, mjCooldown } = kcContext;
+    const { url, realm, mjMode, mjSocial, mjDest, mjTyped, mjCooldown, mjHidePassword } = kcContext;
 
     const { msg, msgStr } = i18n;
 
@@ -202,16 +202,21 @@ export default function EmailCodeVerify(props: PageProps<Extract<KcContext, { pa
                                 </form>
                             </div>
 
-                            <div className="mj-social-divider">{msg("mjEcOrPassword")}</div>
-                            <button
-                                tabIndex={5}
-                                className="mj-btn-secondary"
-                                id="mj-show-password"
-                                type="button"
-                                onClick={() => setPane("password")}
-                            >
-                                {msgStr("mjEcPasswordSubmit")}
-                            </button>
+                            {/* step-up de cadastro sem 2FA: sem opção de senha (só o código = OTP) */}
+                            {!mjHidePassword && (
+                                <>
+                                    <div className="mj-social-divider">{msg("mjEcOrPassword")}</div>
+                                    <button
+                                        tabIndex={5}
+                                        className="mj-btn-secondary"
+                                        id="mj-show-password"
+                                        type="button"
+                                        onClick={() => setPane("password")}
+                                    >
+                                        {msgStr("mjEcPasswordSubmit")}
+                                    </button>
+                                </>
+                            )}
                         </>
                     )}
                 </div>

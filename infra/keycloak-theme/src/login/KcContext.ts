@@ -32,6 +32,8 @@ export type KcContextExtensionPerPage = {
         mjTyped?: string;
         /** Segundos restantes do cooldown de reenvio. */
         mjCooldown?: number;
+        /** step-up de cadastro sem 2FA: esconde a opção de senha (só o código). */
+        mjHidePassword?: boolean;
         /** Presentes no kcContext em runtime (UrlBean/RealmBean), mas fora do
          *  tipo base das páginas custom do Keycloakify. */
         realm: { resetPasswordAllowed: boolean };

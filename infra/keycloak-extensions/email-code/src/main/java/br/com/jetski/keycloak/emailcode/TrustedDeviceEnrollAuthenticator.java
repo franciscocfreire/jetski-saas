@@ -39,6 +39,12 @@ public class TrustedDeviceEnrollAuthenticator implements Authenticator {
             context.success();
             return;
         }
+        // Step-up de ação de perfil (kc_action) não é login fresco: não oferece
+        // "confiar neste navegador".
+        if (StepUp.isSensitive(StepUp.kcAction(context.getAuthenticationSession()))) {
+            context.success();
+            return;
+        }
         // Sem fator 2FA cadastrado → não há verificação a dispensar.
         boolean temFator = user != null && user.credentialManager()
                 .getStoredCredentialsStream()

@@ -40,7 +40,15 @@ public class TrustedDeviceCheckAuthenticator implements ConditionalAuthenticator
         boolean temFator = user.credentialManager().getStoredCredentialsStream()
                 .anyMatch(c -> TrustedDevice.TIPOS_2FA.contains(c.getType()));
         if (!temFator) {
-            return false; // opt-in: sem fator, não desafia
+            return false; // opt-in: sem fator, não desafia (OTP por e-mail cuida do step-up)
+        }
+
+        // STEP-UP: ação sensível de perfil (kc_action) SEMPRE exige o 2FA de
+        // verdade — não honra o cookie de dispositivo confiável (senão o trusted
+        // device seria a brecha para adicionar/remover fator sem re-verificar).
+        if (StepUp.isSensitive(StepUp.kcAction(context.getAuthenticationSession()))) {
+            LOG.debugf("MJ_STEPUP_FORCE_2FA realm=%s user=%s", context.getRealm().getName(), user.getId());
+            return true;
         }
 
         String token = lerCookie(context);

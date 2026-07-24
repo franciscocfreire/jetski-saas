@@ -579,10 +579,10 @@ function SegurancaCard({ token }: { token: string }) {
             ))}
           </ul>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => acao("CONFIGURE_TOTP")}>
+            <Button variant="outline" onClick={() => acao("CONFIGURE_TOTP", true)}>
               <Smartphone size={16} className="mr-2" /> Adicionar app autenticador
             </Button>
-            <Button variant="outline" onClick={() => acao("webauthn-register")}>
+            <Button variant="outline" onClick={() => acao("webauthn-register", true)}>
               <KeyRound size={16} className="mr-2" /> Adicionar passkey
             </Button>
             <Button
@@ -601,10 +601,10 @@ function SegurancaCard({ token }: { token: string }) {
             um aplicativo autenticador ou uma passkey.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button onClick={() => acao("CONFIGURE_TOTP")}>
+            <Button onClick={() => acao("CONFIGURE_TOTP", true)}>
               <Smartphone size={16} className="mr-2" /> Ativar com app autenticador
             </Button>
-            <Button variant="outline" onClick={() => acao("webauthn-register")}>
+            <Button variant="outline" onClick={() => acao("webauthn-register", true)}>
               <KeyRound size={16} className="mr-2" /> Ativar com passkey
             </Button>
           </div>

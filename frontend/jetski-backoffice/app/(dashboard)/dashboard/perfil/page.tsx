@@ -40,9 +40,6 @@ export default function PerfilPage() {
 
   const [nome, setNome] = useState('')
   const [telefone, setTelefone] = useState('')
-  const [senhaAtual, setSenhaAtual] = useState('')
-  const [novaSenha, setNovaSenha] = useState('')
-  const [confirmacao, setConfirmacao] = useState('')
 
   useEffect(() => {
     if (perfil) {
@@ -83,19 +80,6 @@ export default function PerfilPage() {
     onError: (e) => toast.error('Erro ao remover foto', { description: msgErro(e) }),
   })
 
-  const trocarSenha = useMutation({
-    mutationFn: () => perfilService.updateSenha({ senhaAtual, novaSenha }),
-    onSuccess: () => {
-      setSenhaAtual('')
-      setNovaSenha('')
-      setConfirmacao('')
-      toast.success('Senha alterada', {
-        description: 'Use a nova senha no próximo login.',
-      })
-    },
-    onError: (e) => toast.error('Erro ao trocar a senha', { description: msgErro(e) }),
-  })
-
   const iniciais =
     (perfil?.nome ?? '')
       .split(/\s+/)
@@ -103,9 +87,6 @@ export default function PerfilPage() {
       .slice(0, 2)
       .map((p) => p[0]!.toUpperCase())
       .join('') || 'U'
-
-  const senhaValida =
-    senhaAtual.length > 0 && novaSenha.length >= 8 && novaSenha === confirmacao
 
   if (isLoading) {
     return (
@@ -266,47 +247,23 @@ export default function PerfilPage() {
         </CardHeader>
         <CardContent>
           {perfil?.senhaGerenciavel ? (
-            <div className="max-w-md space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="senha-atual">Senha atual</Label>
-                <Input
-                  id="senha-atual"
-                  type="password"
-                  autoComplete="current-password"
-                  value={senhaAtual}
-                  onChange={(e) => setSenhaAtual(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="nova-senha">Nova senha</Label>
-                <Input
-                  id="nova-senha"
-                  type="password"
-                  autoComplete="new-password"
-                  value={novaSenha}
-                  onChange={(e) => setNovaSenha(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">Mínimo de 8 caracteres.</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmacao-senha">Confirmar nova senha</Label>
-                <Input
-                  id="confirmacao-senha"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmacao}
-                  onChange={(e) => setConfirmacao(e.target.value)}
-                />
-                {confirmacao.length > 0 && novaSenha !== confirmacao && (
-                  <p className="text-xs text-destructive">As senhas não conferem.</p>
-                )}
-              </div>
+            <div className="max-w-md space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Por segurança, trocar a senha pede que você confirme sua identidade
+                (verificação em duas etapas ou código por e-mail).
+              </p>
+              {/* AIA UPDATE_PASSWORD com step-up (max_age=0): re-auth + 2FA na
+                  tela do Keycloak, mais forte que só a senha atual. */}
               <Button
-                onClick={() => trocarSenha.mutate()}
-                disabled={trocarSenha.isPending || !senhaValida}
+                onClick={() =>
+                  signIn(
+                    'keycloak',
+                    { callbackUrl: '/dashboard/perfil' },
+                    { kc_action: 'UPDATE_PASSWORD', max_age: '0' },
+                  )
+                }
               >
-                {trocarSenha.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
-                Alterar senha
+                <KeyRound className="mr-2 size-4" /> Trocar senha
               </Button>
             </div>
           ) : perfil?.idpFederado ? (
@@ -502,10 +459,10 @@ function TwoFactorCard() {
               ))}
             </ul>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => acao('CONFIGURE_TOTP')}>
+              <Button variant="outline" onClick={() => acao('CONFIGURE_TOTP', true)}>
                 <Smartphone className="mr-2 size-4" /> Adicionar app autenticador
               </Button>
-              <Button variant="outline" onClick={() => acao('webauthn-register')}>
+              <Button variant="outline" onClick={() => acao('webauthn-register', true)}>
                 <KeyRound className="mr-2 size-4" /> Adicionar passkey
               </Button>
               <Button variant="destructive" onClick={desativar}>
@@ -520,10 +477,10 @@ function TwoFactorCard() {
               aplicativo autenticador ou uma passkey.
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => acao('CONFIGURE_TOTP')}>
+              <Button onClick={() => acao('CONFIGURE_TOTP', true)}>
                 <Smartphone className="mr-2 size-4" /> Ativar com app autenticador
               </Button>
-              <Button variant="outline" onClick={() => acao('webauthn-register')}>
+              <Button variant="outline" onClick={() => acao('webauthn-register', true)}>
                 <KeyRound className="mr-2 size-4" /> Ativar com passkey
               </Button>
             </div>

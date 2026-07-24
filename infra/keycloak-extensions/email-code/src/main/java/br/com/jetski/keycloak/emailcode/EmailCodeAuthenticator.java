@@ -61,6 +61,8 @@ public class EmailCodeAuthenticator implements Authenticator {
     static final String NOTE_DEST = "MJ_EC_DEST";
     static final String NOTE_TYPED = "MJ_EC_TYPED";
     static final String NOTE_CD_UNTIL = "MJ_EC_CD_UNTIL";
+    /** step-up de cadastro sem 2FA: força o código (esconde a senha). */
+    static final String NOTE_FORCE_CODE = "MJ_EC_FORCE_CODE";
 
     // Notas do desafio no SingleUseObjectProvider
     static final String SUO_HASH = "hash";
@@ -101,7 +103,43 @@ public class EmailCodeAuthenticator implements Authenticator {
             context.challenge(verifyScreen(context, "password", null));
             return;
         }
+
+        // STEP-UP: num re-auth (max_age=0) de ação de perfil o usuário já vem
+        // setado. Pulamos a tela de identificação e vamos direto pra tela 2.
+        UserModel preset = context.getUser();
+        if (preset != null) {
+            iniciarStepUp(context, preset);
+            return;
+        }
+
         context.challenge(idScreen(context, null));
+    }
+
+    /**
+     * Entrada de step-up com usuário já conhecido: semeia as notes e escolhe a
+     * tela. Cadastro de fator (CONFIGURE_TOTP/webauthn-register) por quem NÃO
+     * tem 2FA → força o código por e-mail (OTP, senha escondida). Nos demais
+     * casos, tela de senha/código normal (quem tem 2FA será desafiado depois
+     * pela condição).
+     */
+    private void iniciarStepUp(AuthenticationFlowContext context, UserModel user) {
+        AuthenticationSessionModel authSession = context.getAuthenticationSession();
+        authSession.setAuthNote(NOTE_USER_ID, user.getId());
+        authSession.setAuthNote(NOTE_TYPED, user.getUsername() != null ? user.getUsername() : user.getEmail());
+        authSession.setAuthNote(NOTE_DEST, user.getEmail() == null ? "" : user.getEmail());
+
+        String kcAction = StepUp.kcAction(authSession);
+        boolean temFator = user.credentialManager().getStoredCredentialsStream()
+                .anyMatch(c -> TrustedDevice.TIPOS_2FA.contains(c.getType()));
+
+        if (StepUp.isCadastro(kcAction) && !temFator) {
+            // sem 2FA cadastrando o 1º fator → prova de posse do e-mail (OTP)
+            authSession.setAuthNote(NOTE_FORCE_CODE, "1");
+            handleSendCode(context);
+            return;
+        }
+        authSession.setAuthNote(NOTE_STATE, STATE_CHOOSE);
+        context.challenge(verifyScreen(context, "password", null));
     }
 
     @Override
@@ -342,6 +380,13 @@ public class EmailCodeAuthenticator implements Authenticator {
     private void handlePassword(AuthenticationFlowContext context, String password) {
         AuthenticationSessionModel authSession = context.getAuthenticationSession();
 
+        // step-up de cadastro sem 2FA exige o código por e-mail — a UI esconde a
+        // senha, mas rejeitamos aqui também (defesa contra POST forjado)
+        if ("1".equals(authSession.getAuthNote(NOTE_FORCE_CODE))) {
+            context.challenge(verifyScreen(context, "code", "mjEcCodeRequired"));
+            return;
+        }
+
         // Senha em branco não é tentativa de credencial: re-renderiza sem
         // incrementar brute force (Enter no campo vazio estava TRAVANDO conta)
         if (password == null || password.isBlank()) {
@@ -448,11 +493,15 @@ public class EmailCodeAuthenticator implements Authenticator {
         String dest = authSession.getAuthNote(NOTE_DEST);
         String typed = authSession.getAuthNote(NOTE_TYPED);
 
+        boolean forceCode = "1".equals(authSession.getAuthNote(NOTE_FORCE_CODE));
+
         LoginFormsProvider form = context.form();
-        form.setAttribute("mjMode", mode);
+        form.setAttribute("mjMode", forceCode ? "code" : mode);
         form.setAttribute("mjDest", dest == null ? "" : dest);
         form.setAttribute("mjTyped", typed == null ? "" : typed);
         form.setAttribute("mjCooldown", cooldown);
+        // step-up de cadastro sem 2FA: só o código por e-mail (esconde a senha)
+        form.setAttribute("mjHidePassword", forceCode);
         // Google também na tela 2: quem entra com Google não tem senha e não
         // pode ficar preso no painel de senha (a dica estática + este botão
         // resolvem sem vazar se a conta existe/tem senha)
