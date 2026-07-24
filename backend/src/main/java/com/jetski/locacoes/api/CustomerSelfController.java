@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -102,6 +103,22 @@ public class CustomerSelfController {
     public ResponseEntity<java.util.List<java.util.Map<String, Object>>> credenciais(
             @AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(userProvisioningService.listSecondFactorCredentials(jwt.getSubject()));
+    }
+
+    @GetMapping("/trusted-devices")
+    @Operation(summary = "Dispositivos confiáveis (trusted device)")
+    public ResponseEntity<java.util.List<java.util.Map<String, Object>>> dispositivos(
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(userProvisioningService.listTrustedDevices(jwt.getSubject()));
+    }
+
+    /** Revoga uma credential do próprio cliente (dispositivo confiável / fator). */
+    @DeleteMapping("/credentials/{id}")
+    @Operation(summary = "Revogar dispositivo confiável ou fator 2FA")
+    public ResponseEntity<Void> revogarCredencial(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+        userProvisioningService.revokeCredential(jwt.getSubject(), id);
+        return ResponseEntity.noContent().build();
     }
 
     public record ContatoLojaRequest(

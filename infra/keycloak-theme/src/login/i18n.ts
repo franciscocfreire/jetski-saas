@@ -49,6 +49,15 @@ const { useI18n, ofTypeI18n } = i18nBuilder
             mjEcCodeRequired: "Digite o código de 6 dígitos.",
             mjEcNewHere: "novo por aqui?",
             mjEcCreateAccount: "Criar conta gratuita",
+            doContinue: "Continuar",
+            mjTdTitle: "Confiar neste navegador?",
+            mjTdInstruction:
+                "Você confirmou sua identidade. Podemos lembrar deste navegador para " +
+                "não pedir o código nos próximos acessos.",
+            mjTdCheckbox: "Não pedir verificação neste navegador por 30 dias",
+            mjTdHint:
+                "Marque só em dispositivos seus. Você pode remover este navegador a " +
+                "qualquer momento no seu perfil (Dispositivos confiáveis).",
 
             // Reset de senha (vale também para quem só entra com Google:
             // o link cria uma senha para a conta)
@@ -137,6 +146,15 @@ const { useI18n, ofTypeI18n } = i18nBuilder
             mjEcCodeRequired: "Enter the 6-digit code.",
             mjEcNewHere: "new here?",
             mjEcCreateAccount: "Create free account",
+            doContinue: "Continue",
+            mjTdTitle: "Trust this browser?",
+            mjTdInstruction:
+                "You confirmed your identity. We can remember this browser so you won't " +
+                "be asked for the code next time.",
+            mjTdCheckbox: "Don't ask for verification on this browser for 30 days",
+            mjTdHint:
+                "Only check this on your own devices. You can remove this browser anytime " +
+                "in your profile (Trusted devices).",
 
             emailForgotTitle: "Recover access",
             emailInstruction:

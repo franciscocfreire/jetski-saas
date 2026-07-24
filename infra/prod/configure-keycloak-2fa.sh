@@ -34,11 +34,40 @@ TOKEN=$(curl -s -X POST "$KC/realms/master/protocol/openid-connect/token" \
 auth=(-H "Authorization: Bearer $TOKEN")
 json=(-H "Content-Type: application/json")
 
-flow_id() { # $1 = alias → id ("" se ausente)
+flow_id() { # $1 = alias → id ("" se ausente). NOTA: /authentication/flows só
+            # lista flows TOP-LEVEL — subflows use child_flow_id.
   curl -s "${auth[@]}" "$KC/admin/realms/$REALM/authentication/flows" \
     | ALIAS="$1" python3 -c 'import sys,json,os
 fs=json.load(sys.stdin)
 print(next((f["id"] for f in fs if f.get("alias")==os.environ["ALIAS"]), ""))'
+}
+
+# flowId de um SUBFLOW (não aparece em /flows): varre as executions do
+# ancestral top-level e casa pelo displayName (= alias do subflow).
+child_flow_id() { # $1 = top-level alias; $2 = subflow alias → flowId ("" se ausente)
+  curl -s "${auth[@]}" "$KC/admin/realms/$REALM/authentication/flows/$1/executions" \
+    | DISP="$2" python3 -c 'import sys,json,os
+try:
+    es=json.load(sys.stdin)
+except Exception:
+    print(""); sys.exit()
+print(next((e.get("flowId","") for e in es if e.get("displayName")==os.environ["DISP"] and e.get("flowId")), ""))'
+}
+
+# Remove um SUBFLOW pela sua EXECUTION no ancestral (DELETE /flows/{id} do
+# subflow deixa a execution órfã no pai → NPE). Deletar a execution remove os
+# dois.
+delete_subflow() { # $1 = top-level alias; $2 = subflow alias
+  local exec_id
+  exec_id=$(curl -s "${auth[@]}" "$KC/admin/realms/$REALM/authentication/flows/$1/executions" \
+    | DISP="$2" python3 -c 'import sys,json,os
+try: es=json.load(sys.stdin)
+except Exception: es=[]
+print(next((e.get("id","") for e in es if e.get("displayName")==os.environ["DISP"] and e.get("flowId")), ""))')
+  if [ -n "$exec_id" ]; then
+    curl -s -o /dev/null -w ">> DELETE execution do subflow $2 http=%{http_code}\n" \
+      -X DELETE "$KC/admin/realms/$REALM/authentication/executions/$exec_id" "${auth[@]}"
+  fi
 }
 
 # seta requirement de uma execution do flow $1 cujo displayName/alias/provider casa $2
@@ -80,6 +109,7 @@ print(json.dumps(rep))' \
 # --- rollback: desliga o degrau e sai ----------------------------------------
 if [ "${ROLLBACK:-0}" = "1" ]; then
   set_requirement "$FORMS_ALIAS" "$TFA_ALIAS" "DISABLED" || true
+  set_requirement "$FORMS_ALIAS" "mj-trusted-device-enroll" "DISABLED" || true
   # o matcher acima usa displayName do subflow = alias
   atualizar_post_broker_idp ""
   echo ">> ROLLBACK: 2FA desativado (login volta a 1 fator; fatores cadastrados ficam dormentes)."
@@ -148,23 +178,49 @@ print(json.dumps(rep))' \
   | curl -s -o /dev/null -w ">> PUT realm webAuthnPolicy http=%{http_code}\n" \
       -X PUT "$KC/admin/realms/$REALM" "${auth[@]}" "${json[@]}" -d @-
 
-# --- subflow portal-2fa no forms (cria se ausente) ---------------------------
-if [ -z "$(flow_id "$TFA_ALIAS")" ]; then
-  echo ">> criando subflow $TFA_ALIAS em $FORMS_ALIAS..."
+# --- subflow portal-2fa + enroll no forms — shape com trusted device ---------
+# Estrutura (marker do shape novo = execução mj-trusted-device-enroll no forms):
+#   portal-browser-forms
+#   ├─ meujet-email-code          REQUIRED
+#   ├─ portal-2fa (CONDITIONAL)   ← condição vê webauthn/otp como IRMÃOS diretos
+#   │    ├─ conditional-user-configured REQUIRED
+#   │    ├─ mj-trusted-device-check      ALTERNATIVE (cookie válido → pula)
+#   │    ├─ webauthn-authenticator       ALTERNATIVE
+#   │    └─ auth-otp-form                ALTERNATIVE
+#   └─ mj-trusted-device-enroll   REQUIRED  (auto-decide se mostra: só com fator
+#                                            e sem trusted-skip)
+# NÃO aninhar os fatores: conditional-user-configured só enxerga irmãos diretos.
+# enroll DIRETO no forms (level 0) = shape novo. O aninhado (level>0) é o antigo.
+tem_enroll=$(curl -s "${auth[@]}" "$KC/admin/realms/$REALM/authentication/flows/$FORMS_ALIAS/executions" \
+  | python3 -c 'import sys,json
+try: es=json.load(sys.stdin)
+except Exception: es=[]
+print(any(e.get("providerId")=="mj-trusted-device-enroll" and e.get("level")==0 for e in es))')
+if [ "$tem_enroll" != "True" ]; then
+  if [ -n "$(child_flow_id portal-browser "$TFA_ALIAS")" ]; then
+    echo ">> shape antigo do $TFA_ALIAS — derrubando via execution..."
+    delete_subflow "$FORMS_ALIAS" "$TFA_ALIAS"
+  fi
+  echo ">> criando $TFA_ALIAS (check-gate + webauthn/otp) em $FORMS_ALIAS..."
   curl -s -o /dev/null -w ">> POST subflow $TFA_ALIAS http=%{http_code}\n" -X POST \
     "$KC/admin/realms/$REALM/authentication/flows/$FORMS_ALIAS/executions/flow" \
     "${auth[@]}" "${json[@]}" \
-    -d "{\"alias\":\"$TFA_ALIAS\",\"type\":\"basic-flow\",\"description\":\"2FA opt-in (TOTP/WebAuthn)\",\"provider\":\"registration-page-form\"}"
-  for prov in conditional-user-configured webauthn-authenticator auth-otp-form; do
-    curl -s -o /dev/null -w ">> POST execution $prov http=%{http_code}\n" -X POST \
+    -d "{\"alias\":\"$TFA_ALIAS\",\"type\":\"basic-flow\",\"description\":\"2FA opt-in + device confiável\",\"provider\":\"registration-page-form\"}"
+  for prov in mj-trusted-device-check webauthn-authenticator auth-otp-form; do
+    curl -s -o /dev/null -w ">> POST exec $prov http=%{http_code}\n" -X POST \
       "$KC/admin/realms/$REALM/authentication/flows/$TFA_ALIAS/executions/execution" \
       "${auth[@]}" "${json[@]}" -d "{\"provider\":\"$prov\"}"
   done
+  echo ">> criando enroll no nível do forms..."
+  curl -s -o /dev/null -w ">> POST exec mj-trusted-device-enroll http=%{http_code}\n" -X POST \
+    "$KC/admin/realms/$REALM/authentication/flows/$FORMS_ALIAS/executions/execution" \
+    "${auth[@]}" "${json[@]}" -d '{"provider":"mj-trusted-device-enroll"}'
 fi
-# requirements (sempre converge — cobre rollback anterior e criação nova)
+# requirements (sempre converge). portal-2fa REQUIRED (o check é o gate opt-in).
 set_requirement "$FORMS_ALIAS" "meujet-email-code" "REQUIRED"
 set_requirement "$FORMS_ALIAS" "$TFA_ALIAS" "CONDITIONAL"
-set_requirement "$TFA_ALIAS" "conditional-user-configured" "REQUIRED"
+set_requirement "$FORMS_ALIAS" "mj-trusted-device-enroll" "REQUIRED"
+set_requirement "$TFA_ALIAS" "mj-trusted-device-check" "REQUIRED"
 set_requirement "$TFA_ALIAS" "webauthn-authenticator" "ALTERNATIVE"
 set_requirement "$TFA_ALIAS" "auth-otp-form" "ALTERNATIVE"
 
@@ -177,45 +233,47 @@ set_requirement "$TFA_ALIAS" "auth-otp-form" "ALTERNATIVE"
 # ("REQUIRED and ALTERNATIVE at same level"); (b) em outro arranjo ele vira
 # opção SELECIONÁVEL no "try another way" = BYPASS do 2FA (bug real, 23/jul).
 # Shapes antigos (gate, allow ALTERNATIVE) são derrubados e recriados.
-tem_gate=$(flow_id "$PB_GATE_ALIAS")
-PB_ID=$(flow_id "$PB_ALIAS")
-allow_req=""
-if [ -n "$PB_ID" ]; then
-  allow_req=$(curl -s "${auth[@]}" "$KC/admin/realms/$REALM/authentication/flows/$PB_ALIAS/executions" \
-    | python3 -c 'import sys,json
-print(next((e["requirement"] for e in json.load(sys.stdin) if e.get("providerId")=="allow-access-authenticator" and e.get("level")==0), ""))')
-fi
-if [ -n "$PB_ID" ] && { [ -n "$tem_gate" ] || [ "$allow_req" != "REQUIRED" ]; }; then
-  echo ">> shape antigo detectado — recriando $PB_ALIAS..."
+# Marker do shape novo (com trusted device) = existência de post-broker-2fa-challenge.
+PB_ID=$(flow_id "$PB_ALIAS")   # top-level: flow_id serve
+# shape novo = mj-trusted-device-enroll no topo de post-broker-2fa
+tem_pb_enroll=""
+[ -n "$PB_ID" ] && tem_pb_enroll=$(curl -s "${auth[@]}" "$KC/admin/realms/$REALM/authentication/flows/$PB_ALIAS/executions" \
+  | python3 -c 'import sys,json
+try: es=json.load(sys.stdin)
+except Exception: es=[]
+print(next((True for e in es if e.get("providerId")=="mj-trusted-device-enroll" and e.get("level")==0), ""))')
+if [ -n "$PB_ID" ] && [ -z "$tem_pb_enroll" ]; then
+  echo ">> shape antigo do $PB_ALIAS — recriando (delete cascateia os subflows)..."
   atualizar_post_broker_idp ""   # desbinda antes de deletar (flow em uso)
   curl -s -o /dev/null -w ">> DELETE flow $PB_ALIAS http=%{http_code}\n" \
     -X DELETE "$KC/admin/realms/$REALM/authentication/flows/$PB_ID" "${auth[@]}"
-  GATE_ID=$(flow_id "$PB_GATE_ALIAS")
-  [ -n "$GATE_ID" ] && curl -s -o /dev/null -w ">> DELETE flow órfão $PB_GATE_ALIAS http=%{http_code}\n" \
-    -X DELETE "$KC/admin/realms/$REALM/authentication/flows/$GATE_ID" "${auth[@]}"
   PB_ID=""
 fi
 if [ -z "$PB_ID" ]; then
-  echo ">> criando flow $PB_ALIAS (allow-access REQUIRED + cond CONDITIONAL)..."
+  echo ">> criando $PB_ALIAS (allow REQUIRED + cond CONDITIONAL flat + enroll REQUIRED)..."
   curl -s -o /dev/null -w ">> POST flow $PB_ALIAS http=%{http_code}\n" -X POST \
     "$KC/admin/realms/$REALM/authentication/flows" "${auth[@]}" "${json[@]}" \
     -d "{\"alias\":\"$PB_ALIAS\",\"description\":\"2FA pós-broker (Google)\",\"providerId\":\"basic-flow\",\"topLevel\":true,\"builtIn\":false}"
-  curl -s -o /dev/null -w ">> POST execution allow-access http=%{http_code}\n" -X POST \
+  curl -s -o /dev/null -w ">> POST exec allow-access http=%{http_code}\n" -X POST \
     "$KC/admin/realms/$REALM/authentication/flows/$PB_ALIAS/executions/execution" \
     "${auth[@]}" "${json[@]}" -d '{"provider":"allow-access-authenticator"}'
   curl -s -o /dev/null -w ">> POST subflow $PB_COND_ALIAS http=%{http_code}\n" -X POST \
     "$KC/admin/realms/$REALM/authentication/flows/$PB_ALIAS/executions/flow" \
     "${auth[@]}" "${json[@]}" \
-    -d "{\"alias\":\"$PB_COND_ALIAS\",\"type\":\"basic-flow\",\"description\":\"condicional 2FA\",\"provider\":\"registration-page-form\"}"
-  for prov in conditional-user-configured webauthn-authenticator auth-otp-form; do
-    curl -s -o /dev/null -w ">> POST execution $prov http=%{http_code}\n" -X POST \
+    -d "{\"alias\":\"$PB_COND_ALIAS\",\"type\":\"basic-flow\",\"description\":\"condicional 2FA + device\",\"provider\":\"registration-page-form\"}"
+  for prov in mj-trusted-device-check webauthn-authenticator auth-otp-form; do
+    curl -s -o /dev/null -w ">> POST exec $prov http=%{http_code}\n" -X POST \
       "$KC/admin/realms/$REALM/authentication/flows/$PB_COND_ALIAS/executions/execution" \
       "${auth[@]}" "${json[@]}" -d "{\"provider\":\"$prov\"}"
   done
+  curl -s -o /dev/null -w ">> POST exec mj-trusted-device-enroll http=%{http_code}\n" -X POST \
+    "$KC/admin/realms/$REALM/authentication/flows/$PB_ALIAS/executions/execution" \
+    "${auth[@]}" "${json[@]}" -d '{"provider":"mj-trusted-device-enroll"}'
 fi
 set_requirement "$PB_ALIAS" "allow-access-authenticator" "REQUIRED"
 set_requirement "$PB_ALIAS" "$PB_COND_ALIAS" "CONDITIONAL"
-set_requirement "$PB_COND_ALIAS" "conditional-user-configured" "REQUIRED"
+set_requirement "$PB_ALIAS" "mj-trusted-device-enroll" "REQUIRED"
+set_requirement "$PB_COND_ALIAS" "mj-trusted-device-check" "REQUIRED"
 set_requirement "$PB_COND_ALIAS" "webauthn-authenticator" "ALTERNATIVE"
 set_requirement "$PB_COND_ALIAS" "auth-otp-form" "ALTERNATIVE"
 atualizar_post_broker_idp "$PB_ALIAS"

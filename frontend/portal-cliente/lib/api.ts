@@ -116,6 +116,33 @@ export async function getCredentials(accessToken: string): Promise<SecondFactorC
   return res.json();
 }
 
+export interface TrustedDevice {
+  id: string;
+  userLabel?: string | null;
+  createdDate?: number | null;
+  lastUsedAt?: number | null;
+  expiresAt?: number | null;
+}
+
+/** Dispositivos confiáveis (navegadores que pulam o 2FA). */
+export async function getTrustedDevices(accessToken: string): Promise<TrustedDevice[]> {
+  const res = await fetch(`${API_URL}/v1/customers/self/trusted-devices`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (!res.ok) await parseError(res);
+  return res.json();
+}
+
+/** Revoga um dispositivo confiável (aumento de segurança, sem step-up). */
+export async function revokeDevice(accessToken: string, id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/customers/self/credentials/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) await parseError(res);
+}
+
 export async function getSelf(accessToken: string): Promise<CustomerSelf> {
   const res = await fetch(`${API_URL}/v1/customers/self`, {
     headers: { Authorization: `Bearer ${accessToken}` },

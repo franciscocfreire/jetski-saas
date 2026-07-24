@@ -40,6 +40,17 @@ export const perfilService = {
     const { data } = await apiClient.get<SecondFactorCredential[]>('/v1/user/me/credentials')
     return data
   },
+
+  /** Dispositivos confiáveis (trusted device) — navegadores que pulam o 2FA. */
+  async getTrustedDevices(): Promise<TrustedDevice[]> {
+    const { data } = await apiClient.get<TrustedDevice[]>('/v1/user/me/trusted-devices')
+    return data
+  },
+
+  /** Revoga um dispositivo confiável (ou fator) — aumenta segurança, sem step-up. */
+  async revokeDevice(id: string): Promise<void> {
+    await apiClient.delete(`/v1/user/me/credentials/${id}`)
+  },
 }
 
 export interface SecondFactorCredential {
@@ -47,4 +58,12 @@ export interface SecondFactorCredential {
   type: 'otp' | 'webauthn' | 'webauthn-passwordless'
   userLabel?: string | null
   createdDate?: number | null
+}
+
+export interface TrustedDevice {
+  id: string
+  userLabel?: string | null
+  createdDate?: number | null
+  lastUsedAt?: number | null
+  expiresAt?: number | null
 }

@@ -13,9 +13,9 @@ import {
   inputCls,
   Badge,
 } from "@/components/ui";
-import { getSelf, updateSelf, updateContatoLoja, getAnexosLoja, getAnexoLoja, uploadAnexoLoja, getHabilitacoes, getHabilitacaoDocumento, getCredentials, ApiError, isCpfEmUso, type CustomerSelf, type IdentidadeCliente, type VinculoLoja, type HabilitacaoTemporaria, type SecondFactorCredential } from "@/lib/api";
+import { getSelf, updateSelf, updateContatoLoja, getAnexosLoja, getAnexoLoja, uploadAnexoLoja, getHabilitacoes, getHabilitacaoDocumento, getCredentials, getTrustedDevices, revokeDevice, ApiError, isCpfEmUso, type CustomerSelf, type IdentidadeCliente, type VinculoLoja, type HabilitacaoTemporaria, type SecondFactorCredential, type TrustedDevice } from "@/lib/api";
 import { UploadTile } from "@/components/UploadTile";
-import { Award, Copy, FileDown, Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard, Briefcase, ExternalLink, ShieldCheck, Smartphone, KeyRound } from "lucide-react";
+import { Award, Copy, FileDown, Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard, Briefcase, ExternalLink, ShieldCheck, Smartphone, KeyRound, MonitorSmartphone, Trash2 } from "lucide-react";
 import { signIn } from "next-auth/react";
 import { maskCpf } from "@/lib/masks";
 import { PhoneInput } from "@/components/PhoneInput";
@@ -219,6 +219,10 @@ export default function PerfilPage() {
 
       {session?.accessToken && (
         <SegurancaCard token={session.accessToken} />
+      )}
+
+      {session?.accessToken && (
+        <DispositivosCard token={session.accessToken} />
       )}
 
       {session?.accessToken && (
@@ -605,6 +609,81 @@ function SegurancaCard({ token }: { token: string }) {
             </Button>
           </div>
         </>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Dispositivos confiáveis (trusted device): navegadores onde o 2FA foi
+ * dispensado por 30 dias. Revogar = DELETE simples (aumento de segurança,
+ * sem step-up); some da lista e volta a pedir 2FA no próximo login.
+ */
+function DispositivosCard({ token }: { token: string }) {
+  const [devices, setDevices] = useState<TrustedDevice[] | null>(null);
+  const [revogando, setRevogando] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const carregar = useCallback(() => {
+    getTrustedDevices(token).then(setDevices).catch(() => setDevices([]));
+  }, [token]);
+
+  useEffect(() => {
+    carregar();
+  }, [carregar]);
+
+  async function revogar(id: string) {
+    setRevogando(id);
+    try {
+      await revokeDevice(token, id);
+      toast("Dispositivo revogado");
+      carregar();
+    } catch {
+      toast("Não foi possível revogar", "erro");
+    } finally {
+      setRevogando(null);
+    }
+  }
+
+  // sem dispositivos → não renderiza (não polui o perfil)
+  if (devices !== null && devices.length === 0) return null;
+
+  return (
+    <Card className="mt-4 p-6">
+      <h3 className="flex items-center gap-2 font-semibold text-ink-900">
+        <MonitorSmartphone size={18} /> Dispositivos confiáveis
+      </h3>
+      <p className="mt-1 text-sm text-slate-500">
+        Navegadores onde você marcou &quot;não pedir a verificação&quot;. Revogue os que
+        não reconhece — voltam a pedir o código.
+      </p>
+      {devices === null ? (
+        <div className="mt-3 flex items-center gap-2 text-sm text-slate-400">
+          <Loader2 size={16} className="animate-spin" /> Carregando…
+        </div>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {devices.map((d) => (
+            <li
+              key={d.id}
+              className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3"
+            >
+              <div className="flex items-center gap-3">
+                <MonitorSmartphone size={18} className="text-slate-400" />
+                <div>
+                  <p className="text-sm font-medium text-ink-900">{d.userLabel || "Navegador"}</p>
+                  <p className="text-xs text-slate-500">
+                    {d.createdDate ? `desde ${new Date(d.createdDate).toLocaleDateString("pt-BR")}` : ""}
+                    {d.lastUsedAt ? ` · último uso ${new Date(d.lastUsedAt * 1000).toLocaleDateString("pt-BR")}` : ""}
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" disabled={revogando === d.id} onClick={() => revogar(d.id)}>
+                <Trash2 size={16} className="mr-2" /> Revogar
+              </Button>
+            </li>
+          ))}
+        </ul>
       )}
     </Card>
   );

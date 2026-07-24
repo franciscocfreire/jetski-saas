@@ -513,7 +513,7 @@
     {
       "id": "af10c0de-0000-4000-8000-000000000002",
       "alias": "portal-browser-forms",
-      "description": "Forms do portal: identifier-first no SPI meujet-email-code + 2FA condicional (opt-in). Converge via configure-keycloak-2fa.sh.",
+      "description": "Forms do portal: identifier-first (meujet-email-code) + 2FA condicional opt-in + enroll de device confiável. Converge via configure-keycloak-2fa.sh.",
       "providerId": "basic-flow",
       "topLevel": false,
       "builtIn": false,
@@ -533,19 +533,27 @@
           "authenticatorFlow": true,
           "autheticatorFlow": true,
           "userSetupAllowed": false
+        },
+        {
+          "authenticator": "mj-trusted-device-enroll",
+          "requirement": "REQUIRED",
+          "priority": 30,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
         }
       ]
     },
     {
       "id": "af10c0de-0000-4000-8000-000000000003",
       "alias": "portal-2fa",
-      "description": "2FA opt-in: exige TOTP/WebAuthn de quem cadastrou (condition-user-configured)",
+      "description": "2FA opt-in: mj-trusted-device-check É a CONDIÇÃO (sem fator=não roda; fator+cookie=pula; fator sem cookie=desafia). webauthn/otp ALTERNATIVE.",
       "providerId": "basic-flow",
       "topLevel": false,
       "builtIn": false,
       "authenticationExecutions": [
         {
-          "authenticator": "conditional-user-configured",
+          "authenticator": "mj-trusted-device-check",
           "requirement": "REQUIRED",
           "priority": 10,
           "authenticatorFlow": false,
@@ -593,19 +601,27 @@
           "authenticatorFlow": true,
           "autheticatorFlow": true,
           "userSetupAllowed": false
+        },
+        {
+          "authenticator": "mj-trusted-device-enroll",
+          "requirement": "REQUIRED",
+          "priority": 30,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
         }
       ]
     },
     {
       "id": "af10c0de-0000-4000-8000-000000000006",
       "alias": "post-broker-2fa-cond",
-      "description": "Condicional 2FA do pós-broker: TOTP/WebAuthn de quem cadastrou",
+      "description": "2FA pós-broker (Google): mj-trusted-device-check é a CONDIÇÃO; webauthn/otp ALTERNATIVE",
       "providerId": "basic-flow",
       "topLevel": false,
       "builtIn": false,
       "authenticationExecutions": [
         {
-          "authenticator": "conditional-user-configured",
+          "authenticator": "mj-trusted-device-check",
           "requirement": "REQUIRED",
           "priority": 10,
           "authenticatorFlow": false,

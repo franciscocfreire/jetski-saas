@@ -572,6 +572,64 @@ public class KeycloakAdminService {
     }
 
     /**
+     * Dispositivos confiáveis (trusted device) do usuário — navegadores onde o
+     * 2FA foi dispensado por até 30 dias. Cada device é uma credential custom
+     * type {@code mj-trusted-device} (gerada pelo authenticator do SPI). Item:
+     * {@code id}, {@code userLabel} (ex. "Chrome · Windows"), {@code createdDate}
+     * e, do JSON de {@code credentialData}, {@code expiresAt}/{@code lastUsedAt}.
+     * Fail-closed: erro retorna lista vazia.
+     */
+    public java.util.List<java.util.Map<String, Object>> listTrustedDevices(String keycloakUserId) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            return keycloak.realm(targetRealm).users().get(keycloakUserId)
+                .credentials().stream()
+                .filter(c -> "mj-trusted-device".equals(c.getType()))
+                .map(c -> {
+                    java.util.Map<String, Object> item = new java.util.LinkedHashMap<>();
+                    item.put("id", c.getId());
+                    item.put("userLabel", c.getUserLabel());
+                    item.put("createdDate", c.getCreatedDate());
+                    // credentialData é um JSON {"expiresAt":..,"lastUsedAt":..,"ua":..}
+                    try {
+                        if (c.getCredentialData() != null) {
+                            var node = new com.fasterxml.jackson.databind.ObjectMapper()
+                                .readTree(c.getCredentialData());
+                            if (node.hasNonNull("expiresAt")) item.put("expiresAt", node.get("expiresAt").asLong());
+                            if (node.hasNonNull("lastUsedAt")) item.put("lastUsedAt", node.get("lastUsedAt").asLong());
+                        }
+                    } catch (Exception ignore) {
+                        // credentialData malformado — expõe só o básico
+                    }
+                    return item;
+                })
+                .toList();
+        } catch (Exception e) {
+            log.error("Erro ao listar dispositivos confiáveis no Keycloak: userId={}, error={}",
+                keycloakUserId, e.getMessage(), e);
+            return java.util.List.of();
+        }
+    }
+
+    /**
+     * Remove uma credential do usuário por id — usado para REVOGAR um dispositivo
+     * confiável (aumenta segurança, sem step-up). O device revogado deixa de casar
+     * com o cookie na hora (revoke server-side, com dente).
+     *
+     * @return true se removida
+     */
+    public boolean removeCredential(String keycloakUserId, String credentialId) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            keycloak.realm(targetRealm).users().get(keycloakUserId).removeCredential(credentialId);
+            log.info("Credential removida no Keycloak: userId={}, credentialId={}", keycloakUserId, credentialId);
+            return true;
+        } catch (Exception e) {
+            log.error("Erro ao remover credential no Keycloak: userId={}, credentialId={}, error={}",
+                keycloakUserId, credentialId, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
      * Estatísticas de sessões ativas por client do realm alvo
      * (Admin API {@code GET /admin/realms/{realm}/client-session-stats}).
      *

@@ -220,6 +220,19 @@ public interface UserProvisioningService {
     List<java.util.Map<String, Object>> listSecondFactorCredentials(String providerUserId);
 
     /**
+     * Dispositivos confiáveis (trusted device) do usuário — cada item com
+     * {@code id}, {@code userLabel}, {@code createdDate} e, quando disponível,
+     * {@code expiresAt}/{@code lastUsedAt}. Somente leitura.
+     */
+    List<java.util.Map<String, Object>> listTrustedDevices(String providerUserId);
+
+    /**
+     * Remove uma credential do usuário por id (revogar dispositivo confiável /
+     * remover fator). Aumenta segurança — sem step-up. @return true se removida.
+     */
+    boolean revokeCredential(String providerUserId, String credentialId);
+
+    /**
      * Redefine a senha (definitiva) do usuário. Em fluxo self-service, chamar
      * SOMENTE após {@link #validatePassword} retornar {@code VALID}.
      *

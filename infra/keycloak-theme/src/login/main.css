@@ -331,6 +331,31 @@ span.required {
     color: var(--mj-navy-900);
 }
 
+/* -------- Confiar neste navegador (trusted-device-enroll) ------------- */
+.mj-trust-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 4px 0 4px;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--mj-navy-900);
+    cursor: pointer;
+}
+.mj-trust-check input[type="checkbox"] {
+    margin-top: 2px;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: var(--mj-navy-700);
+}
+.mj-trust-hint {
+    margin-top: 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #9ca3af;
+}
+
 /* ---------------- Login sem senha (email-code, SPI meujet) ------------ */
 
 /* CTA "Criar conta gratuita" (âncora vestida de botão secundário) — vence a

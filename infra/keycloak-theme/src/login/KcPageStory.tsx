@@ -22,6 +22,7 @@ const kcContextExtensionPerPage: KcContextExtensionPerPage = {
         ],
         client: { baseUrl: undefined }
     },
+    "trusted-device-enroll.ftl": {},
     "email-code-verify.ftl": {
         mjMode: "code",
         mjSocial: [{ alias: "google", displayName: "Google", loginUrl: "#" }],

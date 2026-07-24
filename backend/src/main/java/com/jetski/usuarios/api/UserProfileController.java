@@ -16,6 +16,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -67,6 +68,25 @@ public class UserProfileController {
     public ResponseEntity<java.util.List<java.util.Map<String, Object>>> credenciais(
             @AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(userProvisioningService.listSecondFactorCredentials(jwt.getSubject()));
+    }
+
+    /** Dispositivos confiáveis (trusted device) do próprio usuário. */
+    @GetMapping("/trusted-devices")
+    public ResponseEntity<java.util.List<java.util.Map<String, Object>>> dispositivos(
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(userProvisioningService.listTrustedDevices(jwt.getSubject()));
+    }
+
+    /**
+     * Revoga uma credential do próprio usuário (dispositivo confiável ou fator).
+     * Aumenta segurança → sem step-up. O sub do JWT é o dono, então só remove o
+     * que é seu.
+     */
+    @DeleteMapping("/credentials/{id}")
+    public ResponseEntity<Void> revogarCredencial(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable String id) {
+        userProvisioningService.revokeCredential(jwt.getSubject(), id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping

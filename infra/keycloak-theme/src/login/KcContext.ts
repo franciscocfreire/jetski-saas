@@ -21,6 +21,7 @@ export type KcContextExtensionPerPage = {
          *  mas fora do tipo base das páginas custom do Keycloakify. */
         client: { baseUrl?: string };
     };
+    "trusted-device-enroll.ftl": {};
     "email-code-verify.ftl": {
         /** "password" = senha à frente (default) | "code" = código já pedido. */
         mjMode?: string;

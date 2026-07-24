@@ -157,6 +157,16 @@ class KeycloakUserProvisioningAdapter implements UserProvisioningService {
     }
 
     @Override
+    public java.util.List<java.util.Map<String, Object>> listTrustedDevices(String providerUserId) {
+        return keycloakAdminService.listTrustedDevices(providerUserId);
+    }
+
+    @Override
+    public boolean revokeCredential(String providerUserId, String credentialId) {
+        return keycloakAdminService.removeCredential(providerUserId, credentialId);
+    }
+
+    @Override
     public boolean resetPassword(String providerUserId, String novaSenha) {
         return keycloakAdminService.resetPassword(providerUserId, novaSenha);
     }

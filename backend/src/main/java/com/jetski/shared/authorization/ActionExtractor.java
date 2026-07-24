@@ -69,6 +69,15 @@ public class ActionExtractor {
             return "platform:" + sub;
         }
 
+        // Self-service do usuário staff (/v1/user/me/**): escopo é sempre o próprio
+        // sub do JWT — sem tenant, sem RBAC. Mapeia tudo para "user:me" (já na
+        // skip-list do interceptor). Sem isto, DELETE /v1/user/me/credentials/{id}
+        // singularizaria para "user:delete" (ação RBAC de gestão de usuários) e
+        // tomaria 403, pois o TenantFilter já removeu o tenant destas rotas.
+        if (uri.equals("/v1/user/me") || uri.startsWith("/v1/user/me/")) {
+            return "user:me";
+        }
+
         // Ações do cliente final (portal): /v1/customers/... → "customer:<último-segmento>",
         // ex.: GET /v1/customers/self → "customer:self". Prefixo próprio para casar com a
         // regra OPA de CLIENTE (sem tenant no token).

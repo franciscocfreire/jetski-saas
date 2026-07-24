@@ -80,6 +80,14 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   = remove TODOS os fatores de uma vez** (Required Action custom `mj-2fa-disable`
   no SPI) — sempre com **step-up** (`max_age=0` força reautenticação completa,
   desafiando o próprio fator antes de removê-lo); remover fator individual idem.
+- Dispositivo confiável (remember device): após o 2FA, o usuário marca "confiar
+  neste navegador" (opt-in) e por 30 dias aquele navegador pula o 2º fator
+  (cookie HttpOnly/Secure + credential custom `mj-trusted-device` no Keycloak,
+  via ConditionalAuthenticator próprio que substitui o condition-user-configured).
+  Card "Dispositivos confiáveis" nos perfis lista e **revoga server-side**
+  (DELETE `/v1/{user/me,customers/self}/credentials/{id}`, sem step-up — revoke
+  aumenta segurança). Vale pra código, senha e Google (post-broker). Converge
+  via configure-keycloak-2fa.sh.
 
 ### Plataforma (super admin)
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão

@@ -1,1 +1,3 @@
 br.com.jetski.keycloak.emailcode.EmailCodeAuthenticatorFactory
+br.com.jetski.keycloak.emailcode.TrustedDeviceCheckAuthenticatorFactory
+br.com.jetski.keycloak.emailcode.TrustedDeviceEnrollAuthenticatorFactory

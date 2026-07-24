@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Camera, KeyRound, Loader2, ShieldCheck, Smartphone, Trash2, UserCircle } from 'lucide-react'
+import { BadgeCheck, Camera, KeyRound, Loader2, MonitorSmartphone, ShieldCheck, Smartphone, Trash2, UserCircle } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
@@ -330,7 +330,84 @@ export default function PerfilPage() {
       </Card>
 
       <TwoFactorCard />
+
+      <TrustedDevicesCard />
     </div>
+  )
+}
+
+/**
+ * Dispositivos confiáveis (trusted device): navegadores onde o 2FA foi
+ * dispensado por 30 dias. Revogar é aumento de segurança → DELETE simples
+ * no backend (sem step-up); o cookie órfão deixa de casar na hora.
+ */
+function TrustedDevicesCard() {
+  const queryClient = useQueryClient()
+  const { data: devices, isLoading } = useQuery({
+    queryKey: ['user-trusted-devices'],
+    queryFn: () => perfilService.getTrustedDevices(),
+    staleTime: 60 * 1000,
+    retry: false,
+  })
+
+  const revogar = useMutation({
+    mutationFn: (id: string) => perfilService.revokeDevice(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-trusted-devices'] })
+      toast.success('Dispositivo revogado', {
+        description: 'Ele voltará a pedir a verificação no próximo acesso.',
+      })
+    },
+    onError: (e) => toast.error('Erro ao revogar', { description: msgErro(e) }),
+  })
+
+  if (!isLoading && (!devices || devices.length === 0)) {
+    return null // sem dispositivos → não polui o perfil
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <MonitorSmartphone className="size-5" />
+          Dispositivos confiáveis
+        </CardTitle>
+        <CardDescription>
+          Navegadores onde você marcou &quot;não pedir a verificação&quot;. Revogue os que
+          você não reconhece — voltam a pedir o 2FA.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <Skeleton className="h-16 w-full" />
+        ) : (
+          <ul className="space-y-3">
+            {devices!.map((d) => (
+              <li key={d.id} className="flex items-center justify-between rounded-md border p-3">
+                <div className="flex items-center gap-3">
+                  <MonitorSmartphone className="size-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">{d.userLabel || 'Navegador'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {d.createdDate ? `desde ${new Date(d.createdDate).toLocaleDateString('pt-BR')}` : ''}
+                      {d.lastUsedAt ? ` · último uso ${new Date(d.lastUsedAt * 1000).toLocaleDateString('pt-BR')}` : ''}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={revogar.isPending}
+                  onClick={() => revogar.mutate(d.id)}
+                >
+                  <Trash2 className="mr-2 size-4" /> Revogar
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
