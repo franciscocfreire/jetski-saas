@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { operadorAtual } from "@/lib/sessao";
 import { Shell } from "@/components/Shell";
 import { competenciaAtual, platform } from "@/lib/platform";
 import { Card, Erro, Tabela, Td, TituloPagina } from "@/components/ui";
@@ -18,8 +17,7 @@ export default async function Emissoes({
 }: {
   searchParams: Promise<{ competencia?: string }>;
 }) {
-  const session = await auth();
-  if (!session?.accessToken) redirect("/login");
+  const { session, me } = await operadorAtual();
 
   const { competencia } = await searchParams;
   const alvo = competencia ?? competenciaAtual();
@@ -30,7 +28,7 @@ export default async function Emissoes({
   } catch (e) {
     const err = e as PlatformApiError;
     return (
-      <Shell email={session.user?.email}>
+      <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
         <TituloPagina titulo="Emissões" />
         <Erro>
           {err.status === 403
@@ -52,7 +50,7 @@ export default async function Emissoes({
   );
 
   return (
-    <Shell email={session.user?.email}>
+    <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
       <TituloPagina
         titulo="Emissões"
         descricao={`${totais.total} cobráveis na competência · ${totais.previa} prévias (não cobráveis)`}

@@ -1,6 +1,9 @@
 import { platformFetch } from "./api";
 import type {
   FaturaPendente,
+  Operador,
+  OperadorAtual,
+  PapelInfo,
   ImagemCompressaoConfig,
   ModuloCatalogo,
   PlanoInfo,
@@ -48,6 +51,13 @@ export const platform = {
     ),
 
   capitanias: () => platformFetch<PlatformCapitania[]>("/v1/platform/capitanias"),
+
+  /** Quem sou eu: papéis do operador logado (o console não tem tenant p/ /v1/user/permissions). */
+  me: () => platformFetch<OperadorAtual>("/v1/platform/me"),
+
+  operadores: () => platformFetch<Operador[]>("/v1/platform/operadores"),
+
+  papeisPlataforma: () => platformFetch<PapelInfo[]>("/v1/platform/operadores/papeis"),
 
   imagemConfig: () =>
     platformFetch<ImagemCompressaoConfig>("/v1/platform/documentos/imagem-config"),

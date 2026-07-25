@@ -110,6 +110,34 @@ export interface ReencryptResult {
   criptografiaAtiva: boolean;
 }
 
+/** Papéis de plataforma (F2) — espelham o enum PapelPlataforma do backend. */
+export type PapelPlataforma =
+  | "PLATFORM_ADMIN"
+  | "PLATFORM_SUPORTE"
+  | "PLATFORM_FINANCEIRO"
+  | "PLATFORM_LEITURA";
+
+export interface PapelInfo {
+  key: PapelPlataforma;
+  rotulo: string;
+  descricao: string;
+}
+
+export interface OperadorAtual {
+  usuarioId: string | null;
+  papeis: PapelPlataforma[];
+  admin: boolean;
+}
+
+export interface Operador {
+  usuarioId: string;
+  email: string;
+  nome: string;
+  ativo: boolean;
+  papeis: PapelPlataforma[];
+  concedidoEm: string | null;
+}
+
 /** Preset de compressão por tipo de documento (IDENTIDADE, SELFIE, CHA, ...). */
 export interface ImagemPreset {
   maxDimensao: number;

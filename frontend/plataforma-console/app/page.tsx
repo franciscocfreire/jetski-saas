@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { operadorAtual } from "@/lib/sessao";
 import { Shell } from "@/components/Shell";
 import { platformFetch, PlatformApiError } from "@/lib/api";
 
@@ -15,10 +14,7 @@ type TenantResumo = { id: string; slug: string; razaoSocial: string; status: str
  * varrer empresa a empresa.
  */
 export default async function Home() {
-  const session = await auth();
-  if (!session?.accessToken) {
-    redirect("/login");
-  }
+  const { session, me } = await operadorAtual();
 
   let tenants: TenantResumo[] | null = null;
   let erro: { status: number; mensagem: string } | null = null;
@@ -39,7 +35,7 @@ export default async function Home() {
   }, {});
 
   return (
-    <Shell email={session.user?.email}>
+    <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
       <h1 className="font-display text-2xl text-ink-900">Visão geral</h1>
       <p className="mt-1 text-sm text-ink-500">
         Console da plataforma — separado do backoffice onde as empresas operam.

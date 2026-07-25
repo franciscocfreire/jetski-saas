@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { operadorAtual } from "@/lib/sessao";
 import { Shell } from "@/components/Shell";
 import { BRL, dataCurta, platform } from "@/lib/platform";
 import { Card, Erro, Tabela, Td, TituloPagina } from "@/components/ui";
@@ -10,8 +9,7 @@ import { AcoesFatura, GerarFaturas } from "./acoes";
 export const dynamic = "force-dynamic";
 
 export default async function Faturamento() {
-  const session = await auth();
-  if (!session?.accessToken) redirect("/login");
+  const { session, me } = await operadorAtual();
 
   let faturas;
   try {
@@ -19,7 +17,7 @@ export default async function Faturamento() {
   } catch (e) {
     const err = e as PlatformApiError;
     return (
-      <Shell email={session.user?.email}>
+      <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
         <TituloPagina titulo="Faturamento" />
         <Erro>
           {err.status === 403
@@ -35,7 +33,7 @@ export default async function Faturamento() {
   const vencidas = faturas.filter((f) => f.fatura.vencimento < hoje).length;
 
   return (
-    <Shell email={session.user?.email}>
+    <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
       <TituloPagina
         titulo="Faturamento"
         descricao={`${faturas.length} fatura(s) em conferência · ${BRL.format(total)} · ${vencidas} vencida(s)`}

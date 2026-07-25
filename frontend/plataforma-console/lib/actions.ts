@@ -229,6 +229,34 @@ export async function salvarImagemConfig(tipos: Record<string, { maxDimensao: nu
   );
 }
 
+// ===================== Operadores da plataforma =====================
+
+export async function concederAcesso(email: string, papeis: string[]) {
+  return executar(
+    () => POST("/v1/platform/operadores", { email, papeis }),
+    "/operadores",
+  );
+}
+
+export async function atualizarPapeis(usuarioId: string, papeis: string[]) {
+  return executar(
+    () =>
+      platformFetch(`/v1/platform/operadores/${usuarioId}`, {
+        method: "PUT",
+        body: JSON.stringify({ papeis }),
+      }),
+    "/operadores",
+  );
+}
+
+export async function revogarAcesso(usuarioId: string) {
+  return executar(
+    () =>
+      platformFetch(`/v1/platform/operadores/${usuarioId}`, { method: "DELETE" }),
+    "/operadores",
+  );
+}
+
 // ===================== Configurações =====================
 
 export async function reencryptSecrets() {

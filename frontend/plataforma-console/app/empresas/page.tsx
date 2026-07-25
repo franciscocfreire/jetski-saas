@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { operadorAtual } from "@/lib/sessao";
 import { Shell } from "@/components/Shell";
 import { platform, dataCurta } from "@/lib/platform";
 import { Card, Erro, StatusEmpresa, Tabela, Td, TituloPagina, Badge } from "@/components/ui";
@@ -20,8 +19,7 @@ export default async function Empresas({
 }: {
   searchParams: Promise<{ status?: string; q?: string }>;
 }) {
-  const session = await auth();
-  if (!session?.accessToken) redirect("/login");
+  const { session, me } = await operadorAtual();
 
   const { status: filtroStatus, q } = await searchParams;
 
@@ -31,7 +29,7 @@ export default async function Empresas({
   } catch (e) {
     const err = e as PlatformApiError;
     return (
-      <Shell email={session.user?.email}>
+      <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
         <TituloPagina titulo="Empresas" />
         <Erro>
           {err.status === 403
@@ -58,7 +56,7 @@ export default async function Empresas({
   });
 
   return (
-    <Shell email={session.user?.email}>
+    <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
       <TituloPagina
         titulo="Empresas"
         descricao={`${tenants.length} no total · ${porStatus.PENDENTE_APROVACAO ?? 0} aguardando aprovação`}

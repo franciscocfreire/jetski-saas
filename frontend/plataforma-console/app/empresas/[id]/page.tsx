@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { auth } from "@/lib/auth";
+import { operadorAtual } from "@/lib/sessao";
 import { Shell } from "@/components/Shell";
 import { BRL, competenciaAtual, dataCurta, platform } from "@/lib/platform";
 import {
@@ -26,8 +26,7 @@ export const dynamic = "force-dynamic";
  * sub-rota por aba refaria as mesmas listas a cada troca.
  */
 export default async function Empresa({ params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.accessToken) redirect("/login");
+  const { session, me } = await operadorAtual();
   const { id } = await params;
 
   let dados;
@@ -44,7 +43,7 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
   } catch (e) {
     const err = e as PlatformApiError;
     return (
-      <Shell email={session.user?.email}>
+      <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
         <Erro>
           {err.status === 403
             ? "Sua conta não é operador de plataforma."
@@ -62,7 +61,7 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
   const emissao = dados.emissoes.find((e) => e.tenantId === id);
 
   return (
-    <Shell email={session.user?.email}>
+    <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
       <Link
         href="/empresas"
         className="mb-4 inline-flex items-center gap-1 text-sm text-ink-500 hover:text-brand-700"

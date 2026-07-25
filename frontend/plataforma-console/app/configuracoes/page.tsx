@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { operadorAtual } from "@/lib/sessao";
 import { Shell } from "@/components/Shell";
 import { Card, TituloPagina } from "@/components/ui";
 import { RotacaoDeChave } from "./acoes";
@@ -7,11 +6,10 @@ import { RotacaoDeChave } from "./acoes";
 export const dynamic = "force-dynamic";
 
 export default async function Configuracoes() {
-  const session = await auth();
-  if (!session?.accessToken) redirect("/login");
+  const { session, me } = await operadorAtual();
 
   return (
-    <Shell email={session.user?.email}>
+    <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
       <TituloPagina
         titulo="Configurações"
         descricao="Operações globais da plataforma."

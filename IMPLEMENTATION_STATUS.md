@@ -100,6 +100,15 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
     telas: `/empresas` (+ detalhe com zona de perigo), `/creditos`, `/faturamento`,
     `/emissoes`, `/catalogo`, `/configuracoes`. Server components + server actions; token
     nunca vai ao browser (downloads via proxy `/api/download`).
+  - **F2 (papéis granulares)**: `unrestricted_access` passa a significar só **alcance**
+    (acessa qualquer empresa); o **poder** vem do papel `PLATFORM_*` em
+    `usuario_global_roles.roles[]` — ADMIN / SUPORTE / FINANCEIRO / LEITURA, matriz em
+    `policies/authz/platform.rego` (V054 faz o backfill). O método HTTP entrou no input do
+    OPA porque a ação sozinha não separa leitura de escrita (`GET /v1/platform/creditos` e
+    `POST .../{id}` colapsam em `platform:creditos`). Tela `/operadores` substitui
+    `PLATFORM_ADMIN_EMAILS`/SQL manual, com trava contra remover o último admin ou o
+    próprio acesso, e auditoria global de cada concessão. God mode em ações de tenant ficou
+    só para `PLATFORM_ADMIN`.
   - Backoffice mantém `/dashboard/plataforma` em coexistência; a remoção é a F3, junto com a
     sessão de suporte auditada. Ver `PLATAFORMA_CONSOLE_SPEC.md`.
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão

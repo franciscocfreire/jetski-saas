@@ -28,8 +28,10 @@ const NAV = [
   { href: "/faturamento", label: "Faturamento", icon: FileText },
   { href: "/emissoes", label: "Emissões", icon: Activity },
   { href: "/catalogo", label: "Catálogo", icon: LayoutGrid },
-  { href: "/configuracoes", label: "Configurações", icon: Settings },
-  { href: "/operadores", label: "Operadores", icon: Users, fase: "F2" },
+  // Exclusivos de PLATFORM_ADMIN no platform.rego — escondidos para os demais,
+  // senão o menu ofereceria o que a API vai negar com 403.
+  { href: "/configuracoes", label: "Configurações", icon: Settings, somenteAdmin: true },
+  { href: "/operadores", label: "Operadores", icon: Users, somenteAdmin: true },
   { href: "/auditoria", label: "Auditoria", icon: ScrollText, fase: "F5" },
   { href: "/saude", label: "Saúde", icon: ShieldCheck, fase: "F5" },
 ];
@@ -37,11 +39,17 @@ const NAV = [
 export function Shell({
   children,
   email,
+  admin = true,
+  papeis = [],
 }: {
   children: React.ReactNode;
   email?: string | null;
+  /** PLATFORM_ADMIN — libera os itens exclusivos do menu. */
+  admin?: boolean;
+  papeis?: string[];
 }) {
   const pathname = usePathname();
+  const itens = NAV.filter((n) => admin || !("somenteAdmin" in n && n.somenteAdmin));
 
   return (
     <div className="flex min-h-screen">
@@ -55,7 +63,7 @@ export function Shell({
         </div>
 
         <nav className="flex-1 space-y-0.5 px-3 pb-4">
-          {NAV.map(({ href, label, icon: Icon, fase }) => {
+          {itens.map(({ href, label, icon: Icon, fase }) => {
             const ativo = href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
               <Link
@@ -81,6 +89,11 @@ export function Shell({
 
         <div className="border-t border-brand-800 px-5 py-4 text-xs text-brand-300">
           <div className="truncate">{email ?? "—"}</div>
+          {papeis.length > 0 && (
+            <div className="mt-0.5 truncate text-[10px] text-brand-400">
+              {papeis.map((p) => p.replace("PLATFORM_", "").toLowerCase()).join(" · ")}
+            </div>
+          )}
           <a href="/api/logout" className="mt-1 inline-block text-brand-200 hover:text-white">
             Sair
           </a>

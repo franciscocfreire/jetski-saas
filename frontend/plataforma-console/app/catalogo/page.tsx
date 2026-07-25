@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { operadorAtual } from "@/lib/sessao";
 import { Shell } from "@/components/Shell";
 import { platform } from "@/lib/platform";
 import { Card, Erro, TituloPagina } from "@/components/ui";
@@ -10,8 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** Catálogo da plataforma: o que é oferecido, não o que uma empresa contratou. */
 export default async function Catalogo() {
-  const session = await auth();
-  if (!session?.accessToken) redirect("/login");
+  const { session, me } = await operadorAtual();
 
   let dados;
   try {
@@ -25,7 +23,7 @@ export default async function Catalogo() {
   } catch (e) {
     const err = e as PlatformApiError;
     return (
-      <Shell email={session.user?.email}>
+      <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
         <TituloPagina titulo="Catálogo" />
         <Erro>
           {err.status === 403
@@ -37,7 +35,7 @@ export default async function Catalogo() {
   }
 
   return (
-    <Shell email={session.user?.email}>
+    <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
       <TituloPagina
         titulo="Catálogo"
         descricao="Planos e módulos, capitanias e compressão de imagem — configuração global da plataforma."

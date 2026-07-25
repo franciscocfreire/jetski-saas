@@ -413,7 +413,7 @@ emissão delegada. A tela `/auditoria` lê **só** `tenant_id IS NULL`.
 |---|---|---|
 | **F0** ✅ | Fundação e segurança: `PlatformScopeInterceptor`, `ActionExtractor` com path completo, `/v1/platform/**` sem `X-Tenant-Id`, app Next + compose + nginx + scripts + client Keycloak `jetski-platform-console` | — |
 | **F1** ✅ | 2FA obrigatório + paridade: todas as telas atuais migradas para rotas do console. Backoffice ainda mantém a página antiga (coexistência até a F3) | F0 |
-| **F2** | Papéis granulares + tela `/operadores` + migration de backfill + `platform.rego` + `UserPermissionsController` real | F0 |
+| **F2** ✅ | Papéis granulares + tela `/operadores` + migration de backfill + `platform.rego` + `UserPermissionsController` real | F0 |
 | **F3** | Sessão de suporte (backend + banner no backoffice) **e então** remoção da página `/dashboard/plataforma`, do grupo "Plataforma" no sidebar e do switcher de todas-as-empresas | F1, F2 |
 | **F4** | `plataforma_metrica_diaria` + job + dashboard da plataforma | F0 |
 | **F5** | `/auditoria` (audit dual) + `/saude` (dependências + atalhos Grafana) | F0 |
@@ -498,6 +498,54 @@ com invalidação por `revalidatePath`, e um cliente `fetch` tipado dá conta.
 **Detalhe da empresa é uma página com seções, não sub-rotas por aba.** A API de plataforma
 não tem endpoint por empresa: tudo vem de listas globais que a página filtra. Uma sub-rota
 por aba refaria as mesmas listas a cada troca.
+
+### 9.3 O que a F2 entregou
+
+**Alcance e poder deixaram de ser a mesma coisa.** `unrestricted_access` segue significando
+*acesso a qualquer empresa* (é o que o `TenantFilter` e a RLS usam) e passa a valer para
+qualquer papel de plataforma; o que cada um PODE fazer vem do papel `PLATFORM_*` em
+`usuario_global_roles.roles[]`, decidido em `policies/authz/platform.rego`.
+
+**O método HTTP entrou na decisão de autorização** (`OPAInput.context.method`). Sem ele,
+"somente leitura" era impossível: `GET /v1/platform/creditos` (saldos) e
+`POST /v1/platform/creditos/{id}` (lançar) produzem a **mesma** ação `platform:creditos`,
+porque o identificador é descartado por design. Idem `creditos/config` e
+`documentos/imagem-config`. A matriz agora casa ação **e** método.
+
+| Papel | Pode | Não pode |
+|---|---|---|
+| `PLATFORM_ADMIN` | tudo | — |
+| `PLATFORM_SUPORTE` | leitura; aprovar/suspender/reativar empresa; EAMA; capitanias | destrutivo, financeiro, operadores, segredos |
+| `PLATFORM_FINANCEIRO` | leitura; créditos, compras, faturas, plano, oferta de módulos | destrutivo, operadores, ciclo de vida da empresa |
+| `PLATFORM_LEITURA` | só GET | qualquer escrita |
+
+Fora do "qualquer GET" para todos menos admin: **export completo da empresa** e
+**comprovante PIX** (o financeiro vê o comprovante — precisa dele para conferir).
+
+**God mode em ações de tenant** (`modelo:list`, `locacao:checkin`) ficou restrito a
+`PLATFORM_ADMIN`. Suporte, financeiro e leitura não herdam o backoffice. Na F3 isso vira
+sessão de suporte explícita, com TTL e trilha.
+
+**Tela `/operadores`** substitui o caminho anterior — editar `PLATFORM_ADMIN_EMAILS` no
+`.env` e reiniciar o backend, ou `INSERT` manual, ambos sem trilha. Duas travas contra
+auto-bloqueio, ambas com teste: não é possível **revogar o próprio acesso de admin** nem
+**remover o último `PLATFORM_ADMIN`** — o conserto seria SQL manual em produção, que é
+justamente o que a tela veio eliminar. Conceder exige conta **já cadastrada e ativada**: a
+API não cria usuário a partir de um e-mail digitado, para não conceder acesso a um typo.
+
+Toda concessão e revogação grava na auditoria **global** (`tenant_id NULL`, policy
+insert-only da V051) com o antes e o depois, de forma **síncrona** — perder essa linha por
+falha assíncrona é pior que atrasar a resposta.
+
+`UserPermissionsController` parou de devolver `["*"]` para qualquer irrestrito: só
+`PLATFORM_ADMIN` recebe acesso total; os demais recebem a matriz real do `platform.rego`.
+Sem isso o menu do console mostraria ações que o OPA vai negar.
+
+**Migration V054** é backfill puro (a coluna `roles[]` existe desde a V001): quem tinha
+acesso irrestrito sem papel explícito vira `PLATFORM_ADMIN` — é o poder que já exercia.
+Sem `CHECK` de nomes no banco de propósito: `CHECK` do PostgreSQL não aceita subquery e a
+alternativa (função `IMMUTABLE`) viraria DDL obrigatório a cada papel novo. A validação
+vive no enum `PapelPlataforma`, fonte única usada pela API.
 
 ---
 

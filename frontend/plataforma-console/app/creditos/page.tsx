@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { operadorAtual } from "@/lib/sessao";
 import { Shell } from "@/components/Shell";
 import { BRL, dataCurta, platform } from "@/lib/platform";
 import { Badge, Card, Erro, Tabela, Td, TituloPagina } from "@/components/ui";
@@ -10,8 +9,7 @@ import { AprovarCompra, PrecoCredito } from "./acoes";
 export const dynamic = "force-dynamic";
 
 export default async function Creditos() {
-  const session = await auth();
-  if (!session?.accessToken) redirect("/login");
+  const { session, me } = await operadorAtual();
 
   let dados;
   try {
@@ -24,7 +22,7 @@ export default async function Creditos() {
   } catch (e) {
     const err = e as PlatformApiError;
     return (
-      <Shell email={session.user?.email}>
+      <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
         <TituloPagina titulo="Créditos" />
         <Erro>
           {err.status === 403
@@ -38,7 +36,7 @@ export default async function Creditos() {
   const semSaldo = dados.saldos.filter((s) => s.saldo <= 0).length;
 
   return (
-    <Shell email={session.user?.email}>
+    <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
       <TituloPagina
         titulo="Créditos"
         descricao={`${dados.compras.length} compra(s) aguardando conferência · ${semSaldo} empresa(s) sem saldo`}
