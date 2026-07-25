@@ -59,9 +59,33 @@ class PlatformScopeInterceptorTest {
     @DisplayName("Operador de plataforma passa")
     void permiteOperadorDePlataforma() {
         autenticar("PLATFORM_ADMIN");
+        TenantContext.setUserRoles(List.of("PLATFORM_ADMIN"));
         TenantContext.setUnrestricted(true);
 
         assertThat(interceptor.preHandle(request, response, new Object())).isTrue();
+    }
+
+    @Test
+    @DisplayName("Papel de plataforma NÃO-admin também passa a barreira — quem decide a ação é o OPA")
+    void permiteOperadorNaoAdmin() {
+        autenticar("PLATFORM_LEITURA");
+        TenantContext.setUserRoles(List.of("PLATFORM_LEITURA"));
+        TenantContext.setUnrestricted(true);
+
+        assertThat(interceptor.preHandle(request, response, new Object())).isTrue();
+    }
+
+    @Test
+    @DisplayName("unrestricted_access sem papel de plataforma é negado (alcance != poder)")
+    void negaAlcanceSemPapel() {
+        // Estado possível numa base pré-F2 que não rodou a V054: acesso irrestrito
+        // herdado, sem papel explícito. Sem papel não há poder.
+        autenticar("ADMIN_TENANT");
+        TenantContext.setUserRoles(List.of("ADMIN_TENANT"));
+        TenantContext.setUnrestricted(true);
+
+        assertThatThrownBy(() -> interceptor.preHandle(request, response, new Object()))
+            .isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
@@ -73,7 +97,7 @@ class PlatformScopeInterceptorTest {
 
         assertThatThrownBy(() -> interceptor.preHandle(request, response, new Object()))
             .isInstanceOf(AccessDeniedException.class)
-            .hasMessageContaining("administradores de plataforma");
+            .hasMessageContaining("operadores de plataforma");
     }
 
     @Test

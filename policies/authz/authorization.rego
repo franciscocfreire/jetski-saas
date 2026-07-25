@@ -9,6 +9,7 @@ import data.jetski.alcada
 import data.jetski.multi_tenant
 import data.jetski.business
 import data.jetski.context
+import data.jetski.platform
 
 # =============================================================================
 # Main Authorization Policy
@@ -113,11 +114,23 @@ warnings contains msg if {
 # Decisão final: permite se passou em todas as validações
 default allow := false
 
-# Platform admin (super admin / unrestricted_access) tem acesso TOTAL: pode executar
-# qualquer ação em qualquer tenant que tenha selecionado (X-Tenant-Id). O isolamento
-# continua garantido pelo RLS (escopado ao tenant da sessão) — sem bypass cross-tenant.
+# Ações de PLATAFORMA: decididas pela matriz de papéis (platform.rego). Antes da F2
+# bastava unrestricted_access — que significava alcance E poder ao mesmo tempo. Agora
+# o alcance segue em unrestricted_access (TenantFilter/RLS) e o poder vem do papel
+# PLATFORM_* em usuario_global_roles.roles[].
 allow if {
+    startswith(input.action, "platform:")
+    platform.allow
+}
+
+# God mode em ações de TENANT (modelo:list, locacao:checkin, ...): o operador opera a
+# empresa selecionada no X-Tenant-Id, com o RLS escopando os dados. Restrito a
+# PLATFORM_ADMIN — um operador de suporte/financeiro/leitura NÃO herda o backoffice.
+# Na F3 isto vira sessão de suporte explícita, com TTL e trilha.
+allow if {
+    not startswith(input.action, "platform:")
     is_platform_admin
+    platform.eh_admin
 }
 
 # Autorização normal: RBAC + Alçada + Business + Context + Tenant.

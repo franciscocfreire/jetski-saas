@@ -218,6 +218,8 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
             .device(detectDevice(request))
             .user_agent(request.getHeader("User-Agent"))
             .environment(environment)
+            // Separa leitura de escrita quando a ação não separa (ver OPAInput.method)
+            .method(request.getMethod())
             .build();
     }
 

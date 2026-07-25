@@ -7,6 +7,7 @@ import com.jetski.locacoes.event.ClienteAnexoAtualizadoEvent;
 import com.jetski.locacoes.event.ClienteIdentidadeSincronizadaEvent;
 import com.jetski.locacoes.event.ContaAtivadaEvent;
 import com.jetski.locacoes.event.ContaCpfMergeEvent;
+import com.jetski.usuarios.event.OperadorPlataformaAlteradoEvent;
 import com.jetski.locacoes.event.DataCheckInAlteradaEvent;
 import com.jetski.locacoes.event.ChaMtaeConfirmadaEvent;
 import com.jetski.locacoes.event.HabilitacaoTemporariaReusadaEvent;
@@ -1148,5 +1149,50 @@ public class AuditEventListener {
      */
     private String getRemoteIp() {
         return MDC.get(MDCKeys.REMOTE_IP);
+    }
+
+    /**
+     * Concessão/revogação de papéis de PLATAFORMA. Evento global — sem tenant.
+     *
+     * <p>É a ação mais sensível do produto: quem recebe passa a enxergar e operar todas as
+     * empresas. Grava o antes e o depois para que a trilha responda "quem deu esse acesso,
+     * quando e a quem" — pergunta que, até a F2, o banco não sabia responder (a concessão
+     * era env var ou INSERT manual).
+     *
+     * <p>Síncrono de propósito: perder esta linha por falha assíncrona é pior que atrasar
+     * a resposta da API em alguns milissegundos.
+     */
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onOperadorPlataformaAlterado(OperadorPlataformaAlteradoEvent event) {
+        try {
+            Map<String, Object> dadosAntigos = new HashMap<>();
+            dadosAntigos.put("papeis", event.papeisAntes());
+
+            Map<String, Object> dadosNovos = new HashMap<>();
+            dadosNovos.put("papeis", event.papeisDepois());
+            dadosNovos.put("emailAlvo", event.emailAlvo());
+            dadosNovos.put("usuarioAlvo", event.usuarioId().toString());
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(null)
+                    .acao(event.ehRevogacao()
+                        ? "PLATAFORMA_ACESSO_REVOGADO" : "PLATAFORMA_ACESSO_CONCEDIDO")
+                    .entidade("USUARIO_GLOBAL_ROLES")
+                    .entidadeId(event.usuarioId())
+                    .usuarioId(event.actor())
+                    .dadosAnteriores(dadosAntigos)
+                    .dadosNovos(dadosNovos)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+            auditoriaRepository.save(auditoria);
+            log.warn("Audit: {} alvo={} ({}), antes={}, depois={}, por={}",
+                    auditoria.getAcao(), event.usuarioId(), event.emailAlvo(),
+                    event.papeisAntes(), event.papeisDepois(), event.actor());
+        } catch (Exception e) {
+            log.error("Failed to audit alteração de operador de plataforma: alvo={}, error={}",
+                    event.usuarioId(), e.getMessage(), e);
+        }
     }
 }

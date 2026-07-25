@@ -83,15 +83,34 @@ class UserPermissionsControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Super admin (unrestricted) recebe [\"*\"] sem consultar o OPA")
-    void testGetPermissions_Unrestricted() throws Exception {
-        mockAccess(List.of(), true);
+    @DisplayName("PLATFORM_ADMIN recebe [\"*\"] sem consultar o OPA")
+    void testGetPermissions_PlatformAdmin() throws Exception {
+        mockAccess(List.of("PLATFORM_ADMIN"), true);
 
         mockMvc.perform(get("/v1/user/permissions")
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .with(gerente()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.permissions[0]").value("*"))
+            .andExpect(jsonPath("$.unrestricted").value(true));
+
+        verify(opaAuthorizationService, never()).getUserPermissions(any());
+    }
+
+    @Test
+    @DisplayName("Operador de plataforma NÃO-admin não recebe [\"*\"] — o menu mentiria")
+    void testGetPermissions_PlatformNaoAdmin() throws Exception {
+        // Alcance (unrestricted) sem poder total: até a F2, qualquer irrestrito recebia
+        // "*" e o console mostraria ações que o OPA vai negar.
+        mockAccess(List.of("PLATFORM_LEITURA"), true);
+        when(opaAuthorizationService.getPlatformPermissions(any()))
+            .thenReturn(List.of("platform:read"));
+
+        mockMvc.perform(get("/v1/user/permissions")
+                .header("X-Tenant-Id", TENANT_ID.toString())
+                .with(gerente()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.permissions[0]").value("platform:read"))
             .andExpect(jsonPath("$.unrestricted").value(true));
 
         verify(opaAuthorizationService, never()).getUserPermissions(any());

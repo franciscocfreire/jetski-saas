@@ -457,6 +457,20 @@ ALTER TABLE public.credito_compra
     ADD COLUMN IF NOT EXISTS valor_pago     numeric(10,2),
     ADD COLUMN IF NOT EXISTS preco_unitario numeric(10,2);
 
+-- V054: papéis de plataforma — separa ALCANCE (unrestricted_access) de PODER
+-- (papel PLATFORM_* em roles[], decidido pelo platform.rego). Sem DDL: a coluna
+-- roles text[] existe desde a V001; o que falta é garantir papel explícito.
+UPDATE public.usuario_global_roles
+SET roles = array_append(roles, 'PLATFORM_ADMIN'), updated_at = now()
+WHERE unrestricted_access = true
+  AND NOT EXISTS (SELECT 1 FROM unnest(roles) r WHERE r LIKE 'PLATFORM\_%');
+UPDATE public.usuario_global_roles
+SET unrestricted_access = true, updated_at = now()
+WHERE unrestricted_access = false
+  AND EXISTS (SELECT 1 FROM unnest(roles) r WHERE r LIKE 'PLATFORM\_%');
+COMMENT ON COLUMN public.usuario_global_roles.unrestricted_access IS
+    'ALCANCE: acessa qualquer empresa sem ser membro. NÃO implica poder — o poder vem do papel PLATFORM_* em roles[] (platform.rego).';
+
 -- V053: comprovante PIX por upload (foto/PDF) — pix_txid vira opcional
 ALTER TABLE public.credito_compra ALTER COLUMN pix_txid DROP NOT NULL;
 ALTER TABLE public.credito_compra

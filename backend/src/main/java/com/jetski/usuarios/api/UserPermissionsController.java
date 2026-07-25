@@ -1,6 +1,7 @@
 package com.jetski.usuarios.api;
 
 import com.jetski.shared.authorization.OPAAuthorizationService;
+import com.jetski.shared.security.PapelPlataforma;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.usuarios.api.dto.UserPermissionsResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,9 +58,18 @@ public class UserPermissionsController {
         boolean unrestricted = TenantContext.isUnrestricted();
         List<String> roles = TenantContext.getUserRoles();
 
-        List<String> permissions = unrestricted
-            ? List.of("*")
-            : opaAuthorizationService.getUserPermissions(roles);
+        // Antes da F2 qualquer unrestricted recebia ["*"] — o que era verdade quando só
+        // existia um tipo de operador. Com papéis granulares, "*" mentiria para suporte,
+        // financeiro e leitura, e o menu do console mostraria o que o OPA vai negar.
+        // Só PLATFORM_ADMIN tem de fato acesso total.
+        List<String> permissions;
+        if (PapelPlataforma.filtrar(roles).contains(PapelPlataforma.PLATFORM_ADMIN)) {
+            permissions = List.of("*");
+        } else if (PapelPlataforma.temAcessoDePlataforma(roles)) {
+            permissions = opaAuthorizationService.getPlatformPermissions(roles);
+        } else {
+            permissions = opaAuthorizationService.getUserPermissions(roles);
+        }
 
         return ResponseEntity.ok(new UserPermissionsResponse(
             TenantContext.getTenantId(),

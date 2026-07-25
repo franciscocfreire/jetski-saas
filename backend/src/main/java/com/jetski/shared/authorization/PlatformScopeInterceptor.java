@@ -1,5 +1,6 @@
 package com.jetski.shared.authorization;
 
+import com.jetski.shared.security.PapelPlataforma;
 import com.jetski.shared.security.TenantContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -47,13 +48,16 @@ public class PlatformScopeInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // F0: acesso de plataforma == unrestricted_access. Na F2 (papéis granulares) esta
-        // checagem passa a consultar os papéis PLATFORM_* do contexto.
-        if (!TenantContext.isUnrestricted()) {
-            log.warn("Platform scope DENY: path={}, method={}, user={}",
-                request.getRequestURI(), request.getMethod(), authentication.getName());
+        // Barreira COARSE: tem algum papel PLATFORM_*? Qual ação cada papel pode executar
+        // é decisão do platform.rego — aqui só barra quem não é operador de plataforma.
+        // Checar o papel (e não só unrestricted_access) mantém a barreira alinhada ao
+        // modelo da F2, onde alcance e poder deixaram de ser a mesma coisa.
+        if (!PapelPlataforma.temAcessoDePlataforma(TenantContext.getUserRoles())) {
+            log.warn("Platform scope DENY: path={}, method={}, user={}, papeis={}",
+                request.getRequestURI(), request.getMethod(), authentication.getName(),
+                TenantContext.getUserRoles());
             throw new AccessDeniedException(
-                "Acesso restrito a administradores de plataforma");
+                "Acesso restrito a operadores de plataforma");
         }
 
         return true;
