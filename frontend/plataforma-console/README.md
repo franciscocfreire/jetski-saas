@@ -28,7 +28,7 @@ a fase.
 |---|---|---|
 | Tenant | `X-Tenant-Id` em toda chamada | **nenhum** — alvo vai no path |
 | Client OIDC | `jetski-backoffice` | `jetski-platform-console` |
-| Login | código por e-mail, 2FA opt-in | **senha + TOTP obrigatório**, sem SSO cookie |
+| Login | código por e-mail, 2FA opt-in | **Google ou senha+TOTP**, sem SSO cookie |
 | Cookies | `authjs.*` | `console.*` |
 | Sessão | 12h | 8h |
 | Autorização | papéis do membro + OPA | `PlatformScopeInterceptor` + OPA |

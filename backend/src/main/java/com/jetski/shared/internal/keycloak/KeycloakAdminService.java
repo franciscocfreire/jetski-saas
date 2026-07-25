@@ -548,6 +548,47 @@ public class KeycloakAdminService {
      * webauthn-passwordless), {@code userLabel}, {@code createdDate} (epoch ms).
      * Fail-closed: erro de comunicação retorna lista vazia.
      */
+    /**
+     * Garante que o usuário terá de cadastrar um segundo fator no próximo login,
+     * adicionando a required action CONFIGURE_TOTP quando ele ainda não tem fator algum.
+     *
+     * <p>Fecha o furo do login social no console: o {@code post-broker-2fa} é CONDICIONAL
+     * ({@code conditional-user-configured}) e está vinculado ao IdP — compartilhado com
+     * backoffice e portal, não dá para exigi-lo só no console. Quem entrasse pelo Google
+     * sem nenhum fator passaria com 1 fator. Exigindo o cadastro na IDENTIDADE, a condição
+     * do post-broker passa a valer para todo operador de plataforma.
+     *
+     * @return true se a required action foi adicionada agora; false se já havia fator
+     *         (ou em erro — o chamador não deve tratar isso como bloqueio)
+     */
+    public boolean exigirSegundoFator(String keycloakUserId) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            var resource = keycloak.realm(targetRealm).users().get(keycloakUserId);
+            boolean temFator = resource.credentials().stream()
+                .anyMatch(c -> java.util.Set.of("otp", "webauthn", "webauthn-passwordless")
+                    .contains(c.getType()));
+            if (temFator) {
+                return false;
+            }
+            UserRepresentation user = resource.toRepresentation();
+            java.util.List<String> acoes = user.getRequiredActions() != null
+                ? new java.util.ArrayList<>(user.getRequiredActions())
+                : new java.util.ArrayList<>();
+            if (!acoes.contains("CONFIGURE_TOTP")) {
+                acoes.add("CONFIGURE_TOTP");
+                user.setRequiredActions(acoes);
+                resource.update(user);
+                log.info("CONFIGURE_TOTP exigido para operador de plataforma: keycloakUserId={}",
+                    keycloakUserId);
+            }
+            return true;
+        } catch (Exception e) {
+            log.error("Erro ao exigir segundo fator no Keycloak: keycloakUserId={}, error={}",
+                keycloakUserId, e.getMessage(), e);
+            return false;
+        }
+    }
+
     public java.util.List<java.util.Map<String, Object>> listSecondFactorCredentials(String keycloakUserId) {
         final java.util.Set<String> tiposSegundoFator =
             java.util.Set.of("otp", "webauthn", "webauthn-passwordless");

@@ -129,6 +129,11 @@ class KeycloakUserProvisioningAdapter implements UserProvisioningService {
     }
 
     @Override
+    public boolean exigirSegundoFator(String providerUserId) {
+        return keycloakAdminService.exigirSegundoFator(providerUserId);
+    }
+
+    @Override
     public com.jetski.shared.security.FederatedIdentity findFederatedIdentity(
             String providerUserId, String idpAlias) {
         return keycloakAdminService.findFederatedIdentity(providerUserId, idpAlias);

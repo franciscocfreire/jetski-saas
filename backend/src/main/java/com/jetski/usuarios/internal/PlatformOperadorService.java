@@ -194,6 +194,15 @@ public class PlatformOperadorService {
             globalRolesRepository.save(global);
         }
 
+        // Segundo fator na IDENTIDADE, não só no flow do console. O post-broker-2fa do
+        // Google é CONDICIONAL (conditional-user-configured) e vive no IdP, compartilhado
+        // com backoffice/portal — não dá para exigi-lo só aqui. Sem fator cadastrado, um
+        // operador entraria pelo Google com 1 fator. Exigindo o cadastro, a condição do
+        // post-broker passa a valer para todo operador, em qualquer caminho de login.
+        if (!validados.isEmpty()) {
+            exigirSegundoFator(usuario);
+        }
+
         UUID actor = TenantContext.getUsuarioId();
         eventPublisher.publishEvent(OperadorPlataformaAlteradoEvent.of(
             usuario.getId(), usuario.getEmail(), antes, validados, actor));
@@ -202,6 +211,30 @@ public class PlatformOperadorService {
 
         return new Operador(usuario.getId(), usuario.getEmail(), usuario.getNome(),
             Boolean.TRUE.equals(usuario.getAtivo()), validados, Instant.now());
+    }
+
+    /**
+     * Marca CONFIGURE_TOTP quando o operador ainda não tem nenhum segundo fator.
+     *
+     * <p>Best-effort de propósito: falha de comunicação com o provedor NÃO derruba a
+     * concessão — o caminho senha do console já força o cadastro por conta própria
+     * (auth-otp-form REQUIRED). O log em WARN deixa rastro para conferência.
+     */
+    private void exigirSegundoFator(Usuario usuario) {
+        try {
+            identityMappingService.getDetailedMappings(usuario.getId()).stream()
+                .filter(m -> PROVIDER_KEYCLOAK.equals(m.getProvider()))
+                .findFirst()
+                .ifPresent(m -> {
+                    if (userProvisioningService.exigirSegundoFator(m.getProviderUserId())) {
+                        log.warn("[PLATFORM] Operador sem 2FA — CONFIGURE_TOTP exigido no "
+                            + "próximo login: email={}", usuario.getEmail());
+                    }
+                });
+        } catch (Exception e) {
+            log.warn("[PLATFORM] Não foi possível exigir 2FA de {}: {}",
+                usuario.getEmail(), e.getMessage());
+        }
     }
 
     /** Nomes desconhecidos são erro de negócio, não silêncio: o rego negaria tudo. */

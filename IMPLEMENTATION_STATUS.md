@@ -95,8 +95,10 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   - **F0 (fundação)**: barreira em Java (`PlatformScopeInterceptor`, 403 antes do OPA), ações
     OPA pelo path completo (`platform:tenants:approve`), `/v1/platform/**` sem `X-Tenant-Id`
     obrigatório, client Keycloak `jetski-platform-console`, compose/nginx/scripts.
-  - **F1 (2FA + paridade)**: flow `console-browser` com **2FA obrigatório** (senha + TOTP
-    REQUIRED, sem `auth-cookie` — SSO do backoffice não satisfaz o login do console) e as
+  - **F1 (2FA + paridade)**: flow `console-browser` com **2FA obrigatório** — Google (via
+    `post-broker-2fa`) ou senha+TOTP REQUIRED, sem `auth-cookie` (SSO do backoffice não
+    satisfaz o login do console). Como o post-broker é condicional e vive no IdP, a
+    concessão de papel marca `CONFIGURE_TOTP` para operador sem fator. E as
     telas: `/empresas` (+ detalhe com zona de perigo), `/creditos`, `/faturamento`,
     `/emissoes`, `/catalogo`, `/configuracoes`. Server components + server actions; token
     nunca vai ao browser (downloads via proxy `/api/download`).

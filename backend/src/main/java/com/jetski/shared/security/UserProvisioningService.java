@@ -174,6 +174,15 @@ public interface UserProvisioningService {
     String findUserIdByEmail(String email);
 
     /**
+     * Exige o cadastro de um segundo fator no próximo login, se o usuário ainda não tem
+     * nenhum. Usado ao conceder papel de PLATAFORMA — ver a nota sobre o post-broker
+     * condicional em {@code configure-keycloak-console-2fa.sh}.
+     *
+     * @return true se a exigência foi adicionada agora
+     */
+    boolean exigirSegundoFator(String providerUserId);
+
+    /**
      * Identidade federada (IdP broker, ex.: Google) do usuário para o alias.
      *
      * @return identidade ou {@code null} se não houver link

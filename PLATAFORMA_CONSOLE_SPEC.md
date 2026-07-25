@@ -467,7 +467,9 @@ Três decisões deliberadas, cada uma fechando um furo:
 - **Sem `auth-cookie`.** No flow padrão o cookie de SSO é ALTERNATIVE e satisfaz o login
   sozinho: quem entrasse no backoffice com 1 fator abriria o console **sem 2FA nenhum**.
   Todo acesso ao console re-autentica.
-- **Sem `identity-provider-redirector`.** Operador de plataforma não entra por login social.
+- ~~**Sem `identity-provider-redirector`.** Operador de plataforma não entra por login social.~~
+  **Revogado em 25/jul** junto com a separação staff×cliente: sob identidade única, a pessoa
+  entra por onde já autentica. Ver §9.4.
 - **`auth-otp-form` REQUIRED, não ALTERNATIVE em subflow.** O arranjo "subflow REQUIRED com
   webauthn/otp ALTERNATIVE" não serve: a selection-list filtra ALTERNATIVE sem credencial e
   o subflow falha (mesma mordida do trusted device). WebAuthn como segunda opção fica para
@@ -498,6 +500,54 @@ com invalidação por `revalidatePath`, e um cliente `fetch` tipado dá conta.
 **Detalhe da empresa é uma página com seções, não sub-rotas por aba.** A API de plataforma
 não tem endpoint por empresa: tudo vem de listas globais que a página filtra. Uma sub-rota
 por aba refaria as mesmas listas a cada troca.
+
+### 9.4 Identidade única e login Google no console (25/jul)
+
+Duas decisões do usuário, tomadas juntas:
+
+1. **A regra "duas populações que nunca se cruzam" caiu.** Uma pessoa = uma identidade, que
+   acumula papéis (staff de N empresas, cliente de N lojas, operador de plataforma). O
+   `CLAUDE.md` #3 foi reescrito. Continua proibido **vínculo automático por coincidência de
+   e-mail** — o link é explícito e auditado, senão volta o account-takeover que motivou a
+   regra original.
+2. **A regra "operador não usa login social" caiu** — era corolário da primeira.
+
+**Flow do console** passou a oferecer os dois caminhos:
+
+```
+console-browser
+├─ identity-provider-redirector  ALTERNATIVE   → Google
+└─ console-browser-forms         ALTERNATIVE   → senha
+     ├─ auth-username-password-form REQUIRED
+     └─ auth-otp-form               REQUIRED   → força CONFIGURE_TOTP
+```
+
+Segue **sem `auth-cookie`**: sessão SSO do backoffice não pode satisfazer o login do console.
+
+**O furo que isso abriria, e como foi fechado.** O segundo fator do caminho Google vem do
+`post-broker-2fa`, que é **condicional** (`conditional-user-configured`) e vive no **IdP** —
+compartilhado com backoffice e portal, sem como exigi-lo só no console. Quem entrasse pelo
+Google sem nenhum fator passaria com **um** fator, enfraquecendo o console. Fechado no
+backend: ao conceder papel de plataforma, `PlatformOperadorService` marca `CONFIGURE_TOTP`
+para quem não tem fator algum — com o fator cadastrado, a condição do post-broker passa a
+valer em qualquer caminho de login.
+
+**Armadilha paga em dev:** o script tentava `DELETE` do flow inteiro para migrar o shape.
+O `DELETE` falha com **500** enquanto o flow está vinculado ao client, o `POST` seguinte bate
+**409** e as execuções novas são **acrescentadas** às antigas — sobrando REQUIRED e
+ALTERNATIVE no mesmo nível, exatamente o arranjo que o Keycloak descarta. A migração passou
+a ser cirúrgica: remove só as execuções órfãs do nível 0, sem tocar no flow.
+
+**Não validável sem navegador:** o login Google de ponta a ponta exige credencial real do
+Google. Validei estruturalmente (o botão aparece, os dois caminhos coexistem) e por curl que
+o caminho senha **continua** exigindo OTP. O desafio pós-broker no caminho Google precisa de
+um login real para confirmar.
+
+**Inconsistência conhecida, ainda não corrigida:** `UserProvisioningService
+.provisionOrReuseCliente` lança `IdentityConflictException` quando um e-mail de staff tenta
+virar cliente, com a justificativa "populações nunca se cruzam". Sob a regra nova isso está
+invertido. Fica para o projeto de unificação (o fluxo de claim é sensível demais para mudar
+de passagem).
 
 ### 9.3 O que a F2 entregou
 

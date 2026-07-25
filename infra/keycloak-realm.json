@@ -695,9 +695,35 @@
     {
       "id": "af10c0de-0000-4000-8000-0000000000c1",
       "alias": "console-browser",
-      "description": "Console da plataforma — 2FA OBRIGATORIO. Sem auth-cookie (SSO do backoffice nao pode satisfazer o login) e sem IdP. auth-otp-form REQUIRED forca CONFIGURE_TOTP. Converge em realm vivo: configure-keycloak-console-2fa.sh.",
+      "description": "Console da plataforma — 2FA OBRIGATORIO. Sem auth-cookie (SSO do backoffice nao pode satisfazer o login). Google via identity-provider-redirector + post-broker-2fa. Converge em realm vivo: configure-keycloak-console-2fa.sh.",
       "providerId": "basic-flow",
       "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "identity-provider-redirector",
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "flowAlias": "console-browser-forms",
+          "authenticatorFlow": true,
+          "autheticatorFlow": true,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "id": "af10c0de-0000-4000-8000-0000000000c2",
+      "alias": "console-browser-forms",
+      "description": "Console — caminho senha: usuario/senha + OTP, ambos REQUIRED (forca CONFIGURE_TOTP).",
+      "providerId": "basic-flow",
+      "topLevel": false,
       "builtIn": false,
       "authenticationExecutions": [
         {
