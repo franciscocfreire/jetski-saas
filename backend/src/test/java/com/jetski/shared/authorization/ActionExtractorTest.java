@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.servlet.HandlerMapping;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -104,7 +105,7 @@ class ActionExtractorTest {
         }
 
         @Test
-        @DisplayName("POST /v1/platform/secrets/reencrypt → platform:reencrypt (só super admin via OPA)")
+        @DisplayName("POST /v1/platform/secrets/reencrypt → platform:secrets:reencrypt")
         void shouldExtractPlatformReencryptAction() {
             MockHttpServletRequest request = new MockHttpServletRequest();
             request.setMethod("POST");
@@ -113,7 +114,64 @@ class ActionExtractorTest {
 
             String action = actionExtractor.extractAction(request);
 
-            assertThat(action).isEqualTo("platform:reencrypt");
+            assertThat(action).isEqualTo("platform:secrets:reencrypt");
+        }
+
+        @Test
+        @DisplayName("Ações de plataforma usam o caminho completo, sem identificadores")
+        void shouldExtractPlatformActionFromFullPath() {
+            assertThat(platformAction("GET", "/api/v1/platform/tenants"))
+                .isEqualTo("platform:tenants");
+            assertThat(platformAction("POST",
+                "/api/v1/platform/tenants/123e4567-e89b-12d3-a456-426614174000/approve"))
+                .isEqualTo("platform:tenants:approve");
+            assertThat(platformAction("GET", "/api/v1/platform/pending-signups"))
+                .isEqualTo("platform:pending-signups");
+            assertThat(platformAction("PUT", "/api/v1/platform/documentos/imagem-config"))
+                .isEqualTo("platform:documentos:imagem-config");
+        }
+
+        @Test
+        @DisplayName("Ações que colidiam no último segmento agora são distintas")
+        void shouldNotCollapseDistinctPlatformActions() {
+            // Antes: ambas viravam "platform:plano" / "platform:config"
+            String mudarPlano = platformAction("POST",
+                "/api/v1/platform/tenants/123e4567-e89b-12d3-a456-426614174000/plano");
+            String modulosDoPlano = platformAction("PUT",
+                "/api/v1/platform/planos/123e4567-e89b-12d3-a456-426614174000/modulos");
+            String precoCredito = platformAction("PUT", "/api/v1/platform/creditos/config");
+            String imagemConfig = platformAction("PUT", "/api/v1/platform/documentos/imagem-config");
+
+            assertThat(mudarPlano).isEqualTo("platform:tenants:plano");
+            assertThat(modulosDoPlano).isEqualTo("platform:planos:modulos");
+            assertThat(precoCredito).isEqualTo("platform:creditos:config");
+            assertThat(imagemConfig).isEqualTo("platform:documentos:imagem-config");
+            assertThat(List.of(mudarPlano, modulosDoPlano, precoCredito, imagemConfig))
+                .doesNotHaveDuplicates();
+        }
+
+        @Test
+        @DisplayName("Ação de plataforma com dois identificadores no meio do path")
+        void shouldSkipMultipleIdentifiers() {
+            assertThat(platformAction("POST", "/api/v1/platform/creditos/compras/"
+                + "123e4567-e89b-12d3-a456-426614174000/"
+                + "223e4567-e89b-12d3-a456-426614174000/aprovar"))
+                .isEqualTo("platform:creditos:compras:aprovar");
+        }
+
+        @Test
+        @DisplayName("Toda ação de plataforma mantém o prefixo platform: (contrato do OPA)")
+        void shouldAlwaysKeepPlatformPrefix() {
+            assertThat(platformAction("GET", "/api/v1/platform")).startsWith("platform:");
+            assertThat(platformAction("GET", "/api/v1/platform/tenants")).startsWith("platform:");
+        }
+
+        private String platformAction(String method, String uri) {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setMethod(method);
+            request.setContextPath("/api");
+            request.setRequestURI(uri);
+            return actionExtractor.extractAction(request);
         }
 
         @Test

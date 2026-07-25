@@ -31,12 +31,12 @@ test_admin_tenant_denied_platform_tenants if {
 	not authorization.allow with input as admin_tenant("platform:tenants")
 }
 
-test_admin_tenant_denied_platform_approve if {
-	not authorization.allow with input as admin_tenant("platform:approve")
+test_admin_tenant_denied_platform_tenants_approve if {
+	not authorization.allow with input as admin_tenant("platform:tenants:approve")
 }
 
-test_admin_tenant_denied_platform_suspend if {
-	not authorization.allow with input as admin_tenant("platform:suspend")
+test_admin_tenant_denied_platform_tenants_suspend if {
+	not authorization.allow with input as admin_tenant("platform:tenants:suspend")
 }
 
 # Outros papéis também negados
@@ -45,8 +45,8 @@ test_operador_denied_platform if {
 }
 
 # Super admin PODE ações de plataforma
-test_super_admin_allowed_platform_approve if {
-	authorization.allow with input as super_admin("platform:approve")
+test_super_admin_allowed_platform_tenants_approve if {
+	authorization.allow with input as super_admin("platform:tenants:approve")
 }
 
 test_super_admin_allowed_platform_tenants if {
@@ -64,15 +64,15 @@ test_admin_tenant_allowed_normal_action if {
 }
 
 # Re-cifragem de segredos (rotação de chave): só super admin.
-# POST /v1/platform/secrets/reencrypt → action "platform:reencrypt".
+# POST /v1/platform/secrets/reencrypt → action "platform:secrets:reencrypt".
 test_admin_tenant_denied_platform_reencrypt if {
-	not authorization.allow with input as admin_tenant("platform:reencrypt")
+	not authorization.allow with input as admin_tenant("platform:secrets:reencrypt")
 }
 
 test_operador_denied_platform_reencrypt if {
-	not authorization.allow with input as operador("platform:reencrypt")
+	not authorization.allow with input as operador("platform:secrets:reencrypt")
 }
 
 test_super_admin_allowed_platform_reencrypt if {
-	authorization.allow with input as super_admin("platform:reencrypt")
+	authorization.allow with input as super_admin("platform:secrets:reencrypt")
 }
