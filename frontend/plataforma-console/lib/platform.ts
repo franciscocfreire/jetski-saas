@@ -1,6 +1,8 @@
 import { platformFetch } from "./api";
 import type {
   DashboardPlataforma,
+  RegistroAuditoria,
+  SaudePlataforma,
   FaturaPendente,
   Operador,
   OperadorAtual,
@@ -57,6 +59,16 @@ export const platform = {
     ),
 
   capitanias: () => platformFetch<PlatformCapitania[]>("/v1/platform/capitanias"),
+
+  /** Trilha GLOBAL (tenant_id NULL) — o audit dual grava a mesma ação também na empresa. */
+  auditoria: (acao?: string, limite = 100) =>
+    platformFetch<RegistroAuditoria[]>(
+      `/v1/platform/auditoria?limite=${limite}${acao ? `&acao=${encodeURIComponent(acao)}` : ""}`,
+    ),
+
+  acoesAuditoria: () => platformFetch<string[]>("/v1/platform/auditoria/acoes"),
+
+  saude: () => platformFetch<SaudePlataforma>("/v1/platform/saude"),
 
   /** Quem sou eu: papéis do operador logado (o console não tem tenant p/ /v1/user/permissions). */
   me: () => platformFetch<OperadorAtual>("/v1/platform/me"),

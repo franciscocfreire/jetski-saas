@@ -369,6 +369,10 @@ services:
       # Keycloak OAuth — client público + PKCE, exclusivo do console
       # Destino do handoff da sessão de suporte (console admin.* → backoffice app.*)
       BACKOFFICE_URL: ${APP_PUBLIC_URL:-http://localhost:3001}
+
+      # Atalhos da tela de Saúde. O Grafana fica no host padrão (app.*/www.*),
+      # atrás de /grafana/ — o console só linka, não faz proxy.
+      GRAFANA_URL: ${GRAFANA_URL:-${APP_PUBLIC_URL:-http://localhost:3001}/grafana}
       KEYCLOAK_CLIENT_ID: jetski-platform-console
       KEYCLOAK_CLIENT_SECRET: ""
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://nginx/realms/jetski-saas}

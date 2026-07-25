@@ -3,7 +3,7 @@
 Separação do super admin: tirar a operação da plataforma de dentro do backoffice das
 empresas e colocá-la num app próprio, em `admin.meujet.com.br`.
 
-> Status: **F0–F4 entregues** (25/jul/2026); F5–F6 planejadas.
+> Status: **F0–F5 entregues** (25/jul/2026); F6 opcional, planejada.
 > Relacionado: `SUPERADMIN.md` (operação atual), `ONBOARDING_EMPRESA_SPEC.md`,
 > `EMISSAO_DELEGADA_SPEC.md`, `PORTAL_CLIENTE_SPEC.md` (referência de app separado).
 
@@ -416,7 +416,7 @@ emissão delegada. A tela `/auditoria` lê **só** `tenant_id IS NULL`.
 | **F2** ✅ | Papéis granulares + tela `/operadores` + migration de backfill + `platform.rego` + `UserPermissionsController` real | F0 |
 | **F3** ✅ | Sessão de suporte (backend + banner no backoffice) **e então** remoção da página `/dashboard/plataforma`, do grupo "Plataforma" no sidebar e do switcher de todas-as-empresas | F1, F2 |
 | **F4** ✅ | `plataforma_metrica_diaria` + job + dashboard da plataforma | F0 |
-| **F5** | `/auditoria` (audit dual) + `/saude` (dependências + atalhos Grafana) | F0 |
+| **F5** ✅ | `/auditoria` (audit dual, policy de leitura V057) + `/saude` (infra do Actuator + sinais de operação + atalhos Grafana) | F0 |
 | **F6** | *(opcional)* consolidação dos `Platform*` no módulo `plataforma` | F1–F5 |
 
 F1, F2, F4 e F5 são paralelizáveis depois da F0. F3 é o corte definitivo.
@@ -500,6 +500,66 @@ com invalidação por `revalidatePath`, e um cliente `fetch` tipado dá conta.
 **Detalhe da empresa é uma página com seções, não sub-rotas por aba.** A API de plataforma
 não tem endpoint por empresa: tudo vem de listas globais que a página filtra. Uma sub-rota
 por aba refaria as mesmas listas a cada troca.
+
+### 9.7 O que a F5 entregou — a trilha e o retrato
+
+**A auditoria global estava sendo gravada e ninguém conseguia lê-la.** A V051 criou a
+policy de INSERT para linhas sem tenant (merge de CPF, concessão de acesso, sessão de
+suporte) e deixou a leitura de fora de propósito — "restrita a acesso administrativo
+direto ao banco". Só que a única policy de SELECT em `auditoria` é
+`tenant_id = get_current_tenant_id()`, e **NULL não casa com nada**: as linhas globais
+eram invisíveis para a aplicação. Sem a V057 a tela viria vazia, sem erro nenhum.
+
+A **V057** é a policy mais delicada do projeto e por isso é a mais estreita possível:
+só `SELECT`, só `tenant_id IS NULL`, só com `app.unrestricted = 'true'`. Policies
+permissivas **somam com OR** (a auditoria de RLS de 10/jul mordeu exatamente nisso), então
+ela precisa ser inofensiva quando combinada com as demais. O teste que trava isso roda com
+role **não-superuser** (`RlsEnforcementIntegrationTest`), porque os testes de integração
+conectam como superuser e bypassam RLS — validar a policy no ambiente que a ignora não
+provaria nada.
+
+**A trilha não varre empresa nenhuma.** O audit dual da F3 já grava a mesma ação duas
+vezes — uma na empresa, uma global. O console lê só a global. Não existe caminho pelo qual
+esta tela mostre dado de uma empresa sem sessão de suporte aberta.
+
+**Saúde tem duas fontes, de propósito.** Infra vem do `HealthEndpoint` do Actuator (que
+não é exposto no edge — este endpoint é a única porta para ele), reusando os health checks
+em vez de reimplementar pings. Operação é o que **para em silêncio**: o job do read model
+que não rodou, a emissão à Marinha travada, a fila de aprovação crescendo, sessões de
+suporte abertas agora. Verde na infra com produto parado é o cenário que o Grafana sozinho
+não conta — e é o único que não dispara alerta.
+
+Cada indicador é consultado isoladamente e **erro vira `{"erro": ...}` no bloco**, não
+exceção: ambiente sem uma migration nova não pode apagar a página inteira de saúde. Séries
+temporais continuam no Grafana; a tela linka os dashboards e não os reimplementa.
+
+#### O furo que a tela expôs: `SUPORTE_SESSAO_ABERTA` nunca era gravada
+
+Montada a tela, ela mostrou cinco encerramentos e **nenhuma abertura** — a metade mais
+importante da trilha da F3 não existia no banco. Três defeitos empilhados:
+
+1. **As duas linhas do audit dual nasciam na mesma transação.** A rota de plataforma não
+   tem tenant no contexto, então a linha da empresa violava `tenant_isolation_auditoria` e
+   derrubava a transação inteira — levando junto a linha global. Agora é **uma transação
+   por linha** (`onSessaoSuporteGlobal` / `onSessaoSuporteTenant`).
+2. **Trocar o `TenantContext` dentro do método não adianta**: o `@Transactional` abre a
+   transação antes do corpo rodar, e o `TenantAwareDataSource` lê o ThreadLocal no
+   *checkout* da conexão. A GUC já estava definida quando o código mexeu no contexto. A
+   escrita numa empresa a partir de rota de plataforma usa
+   `set_config('app.tenant_id', …, true)` na própria transação — o mesmo caminho do
+   `PlatformCreditoService`.
+3. **`save()` escondia a falha**: o flush só acontecia no commit, fora do `try`, então o
+   `catch` do listener logava sucesso e o erro saía como "afterCompletion threw exception".
+   Virou `saveAndFlush()`, que estoura dentro do bloco que trata.
+
+E a linha global não dizia **em qual empresa** a sessão foi aberta: ela não tem
+`tenant_id` (é o que a torna legível pelo console), e o `tenantId` não estava no payload.
+Sem isso a trilha responde "alguém abriu uma sessão" — e a pergunta é justamente a outra.
+
+O guarda contra a regressão é o `RlsEnforcementIntegrationTest`, que roda com role **não
+superuser**. Os testes da sessão de suporte não pegavam nem pegariam: conectam como
+superuser e a RLS nem entra em cena. Segunda vez nesta fase que a lição aparece —
+componente validado isoladamente passa; o caminho real é que decide.
 
 ### 9.6 O que a F4 entregou — o read model
 
@@ -703,7 +763,10 @@ vive no enum `PapelPlataforma`, fonte única usada pela API.
   (novos nomes de ação), `SessaoSuporteIntegrationTest` (código de uso único, expiração,
   leitura nega escrita, auditoria carimbada), `PlataformaMetricasJobTest` (agregado bate
   com a soma por tenant **e** `TenantContext` limpo ao fim), `OperadorServiceTest`
-  (concessão/revogação auditada, não é possível revogar o próprio último `PLATFORM_ADMIN`).
+  (concessão/revogação auditada, não é possível revogar o próprio último `PLATFORM_ADMIN`),
+  `PlatformAuditoriaSaudeIntegrationTest` (trilha só global, filtro, ordem, indicadores de
+  saúde consultáveis) e o caso da V057 no `RlsEnforcementIntegrationTest` — este último
+  com role **não-superuser**, senão a policy não valeria durante o teste.
 - **OPA**: estender `authorization_platform_test.rego` com uma matriz papel × ação — cada
   papel novo precisa de `default <regra> := false` (regra undefined colapsa o `result`).
 - **E2E**: o console nasce com Playwright desde a F1 — o backoffice hoje não tem **nenhum**
@@ -722,3 +785,4 @@ vive no enum `PapelPlataforma`, fonte única usada pela API.
 | DNS de `admin.*` esquecido no Cloudflare | Item explícito no checklist da F0 (o wildcard não resolve sozinho) |
 | Bootstrap do primeiro operador | Continua por `PLATFORM_ADMIN_EMAILS` + SQL; documentado em `SUPERADMIN.md` |
 | Perder capacidade de suporte no corte da F3 | A remoção é o **último** passo da F3, depois da sessão de suporte validada em dev |
+| Policy de leitura global (V057) somar com as demais e vazar dado de empresa | Escopo mínimo (`SELECT` + `tenant_id IS NULL` + GUC), filtro explícito no controller e teste com role não-superuser |

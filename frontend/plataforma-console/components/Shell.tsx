@@ -8,6 +8,7 @@ import {
   Coins,
   FileText,
   Gauge,
+  HeartPulse,
   LayoutGrid,
   ScrollText,
   Settings,
@@ -32,8 +33,8 @@ const NAV = [
   // senão o menu ofereceria o que a API vai negar com 403.
   { href: "/configuracoes", label: "Configurações", icon: Settings, somenteAdmin: true },
   { href: "/operadores", label: "Operadores", icon: Users, somenteAdmin: true },
-  { href: "/auditoria", label: "Auditoria", icon: ScrollText, fase: "F5" },
-  { href: "/saude", label: "Saúde", icon: ShieldCheck, fase: "F5" },
+  { href: "/auditoria", label: "Auditoria", icon: ScrollText },
+  { href: "/saude", label: "Saúde", icon: HeartPulse },
 ];
 
 export function Shell({

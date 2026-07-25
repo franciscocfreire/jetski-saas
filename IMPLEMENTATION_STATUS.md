@@ -90,7 +90,7 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   via configure-keycloak-2fa.sh.
 
 ### Plataforma (super admin)
-- **Console da plataforma — F0 + F1** (`frontend/plataforma-console`, `admin.*`): app próprio
+- **Console da plataforma — F0 a F5** (`frontend/plataforma-console`, `admin.*`): app próprio
   do operador de plataforma, separado do backoffice das empresas.
   - **F0 (fundação)**: barreira em Java (`PlatformScopeInterceptor`, 403 antes do OPA), ações
     OPA pelo path completo (`platform:tenants:approve`), `/v1/platform/**` sem `X-Tenant-Id`
@@ -119,6 +119,16 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
     Removidos do backoffice: página `/dashboard/plataforma`, `components/plataforma/`,
     `services/platform.ts`, grupo "Plataforma" do menu, switcher de todas-as-empresas e as
     isenções de gate para `UNRESTRICTED`. Ver `PLATAFORMA_CONSOLE_SPEC.md`.
+  - **F4 (dashboard)**: read model `plataforma_metrica_diaria` (V056) preenchido por job
+    diário (04:15) com janela móvel de 7 dias — consolida sem `BYPASSRLS` e sem varrer
+    empresa a empresa a cada tela. `POST /v1/platform/dashboard/recalcular` faz backfill.
+  - **F5 (trilha + saúde)**: `/auditoria` lê a trilha **global** (`tenant_id NULL`) — a V057
+    abriu a leitura, que a V051 tinha deixado só para acesso direto ao banco (a linha era
+    gravada e ninguém lia). Policy estreita: `SELECT` + `tenant_id IS NULL` +
+    `app.unrestricted`, testada com role não-superuser. `/saude` junta infra (do
+    `HealthEndpoint`, que não é exposto no edge) com sinais que param em silêncio: frescor do
+    read model, última emissão, filas de aprovação/conferência e sessões de suporte ativas;
+    séries temporais continuam no Grafana, linkado.
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão
   automática → checklist de primeiros passos (7 itens). Créditos de adesão automáticos.
 - Créditos de emissão: ledger append-only (trigger de banco anti-DELETE), débito na emissão,

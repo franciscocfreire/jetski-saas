@@ -208,6 +208,8 @@ services:
       AUTH_TRUST_HOST: "true"
       # Destino do handoff da sessão de suporte (console admin.* → backoffice app.*)
       BACKOFFICE_URL: ${APP_PUBLIC_URL:-http://localhost:3001}
+      # Grafana fica atrás de /grafana/ no host padrão — o console só linka
+      GRAFANA_URL: ${GRAFANA_URL:-${APP_PUBLIC_URL}/grafana}
       KEYCLOAK_CLIENT_ID: jetski-platform-console
       KEYCLOAK_CLIENT_SECRET: ""
       KEYCLOAK_ISSUER: ${SSO_PUBLIC_URL:-${PUBLIC_URL}}/realms/jetski-saas

@@ -457,6 +457,13 @@ ALTER TABLE public.credito_compra
     ADD COLUMN IF NOT EXISTS valor_pago     numeric(10,2),
     ADD COLUMN IF NOT EXISTS preco_unitario numeric(10,2);
 
+-- V057: console lê a trilha GLOBAL (tenant_id NULL). Escopo estreito — policies
+-- permissivas somam com OR, então esta só expõe linha SEM tenant e só para
+-- operador de plataforma (GUC app.unrestricted), só em SELECT.
+DROP POLICY IF EXISTS auditoria_global_read ON public.auditoria;
+CREATE POLICY auditoria_global_read ON public.auditoria
+    FOR SELECT USING (tenant_id IS NULL AND current_setting('app.unrestricted', true) = 'true');
+
 -- V056: read model da plataforma — agregado diário por empresa (sem RLS:
 -- tenant_id é dimensão, não dono da linha). Populado por PlataformaMetricasJob.
 CREATE TABLE IF NOT EXISTS public.plataforma_metrica_diaria (

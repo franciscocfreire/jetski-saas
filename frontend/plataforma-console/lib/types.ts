@@ -129,6 +129,25 @@ export interface OperadorAtual {
   admin: boolean;
 }
 
+export interface RegistroAuditoria {
+  id: string;
+  acao: string;
+  entidade: string | null;
+  entidade_id: string | null;
+  usuario_id: string | null;
+  usuario_email: string | null;
+  dados_anteriores: unknown;
+  dados_novos: unknown;
+  ip: string | null;
+  created_at: string;
+}
+
+export interface SaudePlataforma {
+  statusGeral: string;
+  infra: Record<string, string>;
+  operacao: Record<string, Record<string, unknown>>;
+}
+
 export interface DashboardPlataforma {
   dias: number;
   /** Quando o read model foi calculado; null = o job nunca rodou. */
