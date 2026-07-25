@@ -1,6 +1,7 @@
 package com.jetski.usuarios;
 
 import com.jetski.integration.AbstractIntegrationTest;
+import com.jetski.shared.security.UserProvisioningService;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.shared.security.TenantContext;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
@@ -17,6 +19,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 /**
  * Gestão de operadores da plataforma (F2).
@@ -34,6 +38,9 @@ class PlatformOperadorIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired PlatformOperadorService service;
     @Autowired JdbcTemplate jdbc;
+
+    /** O provedor é externo; aqui só interessa "a identidade existe / não existe". */
+    @MockBean UserProvisioningService userProvisioningService;
 
     @BeforeEach
     void setUp() {
@@ -58,6 +65,11 @@ class PlatformOperadorIntegrationTest extends AbstractIntegrationTest {
         jdbc.update("DELETE FROM usuario_identity_provider WHERE usuario_id IN (?,?,?)",
             ADMIN_A, ADMIN_B, COMUM);
         jdbc.update("DELETE FROM usuario WHERE id IN (?,?,?)", ADMIN_A, ADMIN_B, COMUM);
+        jdbc.update("DELETE FROM usuario_global_roles WHERE usuario_id IN "
+            + "(SELECT id FROM usuario WHERE email = 'so-no-provedor@teste.local')");
+        jdbc.update("DELETE FROM usuario_identity_provider WHERE usuario_id IN "
+            + "(SELECT id FROM usuario WHERE email = 'so-no-provedor@teste.local')");
+        jdbc.update("DELETE FROM usuario WHERE email = 'so-no-provedor@teste.local'");
     }
 
     private void criarUsuario(UUID id, String email, String nome) {
@@ -73,12 +85,35 @@ class PlatformOperadorIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Conceder exige conta existente — não cria usuário a partir de e-mail digitado")
-    void concederExigeContaExistente() {
+    @DisplayName("E-mail que não existe em lugar nenhum continua sendo erro (typo não vira acesso)")
+    void concederExigeIdentidadeExistente() {
+        when(userProvisioningService.findUserIdByEmail(any())).thenReturn(null);
+
         assertThatThrownBy(() ->
             service.conceder("nao-existe@teste.local", List.of("PLATFORM_SUPORTE")))
             .isInstanceOf(NotFoundException.class)
             .hasMessageContaining("cadastrar");
+    }
+
+    @Test
+    @DisplayName("IDENTIDADE ÚNICA: identidade que só existe no provedor vira usuário de plataforma")
+    void concederProvisionaDeIdentidadeExistente() {
+        // Caso real: quem entrou pelo portal com login social fica no Keycloak com
+        // username = CPF e SEM linha em `usuario`. Sob a regra anterior ("duas populações
+        // que nunca se cruzam") isso era recusado; sob identidade única, o vínculo é criado.
+        String subDoProvedor = "kc-sub-" + UUID.randomUUID();
+        when(userProvisioningService.findUserIdByEmail("so-no-provedor@teste.local"))
+            .thenReturn(subDoProvedor);
+
+        var operador = service.conceder("so-no-provedor@teste.local", List.of("PLATFORM_LEITURA"));
+
+        assertThat(operador.papeis()).containsExactly("PLATFORM_LEITURA");
+        // usuário global criado E ligado ÀQUELA identidade — é o vínculo explícito
+        String subGravado = jdbc.queryForObject(
+            "SELECT uip.provider_user_id FROM usuario_identity_provider uip "
+            + "JOIN usuario u ON u.id = uip.usuario_id WHERE u.email = ?",
+            String.class, "so-no-provedor@teste.local");
+        assertThat(subGravado).isEqualTo(subDoProvedor);
     }
 
     @Test

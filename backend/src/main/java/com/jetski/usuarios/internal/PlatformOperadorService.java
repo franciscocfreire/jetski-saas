@@ -4,6 +4,8 @@ import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.shared.security.PapelPlataforma;
 import com.jetski.shared.security.TenantContext;
+import com.jetski.shared.security.UserProvisioningService;
+import com.jetski.usuarios.api.IdentityProviderMappingService;
 import com.jetski.usuarios.domain.Usuario;
 import com.jetski.usuarios.event.OperadorPlataformaAlteradoEvent;
 import com.jetski.usuarios.internal.repository.UsuarioGlobalRolesRepository;
@@ -46,8 +48,13 @@ import java.util.UUID;
 @Slf4j
 public class PlatformOperadorService {
 
+    /** Provider das identidades emitidas pelo Keycloak (mesma constante do login). */
+    private static final String PROVIDER_KEYCLOAK = "keycloak";
+
     private final UsuarioRepository usuarioRepository;
     private final UsuarioGlobalRolesRepository globalRolesRepository;
+    private final IdentityProviderMappingService identityMappingService;
+    private final UserProvisioningService userProvisioningService;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -80,21 +87,58 @@ public class PlatformOperadorService {
     }
 
     /**
-     * Concede/atualiza os papéis de plataforma de um usuário EXISTENTE.
+     * Concede/atualiza os papéis de plataforma de uma pessoa.
      *
-     * <p>Não cria conta de propósito: o acesso de plataforma é concedido a quem já se
-     * cadastrou e ativou (mesma ordem documentada em SUPERADMIN.md — cadastrar, ativar,
-     * promover). Criar o usuário aqui abriria caminho para conceder acesso a um e-mail
-     * digitado errado.
+     * <p><strong>Identidade única</strong> (CLAUDE.md #3): uma pessoa acumula papéis. Se
+     * já existe {@code usuario}, usa. Se não existe mas a pessoa JÁ TEM identidade no
+     * Keycloak — o caso de quem entrou pelo portal com login social, cujo
+     * {@code username} vira o CPF e que portanto não tem conta de staff — provisiona o
+     * {@code usuario} global ligado ÀQUELA identidade, em vez de recusar. Sob a regra
+     * anterior ("duas populações que nunca se cruzam") isso era proibido; hoje é o
+     * caminho correto.
+     *
+     * <p>O que continua valendo: o vínculo é <strong>explícito e auditado</strong> (esta
+     * ação, por um admin de plataforma), nunca JIT cego. E-mail que não existe em lugar
+     * nenhum continua sendo erro — não se concede acesso a um endereço digitado errado.
      */
     @Transactional
     @CacheEvict(value = "tenant-access", allEntries = true)
     public Operador conceder(String email, List<String> papeisSolicitados) {
         Usuario usuario = usuarioRepository.findByEmail(email)
-            .orElseThrow(() -> new NotFoundException(
-                "Nenhuma conta com o e-mail '" + email + "'. A pessoa precisa se cadastrar "
-                + "e ativar a conta antes de receber acesso de plataforma."));
+            .orElseGet(() -> provisionarDeIdentidadeExistente(email));
         return definirPapeis(usuario, papeisSolicitados);
+    }
+
+    /**
+     * Cria o {@code usuario} global para uma identidade que já existe no provedor.
+     *
+     * <p>Sem senha nova e sem e-mail de ativação: a pessoa já autentica (senha, Google ou
+     * código por e-mail) — o que faltava era o registro de staff/operador ligado ao mesmo
+     * sub. É exatamente o vínculo explícito que a regra de identidade única pede.
+     */
+    private Usuario provisionarDeIdentidadeExistente(String email) {
+        String providerUserId = userProvisioningService.findUserIdByEmail(email);
+        if (providerUserId == null) {
+            throw new NotFoundException(
+                "Nenhuma conta com o e-mail '" + email + "'. A pessoa precisa se cadastrar "
+                + "(portal, backoffice ou login social) antes de receber acesso de plataforma.");
+        }
+
+        // emailVerified explícito: o inicializador de campo da entidade NÃO vale no
+        // builder do Lombok (falta @Builder.Default) e a coluna é NOT NULL. Verdadeiro
+        // porque só chegamos aqui com identidade existente no provedor — a pessoa já
+        // autentica com este e-mail (senha, Google ou código por e-mail).
+        Usuario usuario = usuarioRepository.save(Usuario.builder()
+            .email(email)
+            .nome(email.substring(0, email.indexOf('@')))
+            .ativo(true)
+            .emailVerified(true)
+            .build());
+
+        identityMappingService.linkProvider(usuario.getId(), PROVIDER_KEYCLOAK, providerUserId);
+        log.warn("[PLATFORM] Identidade existente promovida a usuário de plataforma: "
+            + "email={}, usuarioId={}, providerUserId={}", email, usuario.getId(), providerUserId);
+        return usuario;
     }
 
     /** Atualiza os papéis de um operador existente. */

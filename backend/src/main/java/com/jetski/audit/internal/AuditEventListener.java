@@ -40,6 +40,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -1159,10 +1161,17 @@ public class AuditEventListener {
      * quando e a quem" — pergunta que, até a F2, o banco não sabia responder (a concessão
      * era env var ou INSERT manual).
      *
-     * <p>Síncrono de propósito: perder esta linha por falha assíncrona é pior que atrasar
-     * a resposta da API em alguns milissegundos.
+     * <p><strong>AFTER_COMMIT, não @EventListener puro:</strong> o listener grava em
+     * transação própria (REQUIRES_NEW), então com @EventListener a linha commitava mesmo
+     * quando a transação de negócio rolava back depois — o JPA só valida NOT NULL no
+     * flush do commit. Resultado observado: a trilha afirmava "acesso concedido" para uma
+     * concessão que falhou com 500. Numa trilha de segurança, registrar o que NÃO
+     * aconteceu é pior que atrasar o registro; AFTER_COMMIT só grava o que de fato valeu.
+     *
+     * <p>Síncrono (sem @Async) de propósito: perder esta linha é pior que atrasar a
+     * resposta da API em alguns milissegundos.
      */
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onOperadorPlataformaAlterado(OperadorPlataformaAlteradoEvent event) {
         try {

@@ -124,6 +124,11 @@ class KeycloakUserProvisioningAdapter implements UserProvisioningService {
     }
 
     @Override
+    public String findUserIdByEmail(String email) {
+        return keycloakAdminService.findUserIdByEmail(email);
+    }
+
+    @Override
     public com.jetski.shared.security.FederatedIdentity findFederatedIdentity(
             String providerUserId, String idpAlias) {
         return keycloakAdminService.findFederatedIdentity(providerUserId, idpAlias);
