@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { ShieldAlert } from 'lucide-react'
-import { apiClient } from '@/lib/api/client'
+import { apiClient, setAuthToken } from '@/lib/api/client'
 
 /**
  * Resgate do código de suporte — a chegada do handoff console → backoffice.
@@ -19,10 +20,23 @@ import { apiClient } from '@/lib/api/client'
 export function ResgateCliente() {
   const router = useRouter()
   const params = useSearchParams()
+  const { data: session, status } = useSession()
   const [erro, setErro] = useState<string | null>(null)
   const resgatado = useRef(false)
 
   useEffect(() => {
+    // Esperar a sessão é OBRIGATÓRIO, não otimização: o token do apiClient vive em
+    // sessionStorage e só é gravado pelo layout do (dashboard) — esta página está
+    // FORA daquele grupo. O handoff chega numa aba que navegou de admin.* para app.*,
+    // onde o sessionStorage da origem está vazio: sem isto o resgate sai sem
+    // Authorization e o backend responde 401 (foi o que aconteceu em 25/jul).
+    if (status === 'loading') return
+    if (status !== 'authenticated' || !session?.accessToken) {
+      setErro('Faça login no backoffice e abra a sessão de suporte novamente pelo console.')
+      return
+    }
+    setAuthToken(session.accessToken)
+
     const codigo = params.get('codigo')
     if (!codigo) {
       setErro('Código de suporte ausente. Abra a sessão novamente pelo console.')
@@ -44,7 +58,7 @@ export function ResgateCliente() {
             'Não foi possível abrir a sessão de suporte. Faça login no backoffice e tente de novo.',
         ),
       )
-  }, [params, router])
+  }, [params, router, session, status])
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">

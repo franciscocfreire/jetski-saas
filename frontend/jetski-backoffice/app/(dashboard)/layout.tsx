@@ -9,7 +9,7 @@ import { Header } from '@/components/layout/header'
 import { RentalNotificationProvider } from '@/components/providers/rental-notification-provider'
 import { TenantThemeProvider } from '@/components/providers/tenant-theme-provider'
 import { useTenantStore } from '@/lib/store/tenant-store'
-import { setAuthToken, setTenantId } from '@/lib/api/client'
+import { apiClient, setAuthToken, setTenantId } from '@/lib/api/client'
 import { userTenantsService } from '@/lib/api/services'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TenantStatusGate } from '@/components/tenant-status-gate'
@@ -30,6 +30,34 @@ export default function DashboardLayout({
   const lastTokenRef = useRef<string | null>(null)
 
   // Handle unauthenticated or session error
+  // Sessão de suporte: a empresa vem da sessão, não de membership. Sem isto o
+  // operador cai no NoTenantGate mesmo com sessão ativa — /v1/user/tenants vem
+  // vazio porque ele não é membro de empresa nenhuma (visto em 25/jul).
+  const [suporteChecado, setSuporteChecado] = useState(false)
+  useEffect(() => {
+    if (!session?.accessToken || suporteChecado) return
+    setAuthToken(session.accessToken)
+    apiClient
+      .get('/v1/suporte/atual')
+      .then((r) => {
+        const s = r.status === 204 ? null : r.data
+        if (s?.tenantId) {
+          const empresa = {
+            id: s.tenantId,
+            slug: s.tenant?.slug ?? '',
+            razaoSocial: s.tenant?.razao_social ?? s.tenant?.razaoSocial ?? 'Empresa',
+            status: s.tenant?.status ?? 'ATIVO',
+            roles: [],
+          } as never
+          setTenants([empresa])
+          setCurrentTenant(empresa)
+          setTenantsLoaded(true)
+        }
+      })
+      .catch(() => { /* sem sessão de suporte: fluxo normal */ })
+      .finally(() => setSuporteChecado(true))
+  }, [session?.accessToken, suporteChecado, setTenants, setCurrentTenant])
+
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login')

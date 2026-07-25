@@ -90,16 +90,6 @@ public class TenantFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // Escopo de PLATAFORMA (/v1/platform/**): identidade global, sem tenant
-            // obrigatório. O console (admin.*) não tem "empresa corrente" — o alvo, quando
-            // existe, vem no path (/v1/platform/tenants/{id}/...). O gate de papel fica no
-            // PlatformScopeInterceptor; aqui só populamos o contexto.
-            if (isPlatformEndpoint(requestPath)) {
-                applyPlatformContext(request);
-                filterChain.doFilter(request, response);
-                return;
-            }
-
             // SESSÃO DE SUPORTE: operador de plataforma operando UMA empresa, com motivo,
             // prazo e trilha. A empresa vem da SESSÃO, não de um header que o cliente
             // escolhe — o operador não troca de alvo sem abrir outra sessão.
@@ -109,7 +99,18 @@ public class TenantFilter extends OncePerRequestFilter {
                 TenantContext.setTenantId(suporte.tenantId());
                 TenantContext.setUsuarioId(suporte.operadorId());
                 aplicarPapeisDePlataforma(request);
+                concederAutoridadeDeEmpresa();
                 businessMetrics.recordTenantContextSwitch(suporte.tenantId().toString());
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // Escopo de PLATAFORMA (/v1/platform/**): identidade global, sem tenant
+            // obrigatório. O console (admin.*) não tem "empresa corrente" — o alvo, quando
+            // existe, vem no path (/v1/platform/tenants/{id}/...). O gate de papel fica no
+            // PlatformScopeInterceptor; aqui só populamos o contexto.
+            if (isPlatformEndpoint(requestPath)) {
+                applyPlatformContext(request);
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -306,15 +307,46 @@ public class TenantFilter extends OncePerRequestFilter {
         }
     }
 
+    /**
+     * Dá ao operador, DURANTE a sessão de suporte, a autoridade Spring de empresa que os
+     * controllers exigem em {@code @PreAuthorize("hasAnyRole('ADMIN_TENANT', ...)")}.
+     *
+     * <p>Sem isto o Spring Security barra com 403 ANTES do ABAC, e a sessão de suporte não
+     * serve para nada — o operador de plataforma tem papéis {@code PLATFORM_*}, não papéis
+     * de empresa. (Era latente: o god mode "funcionava" só para quem também era membro da
+     * empresa; um operador sem vínculo nunca operou o backoffice.)
+     *
+     * <p><strong>O somente-leitura NÃO passa por aqui de propósito.</strong> Os papéis do
+     * {@link TenantContext} — que alimentam o OPA — continuam sendo só os de plataforma.
+     * Se {@code ADMIN_TENANT} entrasse lá, o {@code rbac_allow} do authorization.rego
+     * liberaria escrita e uma sessão de leitura poderia gravar. O @PreAuthorize é um
+     * portão grosso; quem decide leitura×escrita é a regra de sessão de suporte no OPA.
+     */
+    private void concederAutoridadeDeEmpresa() {
+        Authentication atual = SecurityContextHolder.getContext().getAuthentication();
+        if (atual == null || !atual.isAuthenticated()) {
+            return;
+        }
+        java.util.List<org.springframework.security.core.GrantedAuthority> autoridades =
+            new java.util.ArrayList<>(atual.getAuthorities());
+        autoridades.add(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+            "ROLE_ADMIN_TENANT"));
+        SecurityContextHolder.getContext().setAuthentication(
+            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                atual.getPrincipal(), atual.getCredentials(), autoridades));
+    }
+
     /** Endpoints de plataforma (console) — autenticados, com tenant OPCIONAL. */
     private boolean isPlatformEndpoint(String path) {
         String normalizedPath = path.startsWith("/api/") ? path.substring(4) : path;
         return normalizedPath.startsWith("/v1/platform/")
             || normalizedPath.equals("/v1/platform")
-            // Resgate do código: o operador ainda não tem cookie nem tenant, mas PRECISA
-            // estar autenticado — o resgate é amarrado a quem abriu a sessão, para que um
-            // código vazado (URL, Referer, log de proxy) não sirva a outra pessoa.
-            || normalizedPath.equals("/v1/suporte/resgatar");
+            // /v1/suporte/**: o alvo vem da SESSÃO, nunca de header. Sem cookie (resgate,
+            // ou "tem sessão?" respondendo que não) o request segue sem tenant em vez de
+            // 400 — exigir X-Tenant-Id aqui fazia o banner falhar antes de existir sessão.
+            // O resgate ainda exige estar AUTENTICADO: ele é amarrado a quem abriu, para
+            // que um código vazado (URL, Referer, log de proxy) não sirva a outra pessoa.
+            || normalizedPath.startsWith("/v1/suporte/");
     }
 
     /**

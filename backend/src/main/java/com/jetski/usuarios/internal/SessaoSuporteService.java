@@ -194,6 +194,18 @@ public class SessaoSuporteService implements SessaoSuporteValidator {
             Boolean.TRUE.equals(l.get("somente_leitura")));
     }
 
+    /**
+     * Dados da EMPRESA alvo de uma sessão — o backoffice não consegue obtê-los sozinho:
+     * o operador não é membro, então {@code /v1/user/tenants} vem vazio e a tela cairia
+     * no "sua conta não está em nenhuma empresa" mesmo com sessão ativa.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> empresaDaSessao(UUID tenantId) {
+        List<Map<String, Object>> l = jdbc.queryForList(
+            "SELECT id, slug, razao_social, status FROM tenant WHERE id = ?", tenantId);
+        return l.isEmpty() ? Map.of() : l.get(0);
+    }
+
     /** Encerra a sessão (botão do banner, ou revogação por outro operador). */
     @Transactional
     public void encerrar(UUID sessaoId) {

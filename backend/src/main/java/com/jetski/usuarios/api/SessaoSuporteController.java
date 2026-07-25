@@ -46,8 +46,12 @@ public class SessaoSuporteController {
     /** @param codigo código de uso único para o handoff console → backoffice */
     public record AbrirResponse(UUID sessaoId, String codigo, Instant expiraEm) {}
 
+    /**
+     * @param tenant dados da empresa alvo (slug, razão social, status) — o operador não é
+     *               membro dela, então o backoffice não conseguiria obtê-los sozinho
+     */
     public record SessaoAtualResponse(
-        UUID id, UUID tenantId, boolean somenteLeitura) {}
+        UUID id, UUID tenantId, boolean somenteLeitura, java.util.Map<String, Object> tenant) {}
 
     // ===================== console =====================
 
@@ -118,8 +122,8 @@ public class SessaoSuporteController {
         if (s == null) {
             return ResponseEntity.noContent().build();
         }
-        return ResponseEntity.ok(
-            new SessaoAtualResponse(s.id(), s.tenantId(), s.somenteLeitura()));
+        return ResponseEntity.ok(new SessaoAtualResponse(
+            s.id(), s.tenantId(), s.somenteLeitura(), service.empresaDaSessao(s.tenantId())));
     }
 
     /** Sair do modo suporte: encerra a sessão e apaga o cookie. */
