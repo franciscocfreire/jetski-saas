@@ -35,6 +35,7 @@ public class TenantContext {
     private static final ThreadLocal<List<String>> USER_ROLES = new ThreadLocal<>();
     private static final ThreadLocal<UUID> USUARIO_ID = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> UNRESTRICTED = new ThreadLocal<>();
+    private static final ThreadLocal<SessaoSuporte> SESSAO_SUPORTE = new ThreadLocal<>();
 
     /**
      * Private constructor to prevent instantiation
@@ -155,6 +156,22 @@ public class TenantContext {
     }
 
     /**
+     * Sessão de suporte ativa (operador de plataforma operando uma empresa).
+     *
+     * <p>Setada pelo {@code TenantFilter} a partir do cookie de suporte. Quem lê: o ABAC
+     * (propaga ao OPA, que nega escrita em sessão somente-leitura) e a auditoria, que
+     * carimba o id da sessão para a empresa saber o que foi feito em nome dela.
+     */
+    public static void setSessaoSuporte(SessaoSuporte sessao) {
+        SESSAO_SUPORTE.set(sessao);
+    }
+
+    /** @return sessão de suporte do request, ou {@code null} se não houver */
+    public static SessaoSuporte getSessaoSuporte() {
+        return SESSAO_SUPORTE.get();
+    }
+
+    /**
      * Clear the tenant ID, roles, and usuario ID from the current thread
      *
      * MUST be called in a finally block to prevent memory leaks
@@ -168,6 +185,7 @@ public class TenantContext {
         USER_ROLES.remove();
         USUARIO_ID.remove();
         UNRESTRICTED.remove();
+        SESSAO_SUPORTE.remove();
     }
 
     /**

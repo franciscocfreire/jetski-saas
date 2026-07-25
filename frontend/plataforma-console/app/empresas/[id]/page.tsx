@@ -17,6 +17,7 @@ import {
 import { PlatformApiError } from "@/lib/api";
 import { AcoesStatus, AcoesEmissora, TrocarPlano, LancarCreditos } from "./acoes";
 import { ZonaDePerigo } from "./perigo";
+import { EntrarNaEmpresa } from "./suporte";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,9 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
   const saldo = dados.saldos.find((s) => s.tenantId === id);
   const faturasDaEmpresa = dados.faturas.filter((f) => f.tenantId === id);
   const emissao = dados.emissoes.find((e) => e.tenantId === id);
+  // O handoff é uma navegação para OUTRO subdomínio (app.*): a URL vem do ambiente,
+  // não do host atual — o console vive em admin.*.
+  const backofficeUrl = process.env.BACKOFFICE_URL ?? "http://localhost:3001";
 
   return (
     <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
@@ -98,7 +102,12 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
               valor={emissao ? String(emissao.total) : "0"}
             />
           </dl>
-          <div className="mt-5 border-t border-slate-100 pt-4">
+          <div className="mt-5 space-y-3 border-t border-slate-100 pt-4">
+            <EntrarNaEmpresa
+              tenantId={empresa.id}
+              razaoSocial={empresa.razaoSocial}
+              backofficeUrl={backofficeUrl}
+            />
             <AcoesStatus tenantId={empresa.id} status={empresa.status} />
           </div>
         </Card>

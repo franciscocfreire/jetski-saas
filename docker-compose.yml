@@ -367,6 +367,8 @@ services:
       AUTH_TRUST_HOST: "true"
 
       # Keycloak OAuth — client público + PKCE, exclusivo do console
+      # Destino do handoff da sessão de suporte (console admin.* → backoffice app.*)
+      BACKOFFICE_URL: ${APP_PUBLIC_URL:-http://localhost:3001}
       KEYCLOAK_CLIENT_ID: jetski-platform-console
       KEYCLOAK_CLIENT_SECRET: ""
       KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://nginx/realms/jetski-saas}

@@ -3,7 +3,7 @@
 Separação do super admin: tirar a operação da plataforma de dentro do backoffice das
 empresas e colocá-la num app próprio, em `admin.meujet.com.br`.
 
-> Status: **F0 entregue** (25/jul/2026); F1–F6 planejadas.
+> Status: **F0–F3 entregues** (25/jul/2026); F4–F6 planejadas.
 > Relacionado: `SUPERADMIN.md` (operação atual), `ONBOARDING_EMPRESA_SPEC.md`,
 > `EMISSAO_DELEGADA_SPEC.md`, `PORTAL_CLIENTE_SPEC.md` (referência de app separado).
 
@@ -414,7 +414,7 @@ emissão delegada. A tela `/auditoria` lê **só** `tenant_id IS NULL`.
 | **F0** ✅ | Fundação e segurança: `PlatformScopeInterceptor`, `ActionExtractor` com path completo, `/v1/platform/**` sem `X-Tenant-Id`, app Next + compose + nginx + scripts + client Keycloak `jetski-platform-console` | — |
 | **F1** ✅ | 2FA obrigatório + paridade: todas as telas atuais migradas para rotas do console. Backoffice ainda mantém a página antiga (coexistência até a F3) | F0 |
 | **F2** ✅ | Papéis granulares + tela `/operadores` + migration de backfill + `platform.rego` + `UserPermissionsController` real | F0 |
-| **F3** | Sessão de suporte (backend + banner no backoffice) **e então** remoção da página `/dashboard/plataforma`, do grupo "Plataforma" no sidebar e do switcher de todas-as-empresas | F1, F2 |
+| **F3** ✅ | Sessão de suporte (backend + banner no backoffice) **e então** remoção da página `/dashboard/plataforma`, do grupo "Plataforma" no sidebar e do switcher de todas-as-empresas | F1, F2 |
 | **F4** | `plataforma_metrica_diaria` + job + dashboard da plataforma | F0 |
 | **F5** | `/auditoria` (audit dual) + `/saude` (dependências + atalhos Grafana) | F0 |
 | **F6** | *(opcional)* consolidação dos `Platform*` no módulo `plataforma` | F1–F5 |
@@ -500,6 +500,45 @@ com invalidação por `revalidatePath`, e um cliente `fetch` tipado dá conta.
 **Detalhe da empresa é uma página com seções, não sub-rotas por aba.** A API de plataforma
 não tem endpoint por empresa: tudo vem de listas globais que a página filtra. Uma sub-rota
 por aba refaria as mesmas listas a cada troca.
+
+### 9.5 O que a F3 entregou — o corte
+
+**God mode acabou.** Até aqui, operador de plataforma escolhia a empresa no switcher do
+backoffice e operava como se fosse membro dela: sem motivo, sem prazo, sem trilha. O banco
+não sabia responder "quem entrou na empresa X, quando e por quê".
+
+**Sessão de suporte** (`plataforma_sessao_suporte`, V055):
+
+- **motivo obrigatório** (mín. 5 caracteres — CHECK no banco também);
+- **30 minutos**, sem renovação por uso: acabou, abre outra;
+- **somente leitura por padrão** — e isso é negação de verdade no OPA, não aviso de UI;
+- **revogação imediata** (sem cache: uma consulta por PK por request; janela em que um
+  acesso revogado ainda funciona não vale a micro-otimização).
+
+**Handoff por código de uso único.** O console vive em `admin.*` e o backoffice em `app.*`:
+cookie não atravessa. O que trafega na URL é um código com 2 minutos de vida, trocado **uma
+vez** pelo cookie `mj_support` (HttpOnly). O token nunca vai na URL — URL vaza em log de
+proxy, Referer e histórico. Uso único garantido pelo `UPDATE ... WHERE codigo_usado_em IS
+NULL`: dois resgates simultâneos, só um afeta linha. Código e token ficam no banco como
+SHA-256 — dump não entrega sessão viva.
+
+**OPA.** A regra de god mode (`is_platform_admin` liberando qualquer ação de tenant) foi
+substituída por `platform.allow_suporte`: exige sessão ativa **e** papel de plataforma, e a
+sessão somente-leitura só passa em GET. Três testes que afirmavam god mode foram reescritos
+para afirmar o contrário — é a mudança de comportamento, não regressão.
+
+**Auditoria dual**: cada abertura/encerramento grava no tenant alvo (a empresa tem direito
+de ver quem entrou) e globalmente (o console lê sem cross-tenant).
+
+**Removido do backoffice**: página `/dashboard/plataforma`, `components/plataforma/`,
+`lib/api/services/platform.ts`, o grupo "Plataforma" do menu, o switcher de todas-as-empresas
+e as isenções de `NoTenantGate`/`TenantStatusGate`/gate de módulos para `UNRESTRICTED`. No
+lugar entrou a faixa permanente de modo suporte.
+
+**Achado do teste-guarda:** `TenantResetClassificationTest` reprovou a tabela nova — o repo
+exige que toda tabela com `tenant_id` seja classificada no reset. `plataforma_sessao_suporte`
+entrou como **preservada**: é trilha, não dado operacional; apagá-la num reset deixaria o
+acesso sem prova.
 
 ### 9.4 Identidade única e login Google no console (25/jul)
 

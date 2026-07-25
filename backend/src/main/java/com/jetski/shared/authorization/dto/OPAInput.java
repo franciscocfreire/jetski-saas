@@ -164,6 +164,14 @@ public class OPAInput {
         private String method;
 
         /**
+         * Sessão de suporte ativa (F3): {@code null} quando não há.
+         *
+         * <p>Substitui o god mode implícito — o operador de plataforma só opera uma empresa
+         * dentro de uma sessão declarada, e {@code somente_leitura} é enforçado aqui.
+         */
+        private SupportSession support_session;
+
+        /**
          * Geolocalização (cidade, estado, país) - futuro
          */
         private Map<String, String> location;
@@ -172,6 +180,21 @@ public class OPAInput {
          * Atributos extras de contexto
          */
         private Map<String, Object> extra;
+    }
+
+    /**
+     * Sessão de suporte propagada ao OPA.
+     *
+     * @param id             id da sessão (aparece na trilha de decisão)
+     * @param somente_leitura true = qualquer método diferente de GET é negado
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SupportSession {
+        private String id;
+        private boolean somente_leitura;
     }
 
     /**

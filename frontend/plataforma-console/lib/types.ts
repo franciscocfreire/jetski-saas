@@ -129,6 +129,26 @@ export interface OperadorAtual {
   admin: boolean;
 }
 
+export interface AberturaSuporte {
+  sessaoId: string;
+  codigo: string;
+  expiraEm: string;
+}
+
+export interface RegistroSuporte {
+  id: string;
+  tenantId: string;
+  tenantSlug: string;
+  operadorId: string | null;
+  operadorEmail: string | null;
+  motivo: string;
+  somenteLeitura: boolean;
+  iniciadaEm: string;
+  expiraEm: string;
+  encerradaEm: string | null;
+  ativa: boolean;
+}
+
 export interface Operador {
   usuarioId: string;
   email: string;

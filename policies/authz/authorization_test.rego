@@ -122,8 +122,10 @@ test_authorization_business_rule_deny if {
 
 # ==================== Platform Admin Bypass ====================
 
-test_platform_admin_bypasses_all_rules if {
-    result.allow == true with input as {
+# F3: sem sessão de suporte, operador de plataforma NÃO opera ação de tenant —
+# o "bypass de tudo" virou acesso declarado, com motivo, prazo e trilha.
+test_platform_admin_sem_sessao_nao_bypassa if {
+    result.allow == false with input as {
         "action": "any:action",
         "user": {
             "id": "platform@system.com",

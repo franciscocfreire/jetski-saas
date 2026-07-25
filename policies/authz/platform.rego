@@ -121,6 +121,8 @@ acoes_suporte := {
 	"platform:tenants:desabilitar-emissora",
 	"platform:capitanias", # catálogo EAMA (POST)
 	"platform:capitanias:atualizar",
+	"platform:tenants:suporte", # abrir sessão de suporte numa empresa
+	"platform:suporte", # revogar sessão (a leitura da trilha cai no ramo de GET)
 }
 
 # Destrutivas e de infraestrutura: SÓ admin. Nunca entram em suporte/financeiro.
@@ -164,6 +166,45 @@ allow if {
 allow if {
 	eh_financeiro
 	input.action in acoes_financeiras
+}
+
+# -----------------------------------------------------------------------------
+# Sessão de suporte (F3): operar uma EMPRESA a partir do console.
+#
+# Substitui o god mode implícito (era: qualquer ação de tenant liberada para
+# quem tivesse unrestricted_access). Agora exige sessão declarada, e a sessão
+# somente-leitura nega escrita de verdade — não é aviso de UI.
+# -----------------------------------------------------------------------------
+
+sessao := object.get(input.context, "support_session", null)
+
+default em_sessao_de_suporte := false
+
+em_sessao_de_suporte if {
+	sessao != null
+}
+
+default sessao_somente_leitura := false
+
+sessao_somente_leitura if {
+	sessao != null
+	object.get(sessao, "somente_leitura", false) == true
+}
+
+# Ação de TENANT dentro de sessão de suporte.
+default allow_suporte := false
+
+allow_suporte if {
+	em_sessao_de_suporte
+	tem_papel_plataforma
+	not sessao_somente_leitura
+}
+
+allow_suporte if {
+	em_sessao_de_suporte
+	tem_papel_plataforma
+	sessao_somente_leitura
+	leitura # GET e só
 }
 
 # -----------------------------------------------------------------------------

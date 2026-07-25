@@ -192,16 +192,54 @@ test_sem_papel_nenhum_negado if {
 	}
 }
 
-# --------------------------------------- God mode de tenant: só PLATFORM_ADMIN
+# ------------------------------- Sessão de suporte (F3): substitui o god mode
 
-test_god_mode_apenas_admin if {
-	authorization.allow with input as operador("PLATFORM_ADMIN", "modelo:list", "GET")
+# Operador COM sessão, mas a empresa vem da sessão — não de header escolhido.
+com_sessao(papel, acao, metodo, leitura) := {
+	"action": acao,
+	"user": {"id": "op", "roles": [papel], "role": papel, "unrestricted_access": true},
+	"resource": {},
+	"context": {
+		"method": metodo,
+		"support_session": {"id": "s1", "somente_leitura": leitura},
+	},
 }
 
-test_suporte_sem_god_mode_de_escrita if {
-	not authorization.allow with input as operador("PLATFORM_SUPORTE", "locacao:checkin", "POST")
+# O ponto central da F3: SEM sessão, nem o admin opera a empresa.
+test_sem_sessao_nem_admin_opera_tenant if {
+	not authorization.allow with input as operador("PLATFORM_ADMIN", "modelo:list", "GET")
+	not authorization.allow with input as operador("PLATFORM_ADMIN", "locacao:checkin", "POST")
 }
 
-test_leitura_sem_god_mode if {
-	not authorization.allow with input as operador("PLATFORM_LEITURA", "locacao:checkin", "POST")
+test_com_sessao_escrita_opera if {
+	authorization.allow with input as com_sessao("PLATFORM_ADMIN", "locacao:checkin", "POST", false)
+}
+
+test_com_sessao_escrita_le_tambem if {
+	authorization.allow with input as com_sessao("PLATFORM_SUPORTE", "modelo:list", "GET", false)
+}
+
+# Somente-leitura é negação de verdade, não aviso de UI.
+test_sessao_leitura_le_mas_nao_escreve if {
+	authorization.allow with input as com_sessao("PLATFORM_ADMIN", "modelo:list", "GET", true)
+	not authorization.allow with input as com_sessao("PLATFORM_ADMIN", "locacao:checkin", "POST", true)
+}
+
+test_sessao_leitura_nega_delete if {
+	not authorization.allow with input as com_sessao("PLATFORM_ADMIN", "jetski:delete", "DELETE", true)
+}
+
+# Sessão não transforma papel de EMPRESA em operador de plataforma.
+test_sessao_sem_papel_de_plataforma_nao_vale if {
+	not platform.allow_suporte with input as {
+		"action": "locacao:checkin",
+		"user": {"id": "u", "roles": ["ADMIN_TENANT"], "role": "ADMIN_TENANT"},
+		"resource": {},
+		"context": {"method": "POST", "support_session": {"id": "s1", "somente_leitura": false}},
+	}
+}
+
+# Sessão de suporte NÃO libera ações de plataforma (são governadas pela matriz).
+test_sessao_nao_libera_acao_de_plataforma if {
+	not authorization.allow with input as com_sessao("PLATFORM_LEITURA", "platform:tenants:reset", "POST", false)
 }

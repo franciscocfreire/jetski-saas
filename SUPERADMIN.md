@@ -6,13 +6,16 @@ Guia operacional para criar/gerenciar o **super admin de plataforma** do MeuJet.
 
 É um usuário com **acesso total à plataforma** (`unrestricted_access = true`):
 
-> **Em transição (jul/2026):** a operação da plataforma está saindo do backoffice para um
-> app próprio em `admin.meujet.com.br` (`frontend/plataforma-console`). A F0 — fundação e
-> barreira de autorização — já está no ar; as telas migram na F1 e o painel
-> **Plataforma › Empresas** do backoffice será removido na F3. Ver
-> [`PLATAFORMA_CONSOLE_SPEC.md`](PLATAFORMA_CONSOLE_SPEC.md).
+> **Mudou (jul/2026):** a operação da plataforma saiu do backoffice para o console em
+> `admin.meujet.com.br` (`frontend/plataforma-console`). O painel **Plataforma › Empresas**
+> e o switcher de todas-as-empresas **não existem mais** no backoffice. Entrar numa empresa
+> passou a ser uma **sessão de suporte** explícita: motivo obrigatório, 30 minutos, somente
+> leitura por padrão e trilha — nada de god mode silencioso. O acesso é concedido pela tela
+> **Operadores** do console, com papéis (ADMIN / SUPORTE / FINANCEIRO / LEITURA), não mais
+> só por `PLATFORM_ADMIN_EMAILS` ou SQL. Boa parte do texto abaixo descreve o modelo
+> anterior — ver [`PLATAFORMA_CONSOLE_SPEC.md`](PLATAFORMA_CONSOLE_SPEC.md) para o atual.
 
-- Vê o painel **Plataforma › Empresas** no backoffice.
+- Opera a plataforma pelo console em `admin.meujet.com.br`.
 - **Aprova / suspende / reativa** empresas (tenants).
 - Pode **entrar e operar qualquer empresa** (god mode), mesmo sem ser membro — o
   isolamento continua garantido pelo RLS (ele opera uma empresa por vez, via a empresa

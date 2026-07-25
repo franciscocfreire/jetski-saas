@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { platformFetch, PlatformApiError } from "./api";
-import type { ResetNivel, ResetResult, ReencryptResult, TenantExport } from "./types";
+import type {
+  AberturaSuporte,
+  ResetNivel,
+  ResetResult,
+  ReencryptResult,
+  TenantExport,
+} from "./types";
 
 /**
  * Mutações de plataforma. Todas são server actions: o access token nunca chega
@@ -254,6 +260,38 @@ export async function revogarAcesso(usuarioId: string) {
     () =>
       platformFetch(`/v1/platform/operadores/${usuarioId}`, { method: "DELETE" }),
     "/operadores",
+  );
+}
+
+// ===================== Sessão de suporte =====================
+
+/**
+ * Abre a sessão e devolve o CÓDIGO de handoff.
+ *
+ * O console vive em admin.* e o backoffice em app.*: cookie não atravessa. O que
+ * volta aqui é um código de uso único e vida curta, que o backoffice troca pelo
+ * cookie de sessão. O token nunca trafega na URL.
+ */
+export async function abrirSuporte(
+  tenantId: string,
+  motivo: string,
+  somenteLeitura: boolean,
+) {
+  return executar(
+    () =>
+      POST(`/v1/platform/tenants/${tenantId}/suporte`, {
+        motivo,
+        somenteLeitura,
+      }) as Promise<AberturaSuporte>,
+    "/empresas",
+  );
+}
+
+export async function revogarSuporte(sessaoId: string) {
+  return executar(
+    () => platformFetch(`/v1/platform/suporte/${sessaoId}`, { method: "DELETE" }),
+    "/empresas",
+    "/auditoria",
   );
 }
 

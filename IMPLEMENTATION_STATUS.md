@@ -111,8 +111,14 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
     `PLATFORM_ADMIN_EMAILS`/SQL manual, com trava contra remover o último admin ou o
     próprio acesso, e auditoria global de cada concessão. God mode em ações de tenant ficou
     só para `PLATFORM_ADMIN`.
-  - Backoffice mantém `/dashboard/plataforma` em coexistência; a remoção é a F3, junto com a
-    sessão de suporte auditada. Ver `PLATAFORMA_CONSOLE_SPEC.md`.
+  - **F3 (o corte)**: **god mode acabou**. Operar uma empresa exige **sessão de suporte**
+    (V055 `plataforma_sessao_suporte`): motivo obrigatório, 30 min sem renovação, somente
+    leitura por padrão (negação real no OPA), revogação imediata. Handoff console→backoffice
+    por código de uso único (2 min, amarrado ao operador que abriu; o token do cookie nunca
+    vai na URL) e faixa permanente de "modo suporte". Auditoria dual (tenant + global).
+    Removidos do backoffice: página `/dashboard/plataforma`, `components/plataforma/`,
+    `services/platform.ts`, grupo "Plataforma" do menu, switcher de todas-as-empresas e as
+    isenções de gate para `UNRESTRICTED`. Ver `PLATAFORMA_CONSOLE_SPEC.md`.
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão
   automática → checklist de primeiros passos (7 itens). Créditos de adesão automáticos.
 - Créditos de emissão: ledger append-only (trigger de banco anti-DELETE), débito na emissão,

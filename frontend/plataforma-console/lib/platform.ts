@@ -3,6 +3,7 @@ import type {
   FaturaPendente,
   Operador,
   OperadorAtual,
+  RegistroSuporte,
   PapelInfo,
   ImagemCompressaoConfig,
   ModuloCatalogo,
@@ -56,6 +57,12 @@ export const platform = {
   me: () => platformFetch<OperadorAtual>("/v1/platform/me"),
 
   operadores: () => platformFetch<Operador[]>("/v1/platform/operadores"),
+
+  /** Trilha de sessões de suporte (global ou de uma empresa). */
+  sessoesSuporte: (tenantId?: string) =>
+    platformFetch<RegistroSuporte[]>(
+      `/v1/platform/suporte${tenantId ? `?tenantId=${tenantId}` : ""}`,
+    ),
 
   papeisPlataforma: () => platformFetch<PapelInfo[]>("/v1/platform/operadores/papeis"),
 

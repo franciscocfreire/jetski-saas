@@ -8,6 +8,7 @@ import com.jetski.locacoes.event.ClienteIdentidadeSincronizadaEvent;
 import com.jetski.locacoes.event.ContaAtivadaEvent;
 import com.jetski.locacoes.event.ContaCpfMergeEvent;
 import com.jetski.usuarios.event.OperadorPlataformaAlteradoEvent;
+import com.jetski.usuarios.event.SessaoSuporteEvent;
 import com.jetski.locacoes.event.DataCheckInAlteradaEvent;
 import com.jetski.locacoes.event.ChaMtaeConfirmadaEvent;
 import com.jetski.locacoes.event.HabilitacaoTemporariaReusadaEvent;
@@ -1151,6 +1152,50 @@ public class AuditEventListener {
      */
     private String getRemoteIp() {
         return MDC.get(MDCKeys.REMOTE_IP);
+    }
+
+    /**
+     * Abertura/encerramento de SESSÃO DE SUPORTE — audit DUAL.
+     *
+     * <p>Duas linhas de propósito: uma no TENANT alvo, para a empresa poder ver quem entrou
+     * e por quê (é dado dela), e uma GLOBAL (tenant_id NULL), para o console ler a trilha
+     * sem precisar varrer empresa a empresa. Mesmo padrão da emissão delegada.
+     *
+     * <p>AFTER_COMMIT pela mesma razão da concessão de papéis: trilha que registra o que
+     * NÃO aconteceu é pior que trilha atrasada.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onSessaoSuporte(SessaoSuporteEvent event) {
+        try {
+            Map<String, Object> dados = new HashMap<>();
+            dados.put("sessaoId", event.sessaoId().toString());
+            dados.put("operadorId", String.valueOf(event.operadorId()));
+            if (event.motivo() != null) {
+                dados.put("motivo", event.motivo());
+                dados.put("somenteLeitura", event.somenteLeitura());
+            }
+            String acao = event.abertura() ? "SUPORTE_SESSAO_ABERTA" : "SUPORTE_SESSAO_ENCERRADA";
+
+            // 1) global — o console lê sem cross-tenant
+            auditoriaRepository.save(Auditoria.builder()
+                    .tenantId(null).acao(acao).entidade("SESSAO_SUPORTE")
+                    .entidadeId(event.sessaoId()).usuarioId(event.operadorId())
+                    .dadosNovos(dados).traceId(getTraceId()).ip(getRemoteIp()).build());
+
+            // 2) no tenant alvo — a empresa tem direito de ver quem entrou nela
+            if (event.tenantId() != null) {
+                auditoriaRepository.save(Auditoria.builder()
+                        .tenantId(event.tenantId()).acao(acao).entidade("SESSAO_SUPORTE")
+                        .entidadeId(event.sessaoId()).usuarioId(event.operadorId())
+                        .dadosNovos(dados).traceId(getTraceId()).ip(getRemoteIp()).build());
+            }
+            log.warn("Audit: {} sessao={} tenant={} operador={}",
+                    acao, event.sessaoId(), event.tenantId(), event.operadorId());
+        } catch (Exception e) {
+            log.error("Failed to audit sessão de suporte: sessao={}, error={}",
+                    event.sessaoId(), e.getMessage(), e);
+        }
     }
 
     /**

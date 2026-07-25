@@ -53,9 +53,9 @@ test_super_admin_allowed_platform_tenants if {
 	authorization.allow with input as super_admin("platform:tenants")
 }
 
-# Super admin tem god mode em ações normais (qualquer tenant que selecionar)
-test_super_admin_god_mode_normal_action if {
-	authorization.allow with input as super_admin("modelo:list")
+# F3: god mode acabou. Sem sessão de suporte, operador de plataforma NÃO opera empresa.
+test_super_admin_sem_sessao_nao_opera_tenant if {
+	not authorization.allow with input as super_admin("modelo:list")
 }
 
 # ADMIN_TENANT continua podendo ações normais do seu tenant (não quebrou nada)

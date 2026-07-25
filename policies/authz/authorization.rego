@@ -123,14 +123,15 @@ allow if {
     platform.allow
 }
 
-# God mode em ações de TENANT (modelo:list, locacao:checkin, ...): o operador opera a
-# empresa selecionada no X-Tenant-Id, com o RLS escopando os dados. Restrito a
-# PLATFORM_ADMIN — um operador de suporte/financeiro/leitura NÃO herda o backoffice.
-# Na F3 isto vira sessão de suporte explícita, com TTL e trilha.
+# Ações de TENANT (modelo:list, locacao:checkin, ...) para operador de plataforma:
+# SÓ dentro de uma sessão de suporte declarada — com motivo, prazo e trilha. O god
+# mode implícito da F2 (bastava ser PLATFORM_ADMIN e escolher a empresa no switcher)
+# acabou aqui: entrar numa empresa passou a ser um ato registrado, e a sessão
+# somente-leitura nega escrita.
 allow if {
     not startswith(input.action, "platform:")
-    is_platform_admin
-    platform.eh_admin
+    not startswith(input.action, "customer:")
+    platform.allow_suporte
 }
 
 # Autorização normal: RBAC + Alçada + Business + Context + Tenant.

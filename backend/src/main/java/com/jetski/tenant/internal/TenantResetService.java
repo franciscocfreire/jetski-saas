@@ -92,7 +92,11 @@ public class TenantResetService {
         "emissao_uso", "tenant_signup", "fatura",
         // trilha legal da EAMA emissora (V048): o espelho vive no tenant do
         // EMISSOR e prova o que saiu em nome dele — nunca some num reset
-        "emissao_delegada");
+        "emissao_delegada",
+        // sessões de suporte (V055): registro de QUEM da plataforma entrou nesta
+        // empresa e por quê. É trilha, não dado operacional — apagar num reset
+        // deixaria o acesso sem prova. Some junto com a empresa (ON DELETE CASCADE).
+        "plataforma_sessao_suporte");
 
     private final JdbcTemplate jdbcTemplate;
     private final TenantRepository tenantRepository;

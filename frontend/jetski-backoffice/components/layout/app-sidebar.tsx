@@ -93,8 +93,6 @@ type NavGroup = {
   id: string
   label: string
   items: NavItem[]
-  /** Grupo visível apenas para superadmin de plataforma (accessType UNRESTRICTED). */
-  superAdminOnly?: boolean
 }
 
 const NAV_GROUPS: NavGroup[] = [
@@ -206,14 +204,6 @@ const NAV_GROUPS: NavGroup[] = [
       { title: 'Ajuda', href: '/ajuda', icon: LifeBuoy },
     ],
   },
-  {
-    id: 'plataforma',
-    label: 'Plataforma',
-    superAdminOnly: true,
-    items: [
-      { title: 'Empresas', href: '/dashboard/plataforma', icon: ShieldCheck, activePrefix: '/dashboard/plataforma' },
-    ],
-  },
 ]
 
 export function AppSidebar() {
@@ -254,9 +244,11 @@ export function AppSidebar() {
   // null/ausente = todos os módulos; superadmin sempre vê tudo; array = basta
   // um dos módulos (split emissão própria × delegada, V047). A API tem o
   // enforcement de verdade (ModuloPlanoInterceptor) — aqui é só UX.
+  // F3: sem bypass por UNRESTRICTED. Dentro de uma sessão de suporte o operador
+  // enxerga o que a EMPRESA contratou — mostrar módulos que ela não tem daria
+  // menu que a API nega (ModuloPlanoInterceptor).
   const moduloHabilitado = (modulo?: string | string[]) =>
     !modulo ||
-    accessType === 'UNRESTRICTED' ||
     !currentTenant?.modulos ||
     (Array.isArray(modulo)
       ? modulo.some((m) => currentTenant.modulos!.includes(m))
@@ -284,7 +276,6 @@ export function AppSidebar() {
   }
 
   const renderGroup = (group: NavGroup) => {
-    if (group.superAdminOnly && accessType !== 'UNRESTRICTED') return null
 
     const itensDoPlano = group.items.filter((item) => moduloHabilitado(item.modulo))
     const itensVisiveis = itensDoPlano.filter((item) => permissaoHabilitada(item.permissao))

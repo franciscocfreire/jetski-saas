@@ -3,6 +3,8 @@ package com.jetski.shared.internal;
 import com.jetski.shared.exception.InvalidTenantException;
 import com.jetski.shared.observability.BusinessMetrics;
 import com.jetski.shared.security.PlatformAccessInfo;
+import com.jetski.shared.security.SessaoSuporte;
+import com.jetski.shared.security.SessaoSuporteValidator;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.shared.security.TenantAccessValidator;
 import com.jetski.shared.security.TenantAccessInfo;
@@ -50,8 +52,11 @@ import java.util.UUID;
 public class TenantFilter extends OncePerRequestFilter {
 
     private static final String TENANT_HEADER_NAME = "X-Tenant-Id";
+    /** Cookie do handoff console→backoffice (ver SessaoSuporteService). */
+    public static final String COOKIE_SUPORTE = "mj_support";
 
     private final TenantAccessValidator tenantAccessValidator;
+    private final SessaoSuporteValidator sessaoSuporteValidator;
     private final BusinessMetrics businessMetrics;
 
     @Override
@@ -91,6 +96,20 @@ public class TenantFilter extends OncePerRequestFilter {
             // PlatformScopeInterceptor; aqui só populamos o contexto.
             if (isPlatformEndpoint(requestPath)) {
                 applyPlatformContext(request);
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // SESSÃO DE SUPORTE: operador de plataforma operando UMA empresa, com motivo,
+            // prazo e trilha. A empresa vem da SESSÃO, não de um header que o cliente
+            // escolhe — o operador não troca de alvo sem abrir outra sessão.
+            SessaoSuporte suporte = resolverSessaoSuporte(request);
+            if (suporte != null) {
+                TenantContext.setSessaoSuporte(suporte);
+                TenantContext.setTenantId(suporte.tenantId());
+                TenantContext.setUsuarioId(suporte.operadorId());
+                aplicarPapeisDePlataforma(request);
+                businessMetrics.recordTenantContextSwitch(suporte.tenantId().toString());
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -250,10 +269,52 @@ public class TenantFilter extends OncePerRequestFilter {
         return normalizedPath.startsWith("/v1/customers/") || normalizedPath.equals("/v1/customers");
     }
 
+    /**
+     * Lê o cookie de suporte e valida a sessão. Cookie ausente/expirado/encerrado devolve
+     * null e o request segue como request normal — quem nega é a autorização.
+     */
+    private SessaoSuporte resolverSessaoSuporte(HttpServletRequest request) {
+        if (request.getCookies() == null) {
+            return null;
+        }
+        for (jakarta.servlet.http.Cookie c : request.getCookies()) {
+            if (COOKIE_SUPORTE.equals(c.getName())) {
+                return sessaoSuporteValidator.validar(c.getValue());
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Papéis GLOBAIS do operador durante a sessão de suporte.
+     *
+     * <p>Ele não vira membro da empresa: os papéis continuam sendo os de plataforma, e a
+     * autorização do que pode fazer lá dentro é do OPA, que enxerga a sessão (inclusive o
+     * somente-leitura).
+     */
+    private void aplicarPapeisDePlataforma(HttpServletRequest request) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Jwt jwt)) {
+            return;
+        }
+        PlatformAccessInfo acesso = tenantAccessValidator.resolvePlatformAccess(
+            JwtAuthenticationConverter.extractProvider(jwt),
+            JwtAuthenticationConverter.extractProviderUserId(jwt));
+        if (acesso != null) {
+            TenantContext.setUserRoles(acesso.roles());
+            TenantContext.setUnrestricted(acesso.unrestricted());
+        }
+    }
+
     /** Endpoints de plataforma (console) — autenticados, com tenant OPCIONAL. */
     private boolean isPlatformEndpoint(String path) {
         String normalizedPath = path.startsWith("/api/") ? path.substring(4) : path;
-        return normalizedPath.startsWith("/v1/platform/") || normalizedPath.equals("/v1/platform");
+        return normalizedPath.startsWith("/v1/platform/")
+            || normalizedPath.equals("/v1/platform")
+            // Resgate do código: o operador ainda não tem cookie nem tenant, mas PRECISA
+            // estar autenticado — o resgate é amarrado a quem abriu a sessão, para que um
+            // código vazado (URL, Referer, log de proxy) não sirva a outra pessoa.
+            || normalizedPath.equals("/v1/suporte/resgatar");
     }
 
     /**
