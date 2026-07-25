@@ -88,6 +88,9 @@ public class AuditEventListener {
 
     private final AuditoriaRepository auditoriaRepository;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     /**
      * Handles check-in events.
      *
@@ -1163,11 +1166,47 @@ public class AuditEventListener {
      *
      * <p>AFTER_COMMIT pela mesma razão da concessão de papéis: trilha que registra o que
      * NÃO aconteceu é pior que trilha atrasada.
+     *
+     * <p><strong>Uma transação por linha, cada uma com o seu contexto de RLS.</strong> As
+     * duas juntas não funcionam: a rota de plataforma não tem tenant no contexto, então a
+     * linha da empresa viola {@code tenant_isolation_auditoria} e derruba a transação
+     * inteira — levando junto a linha global. Era por isso que
+     * {@code SUPORTE_SESSAO_ABERTA} nunca chegava ao banco (descoberto ao montar a tela de
+     * auditoria da F5; o {@code catch} do listener escondia o erro do fluxo do usuário).
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void onSessaoSuporte(SessaoSuporteEvent event) {
+    public void onSessaoSuporteGlobal(SessaoSuporteEvent event) {
+        gravarSessaoSuporte(event, null);
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onSessaoSuporteTenant(SessaoSuporteEvent event) {
+        if (event.tenantId() != null) {
+            gravarSessaoSuporte(event, event.tenantId());
+        }
+    }
+
+    /**
+     * @param tenantAlvo {@code null} grava a linha global; preenchido grava a da empresa
+     */
+    private void gravarSessaoSuporte(SessaoSuporteEvent event, UUID tenantAlvo) {
         try {
+            // set_config na PRÓPRIA transação, não TenantContext: a conexão já foi obtida
+            // quando o @Transactional abriu a transação (o TenantAwareDataSource lê o
+            // ThreadLocal no checkout), então mexer no ThreadLocal aqui dentro chega tarde
+            // demais — a GUC da conexão continuaria sem tenant e a linha da empresa seria
+            // rejeitada pela RLS. É o mesmo caminho que PlatformCreditoService usa para
+            // escrever numa empresa a partir de uma rota de plataforma.
+            //
+            // is_local = true: vale só nesta transação, sem sujar a conexão do pool.
+            if (tenantAlvo != null) {
+                entityManager.createNativeQuery("SELECT set_config('app.tenant_id', ?1, true)")
+                    .setParameter(1, tenantAlvo.toString())
+                    .getSingleResult();
+            }
+
             Map<String, Object> dados = new HashMap<>();
             dados.put("sessaoId", event.sessaoId().toString());
             dados.put("operadorId", String.valueOf(event.operadorId()));
@@ -1175,26 +1214,25 @@ public class AuditEventListener {
                 dados.put("motivo", event.motivo());
                 dados.put("somenteLeitura", event.somenteLeitura());
             }
+            // A empresa alvo precisa estar DENTRO do payload: a linha global não tem
+            // tenant_id (é o que a torna legível pelo console), então sem isto a trilha
+            // responde "alguém abriu uma sessão" sem dizer em qual empresa — que é
+            // exatamente a pergunta que ela existe para responder.
+            if (event.tenantId() != null) {
+                dados.put("tenantId", event.tenantId().toString());
+            }
             String acao = event.abertura() ? "SUPORTE_SESSAO_ABERTA" : "SUPORTE_SESSAO_ENCERRADA";
 
-            // 1) global — o console lê sem cross-tenant
-            auditoriaRepository.save(Auditoria.builder()
-                    .tenantId(null).acao(acao).entidade("SESSAO_SUPORTE")
+            auditoriaRepository.saveAndFlush(Auditoria.builder()
+                    .tenantId(tenantAlvo).acao(acao).entidade("SESSAO_SUPORTE")
                     .entidadeId(event.sessaoId()).usuarioId(event.operadorId())
                     .dadosNovos(dados).traceId(getTraceId()).ip(getRemoteIp()).build());
 
-            // 2) no tenant alvo — a empresa tem direito de ver quem entrou nela
-            if (event.tenantId() != null) {
-                auditoriaRepository.save(Auditoria.builder()
-                        .tenantId(event.tenantId()).acao(acao).entidade("SESSAO_SUPORTE")
-                        .entidadeId(event.sessaoId()).usuarioId(event.operadorId())
-                        .dadosNovos(dados).traceId(getTraceId()).ip(getRemoteIp()).build());
-            }
             log.warn("Audit: {} sessao={} tenant={} operador={}",
-                    acao, event.sessaoId(), event.tenantId(), event.operadorId());
+                    acao, event.sessaoId(), tenantAlvo, event.operadorId());
         } catch (Exception e) {
-            log.error("Failed to audit sessão de suporte: sessao={}, error={}",
-                    event.sessaoId(), e.getMessage(), e);
+            log.error("Failed to audit sessão de suporte: sessao={}, tenant={}, error={}",
+                    event.sessaoId(), tenantAlvo, e.getMessage(), e);
         }
     }
 

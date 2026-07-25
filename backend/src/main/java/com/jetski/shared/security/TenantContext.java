@@ -189,6 +189,19 @@ public class TenantContext {
     }
 
     /**
+     * Remove SÓ o tenant da thread, preservando papéis, usuário, acesso irrestrito e
+     * sessão de suporte.
+     *
+     * <p>Existe para quem precisa gravar fora do escopo de uma empresa <em>no meio</em> de
+     * uma requisição — o caso concreto é a linha GLOBAL da auditoria (tenant_id NULL). O
+     * {@link #clear()} não serve aí: ele apaga o contexto inteiro e o resto da requisição
+     * seguiria sem usuário nem autorização.
+     */
+    public static void clearTenantId() {
+        TENANT_ID.remove();
+    }
+
+    /**
      * Check if tenant ID is set
      *
      * @return true if tenant ID is set, false otherwise

@@ -49,6 +49,9 @@ class SessaoSuporteIntegrationTest extends AbstractIntegrationTest {
     }
 
     private void limpar() {
+        // Antes do usuário: a FK é ON DELETE SET NULL e a trilha perderia o dono.
+        jdbc.update("DELETE FROM auditoria WHERE entidade = 'SESSAO_SUPORTE' AND usuario_id = ?",
+            OPERADOR);
         jdbc.update("DELETE FROM plataforma_sessao_suporte WHERE operador_id = ?", OPERADOR);
         jdbc.update("DELETE FROM usuario WHERE id = ?", OPERADOR);
     }
@@ -189,4 +192,37 @@ class SessaoSuporteIntegrationTest extends AbstractIntegrationTest {
         assertThat(registros.get(0).somenteLeitura()).isTrue();
         assertThat(registros.get(0).operadorId()).isEqualTo(OPERADOR);
     }
+
+    /**
+     * Audit DUAL da abertura: uma linha na empresa (dado dela) e uma global (o console lê
+     * sem cross-tenant). A linha global não tem {@code tenant_id} — é justamente o que a
+     * torna legível pelo console —, então a empresa alvo precisa estar dentro do payload:
+     * sem ela a trilha diz "alguém abriu uma sessão" e não em qual empresa.
+     *
+     * <p><strong>Este teste não prova o bug que existia</strong>: as duas linhas nasciam na
+     * mesma transação, e a da empresa violava a RLS quando a rota de plataforma não tinha
+     * tenant no contexto — derrubando as duas. Aqui a conexão é superuser e bypassa RLS,
+     * então o cenário nem acontece. O que prova é o
+     * {@code RlsEnforcementIntegrationTest#auditoriaExigeContextoDoProprioTenant}.
+     */
+    @Test
+    @DisplayName("Abertura grava as DUAS linhas e identifica a empresa alvo")
+    void trilhaDualIdentificaAEmpresa() {
+        var abertura = service.abrir(TENANT, "cliente relatou cobrança em duplicidade",
+            true, "127.0.0.1", "t");
+
+        var linhas = jdbc.queryForList("""
+            SELECT tenant_id, dados_novos::text AS dados FROM auditoria
+             WHERE acao = 'SUPORTE_SESSAO_ABERTA' AND entidade_id = ?
+            """, abertura.sessaoId());
+
+        assertThat(linhas).hasSize(2);
+        assertThat(linhas).anySatisfy(l -> assertThat(l.get("tenant_id")).isNull());
+        assertThat(linhas).anySatisfy(l -> assertThat(l.get("tenant_id")).isEqualTo(TENANT));
+        assertThat(linhas).allSatisfy(l ->
+            assertThat((String) l.get("dados"))
+                .contains(TENANT.toString())
+                .contains("duplicidade"));
+    }
+
 }
