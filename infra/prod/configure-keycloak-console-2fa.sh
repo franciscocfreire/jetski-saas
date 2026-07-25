@@ -34,6 +34,14 @@
 # Necessário porque --import-realm NÃO re-importa realm existente; num realm NOVO
 # o infra/keycloak-realm.json já traz o flow e o binding (mudou lá, mude aqui).
 #
+# LIGA/DESLIGA — dispositivo confiável no console:
+#   TRUSTED_DEVICE_CONSOLE=0 (default) → console NUNCA honra dispositivo confiável;
+#                                        o 2FA é sempre desafiado, inclusive via Google.
+#   TRUSTED_DEVICE_CONSOLE=1           → console passa a honrar como backoffice/portal
+#                                        (login social pode entrar sem 2FA no navegador
+#                                        já marcado como confiável).
+#   Aplica na config da execution mj-trusted-device-check — vale na hora, sem reiniciar.
+#
 # ROLLBACK=1 bash infra/prod/configure-keycloak-console-2fa.sh
 #   → remove o binding do client (volta ao browser flow padrão do realm, 1 fator).
 #     Kill switch para não perder o acesso à plataforma por problema no flow.
@@ -46,6 +54,9 @@ REALM="${KC_REALM:-jetski-saas}"
 CLIENT_ID="jetski-platform-console"
 FLOW_ALIAS="console-browser"
 FORMS_ALIAS="console-browser-forms"
+# Subflows (de outros scripts) onde a condição de dispositivo confiável vive
+PB_COND_ALIAS="post-broker-2fa-cond"
+TFA_ALIAS="portal-2fa"
 
 TOKEN=$(curl -s -X POST "$KC/realms/master/protocol/openid-connect/token" \
   -d client_id=admin-cli -d grant_type=password \
@@ -190,5 +201,44 @@ set_requirement "$FORMS_ALIAS" "auth-otp-form" "REQUIRED"
 [ -n "$FID" ] || { echo "ERRO: flow $FLOW_ALIAS não pôde ser criado" >&2; exit 1; }
 bind_client "$FID"
 
+# --- dispositivo confiável no console (liga/desliga) --------------------------
+# O 2FA do caminho GOOGLE vem do post-broker-2fa, que é vinculado ao IdP e
+# compartilhado com backoffice/portal. A distinção por client mora na CONDIÇÃO
+# (mj-trusted-device-check): sem isto, um dispositivo confiável cadastrado no
+# backoffice zera o 2FA do console — observado em dev, 25/jul.
+CLIENTES_SEM_TD="$CLIENT_ID"
+[ "${TRUSTED_DEVICE_CONSOLE:-0}" = "1" ] && CLIENTES_SEM_TD=""
+
+for SUBFLOW in "$PB_COND_ALIAS" "$TFA_ALIAS"; do
+  # exec id E config id vêm do MESMO listing: /authentication/executions/{id} NÃO
+  # devolve authenticationConfig, e ler dali fazia o script criar uma config nova a
+  # cada execução (POST 201 em vez de PUT), deixando órfãs para trás.
+  LEITURA=$(curl -s "${auth[@]}" \
+      "$KC/admin/realms/$REALM/authentication/flows/$SUBFLOW/executions" \
+    | python3 -c 'import sys,json
+try: es=json.load(sys.stdin)
+except Exception: es=[]
+e=next((x for x in es if x.get("providerId")=="mj-trusted-device-check"), None)
+print((e.get("id") if e else "") + " " + ((e.get("authenticationConfig") or "") if e else ""))')
+  EXEC_ID=$(echo "$LEITURA" | cut -d" " -f1)
+  CFG_ID=$(echo "$LEITURA" | cut -d" " -f2)
+  [ -n "$EXEC_ID" ] || { echo ">> (subflow $SUBFLOW sem mj-trusted-device-check — pulei)"; continue; }
+
+  if [ -n "$CFG_ID" ]; then
+    curl -s -o /dev/null -w ">> PUT config trusted-device ($SUBFLOW) http=%{http_code}\n" \
+      -X PUT "$KC/admin/realms/$REALM/authentication/config/$CFG_ID" "${auth[@]}" "${json[@]}" \
+      -d "{\"id\":\"$CFG_ID\",\"alias\":\"mj-td-$SUBFLOW\",\"config\":{\"clientsSemTrustedDevice\":\"$CLIENTES_SEM_TD\"}}"
+  else
+    curl -s -o /dev/null -w ">> POST config trusted-device ($SUBFLOW) http=%{http_code}\n" \
+      -X POST "$KC/admin/realms/$REALM/authentication/executions/$EXEC_ID/config" "${auth[@]}" "${json[@]}" \
+      -d "{\"alias\":\"mj-td-$SUBFLOW\",\"config\":{\"clientsSemTrustedDevice\":\"$CLIENTES_SEM_TD\"}}"
+  fi
+done
+
 echo ">> Console: 2FA obrigatório configurado (flow $FLOW_ALIAS = $FID)."
 echo ">> Primeiro login de cada operador exige cadastrar o TOTP (CONFIGURE_TOTP)."
+if [ -n "$CLIENTES_SEM_TD" ]; then
+  echo ">> Dispositivo confiável NÃO vale no console (TRUSTED_DEVICE_CONSOLE=1 para liberar)."
+else
+  echo ">> Dispositivo confiável VALE no console — 2FA pode ser pulado no navegador confiável."
+fi

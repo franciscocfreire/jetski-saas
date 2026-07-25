@@ -538,10 +538,37 @@ O `DELETE` falha com **500** enquanto o flow está vinculado ao client, o `POST`
 ALTERNATIVE no mesmo nível, exatamente o arranjo que o Keycloak descarta. A migração passou
 a ser cirúrgica: remove só as execuções órfãs do nível 0, sem tocar no flow.
 
+**O que o login real revelou (e a correção).** O primeiro teste do usuário entrou por Google
+**sem 2FA**. Os eventos do Keycloak deram o veredito — `IDENTITY_PROVIDER_POST_LOGIN`
+seguido de `LOGIN`, ou seja o post-broker **rodou** e não desafiou. Causa: o
+`TrustedDeviceCheckAuthenticator` é a *condição* do subflow de 2FA e, com cookie de
+dispositivo confiável válido, devolve `false` — o bloco inteiro é pulado. O cookie tinha
+sido cadastrado no **backoffice**. Resultado: dispositivo confiável de outro app zerava o
+2FA do console, a mesma brecha que motivou remover o `auth-cookie`, por outra porta.
+
+A saída não estava no flow (que é do IdP e compartilhado) e sim um degrau abaixo, **na
+condição, que enxerga o client de origem** — o próprio SPI já tinha o precedente: ação
+sensível de step-up também não honra dispositivo confiável. O `mj-trusted-device-check`
+passou a ter uma lista de clients que nunca honram o cookie; o *enroll* segue a mesma lista
+(quem não honra também não oferece "confiar neste navegador"). Confirmado por login real.
+
+**Liga/desliga.** A lista é config da execution
+(`clientsSemTrustedDevice`), não constante no código — muda sem reiniciar o Keycloak:
+
+```bash
+bash infra/prod/configure-keycloak-console-2fa.sh                      # console SEM trusted device (default)
+TRUSTED_DEVICE_CONSOLE=1 bash infra/prod/configure-keycloak-console-2fa.sh   # console honra como backoffice
+```
+
+Duas armadilhas pagas ao construir o toggle: (1) `GET /authentication/executions/{id}` **não**
+devolve `authenticationConfig` — ler dali fazia o script criar config nova a cada execução
+(POST em vez de PUT), deixando órfãs; o id vem do listing do flow. (2) O Keycloak **descarta
+valor vazio** ao gravar, então "desligado" chega ao authenticator como chave **ausente** —
+cair no default nesse caso tornaria o kill switch inócuo. A regra passou a ser: *existir
+config* manda; sem config alguma (realm recém-importado) vale o default, que protege o console.
+
 **Não validável sem navegador:** o login Google de ponta a ponta exige credencial real do
-Google. Validei estruturalmente (o botão aparece, os dois caminhos coexistem) e por curl que
-o caminho senha **continua** exigindo OTP. O desafio pós-broker no caminho Google precisa de
-um login real para confirmar.
+Google — as duas rodadas de verificação vieram do usuário.
 
 **Inconsistência conhecida, ainda não corrigida:** `UserProvisioningService
 .provisionOrReuseCliente` lança `IdentityConflictException` quando um e-mail de staff tenta

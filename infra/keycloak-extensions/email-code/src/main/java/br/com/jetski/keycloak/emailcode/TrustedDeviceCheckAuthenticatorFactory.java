@@ -18,6 +18,15 @@ public class TrustedDeviceCheckAuthenticatorFactory implements ConditionalAuthen
 
     public static final String PROVIDER_ID = "mj-trusted-device-check";
 
+    /**
+     * Clients que NUNCA honram dispositivo confiável (lista separada por vírgula).
+     *
+     * <p>Vazio = todos os clients honram o dispositivo confiável — é o kill switch:
+     * desligar devolve o comportamento anterior sem reiniciar o Keycloak nem mexer no
+     * flow. Sem config gravada, vale o default do authenticator.
+     */
+    public static final String CFG_CLIENTS_SEM_TRUSTED_DEVICE = "clientsSemTrustedDevice";
+
     private static final TrustedDeviceCheckAuthenticator SINGLETON = new TrustedDeviceCheckAuthenticator();
 
     private static final AuthenticationExecutionModel.Requirement[] REQUIREMENT_CHOICES = {
@@ -42,7 +51,7 @@ public class TrustedDeviceCheckAuthenticatorFactory implements ConditionalAuthen
 
     @Override
     public boolean isConfigurable() {
-        return false;
+        return true;
     }
 
     @Override
@@ -62,7 +71,16 @@ public class TrustedDeviceCheckAuthenticatorFactory implements ConditionalAuthen
 
     @Override
     public List<ProviderConfigProperty> getConfigProperties() {
-        return List.of();
+        ProviderConfigProperty clientes = new ProviderConfigProperty();
+        clientes.setName(CFG_CLIENTS_SEM_TRUSTED_DEVICE);
+        clientes.setLabel("Clients sem dispositivo confiável");
+        clientes.setType(ProviderConfigProperty.STRING_TYPE);
+        clientes.setHelpText("Clients (separados por vírgula) em que o 2FA é SEMPRE "
+                + "desafiado, ignorando o cookie de dispositivo confiável. Vazio = "
+                + "nenhum (todos honram o dispositivo). Default: "
+                + TrustedDeviceCheckAuthenticator.CLIENTS_SEM_TRUSTED_DEVICE_PADRAO);
+        clientes.setDefaultValue(TrustedDeviceCheckAuthenticator.CLIENTS_SEM_TRUSTED_DEVICE_PADRAO);
+        return List.of(clientes);
     }
 
     @Override

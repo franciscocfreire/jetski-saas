@@ -30,6 +30,23 @@ public class TrustedDeviceCheckAuthenticator implements ConditionalAuthenticator
 
     private static final Logger LOG = Logger.getLogger(TrustedDeviceCheckAuthenticator.class);
 
+    /**
+     * Clients que NUNCA honram dispositivo confiável — o 2FA é sempre desafiado.
+     *
+     * <p>O console da plataforma opera todas as empresas; seu flow já abre mão do
+     * {@code auth-cookie} para que uma sessão SSO do backoffice não valha como login. O
+     * cookie de dispositivo confiável tinha exatamente o mesmo efeito por outro caminho:
+     * cadastrado no backoffice/portal, ele zerava o 2FA do console (observado em
+     * 25/jul — IDENTITY_PROVIDER_POST_LOGIN sem desafio). Como o post-broker é vinculado
+     * ao IdP e compartilhado, a distinção precisa morar aqui, na condição, que enxerga o
+     * client de origem.
+     *
+     * <p>É apenas o DEFAULT: a lista efetiva vem da config da execution
+     * ({@link TrustedDeviceCheckAuthenticatorFactory#CFG_CLIENTS_SEM_TRUSTED_DEVICE}),
+     * então dá para ligar/desligar sem reiniciar o Keycloak.
+     */
+    static final String CLIENTS_SEM_TRUSTED_DEVICE_PADRAO = "jetski-platform-console";
+
     @Override
     public boolean matchCondition(AuthenticationFlowContext context) {
         UserModel user = context.getUser();
@@ -48,6 +65,13 @@ public class TrustedDeviceCheckAuthenticator implements ConditionalAuthenticator
         // device seria a brecha para adicionar/remover fator sem re-verificar).
         if (StepUp.isSensitive(StepUp.kcAction(context.getAuthenticationSession()))) {
             LOG.debugf("MJ_STEPUP_FORCE_2FA realm=%s user=%s", context.getRealm().getName(), user.getId());
+            return true;
+        }
+
+        // CONSOLE DA PLATAFORMA: dispositivo confiável não vale (ver constante acima).
+        if (semTrustedDevice(context)) {
+            LOG.debugf("MJ_FORCE_2FA_CLIENT realm=%s user=%s",
+                    context.getRealm().getName(), user.getId());
             return true;
         }
 
@@ -78,6 +102,45 @@ public class TrustedDeviceCheckAuthenticator implements ConditionalAuthenticator
         }
         context.getAuthenticationSession().setAuthNote(TrustedDevice.NOTE_SKIP, "1");
         LOG.debugf("MJ_TRUSTED_DEVICE_SKIP realm=%s user=%s", context.getRealm().getName(), user.getId());
+        return false;
+    }
+
+    /**
+     * {@code true} se o client da sessão não honra dispositivo confiável.
+     * Compartilhado com o enroll: quem não honra também não cadastra.
+     *
+     * <p>Lê a config da execution; sem config gravada usa o default. Config vazia
+     * ("") desliga a exceção para TODOS os clients — é o kill switch.
+     */
+    static boolean semTrustedDevice(AuthenticationFlowContext context) {
+        if (context == null || context.getAuthenticationSession() == null
+                || context.getAuthenticationSession().getClient() == null) {
+            return false;
+        }
+        String clientId = context.getAuthenticationSession().getClient().getClientId();
+
+        // Existir CONFIG na execution é o que manda, não a chave estar preenchida: o
+        // Keycloak DESCARTA valor vazio ao gravar, então "desligado" chega aqui como
+        // chave AUSENTE. Se caíssemos no default nesse caso, o kill switch não
+        // desligaria nada. Sem config alguma (realm recém-importado, antes do script)
+        // vale o default — que protege o console.
+        String bruto;
+        if (context.getAuthenticatorConfig() != null
+                && context.getAuthenticatorConfig().getConfig() != null) {
+            bruto = context.getAuthenticatorConfig().getConfig()
+                    .getOrDefault(TrustedDeviceCheckAuthenticatorFactory
+                            .CFG_CLIENTS_SEM_TRUSTED_DEVICE, "");
+        } else {
+            bruto = CLIENTS_SEM_TRUSTED_DEVICE_PADRAO;
+        }
+        if (bruto.isBlank()) {
+            return false;   // nenhum client excluído → honra dispositivo confiável
+        }
+        for (String c : bruto.split(",")) {
+            if (c.trim().equals(clientId)) {
+                return true;
+            }
+        }
         return false;
     }
 
