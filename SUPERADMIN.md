@@ -6,6 +6,12 @@ Guia operacional para criar/gerenciar o **super admin de plataforma** do MeuJet.
 
 É um usuário com **acesso total à plataforma** (`unrestricted_access = true`):
 
+> **Em transição (jul/2026):** a operação da plataforma está saindo do backoffice para um
+> app próprio em `admin.meujet.com.br` (`frontend/plataforma-console`). A F0 — fundação e
+> barreira de autorização — já está no ar; as telas migram na F1 e o painel
+> **Plataforma › Empresas** do backoffice será removido na F3. Ver
+> [`PLATAFORMA_CONSOLE_SPEC.md`](PLATAFORMA_CONSOLE_SPEC.md).
+
 - Vê o painel **Plataforma › Empresas** no backoffice.
 - **Aprova / suspende / reativa** empresas (tenants).
 - Pode **entrar e operar qualquer empresa** (god mode), mesmo sem ser membro — o

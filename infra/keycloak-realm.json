@@ -159,6 +159,52 @@
       ]
     },
     {
+      "clientId": "jetski-platform-console",
+      "name": "Meu Jet — Console da Plataforma",
+      "description": "Next.js console do operador de plataforma (admin.*, sem tenant)",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "rootUrl": "${CONSOLE_URL:http://localhost:3005}",
+      "baseUrl": "/",
+      "redirectUris": [
+        "http://localhost:3005/*",
+        "${CONSOLE_REDIRECT:http://localhost:3005/*}"
+      ],
+      "webOrigins": [
+        "http://localhost:3005",
+        "${CONSOLE_URL:http://localhost:3005}"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "protocolMappers": [
+        {
+          "name": "roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        }
+      ],
+      "authenticationFlowBindingOverrides": {
+        "browser": "af10c0de-0000-4000-8000-0000000000c1"
+      }
+    },
+    {
       "clientId": "jetski-mobile",
       "name": "Jetski Mobile App",
       "description": "KMM mobile application (Android/iOS)",
@@ -645,11 +691,40 @@
           "userSetupAllowed": false
         }
       ]
+    },
+    {
+      "id": "af10c0de-0000-4000-8000-0000000000c1",
+      "alias": "console-browser",
+      "description": "Console da plataforma — 2FA OBRIGATORIO. Sem auth-cookie (SSO do backoffice nao pode satisfazer o login) e sem IdP. auth-otp-form REQUIRED forca CONFIGURE_TOTP. Converge em realm vivo: configure-keycloak-console-2fa.sh.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "authenticatorFlow": false,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
     }
   ],
   "webAuthnPolicyRpEntityName": "Meu Jet",
   "webAuthnPolicyRpId": "",
-  "webAuthnPolicySignatureAlgorithms": ["ES256", "RS256"],
+  "webAuthnPolicySignatureAlgorithms": [
+    "ES256",
+    "RS256"
+  ],
   "webAuthnPolicyAttestationConveyancePreference": "not specified",
   "webAuthnPolicyAuthenticatorAttachment": "not specified",
   "webAuthnPolicyRequireResidentKey": "not specified",

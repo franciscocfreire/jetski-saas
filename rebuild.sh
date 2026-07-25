@@ -39,6 +39,7 @@ NC='\033[0m' # No Color
 REBUILD_BACKEND=true
 REBUILD_FRONTEND=true
 REBUILD_PORTAL=true
+REBUILD_CONSOLE=true
 REBUILD_KEYCLOAK=false
 NO_CACHE=""
 USE_LOCAL=false
@@ -58,14 +59,22 @@ for arg in "$@"; do
         backend)
             REBUILD_FRONTEND=false
             REBUILD_PORTAL=false
+            REBUILD_CONSOLE=false
             ;;
         frontend)
             REBUILD_BACKEND=false
             REBUILD_PORTAL=false
+            REBUILD_CONSOLE=false
             ;;
         portal)
             REBUILD_BACKEND=false
             REBUILD_FRONTEND=false
+            REBUILD_CONSOLE=false
+            ;;
+        console)
+            REBUILD_BACKEND=false
+            REBUILD_FRONTEND=false
+            REBUILD_PORTAL=false
             ;;
         keycloak)
             # Imagem custom com o tema de login meujet (infra/keycloak-theme).
@@ -74,6 +83,7 @@ for arg in "$@"; do
             REBUILD_BACKEND=false
             REBUILD_FRONTEND=false
             REBUILD_PORTAL=false
+            REBUILD_CONSOLE=false
             REBUILD_KEYCLOAK=true
             ;;
         --no-cache)
@@ -89,12 +99,13 @@ for arg in "$@"; do
             CLEAR_CACHE=true
             ;;
         -h|--help)
-            echo "Uso: $0 [backend|frontend|portal|keycloak] [--no-cache] [--local] [--migrate] [--clear-cache]"
+            echo "Uso: $0 [backend|frontend|portal|console|keycloak] [--no-cache] [--local] [--migrate] [--clear-cache]"
             echo ""
             echo "Opções:"
             echo "  backend       Rebuild apenas o backend"
             echo "  frontend      Rebuild apenas o frontend"
             echo "  portal        Rebuild apenas o portal do cliente"
+            echo "  console       Rebuild apenas o console da plataforma (admin.*)"
             echo "  keycloak      Rebuild da imagem do Keycloak (tema de login meujet)"
             echo "  --no-cache    Rebuild sem cache Docker (mais lento)"
             echo "  --local       Usa localhost em vez de ngrok (para desenvolvimento local)"
@@ -137,6 +148,8 @@ PORTAL_PUBLIC_URL="${PORTAL_PUBLIC_URL:-$(echo "$BASE_URL" | sed 's#//www\.#//cl
 # Backoffice no subdomínio app.* (deriva do www; ex.: app.pegaojet.com.br).
 # Login/convites/troca de senha apontam para cá; www continua servindo o site.
 APP_PUBLIC_URL="${APP_PUBLIC_URL:-$(echo "$BASE_URL" | sed 's#//www\.#//app.#')}"
+# Console da plataforma no subdomínio admin.* (raiz, sem basePath)
+CONSOLE_PUBLIC_URL="${CONSOLE_PUBLIC_URL:-$(echo "$BASE_URL" | sed 's#//www\.#//admin.#')}"
 
 echo -e "${BLUE}========================================"
 echo "  REBUILD - Jetski SaaS"
@@ -153,6 +166,9 @@ if [ "$REBUILD_FRONTEND" = true ]; then
 fi
 if [ "$REBUILD_PORTAL" = true ]; then
     SERVICES="$SERVICES portal"
+fi
+if [ "$REBUILD_CONSOLE" = true ]; then
+    SERVICES="$SERVICES console"
 fi
 if [ "$REBUILD_KEYCLOAK" = true ]; then
     SERVICES="$SERVICES keycloak"
@@ -234,6 +250,10 @@ if [ "$REBUILD_PORTAL" = true ]; then
     echo -e "${YELLOW}  -> Portal do cliente (Next.js, basePath /portal)...${NC}"
     docker compose build $NO_CACHE portal
 fi
+if [ "$REBUILD_CONSOLE" = true ]; then
+    echo -e "${YELLOW}  -> Console da plataforma (Next.js, raiz de admin.*)...${NC}"
+    docker compose build $NO_CACHE console
+fi
 if [ "$REBUILD_KEYCLOAK" = true ]; then
     echo -e "${YELLOW}  -> Keycloak (tema de login meujet via Keycloakify)...${NC}"
     docker compose build $NO_CACHE keycloak
@@ -246,6 +266,8 @@ NEXTAUTH_URL="$APP_PUBLIC_URL" \
 APP_PUBLIC_URL="$APP_PUBLIC_URL" \
 PORTAL_NEXTAUTH_URL="$PORTAL_PUBLIC_URL" \
 PORTAL_PUBLIC_URL="$PORTAL_PUBLIC_URL" \
+CONSOLE_NEXTAUTH_URL="$CONSOLE_PUBLIC_URL" \
+CONSOLE_PUBLIC_URL="$CONSOLE_PUBLIC_URL" \
 STORAGE_MINIO_PUBLIC_URL="$BASE_URL" \
 KEYCLOAK_ISSUER="$KEYCLOAK_ISSUER" \
 SSO_PUBLIC_URL="${SSO_PUBLIC_URL:-}" \

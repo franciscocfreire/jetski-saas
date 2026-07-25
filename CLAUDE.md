@@ -13,6 +13,7 @@ In **production** (Oracle Cloud ARM, docker compose + Cloudflare Tunnel): site p
 - **Backend** `backend/`: Spring Boot 3.3 / Java 21 **modular monolith** (Spring Modulith). Modules: `tenant`, `tenants`, `usuarios`, `signup`, `frota`, `reservas`, `locacoes` (inclui GRU/EMA/assinatura), `manutencao`, `comissoes`, `fechamento`, `combustivel`, `despesas`, `pagamentos`, `bonus`, `dashboard`, `marketplace`, `creditos`, `metering`, `audit`, `metrics` + `shared` (subpacotes expostos exigem `@NamedInterface`). Migrations Flyway V001–V044 (próximo número: `ls backend/src/main/resources/db/migration | sort | tail`), ~1060 testes (Testcontainers Postgres+Redis).
 - **Backoffice** `frontend/jetski-backoffice/`: Next.js 15 + React 19 + shadcn/ui, NextAuth + Keycloak (público + PKCE), TanStack Query/Table, Playwright.
 - **Portal do cliente** `frontend/portal-cliente/`: Next.js no subdomínio próprio (`cliente.*`), login por e-mail ou CPF, reserva online com sinal PIX.
+- **Console da plataforma** `frontend/plataforma-console/`: Next.js no subdomínio `admin.*`, app do operador de plataforma (separado do backoffice das empresas). Client Keycloak próprio, **sem `X-Tenant-Id`** — o alvo vai no path. F0 entregue; ver `PLATAFORMA_CONSOLE_SPEC.md`.
 - **Infra**: `docker-compose.yml` (+ `.prod.yml`/`.ci.yml`), `infra/` (nginx, keycloak realm, OPA policies em `policies/`, observability, `infra/prod/backup.sh` — backup diário com off-site), scripts na raiz (`rebuild.sh`, `reset-ambiente-dev.sh`, `deploy.sh`).
 - **Mobile** (KMM): apenas docs (`mobile/*.md`); código em working dir separado (`/mnt/c/repos/jetski-mobile`).
 
@@ -32,6 +33,7 @@ Referências: `IMPLEMENTATION_STATUS.md` (status por feature), `PORTAL_CLIENTE_S
 
 - **Auth/autz**: Keycloak 26 (realm único `jetski-saas`, claim `tenant_id` no JWT) + OPA (`policies/authz/*.rego`) para ABAC/RBAC. Regras novas de OPA precisam de `default <regra> := false` (regra undefined colapsa o `result` inteiro); OPA sem hot-reload → `docker compose restart opa`.
 - **Papéis** (em `membro.papeis[]`): ADMIN_TENANT, GERENTE, OPERADOR, VENDEDOR, MECANICO, FINANCEIRO; superadmin de plataforma via `usuario_global_roles.unrestricted_access` (opera um tenant por vez via `X-Tenant-Id`, sem bypass de RLS). 403 = deny de autorização; 400 = deny de negócio — não confundir.
+- **Rotas de plataforma** (`/v1/platform/**`): `X-Tenant-Id` é **opcional** (o console não tem empresa corrente; o alvo vai no path) e o `PlatformScopeInterceptor` nega quem não tem `unrestricted_access` **antes** do OPA. Ações OPA usam o path completo (`platform:tenants:approve`), não o último segmento.
 - **Storage**: MinIO/S3 com prefixo por tenant (`{tenant_id}/...`), URLs presignadas (host público via `STORAGE_MINIO_PUBLIC_URL`).
 - **E-mail**: dev → Mailpit (UI :8025); prod → Gmail SMTP best-effort (nunca bloqueia emissão).
 - **Fuso**: backend e testes rodam em `America/Sao_Paulo` (TZ no compose; `-Duser.timezone` no surefire).

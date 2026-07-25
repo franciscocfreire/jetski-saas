@@ -90,6 +90,18 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   via configure-keycloak-2fa.sh.
 
 ### Plataforma (super admin)
+- **Console da plataforma — F0 + F1** (`frontend/plataforma-console`, `admin.*`): app próprio
+  do operador de plataforma, separado do backoffice das empresas.
+  - **F0 (fundação)**: barreira em Java (`PlatformScopeInterceptor`, 403 antes do OPA), ações
+    OPA pelo path completo (`platform:tenants:approve`), `/v1/platform/**` sem `X-Tenant-Id`
+    obrigatório, client Keycloak `jetski-platform-console`, compose/nginx/scripts.
+  - **F1 (2FA + paridade)**: flow `console-browser` com **2FA obrigatório** (senha + TOTP
+    REQUIRED, sem `auth-cookie` — SSO do backoffice não satisfaz o login do console) e as
+    telas: `/empresas` (+ detalhe com zona de perigo), `/creditos`, `/faturamento`,
+    `/emissoes`, `/catalogo`, `/configuracoes`. Server components + server actions; token
+    nunca vai ao browser (downloads via proxy `/api/download`).
+  - Backoffice mantém `/dashboard/plataforma` em coexistência; a remoção é a F3, junto com a
+    sessão de suporte auditada. Ver `PLATAFORMA_CONSOLE_SPEC.md`.
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão
   automática → checklist de primeiros passos (7 itens). Créditos de adesão automáticos.
 - Créditos de emissão: ledger append-only (trigger de banco anti-DELETE), débito na emissão,

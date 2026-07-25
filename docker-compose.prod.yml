@@ -64,6 +64,9 @@ services:
       # Nomes sem prefixo KC_ (reservado p/ opções de config do Keycloak).
       BACKOFFICE_URL: ${APP_PUBLIC_URL:-${PUBLIC_URL}}
       BACKOFFICE_REDIRECT: ${APP_PUBLIC_URL:-${PUBLIC_URL}}/*
+      # Idem para o client do console da plataforma (admin.*)
+      CONSOLE_URL: ${CONSOLE_PUBLIC_URL}
+      CONSOLE_REDIRECT: ${CONSOLE_PUBLIC_URL}/*
       # SMTP do realm (reset de senha, verificação de email) — Gmail (mesmas creds do backend).
       # Aplica no import de realm NOVO; realm existente é configurado via admin API no deploy.
       SMTP_HOST: ${PLATFORM_SMTP_HOST:-smtp.gmail.com}
@@ -192,6 +195,22 @@ services:
       KEYCLOAK_ISSUER: ${SSO_PUBLIC_URL:-${PUBLIC_URL}}/realms/jetski-saas
     ports: !override
       - "127.0.0.1:3003:3000"
+    mem_limit: 500m
+    restart: unless-stopped
+
+  console:
+    environment:
+      API_INTERNAL_URL: http://backend:8090/api
+      # Console na RAIZ do subdomínio admin.*
+      NEXTAUTH_URL: ${CONSOLE_PUBLIC_URL}
+      # cookies têm nomes distintos (console.*) — pode reusar o segredo
+      NEXTAUTH_SECRET: ${CONSOLE_NEXTAUTH_SECRET:-${NEXTAUTH_SECRET}}
+      AUTH_TRUST_HOST: "true"
+      KEYCLOAK_CLIENT_ID: jetski-platform-console
+      KEYCLOAK_CLIENT_SECRET: ""
+      KEYCLOAK_ISSUER: ${SSO_PUBLIC_URL:-${PUBLIC_URL}}/realms/jetski-saas
+    ports: !override
+      - "127.0.0.1:3005:3000"
     mem_limit: 500m
     restart: unless-stopped
 
