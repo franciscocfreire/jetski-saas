@@ -80,10 +80,20 @@ export function EntrarNaEmpresa({
                 setErro(r.erro);
                 return;
               }
-              // Handoff: o backoffice troca o código pelo cookie e redireciona.
+              // Handoff em ABA NOVA: o console continua aberto atrás, então dá para
+              // abrir outra empresa ou revogar a sessão sem perder o lugar. Funciona
+              // porque a página de resgate espera a sessão do NextAuth (cookie, vale
+              // em qualquer aba) em vez do token de sessionStorage, que é por aba.
               const { codigo } = r.dados as AberturaSuporte;
-              window.location.href =
-                `${backofficeUrl}/suporte?codigo=${encodeURIComponent(codigo)}`;
+              const url = `${backofficeUrl}/suporte?codigo=${encodeURIComponent(codigo)}`;
+              const aba = window.open(url, "_blank", "noopener");
+              if (!aba) {
+                // bloqueador de pop-up: cai na mesma aba em vez de não fazer nada
+                window.location.href = url;
+                return;
+              }
+              setAberto(false);
+              setMotivo("");
             });
           }}
         >

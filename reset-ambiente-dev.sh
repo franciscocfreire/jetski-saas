@@ -457,6 +457,30 @@ ALTER TABLE public.credito_compra
     ADD COLUMN IF NOT EXISTS valor_pago     numeric(10,2),
     ADD COLUMN IF NOT EXISTS preco_unitario numeric(10,2);
 
+-- V056: read model da plataforma — agregado diário por empresa (sem RLS:
+-- tenant_id é dimensão, não dono da linha). Populado por PlataformaMetricasJob.
+CREATE TABLE IF NOT EXISTS public.plataforma_metrica_diaria (
+    tenant_id             uuid NOT NULL REFERENCES public.tenant(id) ON DELETE CASCADE,
+    dia                   date NOT NULL,
+    locacoes              integer NOT NULL DEFAULT 0,
+    reservas              integer NOT NULL DEFAULT 0,
+    no_shows              integer NOT NULL DEFAULT 0,
+    receita_bruta         numeric(12,2) NOT NULL DEFAULT 0,
+    receita_comissionavel numeric(12,2) NOT NULL DEFAULT 0,
+    emissoes_documento    integer NOT NULL DEFAULT 0,
+    emissoes_gru          integer NOT NULL DEFAULT 0,
+    emissoes_previa       integer NOT NULL DEFAULT 0,
+    creditos_consumidos   integer NOT NULL DEFAULT 0,
+    saldo_creditos_fim    integer NOT NULL DEFAULT 0,
+    mrr                   numeric(12,2) NOT NULL DEFAULT 0,
+    plano_nome            varchar(100),
+    faturas_abertas       integer NOT NULL DEFAULT 0,
+    valor_em_aberto       numeric(12,2) NOT NULL DEFAULT 0,
+    atualizado_em         timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, dia)
+);
+CREATE INDEX IF NOT EXISTS idx_metrica_diaria_dia ON public.plataforma_metrica_diaria (dia DESC);
+
 -- V055: sessão de suporte — acesso explícito (motivo + prazo + trilha) de um
 -- operador de plataforma a uma empresa; substitui o god mode do switcher.
 -- Tabela de PLATAFORMA (sem RLS): tenant_id é o ALVO, não o dono da linha.

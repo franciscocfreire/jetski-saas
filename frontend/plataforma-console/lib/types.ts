@@ -129,6 +129,18 @@ export interface OperadorAtual {
   admin: boolean;
 }
 
+export interface DashboardPlataforma {
+  dias: number;
+  /** Quando o read model foi calculado; null = o job nunca rodou. */
+  atualizadoEm: string | null;
+  totais: Record<string, number>;
+  serie: Array<{ dia: string; locacoes: number; receita_bruta: number; emissoes: number }>;
+  topEmpresas: Array<{
+    id: string; slug: string; razao_social: string;
+    locacoes: number; receita_bruta: number; emissoes: number;
+  }>;
+}
+
 export interface AberturaSuporte {
   sessaoId: string;
   codigo: string;

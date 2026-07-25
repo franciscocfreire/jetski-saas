@@ -1,5 +1,6 @@
 import { platformFetch } from "./api";
 import type {
+  DashboardPlataforma,
   FaturaPendente,
   Operador,
   OperadorAtual,
@@ -27,6 +28,10 @@ import type {
  */
 export const platform = {
   tenants: () => platformFetch<TenantSummary[]>("/v1/platform/tenants"),
+
+  /** Read model (F4): um SELECT, sem varrer empresa a empresa. */
+  dashboard: (dias = 30) =>
+    platformFetch<DashboardPlataforma>(`/v1/platform/dashboard?dias=${dias}`),
 
   pendingSignups: () =>
     platformFetch<Array<Record<string, unknown>>>("/v1/platform/pending-signups"),

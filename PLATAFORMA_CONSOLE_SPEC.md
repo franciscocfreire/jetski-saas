@@ -3,7 +3,7 @@
 Separação do super admin: tirar a operação da plataforma de dentro do backoffice das
 empresas e colocá-la num app próprio, em `admin.meujet.com.br`.
 
-> Status: **F0–F3 entregues** (25/jul/2026); F4–F6 planejadas.
+> Status: **F0–F4 entregues** (25/jul/2026); F5–F6 planejadas.
 > Relacionado: `SUPERADMIN.md` (operação atual), `ONBOARDING_EMPRESA_SPEC.md`,
 > `EMISSAO_DELEGADA_SPEC.md`, `PORTAL_CLIENTE_SPEC.md` (referência de app separado).
 
@@ -415,7 +415,7 @@ emissão delegada. A tela `/auditoria` lê **só** `tenant_id IS NULL`.
 | **F1** ✅ | 2FA obrigatório + paridade: todas as telas atuais migradas para rotas do console. Backoffice ainda mantém a página antiga (coexistência até a F3) | F0 |
 | **F2** ✅ | Papéis granulares + tela `/operadores` + migration de backfill + `platform.rego` + `UserPermissionsController` real | F0 |
 | **F3** ✅ | Sessão de suporte (backend + banner no backoffice) **e então** remoção da página `/dashboard/plataforma`, do grupo "Plataforma" no sidebar e do switcher de todas-as-empresas | F1, F2 |
-| **F4** | `plataforma_metrica_diaria` + job + dashboard da plataforma | F0 |
+| **F4** ✅ | `plataforma_metrica_diaria` + job + dashboard da plataforma | F0 |
 | **F5** | `/auditoria` (audit dual) + `/saude` (dependências + atalhos Grafana) | F0 |
 | **F6** | *(opcional)* consolidação dos `Platform*` no módulo `plataforma` | F1–F5 |
 
@@ -500,6 +500,38 @@ com invalidação por `revalidatePath`, e um cliente `fetch` tipado dá conta.
 **Detalhe da empresa é uma página com seções, não sub-rotas por aba.** A API de plataforma
 não tem endpoint por empresa: tudo vem de listas globais que a página filtra. Uma sub-rota
 por aba refaria as mesmas listas a cada troca.
+
+### 9.6 O que a F4 entregou — o read model
+
+**O problema**: não havia visão consolidada. O padrão do resto da plataforma é iterar
+todos os tenants re-setando `app.tenant_id` a cada volta — aceitável para uma fila,
+inviável para um dashboard, porque o custo cresce linearmente com o número de empresas
+**a cada carregamento de tela**.
+
+`plataforma_metrica_diaria` (V056, sem RLS — `tenant_id` é dimensão, não dono) guarda um
+snapshot por empresa por dia. A varredura acontece **uma vez por dia**, fora do request
+(`PlataformaMetricasJob`, 04:15), e o console lê tudo num único SELECT. Sem `BYPASSRLS` e
+sem furo em tabela operacional: o cálculo continua entrando empresa a empresa com a RLS
+ativa.
+
+**Janela móvel de 7 dias**, não "só ontem": locação editada antes do fechamento, estorno e
+pagamento tardio mudam o passado recente. Recalcular custa pouco e evita número errado
+congelado. `POST /v1/platform/dashboard/recalcular?de=&ate=` faz backfill e permite
+conferir divergência sem esperar a madrugada.
+
+**Fato × estado.** As colunas de evento (locações, receita, reservas, no-shows, emissões,
+créditos consumidos, MRR do plano vigente) são fiéis por dia. `faturas_abertas` e
+`valor_em_aberto` são **estado no momento do cálculo** — reconstruir "quantas estavam
+abertas em 12/jul" exigiria log de transição que não existe. Só a linha mais recente vale
+para esses dois, e é a que o dashboard usa. Está documentado na coluna.
+
+**Empresa sem movimento vira linha zerada, não linha ausente** — senão o dashboard teria
+de distinguir "não calculado" de "não vendeu", e a série ficaria com buraco.
+
+**Gotcha do scheduler tratado**: o job roda na thread `scheduling-*` e um `TenantContext`
+vazado ali contamina o `TenantAwareDataSource` de todos os jobs seguintes (já aconteceu
+neste projeto). O serviço limpa no `finally` e restaura o tenant de quem chamou — com teste
+para os dois casos.
 
 ### 9.5 O que a F3 entregou — o corte
 
