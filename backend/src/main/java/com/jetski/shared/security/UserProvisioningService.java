@@ -162,6 +162,27 @@ public interface UserProvisioningService {
     String findUserIdByUsername(String username);
 
     /**
+     * Usuário por e-mail EXATO (case-insensitive no Keycloak).
+     *
+     * <p>Necessário porque o username nem sempre é o e-mail: quem entrou pelo portal com
+     * login social tem {@code username = CPF} e o e-mail só no campo próprio. Sob a regra
+     * de <strong>identidade única</strong> (CLAUDE.md #3), conceder um papel novo a uma
+     * pessoa começa por achar a identidade que ela já tem.
+     *
+     * @return provider user id ou {@code null}
+     */
+    String findUserIdByEmail(String email);
+
+    /**
+     * Exige o cadastro de um segundo fator no próximo login, se o usuário ainda não tem
+     * nenhum. Usado ao conceder papel de PLATAFORMA — ver a nota sobre o post-broker
+     * condicional em {@code configure-keycloak-console-2fa.sh}.
+     *
+     * @return true se a exigência foi adicionada agora
+     */
+    boolean exigirSegundoFator(String providerUserId);
+
+    /**
      * Identidade federada (IdP broker, ex.: Google) do usuário para o alias.
      *
      * @return identidade ou {@code null} se não houver link

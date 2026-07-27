@@ -34,6 +34,7 @@ public class OPAAuthorizationService {
     private static final String AUTHORIZATION_ENDPOINT = "/v1/data/jetski/authorization/result";
     private static final String USER_PERMISSIONS_ENDPOINT = "/v1/data/jetski/rbac/user_permissions";
     private static final String ROLE_PERMISSIONS_ENDPOINT = "/v1/data/jetski/rbac/role_permissions";
+    private static final String PLATFORM_PERMISSIONS_ENDPOINT = "/v1/data/jetski/platform/permissoes";
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(5);
 
     private final WebClient opaWebClient;
@@ -205,6 +206,39 @@ public class OPAAuthorizationService {
      * @param roles papéis do usuário no tenant atual (TenantContext)
      * @return permissões cruas, deduplicadas e ordenadas pelo OPA
      */
+    /**
+     * Ações de PLATAFORMA permitidas para os papéis informados (matriz do platform.rego).
+     *
+     * <p>Usado pelo menu do console: o operador não-admin precisa ver só o que o OPA vai
+     * deixar executar. PLATFORM_ADMIN não passa por aqui — recebe "*" direto.
+     *
+     * <p>Erro → lista vazia (fail-safe: menu conservador, nunca 500; o enforcement real
+     * continua no interceptor, requisição a requisição).
+     */
+    public List<String> getPlatformPermissions(List<String> roles) {
+        OPAInput input = OPAInput.builder()
+            .user(OPAInput.UserContext.builder().roles(roles).build())
+            .build();
+
+        try {
+            OPAResponse<List<String>> response = opaWebClient
+                .post()
+                .uri(PLATFORM_PERMISSIONS_ENDPOINT)
+                .bodyValue(OPARequest.of(input))
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<OPAResponse<List<String>>>() {})
+                .timeout(DEFAULT_TIMEOUT)
+                .block();
+
+            return response != null && response.getResult() != null
+                ? response.getResult()
+                : List.of();
+        } catch (Exception e) {
+            log.error("Erro ao consultar OPA platform/permissoes: roles={}", roles, e);
+            return List.of();
+        }
+    }
+
     public List<String> getUserPermissions(List<String> roles) {
         OPAInput input = OPAInput.builder()
             .user(OPAInput.UserContext.builder().roles(roles).build())

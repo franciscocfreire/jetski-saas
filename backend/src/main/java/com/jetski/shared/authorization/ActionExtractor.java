@@ -35,6 +35,8 @@ public class ActionExtractor {
     // Padrões de regex para extração de resource e sub-action
     private static final Pattern RESOURCE_PATTERN = Pattern.compile("^/v1/([^/]+)");
     private static final Pattern SUB_ACTION_PATTERN = Pattern.compile("/([^/]+)$");
+    private static final Pattern UUID_SEGMENT_PATTERN = Pattern.compile(
+        "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
 
     /**
      * Extrai a action do request HTTP.
@@ -60,13 +62,21 @@ public class ActionExtractor {
 
         log.debug("Extracting action from: {} {}", method, uri);
 
-        // Ações de plataforma (super admin): /v1/platform/... → "platform:<último-segmento>".
-        // Garante prefixo "platform:" para casar com as políticas OPA (allow_platform),
-        // ex.: POST /v1/platform/tenants/{id}/approve → "platform:approve".
+        // Ações de plataforma (console): /v1/platform/... → "platform:<caminho completo>".
+        //
+        // Usava só o ÚLTIMO segmento, o que colapsava ações distintas no mesmo nome:
+        // POST /v1/platform/tenants/{id}/plano e PUT /v1/platform/creditos/config viravam
+        // "platform:plano" e "platform:config". Enquanto a única regra OPA é
+        // startswith("platform:") isso é inócuo, mas impede papéis de plataforma
+        // granulares (F2) e polui a trilha de decisões. Agora:
+        //   GET  /v1/platform/tenants                        → platform:tenants
+        //   POST /v1/platform/tenants/{uuid}/approve         → platform:tenants:approve
+        //   PUT  /v1/platform/creditos/config                → platform:creditos:config
+        //   POST /v1/platform/creditos/compras/{u}/{u}/aprovar → platform:creditos:compras:aprovar
+        // Identificadores (UUID, numérico, {template}) são descartados — a ação descreve
+        // a operação, não o alvo; o alvo vai em resource.id.
         if (uri.startsWith("/v1/platform")) {
-            Matcher last = SUB_ACTION_PATTERN.matcher(uri);
-            String sub = last.find() ? last.group(1) : method.toLowerCase();
-            return "platform:" + sub;
+            return "platform:" + platformAction(uri, method);
         }
 
         // Self-service do usuário staff (/v1/user/me/**): escopo é sempre o próprio
@@ -99,6 +109,34 @@ public class ActionExtractor {
 
         log.debug("Extracted action: {}", action);
         return action;
+    }
+
+    /**
+     * Monta a ação de plataforma a partir do caminho completo, sem identificadores.
+     *
+     * @return segmentos relevantes unidos por ":", ou o método HTTP se só houver
+     *         identificadores (ex.: GET /v1/platform → "get")
+     */
+    private String platformAction(String uri, String method) {
+        String rest = uri.substring("/v1/platform".length());
+        StringBuilder action = new StringBuilder();
+        for (String segment : rest.split("/")) {
+            if (segment.isEmpty() || isIdentifier(segment)) {
+                continue;
+            }
+            if (action.length() > 0) {
+                action.append(':');
+            }
+            action.append(segment.toLowerCase());
+        }
+        return action.length() > 0 ? action.toString() : method.toLowerCase();
+    }
+
+    /** UUID, número ou placeholder {id} — identifica o alvo, não a operação. */
+    private boolean isIdentifier(String segment) {
+        return UUID_SEGMENT_PATTERN.matcher(segment).matches()
+            || segment.chars().allMatch(Character::isDigit)
+            || (segment.startsWith("{") && segment.endsWith("}"));
     }
 
     /**

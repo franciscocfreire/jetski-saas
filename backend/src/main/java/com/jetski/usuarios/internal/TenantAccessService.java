@@ -7,6 +7,7 @@ import com.jetski.tenant.TenantQueryService;
 import com.jetski.tenant.domain.Tenant;
 import com.jetski.usuarios.internal.repository.MembroRepository;
 import com.jetski.usuarios.internal.repository.UsuarioGlobalRolesRepository;
+import com.jetski.shared.security.PlatformAccessInfo;
 import com.jetski.shared.security.TenantAccessValidator;
 import com.jetski.shared.security.TenantAccessInfo;
 import com.jetski.shared.security.TenantContext;
@@ -140,6 +141,37 @@ public class TenantAccessService implements TenantAccessValidator {
         log.warn("Access denied: user={}, tenant={}",
             usuarioId, tenantId);
         return TenantAccessInfo.denied("User is not a member of this tenant");
+    }
+
+    /**
+     * Resolve a identidade de plataforma (escopo global, sem tenant).
+     *
+     * <p>Chamado pelo {@code TenantFilter} nas rotas {@code /v1/platform/**}. Só toca
+     * {@code usuario_global_roles} (tabela global, sem RLS) — o mapeamento
+     * provider→usuario já vem cacheado do {@code IdentityProviderMappingService}, então
+     * sobra uma única consulta por PK e não vale um cache próprio aqui.
+     *
+     * <p>Identidade não mapeada não é erro: devolve {@link PlatformAccessInfo#none()} e o
+     * {@code PlatformScopeInterceptor} responde 403 (em vez de 500 vazando NotFound).
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public PlatformAccessInfo resolvePlatformAccess(String provider, String providerUserId) {
+        UUID usuarioId;
+        try {
+            usuarioId = identityMappingService.resolveUsuarioId(provider, providerUserId);
+        } catch (RuntimeException e) {
+            log.warn("Platform access: identidade não mapeada (provider={}, providerUserId={})",
+                provider, providerUserId);
+            return PlatformAccessInfo.none();
+        }
+
+        return globalRolesRepository.findById(usuarioId)
+            .map(global -> new PlatformAccessInfo(
+                usuarioId,
+                global.getRoles() != null ? Arrays.asList(global.getRoles()) : List.of(),
+                Boolean.TRUE.equals(global.getUnrestrictedAccess())))
+            .orElseGet(() -> PlatformAccessInfo.semAcesso(usuarioId));
     }
 
     /**

@@ -45,11 +45,14 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
     private static final UUID TENANT_ACME = UUID.fromString("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
     private static final UUID TENANT_MARINA = UUID.fromString("b0000000-0000-0000-0000-000000000001");
     private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    /** Operador de plataforma exclusivo desta classe (evita contaminar o USER_ID do tenant). */
+    private static final UUID PLATFORM_USER = UUID.fromString("9f000000-0000-0000-0000-00000000c7e1");
 
     @BeforeEach
     void setUp() {
         TenantContext.setTenantId(TENANT_ACME);
         TenantContext.setUsuarioId(USER_ID);
+        seedOperadorDePlataforma();
         try {
             jdbcTemplate.execute("INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id, linked_at) " +
                                  "VALUES ('11111111-1111-1111-1111-111111111111', 'keycloak', '11111111-1111-1111-1111-111111111111', NOW())");
@@ -76,6 +79,32 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
     private RequestPostProcessor admin() {
         return jwt().jwt(j -> j.subject(USER_ID.toString()))
             .authorities(new SimpleGrantedAuthority("ROLE_ADMIN_TENANT"));
+    }
+
+    /** Operador de plataforma — quem pode falar com /v1/platform/**. */
+    private RequestPostProcessor superAdmin() {
+        return jwt().jwt(j -> j.subject(PLATFORM_USER.toString()))
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
+    }
+
+    /**
+     * Usuário com unrestricted_access — o PlatformScopeInterceptor exige isso em
+     * /v1/platform/**, independente do que o OPA responder.
+     */
+    private void seedOperadorDePlataforma() {
+        jdbcTemplate.update(
+            "INSERT INTO usuario (id, email, nome, ativo) VALUES (?, ?, 'Operador Creditos', TRUE) "
+            + "ON CONFLICT (id) DO NOTHING",
+            PLATFORM_USER, "plataforma.creditos@test.com");
+        jdbcTemplate.update(
+            "INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id, linked_at) "
+            + "VALUES (?, 'keycloak', ?, NOW()) ON CONFLICT DO NOTHING",
+            PLATFORM_USER, PLATFORM_USER.toString());
+        jdbcTemplate.update(
+            "INSERT INTO usuario_global_roles (usuario_id, roles, unrestricted_access, created_at, updated_at) "
+            + "VALUES (?, ARRAY['PLATFORM_ADMIN'], TRUE, NOW(), NOW()) "
+            + "ON CONFLICT (usuario_id) DO UPDATE SET unrestricted_access = TRUE",
+            PLATFORM_USER);
     }
 
     /** Comprovante fake como data-URL PNG — conteúdo distinto por semente (dedupe é por sha256). */
@@ -188,7 +217,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
                 .content("{\"quantidade\": 50, \"motivo\": \"Compra de pacote inicial\"}")
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.tipo").value("AJUSTE"))
             .andExpect(jsonPath("$.saldoApos").value(50));
@@ -196,7 +225,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         // Consulta cross-tenant de saldos inclui o lançamento
         mockMvc.perform(get("/v1/platform/creditos")
                 .header("X-Tenant-Id", TENANT_ACME.toString())
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.slug == 'marina-bay')].saldo").value(50));
     }
@@ -208,7 +237,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
                 .content("{\"quantidade\": 10, \"motivo\": \"\"}")
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isBadRequest());
     }
 
@@ -219,7 +248,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
                 .content("{\"quantidade\": -5, \"motivo\": \"Estorno indevido\"}")
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isBadRequest());
     }
 
@@ -242,7 +271,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         // Aparece na fila do super admin
         mockMvc.perform(get("/v1/platform/creditos/compras")
                 .header("X-Tenant-Id", TENANT_ACME.toString())
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].pixTxid").value("E12345678202607021234"))
             .andExpect(jsonPath("$[0].temComprovante").value(true))
@@ -255,7 +284,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         // Aprovação credita no ledger e marca APROVADA
         mockMvc.perform(post("/v1/platform/creditos/compras/{t}/{c}/aprovar", TENANT_ACME, compraId)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("APROVADA"));
 
@@ -264,7 +293,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         // Aprovar de novo → 400 (idempotência por status)
         mockMvc.perform(post("/v1/platform/creditos/compras/{t}/{c}/aprovar", TENANT_ACME, compraId)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isBadRequest());
 
         // Mesmo txid de novo (comprovante diferente) → 400
@@ -296,14 +325,14 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
                 .content("{\"observacao\": \"\"}")
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isBadRequest());
 
         mockMvc.perform(post("/v1/platform/creditos/compras/{t}/{c}/rejeitar", TENANT_ACME, compraId)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
                 .content("{\"observacao\": \"PIX não localizado no extrato\"}")
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("REJEITADA"));
 
@@ -331,7 +360,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
 
         mockMvc.perform(post("/v1/platform/creditos/compras/{t}/{c}/aprovar", TENANT_ACME, compraId)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("APROVADA"));
 
@@ -437,7 +466,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/v1/platform/creditos/compras/{t}/{c}/comprovante", TENANT_ACME, compraId)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isOk())
             .andExpect(header().string("Content-Type", "image/png"))
             .andExpect(content().bytes(conteudo));
@@ -461,7 +490,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/v1/platform/creditos/compras/{t}/{c}/comprovante",
                     TENANT_ACME, UUID.randomUUID())
                 .header("X-Tenant-Id", TENANT_ACME.toString())
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isNotFound());
     }
 
@@ -473,7 +502,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
                 .content("{\"precoUnitario\": 10.00}")
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.precoUnitario").value(10.00));
 
@@ -503,13 +532,13 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
                 .content("{\"precoUnitario\": 0}")
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isBadRequest());
         mockMvc.perform(put("/v1/platform/creditos/config")
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .contentType("application/json")
                 .content("{\"precoUnitario\": 5.00}")
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isOk());
     }
 
@@ -556,7 +585,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/v1/platform/creditos")
                 .header("X-Tenant-Id", TENANT_ACME.toString())
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isForbidden());
     }
 }

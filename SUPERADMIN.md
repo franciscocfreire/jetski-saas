@@ -6,7 +6,16 @@ Guia operacional para criar/gerenciar o **super admin de plataforma** do MeuJet.
 
 É um usuário com **acesso total à plataforma** (`unrestricted_access = true`):
 
-- Vê o painel **Plataforma › Empresas** no backoffice.
+> **Mudou (jul/2026):** a operação da plataforma saiu do backoffice para o console em
+> `admin.meujet.com.br` (`frontend/plataforma-console`). O painel **Plataforma › Empresas**
+> e o switcher de todas-as-empresas **não existem mais** no backoffice. Entrar numa empresa
+> passou a ser uma **sessão de suporte** explícita: motivo obrigatório, 30 minutos, somente
+> leitura por padrão e trilha — nada de god mode silencioso. O acesso é concedido pela tela
+> **Operadores** do console, com papéis (ADMIN / SUPORTE / FINANCEIRO / LEITURA), não mais
+> só por `PLATFORM_ADMIN_EMAILS` ou SQL. Boa parte do texto abaixo descreve o modelo
+> anterior — ver [`PLATAFORMA_CONSOLE_SPEC.md`](PLATAFORMA_CONSOLE_SPEC.md) para o atual.
+
+- Opera a plataforma pelo console em `admin.meujet.com.br`.
 - **Aprova / suspende / reativa** empresas (tenants).
 - Pode **entrar e operar qualquer empresa** (god mode), mesmo sem ser membro — o
   isolamento continua garantido pelo RLS (ele opera uma empresa por vez, via a empresa
@@ -55,7 +64,7 @@ para liberar, o primeiro super admin precisa ser criado manualmente (galinha-e-o
    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate --no-deps backend
    # ou: re-rode o workflow de CD no GitHub Actions
    ```
-5. **Logue** com esse email no backoffice → aparece **Plataforma › Empresas** → aprove as
+5. **Logue** com esse email no console (`admin.meujet.com.br`) → **Empresas** → aprove as
    empresas pendentes (inclusive a sua, do passo 1).
 
 ### Alternativa: SQL direto (sem reiniciar)
@@ -125,7 +134,7 @@ no próximo boot).
 
 ## Capacidades adicionadas (jul/2026)
 
-Na página **Plataforma › Empresas**, além de aprovar/suspender/reativar:
+No console, em **Empresas** (detalhe da empresa), além de aprovar/suspender/reativar:
 - **Lançar créditos** de emissão (ajuste manual no ledger, auditado).
 - **Exportar** — arquivamento completo da empresa (.zip: dados JSON + arquivos), download imediato.
 - **Resetar** — zera dados em 3 níveis (Operacional / +Frota / Total) com preview de contagens,
@@ -133,3 +142,11 @@ Na página **Plataforma › Empresas**, além de aprovar/suspender/reativar:
 - **Excluir** — carência de 30 dias (suspende agora, expurga depois, cancelável) ou imediata;
   expurgo deixa tombstone (slug liberado, dados sensíveis anonimizados). Job diário (05:45)
   executa expurgos vencidos e remove exports com mais de 90 dias.
+
+Também no console:
+- **Auditoria** — trilha global da plataforma: concessão/revogação de acesso, sessões de
+  suporte e eventos de identidade. Só linhas sem empresa; o que acontece dentro de uma
+  empresa fica na auditoria dela (ações em modo suporte são gravadas nos dois lugares).
+- **Saúde** — infraestrutura (banco, cache, disco) e o que para em silêncio: frescor do
+  read model do dashboard, última emissão à Marinha, filas de aprovação/conferência e
+  sessões de suporte abertas agora. Séries temporais e alertas continuam no Grafana.

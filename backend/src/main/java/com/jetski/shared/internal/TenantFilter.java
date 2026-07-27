@@ -2,6 +2,9 @@ package com.jetski.shared.internal;
 
 import com.jetski.shared.exception.InvalidTenantException;
 import com.jetski.shared.observability.BusinessMetrics;
+import com.jetski.shared.security.PlatformAccessInfo;
+import com.jetski.shared.security.SessaoSuporte;
+import com.jetski.shared.security.SessaoSuporteValidator;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.shared.security.TenantAccessValidator;
 import com.jetski.shared.security.TenantAccessInfo;
@@ -49,8 +52,11 @@ import java.util.UUID;
 public class TenantFilter extends OncePerRequestFilter {
 
     private static final String TENANT_HEADER_NAME = "X-Tenant-Id";
+    /** Cookie do handoff console→backoffice (ver SessaoSuporteService). */
+    public static final String COOKIE_SUPORTE = "mj_support";
 
     private final TenantAccessValidator tenantAccessValidator;
+    private final SessaoSuporteValidator sessaoSuporteValidator;
     private final BusinessMetrics businessMetrics;
 
     @Override
@@ -80,6 +86,31 @@ public class TenantFilter extends OncePerRequestFilter {
                 if (customerAuth != null && customerAuth.isAuthenticated()) {
                     TenantContext.setUserRoles(java.util.List.of("CLIENTE"));
                 }
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // SESSÃO DE SUPORTE: operador de plataforma operando UMA empresa, com motivo,
+            // prazo e trilha. A empresa vem da SESSÃO, não de um header que o cliente
+            // escolhe — o operador não troca de alvo sem abrir outra sessão.
+            SessaoSuporte suporte = resolverSessaoSuporte(request);
+            if (suporte != null) {
+                TenantContext.setSessaoSuporte(suporte);
+                TenantContext.setTenantId(suporte.tenantId());
+                TenantContext.setUsuarioId(suporte.operadorId());
+                aplicarPapeisDePlataforma(request);
+                concederAutoridadeDeEmpresa();
+                businessMetrics.recordTenantContextSwitch(suporte.tenantId().toString());
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // Escopo de PLATAFORMA (/v1/platform/**): identidade global, sem tenant
+            // obrigatório. O console (admin.*) não tem "empresa corrente" — o alvo, quando
+            // existe, vem no path (/v1/platform/tenants/{id}/...). O gate de papel fica no
+            // PlatformScopeInterceptor; aqui só populamos o contexto.
+            if (isPlatformEndpoint(requestPath)) {
+                applyPlatformContext(request);
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -237,6 +268,129 @@ public class TenantFilter extends OncePerRequestFilter {
     private boolean isCustomerEndpoint(String path) {
         String normalizedPath = path.startsWith("/api/") ? path.substring(4) : path;
         return normalizedPath.startsWith("/v1/customers/") || normalizedPath.equals("/v1/customers");
+    }
+
+    /**
+     * Lê o cookie de suporte e valida a sessão. Cookie ausente/expirado/encerrado devolve
+     * null e o request segue como request normal — quem nega é a autorização.
+     */
+    private SessaoSuporte resolverSessaoSuporte(HttpServletRequest request) {
+        if (request.getCookies() == null) {
+            return null;
+        }
+        for (jakarta.servlet.http.Cookie c : request.getCookies()) {
+            if (COOKIE_SUPORTE.equals(c.getName())) {
+                return sessaoSuporteValidator.validar(c.getValue());
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Papéis GLOBAIS do operador durante a sessão de suporte.
+     *
+     * <p>Ele não vira membro da empresa: os papéis continuam sendo os de plataforma, e a
+     * autorização do que pode fazer lá dentro é do OPA, que enxerga a sessão (inclusive o
+     * somente-leitura).
+     */
+    private void aplicarPapeisDePlataforma(HttpServletRequest request) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Jwt jwt)) {
+            return;
+        }
+        PlatformAccessInfo acesso = tenantAccessValidator.resolvePlatformAccess(
+            JwtAuthenticationConverter.extractProvider(jwt),
+            JwtAuthenticationConverter.extractProviderUserId(jwt));
+        if (acesso != null) {
+            TenantContext.setUserRoles(acesso.roles());
+            TenantContext.setUnrestricted(acesso.unrestricted());
+        }
+    }
+
+    /**
+     * Dá ao operador, DURANTE a sessão de suporte, a autoridade Spring de empresa que os
+     * controllers exigem em {@code @PreAuthorize("hasAnyRole('ADMIN_TENANT', ...)")}.
+     *
+     * <p>Sem isto o Spring Security barra com 403 ANTES do ABAC, e a sessão de suporte não
+     * serve para nada — o operador de plataforma tem papéis {@code PLATFORM_*}, não papéis
+     * de empresa. (Era latente: o god mode "funcionava" só para quem também era membro da
+     * empresa; um operador sem vínculo nunca operou o backoffice.)
+     *
+     * <p><strong>O somente-leitura NÃO passa por aqui de propósito.</strong> Os papéis do
+     * {@link TenantContext} — que alimentam o OPA — continuam sendo só os de plataforma.
+     * Se {@code ADMIN_TENANT} entrasse lá, o {@code rbac_allow} do authorization.rego
+     * liberaria escrita e uma sessão de leitura poderia gravar. O @PreAuthorize é um
+     * portão grosso; quem decide leitura×escrita é a regra de sessão de suporte no OPA.
+     */
+    private void concederAutoridadeDeEmpresa() {
+        Authentication atual = SecurityContextHolder.getContext().getAuthentication();
+        if (atual == null || !atual.isAuthenticated()) {
+            return;
+        }
+        java.util.List<org.springframework.security.core.GrantedAuthority> autoridades =
+            new java.util.ArrayList<>(atual.getAuthorities());
+        autoridades.add(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+            "ROLE_ADMIN_TENANT"));
+        SecurityContextHolder.getContext().setAuthentication(
+            new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                atual.getPrincipal(), atual.getCredentials(), autoridades));
+    }
+
+    /** Endpoints de plataforma (console) — autenticados, com tenant OPCIONAL. */
+    private boolean isPlatformEndpoint(String path) {
+        String normalizedPath = path.startsWith("/api/") ? path.substring(4) : path;
+        return normalizedPath.startsWith("/v1/platform/")
+            || normalizedPath.equals("/v1/platform")
+            // /v1/suporte/**: o alvo vem da SESSÃO, nunca de header. Sem cookie (resgate,
+            // ou "tem sessão?" respondendo que não) o request segue sem tenant em vez de
+            // 400 — exigir X-Tenant-Id aqui fazia o banner falhar antes de existir sessão.
+            // O resgate ainda exige estar AUTENTICADO: ele é amarrado a quem abriu, para
+            // que um código vazado (URL, Referer, log de proxy) não sirva a outra pessoa.
+            || normalizedPath.startsWith("/v1/suporte/");
+    }
+
+    /**
+     * Popula o contexto para rotas de plataforma.
+     *
+     * <p>Resolve papéis globais e {@code unrestricted} pelo JWT, SEM exigir vínculo com
+     * empresa. O {@code X-Tenant-Id} continua sendo aceito quando enviado (o backoffice
+     * atual manda em todas as chamadas de plataforma): nesse caso a RLS aponta para a
+     * empresa alvo exatamente como antes. Quando ausente (console), o contexto de tenant
+     * fica nulo — a policy da tabela {@code tenant} (V042) libera pelo ramo
+     * {@code app.unrestricted}, e os serviços de plataforma continuam escopando empresa a
+     * empresa via {@code set_config(..., true)} dentro da transação.
+     *
+     * <p>Identidade ausente ou não mapeada não lança aqui: o contexto fica sem papéis e o
+     * {@code PlatformScopeInterceptor} responde 403.
+     */
+    private void applyPlatformContext(HttpServletRequest request) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || !(auth.getPrincipal() instanceof Jwt jwt)) {
+            return;
+        }
+
+        String provider = JwtAuthenticationConverter.extractProvider(jwt);
+        String providerUserId = JwtAuthenticationConverter.extractProviderUserId(jwt);
+        PlatformAccessInfo access = tenantAccessValidator.resolvePlatformAccess(provider, providerUserId);
+        if (access == null) {
+            // Contrato diz "nunca null"; se um dia quebrar, degrada FECHADO (403 no
+            // PlatformScopeInterceptor) em vez de 500 numa rota de plataforma.
+            access = PlatformAccessInfo.none();
+        }
+
+        if (access.usuarioId() != null) {
+            TenantContext.setUsuarioId(access.usuarioId());
+        }
+        TenantContext.setUserRoles(access.roles());
+        TenantContext.setUnrestricted(access.unrestricted());
+
+        String header = request.getHeader(TENANT_HEADER_NAME);
+        if (header != null && !header.isBlank()) {
+            TenantContext.setTenantId(parseTenantId(header.trim()));
+        }
+
+        log.debug("Platform context: usuario={}, roles={}, unrestricted={}, tenantAlvo={}",
+            access.usuarioId(), access.roles(), access.unrestricted(), TenantContext.getTenantId());
     }
 
     private boolean isPublicEndpoint(String path) {

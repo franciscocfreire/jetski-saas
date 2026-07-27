@@ -39,6 +39,7 @@ set -a; . ./.env; set +a
 : "${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}"
 : "${PUBLIC_URL:?defina PUBLIC_URL no .env}"
 : "${PORTAL_PUBLIC_URL:?defina PORTAL_PUBLIC_URL no .env (ex.: https://cliente.meujet.com.br)}"
+: "${CONSOLE_PUBLIC_URL:?defina CONSOLE_PUBLIC_URL no .env (ex.: https://admin.meujet.com.br)}"
 
 # Criptografia de segredos (senha SMTP por tenant): se não houver chave, gera uma
 # e grava no .env (uma única vez). NUNCA sobrescreve uma chave já existente —
@@ -106,18 +107,19 @@ $PSQL -f /dev/stdin < infra/prod/02-verify-rls.sql || die "verificação de RLS 
 
 # 6. Build + recreate das apps
 if [ "${NO_BUILD:-0}" != "1" ]; then
-  log "build backend + frontend (--no-cache p/ evitar reaproveitar imagem velha)..."
+  log "build backend + frontends (--no-cache p/ evitar reaproveitar imagem velha)..."
   $COMPOSE build --no-cache backend
   $COMPOSE build --no-cache frontend
   $COMPOSE build --no-cache portal
+  $COMPOSE build --no-cache console
 fi
-log "recriando backend, frontend e portal..."
-$COMPOSE up -d --force-recreate --no-deps backend frontend portal
+log "recriando backend, frontend, portal e console..."
+$COMPOSE up -d --force-recreate --no-deps backend frontend portal console
 
 # 6.5 Limpeza pós-build: como os builds acima são --no-cache, o build cache do
 # BuildKit nunca é reaproveitado e só acumula (já chegou a 155GB e quase encheu
 # o disco). Mantém 10GB dos mais recentes por segurança; remove também imagens
-# dangling (as versões antigas de backend/frontend/portal que ficaram sem tag).
+# dangling (as versões antigas de backend/frontend/portal/console que ficaram sem tag).
 if [ "${NO_BUILD:-0}" != "1" ]; then
   log "limpando build cache antigo e imagens dangling..."
   docker builder prune -af --keep-storage 10GB >/dev/null 2>&1 || warn "builder prune falhou (ignorado)"
@@ -155,6 +157,8 @@ if [ "$kc_ready" = "1" ]; then
   bash infra/prod/configure-keycloak-password-check.sh || warn "config do client password-check falhou (verifique manualmente)"
   bash infra/prod/configure-keycloak-email-code.sh || warn "config do login por código de e-mail falhou (verifique manualmente)"
   bash infra/prod/configure-keycloak-2fa.sh || warn "config do 2FA (TOTP/WebAuthn) falhou (verifique manualmente)"
+  # Depois do client (configure-keycloak-client.sh cria o jetski-platform-console)
+  bash infra/prod/configure-keycloak-console-2fa.sh || warn "config do 2FA obrigatório do console falhou (verifique manualmente)"
 else
   warn "Keycloak realm não respondeu — pulei a config do client/SMTP (rode os scripts em infra/prod/ depois)"
 fi

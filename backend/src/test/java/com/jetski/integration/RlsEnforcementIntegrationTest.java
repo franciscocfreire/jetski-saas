@@ -184,6 +184,100 @@ class RlsEnforcementIntegrationTest extends AbstractIntegrationTest {
         }
     }
 
+    /**
+     * V057 abriu a leitura da trilha GLOBAL para o console. É a policy mais perigosa do
+     * projeto: policies permissivas somam com OR, então se ela vazasse a condição de
+     * {@code tenant_id IS NULL}, o operador de plataforma passaria a ler auditoria de
+     * qualquer empresa sem sessão de suporte — exatamente o que o modelo evita.
+     */
+    @Test
+    @DisplayName("V057: unrestricted lê a trilha global e NÃO enxerga auditoria de empresa")
+    void auditoriaGlobalNaoVazaLinhaDeEmpresa() throws SQLException {
+        jdbc.update("""
+            INSERT INTO auditoria (tenant_id, acao, entidade)
+            VALUES (NULL, 'RLS_TESTE_GLOBAL', 'teste'), (?, 'RLS_TESTE_TENANT', 'teste')
+            """, TENANT_A);
+        jdbc.execute("GRANT SELECT ON public.auditoria TO rls_tester");
+
+        try (Connection c = openAsRole()) {
+            try (Statement st = c.createStatement()) {
+                st.execute("SELECT set_config('app.unrestricted', 'true', true)");
+            }
+            assertThat(acoesVisiveis(c))
+                .as("operador de plataforma lê a trilha global")
+                .containsExactly("RLS_TESTE_GLOBAL");
+
+            // Com um tenant fixado, a policy de isolamento soma — mas o que ela acrescenta
+            // é só o tenant do contexto, nunca "toda a auditoria".
+            setTenant(c, TENANT_A.toString());
+            assertThat(acoesVisiveis(c))
+                .containsExactlyInAnyOrder("RLS_TESTE_GLOBAL", "RLS_TESTE_TENANT");
+
+            // Sem a GUC, a trilha global some — não é leitura de graça.
+            try (Statement st = c.createStatement()) {
+                st.execute("SELECT set_config('app.unrestricted', '', true)");
+                st.execute("SELECT set_config('app.tenant_id', '', true)");
+            }
+            assertThat(acoesVisiveis(c)).isEmpty();
+
+            c.rollback();
+        } finally {
+            jdbc.update("DELETE FROM auditoria WHERE acao IN ('RLS_TESTE_GLOBAL','RLS_TESTE_TENANT')");
+        }
+    }
+
+    /**
+     * O audit DUAL da sessão de suporte grava duas linhas — uma na empresa e uma global — e
+     * elas <strong>não cabem na mesma transação</strong>: a rota de plataforma não tem
+     * tenant no contexto, então a linha da empresa viola a RLS e derruba as duas. Foi
+     * exatamente o que aconteceu com {@code SUPORTE_SESSAO_ABERTA}, que nunca chegou ao
+     * banco (descoberto ao montar a tela de auditoria da F5).
+     *
+     * <p>Os testes de integração da sessão de suporte não pegam isso: conectam como
+     * superuser, que bypassa RLS. Este pega.
+     */
+    @Test
+    @DisplayName("Auditoria de empresa exige o tenant no contexto; a global, não")
+    void auditoriaExigeContextoDoProprioTenant() throws SQLException {
+        jdbc.execute("GRANT SELECT, INSERT ON public.auditoria TO rls_tester");
+
+        try (Connection c = openAsRole()) {
+            // Sem tenant no contexto (é o estado de /v1/platform/**): a linha da empresa
+            // é rejeitada — e numa transação única levaria a global junto.
+            assertThatThrownBy(() -> inserirAuditoria(c, "'" + TENANT_A + "'"))
+                .isInstanceOf(SQLException.class)
+                .hasMessageContaining("row-level security");
+            c.rollback();
+
+            // A global passa sem tenant nenhum: é o que permite ao console lê-la depois.
+            assertThat(inserirAuditoria(c, "NULL")).isEqualTo(1);
+            c.rollback();
+
+            // Com o tenant fixado, a linha da empresa passa — daí uma transação por linha.
+            setTenant(c, TENANT_A.toString());
+            assertThat(inserirAuditoria(c, "'" + TENANT_A + "'")).isEqualTo(1);
+            c.rollback();
+        }
+    }
+
+    private int inserirAuditoria(Connection c, String tenantSql) throws SQLException {
+        try (Statement st = c.createStatement()) {
+            return st.executeUpdate(
+                "INSERT INTO auditoria (tenant_id, acao, entidade) VALUES ("
+                + tenantSql + ", 'RLS_TESTE_GLOBAL', 'SESSAO_SUPORTE')");
+        }
+    }
+
+    private List<String> acoesVisiveis(Connection c) throws SQLException {
+        List<String> acoes = new ArrayList<>();
+        try (Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                 "SELECT acao FROM auditoria WHERE acao LIKE 'RLS_TESTE_%' ORDER BY acao")) {
+            while (rs.next()) acoes.add(rs.getString(1));
+        }
+        return acoes;
+    }
+
     @Test
     @DisplayName("Controle: o superuser do container realmente bypassa RLS (todos os tenants)")
     void superuserBypassaRls() throws SQLException {

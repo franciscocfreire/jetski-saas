@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Converge (idempotente) os clients públicos do Keycloak de PRODUÇÃO:
 #   - jetski-backoffice      (base = PUBLIC_URL)
-#   - jetski-customer-portal (base = PORTAL_PUBLIC_URL, default PUBLIC_URL) — criado se não existir
+#   - jetski-customer-portal  (base = PORTAL_PUBLIC_URL, default PUBLIC_URL) — criado se não existir
+#   - jetski-platform-console (base = CONSOLE_PUBLIC_URL) — console da plataforma, criado se não existir
 # Ambos: público + PKCE S256, redirect URIs / web origins / post-logout convergidos.
 # Não remove URLs existentes. O realm.json já nasce assim no import, mas o
 # --import-realm NÃO re-importa realms já existentes; este script garante que
@@ -93,6 +94,13 @@ print(">> publicClient=True, PKCE=S256; redirectUris="+str(d["redirectUris"]))
 # O converge só ADICIONA redirect URIs — os do host www continuam valendo na transição.
 converge_client "jetski-backoffice" "${APP_PUBLIC_URL:-$PUBLIC_URL}" "Jetski Backoffice"
 converge_client "jetski-customer-portal" "${PORTAL_PUBLIC_URL:-$PUBLIC_URL}" "Meu Jet — Portal do Cliente"
+# Console da plataforma (admin.*). Só converge se CONSOLE_PUBLIC_URL estiver no
+# .env — em deploy sobre .env antigo, pular é melhor que criar client com URL errada.
+if [ -n "${CONSOLE_PUBLIC_URL:-}" ]; then
+  converge_client "jetski-platform-console" "$CONSOLE_PUBLIC_URL" "Meu Jet — Console da Plataforma"
+else
+  echo ">> CONSOLE_PUBLIC_URL ausente no .env — client jetski-platform-console NÃO convergido"
+fi
 
 # Frontend URL do realm: base pública dos links gerados (e-mails de verificação,
 # action-tokens) E do issuer efetivo (sobrepõe o KC_HOSTNAME). Sem isso,

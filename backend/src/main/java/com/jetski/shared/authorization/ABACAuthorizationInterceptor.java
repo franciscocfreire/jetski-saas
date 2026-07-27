@@ -218,6 +218,18 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
             .device(detectDevice(request))
             .user_agent(request.getHeader("User-Agent"))
             .environment(environment)
+            // Separa leitura de escrita quando a ação não separa (ver OPAInput.method)
+            .method(request.getMethod())
+            .support_session(sessaoSuporte())
+            .build();
+    }
+
+    /** Sessão de suporte ativa (F3) → OPA, que enforça o somente-leitura. */
+    private OPAInput.SupportSession sessaoSuporte() {
+        com.jetski.shared.security.SessaoSuporte s = TenantContext.getSessaoSuporte();
+        return s == null ? null : OPAInput.SupportSession.builder()
+            .id(s.id().toString())
+            .somente_leitura(s.somenteLeitura())
             .build();
     }
 
@@ -272,7 +284,12 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
                action.equals("capitania:list") ||   // Catálogo de capitanias (V047) — autenticado, sem tenant específico
                action.equals("capitania:view") ||
                action.equals("user:invite") ||   // Convidar usuário - validação por Spring Security roles
-               action.equals("auth:create");   // Complete activation - endpoint público (Option 2: temp password)
+               action.equals("auth:create") ||   // Complete activation - endpoint público (Option 2: temp password)
+               // Gestão da PRÓPRIA sessão de suporte (resgatar/consultar/sair). Não é
+               // operação na empresa: se passasse pela matriz, "sair do modo suporte"
+               // (POST) seria NEGADO numa sessão somente-leitura — o operador ficaria
+               // preso dentro dela.
+               action.startsWith("suporte:");
     }
 
     /**

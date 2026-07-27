@@ -51,10 +51,13 @@ class MeteringIntegrationTest extends AbstractIntegrationTest {
     private static final UUID TENANT_ACME = UUID.fromString("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
     private static final UUID TENANT_MARINA = UUID.fromString("b0000000-0000-0000-0000-000000000001");
     private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    /** Operador de plataforma exclusivo desta classe (evita contaminar o USER_ID do tenant). */
+    private static final UUID PLATFORM_USER = UUID.fromString("9f000000-0000-0000-0000-00000000e701");
 
     @BeforeEach
     void setUp() {
         TenantContext.setTenantId(TENANT_ACME);
+        seedOperadorDePlataforma();
         try {
             jdbcTemplate.execute("INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id, linked_at) " +
                                  "VALUES ('11111111-1111-1111-1111-111111111111', 'keycloak', '11111111-1111-1111-1111-111111111111', NOW())");
@@ -111,6 +114,32 @@ class MeteringIntegrationTest extends AbstractIntegrationTest {
     private RequestPostProcessor vendedor() {
         return jwt().jwt(j -> j.subject(USER_ID.toString()))
             .authorities(new SimpleGrantedAuthority("ROLE_VENDEDOR"));
+    }
+
+    /** Operador de plataforma — quem pode falar com /v1/platform/**. */
+    private RequestPostProcessor superAdmin() {
+        return jwt().jwt(j -> j.subject(PLATFORM_USER.toString()))
+            .authorities(new SimpleGrantedAuthority("ROLE_PLATFORM_ADMIN"));
+    }
+
+    /**
+     * Usuário com unrestricted_access — o PlatformScopeInterceptor exige isso em
+     * /v1/platform/**, independente do que o OPA responder.
+     */
+    private void seedOperadorDePlataforma() {
+        jdbcTemplate.update(
+            "INSERT INTO usuario (id, email, nome, ativo) VALUES (?, ?, 'Operador Metering', TRUE) "
+            + "ON CONFLICT (id) DO NOTHING",
+            PLATFORM_USER, "plataforma.metering@test.com");
+        jdbcTemplate.update(
+            "INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id, linked_at) "
+            + "VALUES (?, 'keycloak', ?, NOW()) ON CONFLICT DO NOTHING",
+            PLATFORM_USER, PLATFORM_USER.toString());
+        jdbcTemplate.update(
+            "INSERT INTO usuario_global_roles (usuario_id, roles, unrestricted_access, created_at, updated_at) "
+            + "VALUES (?, ARRAY['PLATFORM_ADMIN'], TRUE, NOW(), NOW()) "
+            + "ON CONFLICT (usuario_id) DO UPDATE SET unrestricted_access = TRUE",
+            PLATFORM_USER);
     }
 
     // ============================== Listener ==============================
@@ -225,8 +254,7 @@ class MeteringIntegrationTest extends AbstractIntegrationTest {
             Integer.class, TENANT_MARINA, competencia);
 
         mockMvc.perform(get("/v1/platform/metering/emissoes?competencia=" + competencia)
-                .header("X-Tenant-Id", TENANT_ACME.toString())
-                .with(admin()))
+                .with(superAdmin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[?(@.slug == 'acme')].documento").value(docsAcme))
             .andExpect(jsonPath("$[?(@.slug == 'marina-bay')].gru").value(grusMarina));
@@ -239,8 +267,26 @@ class MeteringIntegrationTest extends AbstractIntegrationTest {
             .thenReturn(OPADecision.builder().allow(false).tenantIsValid(true).build());
 
         mockMvc.perform(get("/v1/platform/metering/emissoes")
+                .with(superAdmin()))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("ADMIN_TENANT é barrado em /v1/platform mesmo com o OPA liberando (PlatformScopeInterceptor)")
+    void testPlatformDenyAdminDeEmpresaMesmoComOpaAllow() throws Exception {
+        // OPA já está mockado para ALLOW no setUp — se a barreira em Java não
+        // existisse, um admin de empresa leria o metering de todas as empresas.
+        mockMvc.perform(get("/v1/platform/metering/emissoes")
                 .header("X-Tenant-Id", TENANT_ACME.toString())
                 .with(admin()))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Endpoint de plataforma dispensa X-Tenant-Id (console não tem empresa corrente)")
+    void testPlatformSemHeaderDeTenant() throws Exception {
+        mockMvc.perform(get("/v1/platform/metering/emissoes")
+                .with(superAdmin()))
+            .andExpect(status().isOk());
     }
 }

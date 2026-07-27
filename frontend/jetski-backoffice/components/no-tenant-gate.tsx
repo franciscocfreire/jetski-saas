@@ -2,12 +2,23 @@
 
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Building2, LogOut, Mail, Store, UserRoundSearch } from 'lucide-react'
+import { Building2, LogOut, Mail, ShieldCheck, Store, UserRoundSearch } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { userTenantsService } from '@/lib/api/services'
+
+/** Deriva a URL do console da plataforma a partir do host atual (app./www. → admin.). */
+function consoleUrl(): string {
+  if (typeof window === 'undefined') return 'https://admin.meujet.com.br'
+  const { hostname, protocol } = window.location
+  if (hostname.startsWith('app.') || hostname.startsWith('www.')) {
+    return `${protocol}//${hostname.replace(/^(app|www)\./, 'admin.')}`
+  }
+  if (hostname === 'localhost') return 'http://localhost:3005'
+  return 'https://admin.meujet.com.br'
+}
 
 /** Deriva a URL do portal do cliente a partir do host atual (app./www. → cliente.). */
 function portalClienteUrl(): string {
@@ -39,6 +50,8 @@ export function NoTenantGate() {
     refetchOnWindowFocus: true,
   })
 
+  const ehOperadorDePlataforma = data?.accessType === 'UNRESTRICTED'
+
   useEffect(() => {
     const memberships = data?.tenants ?? []
     if (memberships.length > 0) {
@@ -53,13 +66,37 @@ export function NoTenantGate() {
       <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
           <UserRoundSearch className="mx-auto mb-2 size-12 text-muted-foreground" />
-          <CardTitle>Sua conta ainda não está em nenhuma empresa</CardTitle>
+          <CardTitle>
+            {ehOperadorDePlataforma
+              ? 'Sua conta não opera nenhuma empresa diretamente'
+              : 'Sua conta ainda não está em nenhuma empresa'}
+          </CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">
             Você entrou como <strong>conta pessoal</strong> — este painel é para as
             equipes das locadoras. Veja qual é o seu caso:
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Operador de plataforma: desde a F3 ele NÃO tem empresa aqui — entra numa
+              pelo console, abrindo sessão de suporte com motivo e prazo. Sem este caso
+              a tela mandaria um admin da plataforma "pedir convite ao administrador". */}
+          {ehOperadorDePlataforma && (
+            <div className="flex items-start gap-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
+              <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Você é operador da plataforma</p>
+                <p className="text-xs text-muted-foreground">
+                  A operação da plataforma fica no console. Para entrar numa empresa, abra
+                  uma <strong>sessão de suporte</strong> por lá — com motivo e prazo, e
+                  registrada na trilha.
+                </p>
+                <Button asChild size="sm" className="mt-2">
+                  <a href={consoleUrl()}>Ir para o console da plataforma</a>
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-start gap-3 rounded-lg border p-3">
             <Store className="mt-0.5 size-5 shrink-0 text-primary" />
             <div className="flex-1">

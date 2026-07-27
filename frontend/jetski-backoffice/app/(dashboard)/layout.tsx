@@ -9,11 +9,12 @@ import { Header } from '@/components/layout/header'
 import { RentalNotificationProvider } from '@/components/providers/rental-notification-provider'
 import { TenantThemeProvider } from '@/components/providers/tenant-theme-provider'
 import { useTenantStore } from '@/lib/store/tenant-store'
-import { setAuthToken, setTenantId } from '@/lib/api/client'
-import { userTenantsService, platformService } from '@/lib/api/services'
+import { apiClient, setAuthToken, setTenantId } from '@/lib/api/client'
+import { userTenantsService } from '@/lib/api/services'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TenantStatusGate } from '@/components/tenant-status-gate'
 import { NoTenantGate } from '@/components/no-tenant-gate'
+import { SuporteBanner } from '@/components/suporte-banner'
 
 const OPERATIONAL_STATUSES = ['ATIVO', 'TRIAL']
 
@@ -29,6 +30,34 @@ export default function DashboardLayout({
   const lastTokenRef = useRef<string | null>(null)
 
   // Handle unauthenticated or session error
+  // Sessão de suporte: a empresa vem da sessão, não de membership. Sem isto o
+  // operador cai no NoTenantGate mesmo com sessão ativa — /v1/user/tenants vem
+  // vazio porque ele não é membro de empresa nenhuma (visto em 25/jul).
+  const [suporteChecado, setSuporteChecado] = useState(false)
+  useEffect(() => {
+    if (!session?.accessToken || suporteChecado) return
+    setAuthToken(session.accessToken)
+    apiClient
+      .get('/v1/suporte/atual')
+      .then((r) => {
+        const s = r.status === 204 ? null : r.data
+        if (s?.tenantId) {
+          const empresa = {
+            id: s.tenantId,
+            slug: s.tenant?.slug ?? '',
+            razaoSocial: s.tenant?.razao_social ?? s.tenant?.razaoSocial ?? 'Empresa',
+            status: s.tenant?.status ?? 'ATIVO',
+            roles: [],
+          } as never
+          setTenants([empresa])
+          setCurrentTenant(empresa)
+          setTenantsLoaded(true)
+        }
+      })
+      .catch(() => { /* sem sessão de suporte: fluxo normal */ })
+      .finally(() => setSuporteChecado(true))
+  }, [session?.accessToken, suporteChecado, setTenants, setCurrentTenant])
+
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login')
@@ -87,17 +116,9 @@ export default function DashboardLayout({
           }
           setTenantsLoaded(true)
 
-          // Super admin: carrega TODAS as empresas no switcher (acesso total à plataforma)
-          if (response.accessType === 'UNRESTRICTED' && current) {
-            try {
-              const all = await platformService.listAllTenants()
-              if (all && all.length > 0) {
-                setTenants(all)
-              }
-            } catch (e) {
-              console.error('⚠️ Falha ao carregar todas as empresas (platform):', e)
-            }
-          }
+          // F3: o switcher de TODAS as empresas saiu daqui. Operador de plataforma
+          // entra numa empresa pelo console (admin.*), abrindo uma sessão de suporte
+          // com motivo, prazo e trilha — não escolhendo do menu.
         })
         .catch((error) => {
           console.error('❌ Error fetching tenants:', error)
@@ -132,7 +153,7 @@ export default function DashboardLayout({
   // Gate de "sem vínculo": autenticou mas não pertence a NENHUMA empresa (conta
   // de cliente, Google no host errado, convite ainda não enviado). Sem isto o
   // dashboard renderizava vazio. Tela própria, sem sidebar (não há o que exibir).
-  if (tenantsLoaded && accessType !== 'UNRESTRICTED' && tenants.length === 0) {
+  if (tenantsLoaded && tenants.length === 0) {
     return <NoTenantGate />
   }
 
@@ -140,7 +161,6 @@ export default function DashboardLayout({
   // mostra a tela de status no lugar do conteúdo, mantendo sidebar (switcher) e header.
   // Super admin (UNRESTRICTED) é isento do gate — pode inspecionar qualquer empresa.
   const tenantBlocked =
-    accessType !== 'UNRESTRICTED' &&
     currentTenant != null &&
     !OPERATIONAL_STATUSES.includes(currentTenant.status)
 
@@ -150,6 +170,7 @@ export default function DashboardLayout({
         <RentalNotificationProvider>
           <AppSidebar />
           <SidebarInset>
+            <SuporteBanner />
             <Header />
             <main className="flex flex-1 flex-col overflow-auto p-4 sm:p-6">
               {tenantBlocked ? <TenantStatusGate tenant={currentTenant!} /> : children}

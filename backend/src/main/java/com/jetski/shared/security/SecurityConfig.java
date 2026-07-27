@@ -50,6 +50,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationConverter jwtAuthenticationConverter;
     private final TenantAccessValidator tenantAccessValidator;
+    private final SessaoSuporteValidator sessaoSuporteValidator;
     private final FilterChainExceptionFilter filterChainExceptionFilter;
     private final BusinessMetrics businessMetrics;
 
@@ -65,10 +66,12 @@ public class SecurityConfig {
     public SecurityConfig(
             JwtAuthenticationConverter jwtAuthenticationConverter,
             TenantAccessValidator tenantAccessValidator,
+            SessaoSuporteValidator sessaoSuporteValidator,
             FilterChainExceptionFilter filterChainExceptionFilter,
             BusinessMetrics businessMetrics) {
         this.jwtAuthenticationConverter = jwtAuthenticationConverter;
         this.tenantAccessValidator = tenantAccessValidator;
+        this.sessaoSuporteValidator = sessaoSuporteValidator;
         this.filterChainExceptionFilter = filterChainExceptionFilter;
         this.businessMetrics = businessMetrics;
     }
@@ -78,7 +81,7 @@ public class SecurityConfig {
      */
     @Bean
     public TenantFilter tenantFilter() {
-        return new TenantFilter(tenantAccessValidator, businessMetrics);
+        return new TenantFilter(tenantAccessValidator, sessaoSuporteValidator, businessMetrics);
     }
 
     /**

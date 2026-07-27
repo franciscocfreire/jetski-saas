@@ -90,6 +90,58 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   via configure-keycloak-2fa.sh.
 
 ### Plataforma (super admin)
+- **Console da plataforma — F0 a F6** (`frontend/plataforma-console`, `admin.*`): app próprio
+  do operador de plataforma, separado do backoffice das empresas.
+  - **F0 (fundação)**: barreira em Java (`PlatformScopeInterceptor`, 403 antes do OPA), ações
+    OPA pelo path completo (`platform:tenants:approve`), `/v1/platform/**` sem `X-Tenant-Id`
+    obrigatório, client Keycloak `jetski-platform-console`, compose/nginx/scripts.
+  - **F1 (2FA + paridade)**: flow `console-browser` com **2FA obrigatório** — Google (via
+    `post-broker-2fa`) ou senha+TOTP REQUIRED, sem `auth-cookie` (SSO do backoffice não
+    satisfaz o login do console). Como o post-broker é condicional e vive no IdP, a
+    concessão de papel marca `CONFIGURE_TOTP` para operador sem fator. E as
+    telas: `/empresas` (+ detalhe com zona de perigo), `/creditos`, `/faturamento`,
+    `/emissoes`, `/catalogo`, `/configuracoes`. Server components + server actions; token
+    nunca vai ao browser (downloads via proxy `/api/download`).
+  - **F2 (papéis granulares)**: `unrestricted_access` passa a significar só **alcance**
+    (acessa qualquer empresa); o **poder** vem do papel `PLATFORM_*` em
+    `usuario_global_roles.roles[]` — ADMIN / SUPORTE / FINANCEIRO / LEITURA, matriz em
+    `policies/authz/platform.rego` (V054 faz o backfill). O método HTTP entrou no input do
+    OPA porque a ação sozinha não separa leitura de escrita (`GET /v1/platform/creditos` e
+    `POST .../{id}` colapsam em `platform:creditos`). Tela `/operadores` substitui
+    `PLATFORM_ADMIN_EMAILS`/SQL manual, com trava contra remover o último admin ou o
+    próprio acesso, e auditoria global de cada concessão. God mode em ações de tenant ficou
+    só para `PLATFORM_ADMIN`.
+  - **F3 (o corte)**: **god mode acabou**. Operar uma empresa exige **sessão de suporte**
+    (V055 `plataforma_sessao_suporte`): motivo obrigatório, 30 min sem renovação, somente
+    leitura por padrão (negação real no OPA), revogação imediata. Handoff console→backoffice
+    por código de uso único (5 min, amarrado ao operador que abriu; o token do cookie nunca
+    vai na URL) e faixa permanente de "modo suporte". Auditoria dual (tenant + global).
+    Removidos do backoffice: página `/dashboard/plataforma`, `components/plataforma/`,
+    `services/platform.ts`, grupo "Plataforma" do menu, switcher de todas-as-empresas e as
+    isenções de gate para `UNRESTRICTED`. Ver `PLATAFORMA_CONSOLE_SPEC.md`.
+  - **F4 (dashboard)**: read model `plataforma_metrica_diaria` (V056) preenchido por job
+    diário (04:15) com janela móvel de 7 dias — consolida sem `BYPASSRLS` e sem varrer
+    empresa a empresa a cada tela. `POST /v1/platform/dashboard/recalcular` faz backfill.
+  - **F5 (trilha + saúde)**: `/auditoria` lê a trilha **global** (`tenant_id NULL`) — a V057
+    abriu a leitura, que a V051 tinha deixado só para acesso direto ao banco (a linha era
+    gravada e ninguém lia). Policy estreita: `SELECT` + `tenant_id IS NULL` +
+    `app.unrestricted`, testada com role não-superuser. `/saude` junta infra (do
+    `HealthEndpoint`, que não é exposto no edge) com sinais que param em silêncio: frescor do
+    read model, última emissão, filas de aprovação/conferência e sessões de suporte ativas;
+    séries temporais continuam no Grafana, linkado.
+  - **F6 (módulo)**: `com.jetski.plataforma` (depende só de `shared`) passa a abrigar o que
+    é da plataforma — dashboard/read model, trilha global, saúde e sessão de suporte. As
+    fachadas `Platform*` de créditos, metering, faturas, capitanias e operadores **ficam no
+    módulo do dado**: movê-las exigiria expor repositórios internos e, no caso dos
+    operadores, criaria ciclo com `usuarios`. Regra no nome: `Plataforma*` mora no módulo,
+    `Platform*` é fachada de plataforma de outro módulo. O contrato HTTP não mudou.
+  - **2FA do console configurável** (27/jul): `/configuracoes` do console ganhou o botão
+    "pedir 2FA a cada login", exclusivo de `PLATFORM_ADMIN`. Desligado, um navegador já
+    marcado como confiável entra sem novo desafio por 30 dias (como no backoffice). Mexe
+    nos dois subflows (`post-broker-2fa-cond` e `portal-2fa`) e vale no login seguinte, sem
+    reiniciar o Keycloak. Antes só dava para mudar por variável de ambiente no
+    `configure-keycloak-console-2fa.sh`. Vale para o login pelo Google; o login por senha
+    no console tem OTP obrigatório no próprio fluxo. Auditado na trilha global.
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão
   automática → checklist de primeiros passos (7 itens). Créditos de adesão automáticos.
 - Créditos de emissão: ledger append-only (trigger de banco anti-DELETE), débito na emissão,

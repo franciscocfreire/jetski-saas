@@ -45,6 +45,12 @@ public class TrustedDeviceEnrollAuthenticator implements Authenticator {
             context.success();
             return;
         }
+        // Client que não honra dispositivo confiável também não o cadastra — oferecer
+        // "confiar neste navegador" no console seria prometer algo que o check ignora.
+        if (TrustedDeviceCheckAuthenticator.semTrustedDevice(context)) {
+            context.success();
+            return;
+        }
         // Sem fator 2FA cadastrado → não há verificação a dispensar.
         boolean temFator = user != null && user.credentialManager()
                 .getStoredCredentialsStream()

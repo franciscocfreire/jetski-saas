@@ -3,6 +3,7 @@ package com.jetski.tenant;
 import com.jetski.integration.AbstractIntegrationTest;
 import com.jetski.shared.authorization.OPAAuthorizationService;
 import com.jetski.shared.authorization.dto.OPADecision;
+import com.jetski.shared.security.PlatformAccessInfo;
 import com.jetski.shared.security.TenantAccessInfo;
 import com.jetski.usuarios.internal.TenantAccessService;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +40,7 @@ class CapitaniaEmissoraIntegrationTest extends AbstractIntegrationTest {
 
     private static final UUID TENANT = UUID.fromString("a4700000-0000-0000-0000-0000000000aa");
     private static final String USER = "22222222-2222-2222-2222-222222222222";
+    private static final String PLATFORM_USER = "9f000000-0000-0000-0000-00000000ca91";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JdbcTemplate jdbc;
@@ -72,6 +74,11 @@ class CapitaniaEmissoraIntegrationTest extends AbstractIntegrationTest {
                 .roles(List.of("ADMIN_TENANT"))
                 .unrestricted(false)
                 .build());
+        // /v1/platform/** passa pelo PlatformScopeInterceptor, que exige operador de
+        // plataforma no contexto — resolvido por este método (sem tenant).
+        when(tenantAccessService.resolvePlatformAccess(any(String.class), any(String.class)))
+            .thenReturn(new PlatformAccessInfo(
+                UUID.fromString(PLATFORM_USER), List.of("PLATFORM_ADMIN"), true));
     }
 
     private static RequestPostProcessor jwtAdmin() {
@@ -81,6 +88,13 @@ class CapitaniaEmissoraIntegrationTest extends AbstractIntegrationTest {
                 .claim("roles", List.of("ADMIN_TENANT")))
             .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
                 "ROLE_ADMIN_TENANT"));
+    }
+
+    /** Operador de plataforma — quem pode falar com /v1/platform/**. */
+    private static RequestPostProcessor jwtSuperAdmin() {
+        return jwt().jwt(j -> j.subject(PLATFORM_USER))
+            .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                "ROLE_PLATFORM_ADMIN"));
     }
 
     @Test
@@ -124,7 +138,7 @@ class CapitaniaEmissoraIntegrationTest extends AbstractIntegrationTest {
         // super admin habilita
         mockMvc.perform(post("/v1/platform/tenants/{t}/habilitar-emissora", TENANT)
                 .header("X-Tenant-Id", TENANT.toString())
-                .with(jwtAdmin()))
+                .with(jwtSuperAdmin()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.emissoraHabilitada").value(true));
 
@@ -144,7 +158,7 @@ class CapitaniaEmissoraIntegrationTest extends AbstractIntegrationTest {
     void habilitarSemCadastroNega() throws Exception {
         mockMvc.perform(post("/v1/platform/tenants/{t}/habilitar-emissora", TENANT)
                 .header("X-Tenant-Id", TENANT.toString())
-                .with(jwtAdmin()))
+                .with(jwtSuperAdmin()))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value(
                 org.hamcrest.Matchers.containsString("capitania")));

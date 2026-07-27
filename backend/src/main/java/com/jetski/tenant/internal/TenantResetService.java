@@ -72,6 +72,12 @@ public class TenantResetService {
         "fechamento_diario", "fechamento_mensal", "fuel_price_day",
         "cliente_notificacao", "cliente_anexo", "cliente_claim_token",
         "cliente_identity_provider",
+        // Read model da plataforma (V056): dado DERIVADO — segue a fonte. Preservá-lo
+        // deixaria o dashboard mostrando receita de uma empresa cujas locações foram
+        // apagadas, e o job só recalcula uma janela de 7 dias: as linhas antigas
+        // ficariam com o número velho PARA SEMPRE. A base de cobrança da plataforma
+        // (metering, ledger de créditos, faturas) continua preservada à parte.
+        "plataforma_metrica_diaria",
         "reserva", "locacao", "cliente");
 
     /** Cadastro de frota — apagado nos níveis FROTA e TOTAL. */
@@ -92,7 +98,11 @@ public class TenantResetService {
         "emissao_uso", "tenant_signup", "fatura",
         // trilha legal da EAMA emissora (V048): o espelho vive no tenant do
         // EMISSOR e prova o que saiu em nome dele — nunca some num reset
-        "emissao_delegada");
+        "emissao_delegada",
+        // sessões de suporte (V055): registro de QUEM da plataforma entrou nesta
+        // empresa e por quê. É trilha, não dado operacional — apagar num reset
+        // deixaria o acesso sem prova. Some junto com a empresa (ON DELETE CASCADE).
+        "plataforma_sessao_suporte");
 
     private final JdbcTemplate jdbcTemplate;
     private final TenantRepository tenantRepository;

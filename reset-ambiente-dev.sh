@@ -457,6 +457,77 @@ ALTER TABLE public.credito_compra
     ADD COLUMN IF NOT EXISTS valor_pago     numeric(10,2),
     ADD COLUMN IF NOT EXISTS preco_unitario numeric(10,2);
 
+-- V057: console lê a trilha GLOBAL (tenant_id NULL). Escopo estreito — policies
+-- permissivas somam com OR, então esta só expõe linha SEM tenant e só para
+-- operador de plataforma (GUC app.unrestricted), só em SELECT.
+DROP POLICY IF EXISTS auditoria_global_read ON public.auditoria;
+CREATE POLICY auditoria_global_read ON public.auditoria
+    FOR SELECT USING (tenant_id IS NULL AND current_setting('app.unrestricted', true) = 'true');
+
+-- V056: read model da plataforma — agregado diário por empresa (sem RLS:
+-- tenant_id é dimensão, não dono da linha). Populado por PlataformaMetricasJob.
+CREATE TABLE IF NOT EXISTS public.plataforma_metrica_diaria (
+    tenant_id             uuid NOT NULL REFERENCES public.tenant(id) ON DELETE CASCADE,
+    dia                   date NOT NULL,
+    locacoes              integer NOT NULL DEFAULT 0,
+    reservas              integer NOT NULL DEFAULT 0,
+    no_shows              integer NOT NULL DEFAULT 0,
+    receita_bruta         numeric(12,2) NOT NULL DEFAULT 0,
+    receita_comissionavel numeric(12,2) NOT NULL DEFAULT 0,
+    emissoes_documento    integer NOT NULL DEFAULT 0,
+    emissoes_gru          integer NOT NULL DEFAULT 0,
+    emissoes_previa       integer NOT NULL DEFAULT 0,
+    creditos_consumidos   integer NOT NULL DEFAULT 0,
+    saldo_creditos_fim    integer NOT NULL DEFAULT 0,
+    mrr                   numeric(12,2) NOT NULL DEFAULT 0,
+    plano_nome            varchar(100),
+    faturas_abertas       integer NOT NULL DEFAULT 0,
+    valor_em_aberto       numeric(12,2) NOT NULL DEFAULT 0,
+    atualizado_em         timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, dia)
+);
+CREATE INDEX IF NOT EXISTS idx_metrica_diaria_dia ON public.plataforma_metrica_diaria (dia DESC);
+
+-- V055: sessão de suporte — acesso explícito (motivo + prazo + trilha) de um
+-- operador de plataforma a uma empresa; substitui o god mode do switcher.
+-- Tabela de PLATAFORMA (sem RLS): tenant_id é o ALVO, não o dono da linha.
+CREATE TABLE IF NOT EXISTS public.plataforma_sessao_suporte (
+    id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    operador_id      uuid NOT NULL REFERENCES public.usuario(id),
+    tenant_id        uuid NOT NULL REFERENCES public.tenant(id) ON DELETE CASCADE,
+    motivo           text NOT NULL,
+    somente_leitura  boolean NOT NULL DEFAULT true,
+    codigo_hash      varchar(64) NOT NULL,
+    codigo_expira_em timestamptz NOT NULL,
+    codigo_usado_em  timestamptz,
+    token_hash       varchar(64),
+    iniciada_em      timestamptz NOT NULL DEFAULT now(),
+    expira_em        timestamptz NOT NULL,
+    encerrada_em     timestamptz,
+    encerrada_por    uuid REFERENCES public.usuario(id),
+    ip               inet,
+    user_agent       text,
+    CONSTRAINT chk_sessao_suporte_motivo CHECK (length(btrim(motivo)) >= 5)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_sessao_suporte_codigo ON public.plataforma_sessao_suporte (codigo_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_sessao_suporte_token ON public.plataforma_sessao_suporte (token_hash) WHERE token_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sessao_suporte_tenant ON public.plataforma_sessao_suporte (tenant_id, iniciada_em DESC);
+CREATE INDEX IF NOT EXISTS idx_sessao_suporte_operador ON public.plataforma_sessao_suporte (operador_id, iniciada_em DESC);
+
+-- V054: papéis de plataforma — separa ALCANCE (unrestricted_access) de PODER
+-- (papel PLATFORM_* em roles[], decidido pelo platform.rego). Sem DDL: a coluna
+-- roles text[] existe desde a V001; o que falta é garantir papel explícito.
+UPDATE public.usuario_global_roles
+SET roles = array_append(roles, 'PLATFORM_ADMIN'), updated_at = now()
+WHERE unrestricted_access = true
+  AND NOT EXISTS (SELECT 1 FROM unnest(roles) r WHERE r LIKE 'PLATFORM\_%');
+UPDATE public.usuario_global_roles
+SET unrestricted_access = true, updated_at = now()
+WHERE unrestricted_access = false
+  AND EXISTS (SELECT 1 FROM unnest(roles) r WHERE r LIKE 'PLATFORM\_%');
+COMMENT ON COLUMN public.usuario_global_roles.unrestricted_access IS
+    'ALCANCE: acessa qualquer empresa sem ser membro. NÃO implica poder — o poder vem do papel PLATFORM_* em roles[] (platform.rego).';
+
 -- V053: comprovante PIX por upload (foto/PDF) — pix_txid vira opcional
 ALTER TABLE public.credito_compra ALTER COLUMN pix_txid DROP NOT NULL;
 ALTER TABLE public.credito_compra
