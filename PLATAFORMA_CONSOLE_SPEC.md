@@ -504,6 +504,38 @@ com invalidação por `revalidatePath`, e um cliente `fetch` tipado dá conta.
 não tem endpoint por empresa: tudo vem de listas globais que a página filtra. Uma sub-rota
 por aba refaria as mesmas listas a cada troca.
 
+### 9.10 A regressão que só o E2E pegou (27/jul)
+
+Depois do merge na main, o job **E2E (Newman)** ficou vermelho no primeiro request —
+"Admin cria Modelo" devolvendo **403** — e tudo depois dele caiu em cascata. Não era
+flakiness: era regressão da própria F3.
+
+`TenantAccessService.validateAccess` checava **acesso de plataforma antes do vínculo com a
+empresa** e retornava ali mesmo. Para quem é as duas coisas (o `admin@acme.com` do seed é
+`ADMIN_TENANT` da ACME **e** `PLATFORM_ADMIN`), o contexto recebia `roles=[PLATFORM_ADMIN]`
+no lugar de `[ADMIN_TENANT]`.
+
+**Enquanto o god mode existia, isso era invisível**: o OPA liberava qualquer ação de tenant
+para quem tinha `unrestricted`, então trocar um papel pelo outro não mudava o resultado.
+Ao remover o god mode (F3), a mesma linha passou a negar 403 **no backoffice da empresa em
+que a pessoa é administradora** — o oposto do que a regra de identidade única promete: uma
+pessoa acumula papéis, e ser operador de plataforma não pode tirar dela o papel que tem na
+empresa.
+
+A ordem foi invertida: **vínculo primeiro**. Quem é membro opera com o papel da empresa; a
+flag `unrestricted` continua verdadeira (alcance é alcance — alimenta o `app.unrestricted`
+da RLS e a isenção do gate de status), mas o **poder** ali dentro vem do `membro`. Quem
+não é membro cai no ramo de plataforma, onde ação de tenant continua exigindo sessão de
+suporte.
+
+Confirmado nos dois sentidos em dev, com um usuário que é `ADMIN_TENANT` da ACME e
+`PLATFORM_ADMIN`: **201** na própria empresa, **403** numa empresa em que não é membro. O
+god mode segue morto.
+
+**Por que a CI não pegou.** O E2E roda em *push na main*, não em PR — é o job mais pesado e
+ainda não virou gate. Ou seja: o único job capaz de pegar esse tipo de drift só roda depois
+do merge. Ele fez o trabalho, mas tarde. Promovê-lo a gate de PR é a lição pendente aqui.
+
 ### 9.9 2FA do console vira configuração de tela (27/jul)
 
 O console nasceu (F1) desafiando o 2FA em **todo** login: um dispositivo confiável marcado

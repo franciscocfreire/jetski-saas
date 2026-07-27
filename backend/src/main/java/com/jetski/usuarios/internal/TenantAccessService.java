@@ -103,20 +103,20 @@ public class TenantAccessService implements TenantAccessValidator {
     public TenantAccessInfo validateAccess(UUID usuarioId, UUID tenantId) {
         log.debug("Validating access: user={}, tenant={}", usuarioId, tenantId);
 
-        // 1. Check for unrestricted platform access (super admin)
         Optional<UsuarioGlobalRoles> globalRoles =
             globalRolesRepository.findById(usuarioId);
+        boolean irrestrito =
+            globalRoles.isPresent() && globalRoles.get().getUnrestrictedAccess();
 
-        if (globalRoles.isPresent() && globalRoles.get().getUnrestrictedAccess()) {
-            log.info("Unrestricted access granted: user={}, tenant={}",
-                usuarioId, tenantId);
-            return TenantAccessInfo.unrestricted(
-                Arrays.asList(globalRoles.get().getRoles()),
-                usuarioId
-            );
-        }
-
-        // 2. Check specific tenant membership
+        // 1. VÍNCULO COM A EMPRESA PRIMEIRO, mesmo para operador de plataforma.
+        //
+        // Uma pessoa acumula papéis (regra de identidade única): quem é staff da empresa
+        // opera como staff, e ser operador de plataforma não pode tirar isso dela. Enquanto
+        // o god mode existia, a ordem inversa não incomodava — o OPA liberava tudo para
+        // quem tinha `unrestricted`, então trocar ADMIN_TENANT por PLATFORM_ADMIN no
+        // contexto não mudava o resultado. Com o god mode removido (F3), a mesma linha
+        // passou a devolver 403 no próprio backoffice da empresa em que a pessoa é
+        // administradora. Quem pegou foi o E2E (o admin do seed é as duas coisas).
         Optional<Membro> membro = membroRepository
             .findActiveByUsuarioAndTenant(usuarioId, tenantId);
 
@@ -125,16 +125,30 @@ public class TenantAccessService implements TenantAccessValidator {
             // Carrega o status do tenant para o gate de acesso (TenantFilter).
             Tenant tenant = tenantQueryService.findById(tenantId);
             String tenantStatus = tenant != null ? tenant.getStatus().name() : null;
-            log.debug("Access granted: user={}, tenant={}, roles={}, status={}",
-                usuarioId, tenantId, roles, tenantStatus);
+            log.debug("Access granted: user={}, tenant={}, roles={}, status={}, irrestrito={}",
+                usuarioId, tenantId, roles, tenantStatus, irrestrito);
             return TenantAccessInfo.builder()
                 .hasAccess(true)
                 .roles(roles)
-                .unrestricted(false)
+                // ALCANCE continua sendo alcance: a flag alimenta o app.unrestricted da
+                // RLS e a isenção do gate de status. O que muda é o PODER, que vem do
+                // papel na empresa.
+                .unrestricted(irrestrito)
                 .reason("Access granted via membro table")
                 .usuarioId(usuarioId)
                 .tenantStatus(tenantStatus)
                 .build();
+        }
+
+        // 2. Não é membro: operador de plataforma alcança a empresa mesmo assim (para
+        // /v1/platform/** e para a sessão de suporte, que é quem libera ação de tenant).
+        if (irrestrito) {
+            log.info("Unrestricted access granted: user={}, tenant={}",
+                usuarioId, tenantId);
+            return TenantAccessInfo.unrestricted(
+                Arrays.asList(globalRoles.get().getRoles()),
+                usuarioId
+            );
         }
 
         // 3. Access denied

@@ -80,11 +80,38 @@ class TenantAccessServiceTest {
         // When: Validating access to ANY tenant
         TenantAccessInfo result = tenantAccessService.validateAccess(usuarioId, tenantId);
 
-        // Then: Should have unrestricted access without checking membro table
+        // Then: alcança a empresa mesmo sem vínculo
         assertThat(result.isHasAccess()).isTrue();
         assertThat(result.isUnrestricted()).isTrue();
         assertThat(result.getRoles()).containsExactly("PLATFORM_ADMIN");
         assertThat(result.getReason()).isEqualTo("Unrestricted platform access");
+    }
+
+    /**
+     * Uma pessoa acumula papéis: ser operador de plataforma não pode tirar dela o papel
+     * que tem NA EMPRESA. Enquanto o god mode existia isso não aparecia — o OPA liberava
+     * tudo para quem tinha `unrestricted`, então devolver PLATFORM_ADMIN no lugar de
+     * ADMIN_TENANT dava no mesmo. Com o god mode removido (F3), a mesma linha passou a
+     * negar 403 no backoffice da empresa em que a pessoa é administradora.
+     */
+    @Test
+    @DisplayName("Operador de plataforma que é MEMBRO opera com o papel da empresa")
+    void testMembroTemPrecedenciaSobrePapelDePlataforma() {
+        // Given: a mesma pessoa é PLATFORM_ADMIN e ADMIN_TENANT da empresa
+        UsuarioGlobalRoles globalRoles = createGlobalRoles(usuarioId, true, "PLATFORM_ADMIN");
+        when(globalRolesRepository.findById(usuarioId)).thenReturn(Optional.of(globalRoles));
+        Membro membro = createMembro(tenantId, usuarioId, "ADMIN_TENANT");
+        when(membroRepository.findActiveByUsuarioAndTenant(usuarioId, tenantId))
+            .thenReturn(Optional.of(membro));
+
+        TenantAccessInfo result = tenantAccessService.validateAccess(usuarioId, tenantId);
+
+        assertThat(result.getRoles())
+            .as("o papel na empresa é o que decide o que ela pode fazer lá dentro")
+            .containsExactly("ADMIN_TENANT");
+        assertThat(result.isUnrestricted())
+            .as("alcance continua sendo alcance — alimenta app.unrestricted e o gate de status")
+            .isTrue();
     }
 
     @Test
