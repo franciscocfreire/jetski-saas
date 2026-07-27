@@ -9,12 +9,24 @@
 --     onboarding são consultadas ANTES do contexto de tenant ser fixado).
 --   - reserva_config: PK = tenant_id, acesso sempre por findById(tenant) →
 --     risco prático baixo. Candidata a endurecer com RLS no futuro.
+--   - plataforma_metrica_diaria (V056): read model da PLATAFORMA. Aqui `tenant_id`
+--     é DIMENSÃO, não dono — a tabela existe justamente para consolidar todas as
+--     empresas numa consulta. Nenhum caminho com escopo de tenant a lê: só
+--     /v1/platform/dashboard, atrás do PlatformScopeInterceptor + OPA. Ligar RLS
+--     tornaria o agregado vazio para quem tem direito de vê-lo.
+--   - plataforma_sessao_suporte (V055): sessões do OPERADOR DE PLATAFORMA, onde
+--     `tenant_id` é a empresa ALVO. Mesmo motivo de membro/tenant_access: é
+--     consultada ANTES de existir contexto de tenant (o TenantFilter resolve o
+--     cookie de suporte para descobrir qual empresa abrir). A leitura só é exposta
+--     em /v1/platform/suporte; a empresa enxerga quem entrou pela `auditoria`
+--     dela, essa sim com RLS.
 -- Qualquer tabela com tenant_id FORA desta lista e sem RLS aborta o deploy.
 -- =============================================================================
 DO $$
 DECLARE
     faltando text;
-    allow text[] := ARRAY['membro', 'tenant_access', 'tenant_signup', 'reserva_config'];
+    allow text[] := ARRAY['membro', 'tenant_access', 'tenant_signup', 'reserva_config',
+                          'plataforma_metrica_diaria', 'plataforma_sessao_suporte'];
 BEGIN
     SELECT string_agg(c.relname, ', ' ORDER BY c.relname)
       INTO faltando
