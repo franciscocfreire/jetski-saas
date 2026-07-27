@@ -89,9 +89,10 @@ export interface PlatformCapitania {
 
 export interface TenantExport {
   key: string;
-  bytes: number;
-  tabelas: number;
-  arquivos: number;
+  /** Presentes só no export recém-gerado; a listagem devolve apenas a chave. */
+  bytes?: number;
+  tabelas?: number;
+  arquivos?: number;
 }
 
 /** Níveis do reset — cada um é superconjunto do anterior. */

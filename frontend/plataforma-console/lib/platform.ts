@@ -90,8 +90,13 @@ export const platform = {
   imagemConfig: () =>
     platformFetch<ImagemCompressaoConfig>("/v1/platform/documentos/imagem-config"),
 
+  // O endpoint de listagem devolve só as CHAVES (List<String> — o storage não
+  // lista metadados); os campos ricos (bytes/tabelas/arquivos) existem apenas no
+  // retorno do export recém-gerado. Normaliza para o shape TenantExport aqui.
   exports: (tenantId: string) =>
-    platformFetch<TenantExport[]>(`/v1/platform/tenants/${tenantId}/exports`),
+    platformFetch<string[]>(`/v1/platform/tenants/${tenantId}/exports`).then(
+      (keys) => keys.map((key): TenantExport => ({ key })),
+    ),
 
   /** Dry-run do reset: contagem por tabela do que o nível apagaria. */
   resetPreview: (tenantId: string, nivel: ResetNivel) =>

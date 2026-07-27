@@ -108,9 +108,11 @@ function Exportar({ tenantId, exports }: { tenantId: string; exports: TenantExpo
                 <Download className="h-3.5 w-3.5" />
                 {e.key.split("/").pop()}
               </a>
-              <span className="text-xs text-ink-300">
-                {(e.bytes / 1024 / 1024).toFixed(1)} MB · {e.tabelas} tabelas · {e.arquivos} arquivos
-              </span>
+              {e.bytes != null && (
+                <span className="text-xs text-ink-300">
+                  {(e.bytes / 1024 / 1024).toFixed(1)} MB · {e.tabelas} tabelas · {e.arquivos} arquivos
+                </span>
+              )}
             </li>
           ))}
         </ul>
