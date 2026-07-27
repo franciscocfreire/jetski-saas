@@ -1,9 +1,9 @@
-package com.jetski.tenant;
+package com.jetski.plataforma;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.jetski.integration.AbstractIntegrationTest;
-import com.jetski.tenant.api.PlatformAuditoriaController;
-import com.jetski.tenant.api.PlatformSaudeController;
+import com.jetski.plataforma.api.PlataformaAuditoriaController;
+import com.jetski.plataforma.api.PlataformaSaudeController;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,15 +27,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code RlsEnforcementIntegrationTest}.
  */
 @DisplayName("Auditoria global e saúde da plataforma (F5)")
-class PlatformAuditoriaSaudeIntegrationTest extends AbstractIntegrationTest {
+class PlataformaAuditoriaSaudeIntegrationTest extends AbstractIntegrationTest {
 
     private static final UUID TENANT = UUID.fromString("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
     private static final String ACAO_GLOBAL = "F5_TESTE_GLOBAL";
     private static final String ACAO_OUTRA = "F5_TESTE_OUTRA";
     private static final String ACAO_TENANT = "F5_TESTE_TENANT";
 
-    @Autowired PlatformAuditoriaController auditoria;
-    @Autowired PlatformSaudeController saude;
+    @Autowired PlataformaAuditoriaController auditoria;
+    @Autowired PlataformaSaudeController saude;
     @Autowired JdbcTemplate jdbc;
 
     @BeforeEach

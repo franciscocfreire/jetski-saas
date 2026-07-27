@@ -1,4 +1,4 @@
-package com.jetski.usuarios.event;
+package com.jetski.plataforma.event;
 
 import java.time.Instant;
 import java.util.UUID;

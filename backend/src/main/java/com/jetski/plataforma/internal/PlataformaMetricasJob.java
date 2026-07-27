@@ -1,4 +1,4 @@
-package com.jetski.tenant.internal;
+package com.jetski.plataforma.internal;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

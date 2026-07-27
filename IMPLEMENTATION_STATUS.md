@@ -90,7 +90,7 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   via configure-keycloak-2fa.sh.
 
 ### Plataforma (super admin)
-- **Console da plataforma — F0 a F5** (`frontend/plataforma-console`, `admin.*`): app próprio
+- **Console da plataforma — F0 a F6** (`frontend/plataforma-console`, `admin.*`): app próprio
   do operador de plataforma, separado do backoffice das empresas.
   - **F0 (fundação)**: barreira em Java (`PlatformScopeInterceptor`, 403 antes do OPA), ações
     OPA pelo path completo (`platform:tenants:approve`), `/v1/platform/**` sem `X-Tenant-Id`
@@ -129,6 +129,12 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
     `HealthEndpoint`, que não é exposto no edge) com sinais que param em silêncio: frescor do
     read model, última emissão, filas de aprovação/conferência e sessões de suporte ativas;
     séries temporais continuam no Grafana, linkado.
+  - **F6 (módulo)**: `com.jetski.plataforma` (depende só de `shared`) passa a abrigar o que
+    é da plataforma — dashboard/read model, trilha global, saúde e sessão de suporte. As
+    fachadas `Platform*` de créditos, metering, faturas, capitanias e operadores **ficam no
+    módulo do dado**: movê-las exigiria expor repositórios internos e, no caso dos
+    operadores, criaria ciclo com `usuarios`. Regra no nome: `Plataforma*` mora no módulo,
+    `Platform*` é fachada de plataforma de outro módulo. O contrato HTTP não mudou.
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão
   automática → checklist de primeiros passos (7 itens). Créditos de adesão automáticos.
 - Créditos de emissão: ledger append-only (trigger de banco anti-DELETE), débito na emissão,

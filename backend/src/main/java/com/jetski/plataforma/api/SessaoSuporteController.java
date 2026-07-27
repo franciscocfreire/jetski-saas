@@ -1,9 +1,9 @@
-package com.jetski.usuarios.api;
+package com.jetski.plataforma.api;
 
 import com.jetski.shared.internal.TenantFilter;
 import com.jetski.shared.security.SessaoSuporte;
 import com.jetski.shared.security.TenantContext;
-import com.jetski.usuarios.internal.SessaoSuporteService;
+import com.jetski.plataforma.internal.SessaoSuporteService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;

@@ -1,10 +1,10 @@
-package com.jetski.usuarios;
+package com.jetski.plataforma;
 
 import com.jetski.integration.AbstractIntegrationTest;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.security.SessaoSuporte;
 import com.jetski.shared.security.TenantContext;
-import com.jetski.usuarios.internal.SessaoSuporteService;
+import com.jetski.plataforma.internal.SessaoSuporteService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

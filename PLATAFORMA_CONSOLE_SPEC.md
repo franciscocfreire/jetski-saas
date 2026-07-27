@@ -3,7 +3,7 @@
 Separação do super admin: tirar a operação da plataforma de dentro do backoffice das
 empresas e colocá-la num app próprio, em `admin.meujet.com.br`.
 
-> Status: **F0–F5 entregues** (25/jul/2026); F6 opcional, planejada.
+> Status: **F0–F6 entregues** (25–27/jul/2026).
 > Relacionado: `SUPERADMIN.md` (operação atual), `ONBOARDING_EMPRESA_SPEC.md`,
 > `EMISSAO_DELEGADA_SPEC.md`, `PORTAL_CLIENTE_SPEC.md` (referência de app separado).
 
@@ -388,15 +388,18 @@ hoje:
 
 ```
 plataforma/
-  api/        PlataformaDashboardController, OperadorController,
-              SessaoSuporteController, PlataformaAuditoriaController,
-              PlataformaSaudeController
-  internal/   PlataformaMetricasJob, PlataformaMetricasService,
-              SessaoSuporteService, OperadorService, SaudeService
+  api/        PlataformaDashboardController, SessaoSuporteController,
+              PlataformaAuditoriaController, PlataformaSaudeController
+  internal/   PlataformaMetricasJob, PlataformaMetricasService, SessaoSuporteService
+  event/      SessaoSuporteEvent
 ```
 
-**Fase posterior (opcional, F6)**: consolidar os `Platform*` existentes em `plataforma`,
-promovendo o que for necessário a `@NamedInterface`. Vale quando a superfície estabilizar.
+*(O plano previa também `OperadorController`/`OperadorService` aqui. Não foi: eles mexem em
+`usuario_global_roles`, que `TenantAccessService` também usa — trazer para cá criaria o
+ciclo `plataforma ↔ usuarios`. Ficaram em `usuarios`. Ver §9.8.)*
+
+**F6 (entregue)**: o módulo `com.jetski.plataforma` existe e recebeu o que é da
+plataforma. O que **não** se mexeu foi decidido, não esquecido — ver §9.8.
 
 ### 8.1 Auditoria dual
 
@@ -417,7 +420,7 @@ emissão delegada. A tela `/auditoria` lê **só** `tenant_id IS NULL`.
 | **F3** ✅ | Sessão de suporte (backend + banner no backoffice) **e então** remoção da página `/dashboard/plataforma`, do grupo "Plataforma" no sidebar e do switcher de todas-as-empresas | F1, F2 |
 | **F4** ✅ | `plataforma_metrica_diaria` + job + dashboard da plataforma | F0 |
 | **F5** ✅ | `/auditoria` (audit dual, policy de leitura V057) + `/saude` (infra do Actuator + sinais de operação + atalhos Grafana) | F0 |
-| **F6** | *(opcional)* consolidação dos `Platform*` no módulo `plataforma` | F1–F5 |
+| **F6** ✅ | módulo `com.jetski.plataforma` — o que é da plataforma sai de `tenant`/`usuarios`; o que é fachada de outro módulo fica onde o dado mora | F1–F5 |
 
 F1, F2, F4 e F5 são paralelizáveis depois da F0. F3 é o corte definitivo.
 
@@ -500,6 +503,42 @@ com invalidação por `revalidatePath`, e um cliente `fetch` tipado dá conta.
 **Detalhe da empresa é uma página com seções, não sub-rotas por aba.** A API de plataforma
 não tem endpoint por empresa: tudo vem de listas globais que a página filtra. Uma sub-rota
 por aba refaria as mesmas listas a cada troca.
+
+### 9.8 O que a F6 entregou — o módulo `plataforma`
+
+Existe agora `com.jetski.plataforma`, com dependência **só de `shared`**:
+
+```
+plataforma/
+  api/       PlataformaDashboardController, PlataformaAuditoriaController,
+             PlataformaSaudeController, SessaoSuporteController
+  internal/  PlataformaMetricasService, PlataformaMetricasJob, SessaoSuporteService
+  event/     SessaoSuporteEvent            (@NamedInterface — a auditoria consome)
+```
+
+**O que ficou de fora, de propósito.** A F6 estava escrita como "consolidar os `Platform*`",
+e consolidar tudo seria um erro: `PlatformCreditoService` precisa de `creditos.domain`,
+`PlatformFaturaService` e `PlatformTenantService` de `tenant.internal.repository`,
+`PlatformOperadorService` e `PlatformAdminSeeder` de `usuarios.internal.repository`. Mover
+essas classes exigiria promover **repositórios** a `@NamedInterface` — trocar um
+acoplamento organizado por um vazamento de encapsulamento, e piorar exatamente o que o
+Modulith protege. Pior ainda no caso dos operadores: `UsuarioGlobalRoles` também é usado
+por `TenantAccessService`, então levá-lo para cá criaria o ciclo `plataforma ↔ usuarios`.
+
+O critério que sobrou é simples e está escrito no `package-info` do módulo:
+
+| Família | Onde mora | Por quê |
+|---|---|---|
+| `Plataforma*` | `com.jetski.plataforma` | É da plataforma e não tem dono em outro módulo: visão consolidada, trilha global, saúde, sessão de suporte |
+| `Platform*` | no módulo do dado (`creditos`, `metering`, `tenant`, `usuarios`) | É a **fachada de plataforma** de um dado que pertence àquele módulo |
+
+O contrato HTTP não mudou: `/v1/platform/**` e `/v1/suporte/**` continuam iguais, servidos
+de outro pacote. Nenhuma migration, nenhuma mudança de comportamento — só endereço.
+
+**Por que o `SessaoSuporteService` pôde sair sem quebrar o `TenantFilter`**: a inversão já
+existia desde a F3. O `shared` define o contrato (`SessaoSuporteValidator`, mesmo padrão do
+`TenantAccessValidator`) e quem tem a tabela implementa. Trocar o implementador de módulo
+não custou nada — que é o ponto de ter feito a inversão.
 
 ### 9.7 O que a F5 entregou — a trilha e o retrato
 
@@ -761,10 +800,10 @@ vive no enum `PapelPlataforma`, fonte única usada pela API.
 
 - **Backend**: `PlatformScopeInterceptorTest` (403 sem papel), `ActionExtractorTest`
   (novos nomes de ação), `SessaoSuporteIntegrationTest` (código de uso único, expiração,
-  leitura nega escrita, auditoria carimbada), `PlataformaMetricasJobTest` (agregado bate
-  com a soma por tenant **e** `TenantContext` limpo ao fim), `OperadorServiceTest`
+  leitura nega escrita, auditoria carimbada), `PlataformaMetricasIntegrationTest` (agregado bate
+  com a soma por tenant **e** `TenantContext` limpo ao fim), `PlatformOperadorIntegrationTest`
   (concessão/revogação auditada, não é possível revogar o próprio último `PLATFORM_ADMIN`),
-  `PlatformAuditoriaSaudeIntegrationTest` (trilha só global, filtro, ordem, indicadores de
+  `PlataformaAuditoriaSaudeIntegrationTest` (trilha só global, filtro, ordem, indicadores de
   saúde consultáveis) e o caso da V057 no `RlsEnforcementIntegrationTest` — este último
   com role **não-superuser**, senão a policy não valeria durante o teste.
 - **OPA**: estender `authorization_platform_test.rego` com uma matriz papel × ação — cada

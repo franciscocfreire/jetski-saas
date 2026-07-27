@@ -1,11 +1,11 @@
-package com.jetski.usuarios.internal;
+package com.jetski.plataforma.internal;
 
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.shared.security.SessaoSuporte;
 import com.jetski.shared.security.SessaoSuporteValidator;
 import com.jetski.shared.security.TenantContext;
-import com.jetski.usuarios.event.SessaoSuporteEvent;
+import com.jetski.plataforma.event.SessaoSuporteEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;

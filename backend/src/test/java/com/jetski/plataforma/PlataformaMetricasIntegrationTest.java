@@ -1,8 +1,8 @@
-package com.jetski.tenant;
+package com.jetski.plataforma;
 
 import com.jetski.integration.AbstractIntegrationTest;
 import com.jetski.shared.security.TenantContext;
-import com.jetski.tenant.internal.PlataformaMetricasService;
+import com.jetski.plataforma.internal.PlataformaMetricasService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

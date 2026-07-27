@@ -1,4 +1,4 @@
-package com.jetski.tenant.internal;
+package com.jetski.plataforma.internal;
 
 import com.jetski.shared.security.TenantContext;
 import lombok.RequiredArgsConstructor;

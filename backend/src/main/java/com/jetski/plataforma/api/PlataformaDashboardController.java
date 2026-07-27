@@ -1,6 +1,6 @@
-package com.jetski.tenant.api;
+package com.jetski.plataforma.api;
 
-import com.jetski.tenant.internal.PlataformaMetricasService;
+import com.jetski.plataforma.internal.PlataformaMetricasService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,7 +23,7 @@ import java.util.Map;
 @RequestMapping("/v1/platform/dashboard")
 @RequiredArgsConstructor
 @Tag(name = "Platform", description = "Operação da plataforma (super admin)")
-public class PlatformDashboardController {
+public class PlataformaDashboardController {
 
     private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
 

@@ -8,7 +8,7 @@ import com.jetski.locacoes.event.ClienteIdentidadeSincronizadaEvent;
 import com.jetski.locacoes.event.ContaAtivadaEvent;
 import com.jetski.locacoes.event.ContaCpfMergeEvent;
 import com.jetski.usuarios.event.OperadorPlataformaAlteradoEvent;
-import com.jetski.usuarios.event.SessaoSuporteEvent;
+import com.jetski.plataforma.event.SessaoSuporteEvent;
 import com.jetski.locacoes.event.DataCheckInAlteradaEvent;
 import com.jetski.locacoes.event.ChaMtaeConfirmadaEvent;
 import com.jetski.locacoes.event.HabilitacaoTemporariaReusadaEvent;

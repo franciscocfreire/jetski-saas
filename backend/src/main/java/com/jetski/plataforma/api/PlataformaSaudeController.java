@@ -1,4 +1,4 @@
-package com.jetski.tenant.api;
+package com.jetski.plataforma.api;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -39,7 +39,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Platform", description = "Operação da plataforma (super admin)")
-public class PlatformSaudeController {
+public class PlataformaSaudeController {
 
     private final HealthEndpoint healthEndpoint;
     private final JdbcTemplate jdbc;

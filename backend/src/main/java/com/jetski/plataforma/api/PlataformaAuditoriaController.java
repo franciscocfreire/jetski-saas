@@ -1,4 +1,4 @@
-package com.jetski.tenant.api;
+package com.jetski.plataforma.api;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,7 +35,7 @@ import java.util.Set;
 @RequestMapping("/v1/platform/auditoria")
 @RequiredArgsConstructor
 @Tag(name = "Platform", description = "Operação da plataforma (super admin)")
-public class PlatformAuditoriaController {
+public class PlataformaAuditoriaController {
 
     private static final Set<String> COLUNAS_JSON = Set.of("dados_anteriores", "dados_novos");
 
