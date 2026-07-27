@@ -34,6 +34,7 @@ export default function DashboardLayout({
   // operador cai no NoTenantGate mesmo com sessão ativa — /v1/user/tenants vem
   // vazio porque ele não é membro de empresa nenhuma (visto em 25/jul).
   const [suporteChecado, setSuporteChecado] = useState(false)
+  const [suporteAtivo, setSuporteAtivo] = useState(false)
   useEffect(() => {
     if (!session?.accessToken || suporteChecado) return
     setAuthToken(session.accessToken)
@@ -47,8 +48,11 @@ export default function DashboardLayout({
             slug: s.tenant?.slug ?? '',
             razaoSocial: s.tenant?.razao_social ?? s.tenant?.razaoSocial ?? 'Empresa',
             status: s.tenant?.status ?? 'ATIVO',
-            roles: [],
+            // Papel exibido na sidebar; não é papel real de membro (nada checa
+            // 'SUPORTE'), o poder efetivo vem da sessão de suporte no backend.
+            roles: ['SUPORTE'],
           } as never
+          setSuporteAtivo(true)
           setTenants([empresa])
           setCurrentTenant(empresa)
           setTenantsLoaded(true)
@@ -83,6 +87,13 @@ export default function DashboardLayout({
   // Load tenants only once on initial auth (after hydration)
   useEffect(() => {
     if (!_hasHydrated) return // Wait for Zustand hydration
+    // SEQUENCIADO após o check de suporte: os dois efeitos em paralelo eram uma
+    // corrida — se /v1/user/tenants resolvesse por último, a reconciliação
+    // devolvia o tenant persistido no localStorage e SOBRESCREVIA a empresa da
+    // sessão de suporte recém-aberta (só recarregar até a ordem favorecer o
+    // suporte "resolvia"). Com suporte ativo, memberships nem são carregados:
+    // o switcher de empresas não existe no modo suporte (F3).
+    if (!suporteChecado || suporteAtivo) return
     if (session?.accessToken && !tenantsLoaded) {
       // Load user tenants
       console.log('📡 Fetching user tenants...')
@@ -107,6 +118,14 @@ export default function DashboardLayout({
               }
               setCurrentTenant(fresh)
               current = fresh
+            } else {
+              // Tenant persistido que NÃO está nas memberships é fantasma — o caso
+              // real é a empresa de uma sessão de suporte encerrada, que ficava no
+              // localStorage e mandava X-Tenant-Id de uma empresa alheia (403 em
+              // tudo). Volta para a primeira empresa do usuário.
+              console.log('🔄 Tenant persistido fora das memberships, resetando:', current.id)
+              current = memberships[0] ?? null
+              setCurrentTenant(current)
             }
           }
           if (!current && memberships.length > 0) {
@@ -126,7 +145,7 @@ export default function DashboardLayout({
           setTenantsLoaded(true) // Mark as loaded even on error to avoid infinite retries
         })
     }
-  }, [session?.accessToken, tenantsLoaded, currentTenant, setTenants, setCurrentTenant, setAccessType, _hasHydrated])
+  }, [session?.accessToken, tenantsLoaded, currentTenant, setTenants, setCurrentTenant, setAccessType, _hasHydrated, suporteChecado, suporteAtivo])
 
   useEffect(() => {
     if (currentTenant) {

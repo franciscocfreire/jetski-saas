@@ -406,7 +406,9 @@ export function AppSidebar() {
                   <div className="flex flex-col gap-0.5 leading-none">
                     <span className="max-w-[140px] truncate font-medium">{displayName}</span>
                     <span className="text-xs text-muted-foreground">
-                      {currentTenant?.roles?.join(', ') || 'Carregando...'}
+                      {currentTenant
+                        ? currentTenant.roles?.join(', ') || '—'
+                        : 'Carregando...'}
                     </span>
                   </div>
                   <ChevronDown className="ml-auto size-4" />
