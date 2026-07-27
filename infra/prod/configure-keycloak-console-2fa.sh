@@ -35,6 +35,9 @@
 # o infra/keycloak-realm.json já traz o flow e o binding (mudou lá, mude aqui).
 #
 # LIGA/DESLIGA — dispositivo confiável no console:
+#   >>> No dia a dia, use a TELA: console → Configurações → "Pedir 2FA a cada login".
+#       Ela grava a mesma config (PLATFORM_ADMIN, auditado). A variável abaixo serve para
+#       o bootstrap do realm e para recuperação sem depender do console.
 #   TRUSTED_DEVICE_CONSOLE=0 (default) → console NUNCA honra dispositivo confiável;
 #                                        o 2FA é sempre desafiado, inclusive via Google.
 #   TRUSTED_DEVICE_CONSOLE=1           → console passa a honrar como backoffice/portal

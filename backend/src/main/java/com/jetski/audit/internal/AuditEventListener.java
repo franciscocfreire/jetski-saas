@@ -8,6 +8,7 @@ import com.jetski.locacoes.event.ClienteIdentidadeSincronizadaEvent;
 import com.jetski.locacoes.event.ContaAtivadaEvent;
 import com.jetski.locacoes.event.ContaCpfMergeEvent;
 import com.jetski.usuarios.event.OperadorPlataformaAlteradoEvent;
+import com.jetski.plataforma.event.SegurancaConsoleAlteradaEvent;
 import com.jetski.plataforma.event.SessaoSuporteEvent;
 import com.jetski.locacoes.event.DataCheckInAlteradaEvent;
 import com.jetski.locacoes.event.ChaMtaeConfirmadaEvent;
@@ -1285,6 +1286,35 @@ public class AuditEventListener {
         } catch (Exception e) {
             log.error("Failed to audit alteração de operador de plataforma: alvo={}, error={}",
                     event.usuarioId(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Mudança da política de 2FA do console. Evento global — sem tenant.
+     *
+     * <p>Aqui é {@code @EventListener} puro, não {@code @TransactionalEventListener}: a
+     * mudança acontece no Keycloak, fora de qualquer transação do banco. Com AFTER_COMMIT
+     * o listener simplesmente nunca rodaria — não há commit para esperar — e a trilha
+     * ficaria muda justamente na mudança que afrouxa a porta da plataforma.
+     */
+    @EventListener
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onSegurancaConsoleAlterada(SegurancaConsoleAlteradaEvent event) {
+        try {
+            auditoriaRepository.save(Auditoria.builder()
+                    .tenantId(null)
+                    .acao("PLATAFORMA_2FA_CONSOLE_ALTERADO")
+                    .entidade("SEGURANCA_CONSOLE")
+                    .usuarioId(event.actor())
+                    .dadosAnteriores(Map.of("exigeSempre", event.antes()))
+                    .dadosNovos(Map.of("exigeSempre", event.depois()))
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build());
+            log.warn("Audit: PLATAFORMA_2FA_CONSOLE_ALTERADO {} -> {} por={}",
+                    event.antes(), event.depois(), event.actor());
+        } catch (Exception e) {
+            log.error("Failed to audit mudança de 2FA do console: error={}", e.getMessage(), e);
         }
     }
 }

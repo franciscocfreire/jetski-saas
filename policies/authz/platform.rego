@@ -136,6 +136,10 @@ acoes_exclusivas_admin := {
 	"platform:operadores", # gestão de quem opera a plataforma
 	"platform:operadores:papeis", # catálogo — toda a superfície /operadores é admin
 	"platform:documentos:imagem-config",
+	# Afrouxar o 2FA da porta da plataforma não é tarefa de suporte nem de
+	# financeiro. A LEITURA cai no ramo de GET — ver como está configurado
+	# ajuda qualquer operador a entender o próprio login.
+	"platform:seguranca:2fa-console",
 }
 
 # -----------------------------------------------------------------------------

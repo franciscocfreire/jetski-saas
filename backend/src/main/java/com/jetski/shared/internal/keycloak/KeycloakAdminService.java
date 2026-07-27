@@ -7,9 +7,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
+import org.keycloak.admin.client.resource.AuthenticationManagementResource;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
+import org.keycloak.representations.idm.AuthenticationExecutionInfoRepresentation;
+import org.keycloak.representations.idm.AuthenticatorConfigRepresentation;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.FederatedIdentityRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
@@ -19,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,7 +40,10 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @Service
-public class KeycloakAdminService {
+public class KeycloakAdminService implements com.jetski.shared.security.TrustedDeviceConfig {
+
+    /** Chave da config do mj-trusted-device-check (espelha a do SPI). */
+    public static final String CFG_CLIENTS_SEM_TRUSTED_DEVICE = "clientsSemTrustedDevice";
 
     @Value("${keycloak.admin.server-url}")
     private String serverUrl;
@@ -738,6 +745,96 @@ public class KeycloakAdminService {
             return String.join(" ", java.util.Arrays.copyOfRange(parts, 1, parts.length));
         }
         return "";
+    }
+
+    // ===================================================================
+    // Dispositivo confiável por client (config do mj-trusted-device-check)
+    // ===================================================================
+
+    /**
+     * Clients listados hoje em {@code clientsSemTrustedDevice}, por subflow.
+     *
+     * <p>A configuração vive na <em>execution</em> {@code mj-trusted-device-check} de cada
+     * subflow de 2FA, não num arquivo: é o que permite ligar/desligar sem reiniciar o
+     * Keycloak. Subflow sem a execution (ou sem config gravada) simplesmente não aparece
+     * no mapa — o autenticador cai no default dele.
+     *
+     * @param subflows aliases dos subflows a inspecionar
+     * @return alias do subflow → conteúdo bruto da chave (pode ser string vazia)
+     */
+    @Override
+    public Map<String, String> lerClientsSemTrustedDevice(List<String> subflows) {
+        Map<String, String> porSubflow = new LinkedHashMap<>();
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            var flows = keycloak.realm(targetRealm).flows();
+            for (String alias : subflows) {
+                var exec = acharTrustedDeviceCheck(flows, alias);
+                if (exec == null || exec.getAuthenticationConfig() == null) {
+                    continue;
+                }
+                var cfg = flows.getAuthenticatorConfig(exec.getAuthenticationConfig());
+                porSubflow.put(alias, cfg.getConfig() == null ? ""
+                    : cfg.getConfig().getOrDefault(CFG_CLIENTS_SEM_TRUSTED_DEVICE, ""));
+            }
+        } catch (Exception e) {
+            log.error("Falha ao ler config de dispositivo confiável: {}", e.getMessage(), e);
+            throw new IllegalStateException("Não foi possível consultar o Keycloak", e);
+        }
+        return porSubflow;
+    }
+
+    /**
+     * Grava {@code clientsSemTrustedDevice} nos subflows informados.
+     *
+     * <p>Vale na hora: o autenticador lê a config a cada login, sem reiniciar nada.
+     *
+     * @param subflows aliases dos subflows a alterar
+     * @param clients  lista separada por vírgula; vazio = todos os clients honram
+     * @return quantos subflows foram efetivamente alterados
+     */
+    @Override
+    public int definirClientsSemTrustedDevice(List<String> subflows, String clients) {
+        int alterados = 0;
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            var flows = keycloak.realm(targetRealm).flows();
+            for (String alias : subflows) {
+                var exec = acharTrustedDeviceCheck(flows, alias);
+                if (exec == null) {
+                    log.warn("Subflow {} não tem mj-trusted-device-check — ignorado", alias);
+                    continue;
+                }
+                var rep = new AuthenticatorConfigRepresentation();
+                rep.setAlias("mj-td-" + alias);
+                // O Keycloak DESCARTA valor vazio ao gravar; o autenticador trata chave
+                // ausente como "nenhum client excluído", que é exatamente o desligado.
+                rep.setConfig(Map.of(CFG_CLIENTS_SEM_TRUSTED_DEVICE, clients));
+
+                if (exec.getAuthenticationConfig() != null) {
+                    rep.setId(exec.getAuthenticationConfig());
+                    flows.updateAuthenticatorConfig(exec.getAuthenticationConfig(), rep);
+                } else {
+                    flows.newExecutionConfig(exec.getId(), rep);
+                }
+                alterados++;
+            }
+        } catch (Exception e) {
+            log.error("Falha ao gravar config de dispositivo confiável: {}", e.getMessage(), e);
+            throw new IllegalStateException("Não foi possível atualizar o Keycloak", e);
+        }
+        return alterados;
+    }
+
+    private AuthenticationExecutionInfoRepresentation acharTrustedDeviceCheck(
+            AuthenticationManagementResource flows, String subflowAlias) {
+        try {
+            return flows.getExecutions(subflowAlias).stream()
+                .filter(e -> "mj-trusted-device-check".equals(e.getProviderId()))
+                .findFirst().orElse(null);
+        } catch (Exception e) {
+            // Subflow inexistente (realm sem o script de 2FA rodado) não é erro fatal.
+            log.warn("Subflow {} não encontrado no realm: {}", subflowAlias, e.getMessage());
+            return null;
+        }
     }
 
     /**

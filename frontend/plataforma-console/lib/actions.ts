@@ -303,3 +303,22 @@ export async function reencryptSecrets() {
     "/configuracoes",
   );
 }
+
+// ===================== Segurança do console =====================
+
+/**
+ * Liga/desliga a exigência de 2FA a cada login no console.
+ *
+ * Revalida `/configuracoes` para a tela refletir o estado que o Keycloak passou a ter —
+ * a mudança vale no login seguinte, sem reiniciar nada.
+ */
+export async function definir2FAConsole(exigeSempre: boolean) {
+  return executar(
+    () =>
+      platformFetch("/v1/platform/seguranca/2fa-console", {
+        method: "PUT",
+        body: JSON.stringify({ exigeSempre }),
+      }),
+    "/configuracoes",
+  );
+}

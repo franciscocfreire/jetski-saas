@@ -2,6 +2,7 @@ import { platformFetch } from "./api";
 import type {
   DashboardPlataforma,
   RegistroAuditoria,
+  Seguranca2FAConsole,
   SaudePlataforma,
   FaturaPendente,
   Operador,
@@ -69,6 +70,9 @@ export const platform = {
   acoesAuditoria: () => platformFetch<string[]>("/v1/platform/auditoria/acoes"),
 
   saude: () => platformFetch<SaudePlataforma>("/v1/platform/saude"),
+
+  seguranca2FAConsole: () =>
+    platformFetch<Seguranca2FAConsole>("/v1/platform/seguranca/2fa-console"),
 
   /** Quem sou eu: papéis do operador logado (o console não tem tenant p/ /v1/user/permissions). */
   me: () => platformFetch<OperadorAtual>("/v1/platform/me"),

@@ -504,6 +504,47 @@ com invalidação por `revalidatePath`, e um cliente `fetch` tipado dá conta.
 não tem endpoint por empresa: tudo vem de listas globais que a página filtra. Uma sub-rota
 por aba refaria as mesmas listas a cada troca.
 
+### 9.9 2FA do console vira configuração de tela (27/jul)
+
+O console nasceu (F1) desafiando o 2FA em **todo** login: um dispositivo confiável marcado
+no backoffice não valia aqui. A chave para mudar isso existia desde então
+(`TRUSTED_DEVICE_CONSOLE=1` no `configure-keycloak-console-2fa.sh`), mas exigia shell no
+servidor — decisão de **política de acesso** presa atrás de uma tarefa de infraestrutura.
+Agora é um botão em `/configuracoes`, exclusivo de `PLATFORM_ADMIN`.
+
+**A tradução se inverte, e é onde estaria o erro caro.** A tela pergunta "exigir 2FA
+sempre?"; o Keycloak guarda o oposto — `clientsSemTrustedDevice`, a lista de clients que
+**não** honram dispositivo confiável. Ler ao contrário desligaria o 2FA achando que estava
+ligando; o teste do serviço trava exatamente essa tradução nos dois sentidos.
+
+Três decisões de comportamento:
+
+- **Os dois subflows mudam juntos** (`post-broker-2fa-cond` e `portal-2fa`): o operador
+  pode chegar pelo Google ou pela senha, e a política precisa ser a mesma nos dois.
+- **Basta um subflow ainda listando o console para a tela dizer "sempre"** — reportar
+  "desligado" com um caminho ainda desafiando seria uma meia-verdade.
+- **Zero subflows alterados vira erro, não 200**: sem a condição no realm (script nunca
+  rodado), gravar não faz nada, e responder sucesso faria a tela afirmar um afrouxamento
+  que não aconteceu. A tela mostra o comando a rodar uma vez.
+
+**Alcance honesto, escrito na própria tela**: vale para quem entra pelo Google, que é o
+caminho com post-broker. O login por senha no console tem `auth-otp-form` REQUIRED dentro
+de `console-browser-forms` e não passa por esta condição — continua pedindo o código
+sempre.
+
+A mudança grava na trilha **global** (`PLATAFORMA_2FA_CONSOLE_ALTERADO`, com antes e
+depois) por `@EventListener` puro, não `@TransactionalEventListener`: a alteração acontece
+no Keycloak, fora de qualquer transação do banco, e com `AFTER_COMMIT` o listener nunca
+rodaria — a trilha ficaria muda justamente na mudança que afrouxa a porta da plataforma.
+
+**O `ModuleStructureTest` cobrou a fronteira na hora.** A primeira versão injetava o
+`KeycloakAdminService` direto, e `plataforma` passou a depender de `shared.internal` —
+build vermelho. A saída foi a mesma inversão que o projeto já usa duas vezes
+(`TenantAccessValidator`, `SessaoSuporteValidator`): `shared.security` publica o contrato
+`TrustedDeviceConfig` e o adaptador do Keycloak o implementa. Vale a pena reparar no que a
+alternativa custaria: expor o `KeycloakAdminService` — a classe que cria usuário, troca
+senha e remove credencial — para conseguir mexer numa configuração de flow.
+
 ### 9.8 O que a F6 entregou — o módulo `plataforma`
 
 Existe agora `com.jetski.plataforma`, com dependência **só de `shared`**:

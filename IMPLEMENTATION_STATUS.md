@@ -135,6 +135,13 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
     módulo do dado**: movê-las exigiria expor repositórios internos e, no caso dos
     operadores, criaria ciclo com `usuarios`. Regra no nome: `Plataforma*` mora no módulo,
     `Platform*` é fachada de plataforma de outro módulo. O contrato HTTP não mudou.
+  - **2FA do console configurável** (27/jul): `/configuracoes` do console ganhou o botão
+    "pedir 2FA a cada login", exclusivo de `PLATFORM_ADMIN`. Desligado, um navegador já
+    marcado como confiável entra sem novo desafio por 30 dias (como no backoffice). Mexe
+    nos dois subflows (`post-broker-2fa-cond` e `portal-2fa`) e vale no login seguinte, sem
+    reiniciar o Keycloak. Antes só dava para mudar por variável de ambiente no
+    `configure-keycloak-console-2fa.sh`. Vale para o login pelo Google; o login por senha
+    no console tem OTP obrigatório no próprio fluxo. Auditado na trilha global.
 - Onboarding self-service: signup → aprovação → trial 14 dias com expiração/suspensão
   automática → checklist de primeiros passos (7 itens). Créditos de adesão automáticos.
 - Créditos de emissão: ledger append-only (trigger de banco anti-DELETE), débito na emissão,

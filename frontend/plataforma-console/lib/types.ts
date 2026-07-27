@@ -129,6 +129,14 @@ export interface OperadorAtual {
   admin: boolean;
 }
 
+export interface Seguranca2FAConsole {
+  /** true = todo login no console é desafiado, mesmo em navegador confiável. */
+  exigeSempre: boolean;
+  /** false = o realm ainda não tem a condição (script de 2FA nunca rodou). */
+  configurado: boolean;
+  subflowsConfigurados: number;
+}
+
 export interface RegistroAuditoria {
   id: string;
   acao: string;

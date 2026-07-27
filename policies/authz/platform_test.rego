@@ -96,6 +96,24 @@ test_suporte_nao_recifra_segredos if {
 	not platform.allow with input as operador("PLATFORM_SUPORTE", "platform:secrets:reencrypt", "POST")
 }
 
+# Afrouxar o 2FA da porta da plataforma é decisão de admin — inclusive a leitura,
+# para não divergir do menu do console, que só mostra /configuracoes ao admin.
+test_admin_muda_2fa_do_console if {
+	platform.allow with input as operador("PLATFORM_ADMIN", "platform:seguranca:2fa-console", "PUT")
+}
+
+test_suporte_nao_muda_2fa_do_console if {
+	not platform.allow with input as operador("PLATFORM_SUPORTE", "platform:seguranca:2fa-console", "PUT")
+}
+
+test_financeiro_nao_muda_2fa_do_console if {
+	not platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:seguranca:2fa-console", "PUT")
+}
+
+test_leitura_nao_ve_2fa_do_console if {
+	not platform.allow with input as operador("PLATFORM_LEITURA", "platform:seguranca:2fa-console", "GET")
+}
+
 # ----------------------------------------------------------------- FINANCEIRO
 
 test_financeiro_lanca_creditos if {
