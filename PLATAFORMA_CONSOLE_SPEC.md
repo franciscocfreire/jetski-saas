@@ -532,9 +532,14 @@ Confirmado nos dois sentidos em dev, com um usuário que é `ADMIN_TENANT` da AC
 `PLATFORM_ADMIN`: **201** na própria empresa, **403** numa empresa em que não é membro. O
 god mode segue morto.
 
-**Por que a CI não pegou.** O E2E roda em *push na main*, não em PR — é o job mais pesado e
-ainda não virou gate. Ou seja: o único job capaz de pegar esse tipo de drift só roda depois
-do merge. Ele fez o trabalho, mas tarde. Promovê-lo a gate de PR é a lição pendente aqui.
+**Por que a CI não pegou.** O E2E rodava em *push na main*, não em PR — é o job mais pesado
+e ainda não tinha virado gate. Ou seja: o único job capaz de pegar esse tipo de drift só
+rodava depois do merge. Ele fez o trabalho, mas tarde.
+
+**Resolvido em 27/jul**: o `e2e.yml` ganhou `pull_request` no `on:` e um ruleset no GitHub
+passou a exigir os 5 checks (4 jobs do CI + Newman) antes do merge na main. O bypass de
+admin fica ativo de propósito: push direto na main (fluxo de hotfix do dono) continua
+funcionando — o gate vale para o caminho de PR, que é onde o drift se escondia.
 
 ### 9.9 2FA do console vira configuração de tela (27/jul)
 

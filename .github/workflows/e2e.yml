@@ -5,12 +5,14 @@ name: E2E (Newman/Postman)
 # Complementa o job `backend` (mvn test), pegando drift de config de Keycloak/HTTP
 # que os testes de integração não cobrem. NÃO faz deploy.
 #
-# Roda em push na main e sob demanda (workflow_dispatch). Ainda NÃO roda em PR:
-# é o job mais pesado/lento (build de imagem + subida do stack) e precisa de uma
-# primeira execução verde antes de virar gate de PR — quando estável, adicionar
-# `pull_request` ao `on:`.
+# Roda em PR (gate), em push na main e sob demanda (workflow_dispatch). Virou
+# gate de PR em 27/jul/2026: a regressão do TenantAccessService (papel na empresa
+# × papel de plataforma) só foi pega por este job — depois do merge. Rodar só na
+# main significa descobrir o drift tarde demais.
 on:
   push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
