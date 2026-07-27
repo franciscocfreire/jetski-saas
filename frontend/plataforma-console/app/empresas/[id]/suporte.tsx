@@ -86,12 +86,18 @@ export function EntrarNaEmpresa({
               // em qualquer aba) em vez do token de sessionStorage, que é por aba.
               const { codigo } = r.dados as AberturaSuporte;
               const url = `${backofficeUrl}/suporte?codigo=${encodeURIComponent(codigo)}`;
-              const aba = window.open(url, "_blank", "noopener");
+              // SEM "noopener" nas features: com ela o window.open devolve null por
+              // especificação (não há referência para entregar), o fallback de
+              // pop-up bloqueado disparava sempre e a aba atual também navegava —
+              // abriam duas, e a segunda encontrava o código já queimado.
+              // O desligamento do opener vira explícito, logo abaixo.
+              const aba = window.open(url, "_blank");
               if (!aba) {
                 // bloqueador de pop-up: cai na mesma aba em vez de não fazer nada
                 window.location.href = url;
                 return;
               }
+              aba.opener = null;
               setAberto(false);
               setMotivo("");
             });

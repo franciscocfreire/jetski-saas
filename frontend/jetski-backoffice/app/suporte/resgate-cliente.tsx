@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { signIn, useSession } from 'next-auth/react'
 import { ShieldAlert } from 'lucide-react'
 import { apiClient, setAuthToken } from '@/lib/api/client'
 
@@ -31,17 +31,30 @@ export function ResgateCliente() {
     // onde o sessionStorage da origem está vazio: sem isto o resgate sai sem
     // Authorization e o backend responde 401 (foi o que aconteceu em 25/jul).
     if (status === 'loading') return
-    if (status !== 'authenticated' || !session?.accessToken) {
-      setErro('Faça login no backoffice e abra a sessão de suporte novamente pelo console.')
-      return
-    }
-    setAuthToken(session.accessToken)
 
     const codigo = params.get('codigo')
     if (!codigo) {
       setErro('Código de suporte ausente. Abra a sessão novamente pelo console.')
       return
     }
+
+    // Sem sessão aqui é o caso NORMAL, não erro: o operador estava logado no console
+    // (admin.*), que é outra origem — o backoffice pode nunca ter sido aberto neste
+    // navegador. Mandar "vá fazer login" era um beco sem saída que queimava o código.
+    // Como o Keycloak é o mesmo realm, o login volta em silêncio pelo SSO e cai de
+    // novo nesta página, com o código intacto.
+    if (status !== 'authenticated' || !session?.accessToken) {
+      if (params.get('login') === '1') {
+        // Já voltamos de uma tentativa e ainda não há sessão — parar aqui em vez de
+        // ficar em pingue-pongue com o IdP.
+        setErro('Não foi possível autenticar no backoffice. Abra a sessão novamente pelo console.')
+        return
+      }
+      const volta = `/suporte?codigo=${encodeURIComponent(codigo)}&login=1`
+      signIn('keycloak', { callbackUrl: volta })
+      return
+    }
+    setAuthToken(session.accessToken)
     // StrictMode monta duas vezes em dev; o código é de uso único e o segundo
     // resgate falharia — a trava evita um erro que não é erro.
     if (resgatado.current) return

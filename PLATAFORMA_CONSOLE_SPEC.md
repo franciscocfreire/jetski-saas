@@ -647,11 +647,30 @@ não sabia responder "quem entrou na empresa X, quando e por quê".
   acesso revogado ainda funciona não vale a micro-otimização).
 
 **Handoff por código de uso único.** O console vive em `admin.*` e o backoffice em `app.*`:
-cookie não atravessa. O que trafega na URL é um código com 2 minutos de vida, trocado **uma
+cookie não atravessa. O que trafega na URL é um código com 5 minutos de vida, trocado **uma
 vez** pelo cookie `mj_support` (HttpOnly). O token nunca vai na URL — URL vaza em log de
 proxy, Referer e histórico. Uso único garantido pelo `UPDATE ... WHERE codigo_usado_em IS
 NULL`: dois resgates simultâneos, só um afeta linha. Código e token ficam no banco como
 SHA-256 — dump não entrega sessão viva.
+
+#### Duas correções depois da entrega (27/jul)
+
+**A aba nova abria E a atual navegava junto.** `window.open(url, "_blank", "noopener")`
+devolve **`null` por especificação** — com `noopener` não existe referência para entregar.
+O código lia esse `null` como "pop-up bloqueado" e caía no fallback
+`window.location.href = url`: abriam duas janelas para a mesma URL, e a segunda encontrava
+o código já queimado. O desligamento do opener virou explícito (`aba.opener = null`) e o
+`null` voltou a significar só o que deveria.
+
+**Sem sessão no backoffice, o resgate era um beco sem saída.** A tela dizia "faça login no
+backoffice e abra a sessão novamente pelo console" — mas não ter sessão em `app.*` é o caso
+**normal**: o operador estava no console, que é outra origem, e pode nunca ter aberto o
+backoffice naquele navegador. O código já tinha sido gasto para chegar ali. Agora a página
+dispara `signIn` com `callbackUrl` de volta para si mesma; como o realm é o mesmo, o SSO
+resolve em segundos. Uma flag `login=1` corta o pingue-pongue se ainda assim não houver
+sessão. Por causa desse ida-e-volta o código passou de 2 para 5 minutos: com SSO são
+segundos, mas um login completo com 2FA não cabia em 2 minutos — e o risco extra é pequeno,
+já que o código é de uso único e só serve ao operador que o abriu.
 
 **OPA.** A regra de god mode (`is_platform_admin` liberando qualquer ação de tenant) foi
 substituída por `platform.allow_suporte`: exige sessão ativa **e** papel de plataforma, e a

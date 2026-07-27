@@ -114,7 +114,7 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   - **F3 (o corte)**: **god mode acabou**. Operar uma empresa exige **sessão de suporte**
     (V055 `plataforma_sessao_suporte`): motivo obrigatório, 30 min sem renovação, somente
     leitura por padrão (negação real no OPA), revogação imediata. Handoff console→backoffice
-    por código de uso único (2 min, amarrado ao operador que abriu; o token do cookie nunca
+    por código de uso único (5 min, amarrado ao operador que abriu; o token do cookie nunca
     vai na URL) e faixa permanente de "modo suporte". Auditoria dual (tenant + global).
     Removidos do backoffice: página `/dashboard/plataforma`, `components/plataforma/`,
     `services/platform.ts`, grupo "Plataforma" do menu, switcher de todas-as-empresas e as

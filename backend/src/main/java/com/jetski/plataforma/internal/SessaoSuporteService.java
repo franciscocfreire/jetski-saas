@@ -54,8 +54,16 @@ import java.util.UUID;
 @Slf4j
 public class SessaoSuporteService implements SessaoSuporteValidator {
 
-    /** Vida do código de handoff: tempo de clicar, não de guardar. */
-    private static final Duration VALIDADE_CODIGO = Duration.ofMinutes(2);
+    /**
+     * Vida do código de handoff: tempo de clicar, não de guardar.
+     *
+     * <p>5 min, não 2: quando o operador não tem sessão no backoffice (o caso comum —
+     * ele estava no console, outra origem), o resgate passa por um ida-e-volta ao
+     * Keycloak. Com SSO isso leva segundos, mas um login completo com 2FA não cabia em
+     * 2 minutos e queimava o código. O risco extra é pequeno: o código é de uso único e
+     * só vale para o operador que o abriu.
+     */
+    private static final Duration VALIDADE_CODIGO = Duration.ofMinutes(5);
     /** Vida da sessão. Sem sliding window: renovar por uso anularia o prazo. */
     private static final Duration VALIDADE_SESSAO = Duration.ofMinutes(30);
 
