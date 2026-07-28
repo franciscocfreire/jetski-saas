@@ -201,6 +201,11 @@ public class PlatformFaturaService {
         } catch (Exception e) {
             throw new NotFoundException("Plano não encontrado: " + planoId);
         }
+        // RLS do tenant alvo: a rota de plataforma não tem tenant na sessão e a
+        // policy de assinatura avalia ''::uuid → 500. Só estourou no PRIMEIRO
+        // mudarPlano vindo do console (antes o super admin operava com
+        // X-Tenant-Id pelo backoffice) — 28/jul, marina-bay.
+        setTenant(tenantId);
         entityManager.createNativeQuery(
                 "UPDATE assinatura SET status = 'expirada', dt_fim = CURRENT_DATE, "
                 + "updated_at = now() WHERE tenant_id = :tid AND status = 'ativa'")
