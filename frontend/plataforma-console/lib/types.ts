@@ -95,6 +95,32 @@ export interface TenantExport {
   arquivos?: number;
 }
 
+/** Dry-run do import: o que o zip contém × o que a empresa tem hoje. */
+export interface ImportPreview {
+  key: string;
+  slugNoZip: string | null;
+  slugAtual: string;
+  geradoEm: string | null;
+  linhasNoZip: Record<string, number>;
+  linhasAtuais: Record<string, number>;
+  arquivosNoZip: number;
+  avisos: string[];
+}
+
+export interface ImportResult {
+  inseridos: Record<string, number>;
+  totalLinhas: number;
+  arquivosRestaurados: number;
+  exportSegurancaKey: string;
+  exportSegurancaBytes: number;
+  avisos: string[];
+}
+
+export interface ImportUpload {
+  key: string;
+  bytes: number;
+}
+
 /** Níveis do reset — cada um é superconjunto do anterior. */
 export type ResetNivel = "OPERACIONAL" | "FROTA" | "TOTAL";
 

@@ -187,6 +187,20 @@ public class LocalFileStorageService implements StorageService {
     }
 
     @Override
+    public java.io.InputStream getObjectStream(String key) {
+        Path filePath = Paths.get(basePath, key);
+        if (!Files.exists(filePath)) {
+            throw new BusinessException("Arquivo não encontrado: " + key);
+        }
+        try {
+            return Files.newInputStream(filePath);
+        } catch (IOException e) {
+            log.error("Falha ao abrir stream de objeto local: {}", key, e);
+            throw new BusinessException("Erro ao ler arquivo: " + e.getMessage());
+        }
+    }
+
+    @Override
     public java.util.List<String> listObjectKeys(String prefix) {
         Path root = Paths.get(basePath);
         Path dir = Paths.get(basePath, prefix);

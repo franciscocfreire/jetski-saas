@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { platformFetch, PlatformApiError } from "./api";
 import type {
   AberturaSuporte,
+  ImportPreview,
+  ImportResult,
   ResetNivel,
   ResetResult,
   ReencryptResult,
@@ -109,6 +111,37 @@ export async function resetarEmpresa(
         nivel,
         confirmacaoSlug,
       }) as Promise<ResetResult>,
+    "/empresas",
+  );
+}
+
+/** Dry-run do import: nada muda no banco — só leitura do zip × estado atual. */
+export async function previewImport(tenantId: string, key: string) {
+  return executar(
+    () =>
+      platformFetch(
+        `/v1/platform/tenants/${tenantId}/import-preview?key=${encodeURIComponent(key)}`,
+      ) as Promise<ImportPreview>,
+  );
+}
+
+/**
+ * IMPORT (restauração): o backend gera export de segurança, apaga o estado
+ * atual e reinsere dados + arquivos do zip. Confirmação forte por slug.
+ */
+export async function importarEmpresa(
+  tenantId: string,
+  key: string,
+  confirmacaoSlug: string,
+  ignorarTabelasDesconhecidas: boolean,
+) {
+  return executar(
+    () =>
+      POST(`/v1/platform/tenants/${tenantId}/import`, {
+        key,
+        confirmacaoSlug,
+        ignorarTabelasDesconhecidas,
+      }) as Promise<ImportResult>,
     "/empresas",
   );
 }

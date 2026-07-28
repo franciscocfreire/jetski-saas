@@ -1025,6 +1025,12 @@ public class AuditEventListener {
             log.debug("Processing audit for tenant status change: tenant={}, acao={}",
                     event.tenantId(), event.acao());
 
+            // Contexto RLS do tenant da LINHA: eventos de plataforma chegam de
+            // rotas sem X-Tenant-Id (console) — sem isto a RLS da auditoria
+            // bloqueia o INSERT e a trilha de reset/exclusão/import se perde em
+            // silêncio. A suíte roda como superuser e não pega; visto no e2e.
+            fixarRlsDaLinha(event.tenantId());
+
             Map<String, Object> dadosAnteriores = new HashMap<>();
             dadosAnteriores.put("status", event.fromStatus());
 
@@ -1062,6 +1068,10 @@ public class AuditEventListener {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onCreditoLancado(CreditoLancadoEvent event) {
         try {
+            // Lançamento manual vem do console (rota de plataforma, sem tenant
+            // na sessão) — mesmo motivo do onTenantStatusChanged acima.
+            fixarRlsDaLinha(event.tenantId());
+
             Map<String, Object> dadosNovos = new HashMap<>();
             dadosNovos.put("tipo", event.tipo());
             dadosNovos.put("quantidade", event.quantidade());
@@ -1115,7 +1125,10 @@ public class AuditEventListener {
     private void gravarVinculoEmissao(com.jetski.locacoes.event.VinculoEmissaoTransicaoEvent event,
                                       UUID tenantId) {
         try {
-            com.jetski.shared.security.TenantContext.setTenantId(tenantId);
+            // set_config transaction-local, não TenantContext: a conexão já foi
+            // adquirida no begin da transação (REQUIRES_NEW) com o contexto do
+            // chamador — mexer no ThreadLocal aqui não muda a var de sessão.
+            fixarRlsDaLinha(tenantId);
             Map<String, Object> dados = new HashMap<>();
             dados.put("vinculoId", event.vinculoId().toString());
             dados.put("tenantOperadorId", event.tenantOperadorId().toString());
@@ -1138,6 +1151,25 @@ public class AuditEventListener {
             log.error("Falha no audit da parceria de emissão (vinculo={}, tenant={}): {}",
                 event.vinculoId(), tenantId, e.getMessage(), e);
         }
+    }
+
+    /**
+     * Fixa {@code app.tenant_id} TRANSACTION-LOCAL na conexão da transação
+     * corrente, para a RLS aceitar a linha de auditoria do tenant informado.
+     *
+     * <p>Necessário nos eventos que chegam sem tenant na sessão (rotas de
+     * plataforma/console) ou com o tenant DE OUTRO lado (audit dual da emissão
+     * delegada). {@code TenantContext.setTenantId} não resolve: a conexão é
+     * adquirida no begin da transação (REQUIRES_NEW), antes do corpo do método,
+     * e a var de sessão já foi definida pelo contexto do chamador.
+     */
+    private void fixarRlsDaLinha(UUID tenantId) {
+        if (tenantId == null) {
+            return;
+        }
+        entityManager.createNativeQuery("SELECT set_config('app.tenant_id', :t, true)")
+            .setParameter("t", tenantId.toString())
+            .getSingleResult();
     }
 
     // ===================================================================

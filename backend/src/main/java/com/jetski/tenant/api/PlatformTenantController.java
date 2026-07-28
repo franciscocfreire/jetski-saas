@@ -31,6 +31,7 @@ public class PlatformTenantController {
     private final com.jetski.tenant.internal.TenantResetService tenantResetService;
     private final com.jetski.tenant.internal.TenantExportService tenantExportService;
     private final com.jetski.tenant.internal.TenantExclusaoService tenantExclusaoService;
+    private final com.jetski.tenant.internal.TenantImportService tenantImportService;
 
     /** Lista TODAS as empresas (qualquer status) — visão completa do super admin. */
     @GetMapping("/tenants")
@@ -147,6 +148,55 @@ public class PlatformTenantController {
     @GetMapping("/tenants/{id}/exports")
     public java.util.List<String> exports(@PathVariable("id") UUID id) {
         return tenantExportService.listar(id);
+    }
+
+    /**
+     * Dry-run do import: o que o zip contém × o que a empresa tem hoje.
+     * Ação OPA: {@code platform:tenants:import-preview} (só super admin —
+     * expõe o workflow destrutivo).
+     */
+    @GetMapping("/tenants/{id}/import-preview")
+    public com.jetski.tenant.api.dto.ImportPreviewDTO importPreview(
+            @PathVariable("id") UUID id, @RequestParam("key") String key) {
+        return tenantImportService.preview(id, key);
+    }
+
+    /**
+     * IMPORT (restauração) da empresa a partir de um export de arquivamento:
+     * export de segurança automático → apaga o estado atual → reinsere dados e
+     * arquivos do zip. Exige o slug digitado. Ação OPA: {@code platform:tenants:import}.
+     */
+    @PostMapping("/tenants/{id}/import")
+    public java.util.Map<String, Object> importar(
+            @PathVariable("id") UUID id,
+            @jakarta.validation.Valid @RequestBody com.jetski.tenant.api.dto.ImportTenantRequest body) {
+        var r = tenantImportService.importar(
+            id, body.key(), body.confirmacaoSlug(), body.ignorarTabelasDesconhecidas());
+        return java.util.Map.of(
+            "inseridos", r.inseridos(),
+            "totalLinhas", r.inseridos().values().stream().mapToLong(Long::longValue).sum(),
+            "arquivosRestaurados", r.arquivosRestaurados(),
+            "exportSegurancaKey", r.exportSegurancaKey(),
+            "exportSegurancaBytes", r.exportSegurancaBytes(),
+            "avisos", r.avisos());
+    }
+
+    /**
+     * Upload de um zip de export externo (baixado antes do expurgo de 90 dias).
+     * Valida e grava no prefixo da plataforma; devolve a key para o import.
+     * Ação OPA: {@code platform:tenants:import:upload}.
+     */
+    @PostMapping("/tenants/{id}/import/upload")
+    public com.jetski.tenant.api.dto.ImportUploadDTO importUpload(
+            @PathVariable("id") UUID id,
+            @RequestParam("arquivo") org.springframework.web.multipart.MultipartFile arquivo) {
+        try (java.io.InputStream in = arquivo.getInputStream()) {
+            String key = tenantImportService.receberUpload(id, in);
+            return new com.jetski.tenant.api.dto.ImportUploadDTO(key, arquivo.getSize());
+        } catch (java.io.IOException e) {
+            throw new com.jetski.shared.exception.BusinessException(
+                "Falha ao ler o arquivo enviado: " + e.getMessage());
+        }
     }
 
     /** Download de um export (.zip). Ação OPA: {@code platform:download}. */

@@ -2,6 +2,14 @@ spring:
   application:
     name: jetski-api
 
+  servlet:
+    multipart:
+      # Upload do zip de import de arquivamento (fotos somam centenas de MB).
+      # Os hosts de tenant seguem capados pelo nginx (32m); só o host admin.*
+      # tem location de upload com limite alto no edge.
+      max-file-size: 1GB
+      max-request-size: 1GB
+
   datasource:
     url: jdbc:postgresql://localhost:5432/jetski_dev
     username: jetski

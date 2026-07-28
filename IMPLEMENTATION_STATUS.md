@@ -149,6 +149,11 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
 - **Reset de empresa** em 3 níveis (operacional/frota/total) com preview, classificação
   obrigatória das tabelas (teste-guarda) e export automático prévio.
 - **Export de arquivamento** (.zip: dados JSON de todas as tabelas + arquivos do storage).
+- **Import (restauração) de arquivamento** (V058): devolve empresa existente ao estado do
+  zip — export de segurança automático, expurgo e reinsert em ordem topológica (IDs
+  preservados, setval das sequences), arquivos do storage substituídos. Origem: export do
+  storage ou upload externo (.zip validado; retenção 90 dias). Preview dry-run; só
+  PLATFORM_ADMIN; confirmação por slug. Não restaura a linha do tenant nem empresa excluída.
 - **Exclusão de empresa**: carência 30 dias (cancelável) ou imediata; expurgo com tombstone
   (slug liberado, sensíveis anonimizados; ledger/metering/auditoria preservados); job diário
   (05:45) executa expurgos vencidos e remove exports >90 dias.

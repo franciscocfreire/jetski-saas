@@ -72,8 +72,41 @@ test_suporte_pode_ler if {
 	platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants", "GET")
 }
 
+test_admin_pode_importar if {
+	platform.allow with input as operador("PLATFORM_ADMIN", "platform:tenants:import", "POST")
+}
+
+test_admin_pode_upload_de_import if {
+	platform.allow with input as operador("PLATFORM_ADMIN", "platform:tenants:import:upload", "POST")
+}
+
+test_admin_pode_preview_de_import if {
+	platform.allow with input as operador("PLATFORM_ADMIN", "platform:tenants:import-preview", "GET")
+}
+
 test_suporte_nao_reseta if {
 	not platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:reset", "POST")
+}
+
+test_suporte_nao_importa if {
+	not platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:import", "POST")
+}
+
+# O preview é GET, mas está nas exclusivas de admin — não cai no "qualquer GET"
+test_suporte_nao_ve_preview_de_import if {
+	not platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:import-preview", "GET")
+}
+
+test_financeiro_nao_importa if {
+	not platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:tenants:import", "POST")
+}
+
+test_financeiro_nao_faz_upload_de_import if {
+	not platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:tenants:import:upload", "POST")
+}
+
+test_leitura_nao_ve_preview_de_import if {
+	not platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:import-preview", "GET")
 }
 
 test_suporte_nao_exclui if {

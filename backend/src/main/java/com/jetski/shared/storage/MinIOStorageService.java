@@ -100,6 +100,18 @@ public class MinIOStorageService implements StorageService {
     }
 
     @Override
+    public java.io.InputStream getObjectStream(String key) {
+        log.info("Abrindo stream de objeto MinIO: bucket={}, key={}", bucket, key);
+        try {
+            return minioClient.getObject(
+                GetObjectArgs.builder().bucket(bucket).object(key).build());
+        } catch (Exception e) {
+            log.error("Falha ao abrir stream de objeto MinIO: {}", key, e);
+            throw new BusinessException("Erro ao ler arquivo no MinIO: " + e.getMessage());
+        }
+    }
+
+    @Override
     public java.util.List<String> listObjectKeys(String prefix) {
         try {
             ensureBucketExists();

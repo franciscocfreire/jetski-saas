@@ -132,6 +132,12 @@ acoes_exclusivas_admin := {
 	"platform:tenants:cancelar-exclusao",
 	"platform:tenants:export",
 	"platform:tenants:exports:download",
+	# Import (restauração de arquivamento): mais destrutivo que o reset —
+	# apaga E sobrescreve. O preview é GET, mas expõe o workflow inteiro,
+	# então sai do ramo genérico de leitura junto com o resto.
+	"platform:tenants:import",
+	"platform:tenants:import:upload",
+	"platform:tenants:import-preview",
 	"platform:secrets:reencrypt",
 	"platform:operadores", # gestão de quem opera a plataforma
 	"platform:operadores:papeis", # catálogo — toda a superfície /operadores é admin

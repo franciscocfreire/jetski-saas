@@ -96,4 +96,13 @@ public interface StorageService {
      * @param contentType tipo MIME
      */
     void putObject(String key, java.io.InputStream content, long size, String contentType);
+
+    /**
+     * Abre um objeto como stream (downloads grandes — ex.: o zip do export no
+     * import de arquivamento — sem carregar tudo em memória como getObject).
+     *
+     * @param key chave única do objeto
+     * @return stream do conteúdo (o chamador fecha)
+     */
+    java.io.InputStream getObjectStream(String key);
 }
