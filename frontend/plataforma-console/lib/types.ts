@@ -121,6 +121,13 @@ export interface ImportUpload {
   bytes: number;
 }
 
+/** Resultado do recálculo manual do read model do dashboard. */
+export interface RecalcResult {
+  empresas: number;
+  dias: number;
+  linhas: number;
+}
+
 /** Níveis do reset — cada um é superconjunto do anterior. */
 export type ResetNivel = "OPERACIONAL" | "FROTA" | "TOTAL";
 

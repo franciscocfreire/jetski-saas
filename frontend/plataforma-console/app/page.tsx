@@ -5,6 +5,7 @@ import { BRL, dataCurta, platform } from "@/lib/platform";
 import { Aviso, Card, Erro, Tabela, Td, TituloPagina } from "@/components/ui";
 import { PlatformApiError } from "@/lib/api";
 import type { DashboardPlataforma, TenantSummary } from "@/lib/types";
+import { RecalcularDashboard } from "./recalcular";
 
 export const dynamic = "force-dynamic";
 
@@ -37,14 +38,18 @@ export default async function Home() {
 
   return (
     <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
-      <TituloPagina
-        titulo="Visão geral"
-        descricao={
-          dash?.atualizadoEm
-            ? `Últimos ${dash.dias} dias · dados de ${dataCurta(dash.atualizadoEm)}`
-            : "Console da plataforma"
-        }
-      />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <TituloPagina
+          titulo="Visão geral"
+          descricao={
+            dash?.atualizadoEm
+              ? `Últimos ${dash.dias} dias · dados de ${dataCurta(dash.atualizadoEm)}`
+              : "Console da plataforma"
+          }
+        />
+        {/* Só admin: o POST /recalcular é ação exclusiva no OPA (não-GET) */}
+        {me.admin && <RecalcularDashboard />}
+      </div>
 
       {erro?.status === 403 && (
         <Erro>Sua conta não é operador de plataforma.</Erro>
@@ -57,8 +62,7 @@ export default async function Home() {
         <div className="mb-6">
           <Aviso>
             O read model ainda não foi calculado — o job roda às 04:15. Os números abaixo
-            ficam zerados até lá; dá para forçar com{" "}
-            <code>POST /v1/platform/dashboard/recalcular</code>.
+            ficam zerados até lá; use o botão &quot;Recalcular agora&quot; para forçar.
           </Aviso>
         </div>
       )}

@@ -6,6 +6,7 @@ import type {
   AberturaSuporte,
   ImportPreview,
   ImportResult,
+  RecalcResult,
   ResetNivel,
   ResetResult,
   ReencryptResult,
@@ -325,6 +326,20 @@ export async function revogarSuporte(sessaoId: string) {
     () => platformFetch(`/v1/platform/suporte/${sessaoId}`, { method: "DELETE" }),
     "/empresas",
     "/auditoria",
+  );
+}
+
+// ===================== Dashboard =====================
+
+/**
+ * Recálculo manual do read model (7 dias): o job roda às 04:15, então mudança
+ * de plano/estado feita durante o dia só aparece no painel no dia seguinte —
+ * este botão existe para conferir divergência sem esperar a madrugada.
+ */
+export async function recalcularDashboard() {
+  return executar(
+    () => POST("/v1/platform/dashboard/recalcular") as Promise<RecalcResult>,
+    "/",
   );
 }
 
