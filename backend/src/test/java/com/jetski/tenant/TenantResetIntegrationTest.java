@@ -61,6 +61,14 @@ class TenantResetIntegrationTest extends AbstractIntegrationTest {
             + "VALUES ('a1000000-0000-0000-0000-000000000004', ?, 'a1000000-0000-0000-0000-000000000001', "
             + "'a1000000-0000-0000-0000-000000000003', now() + interval '1 day', "
             + "now() + interval '1 day 2 hours', 'CONFIRMADA', true) ON CONFLICT DO NOTHING", TENANT);
+        // Locação LIGADA à reserva: a FK locacao_reserva_id_fkey é NO ACTION e o
+        // reset precisa apagar locacao ANTES de reserva — em produção a ordem
+        // invertida só estourou no primeiro tenant com esse vínculo (28/jul).
+        jdbc.update("INSERT INTO locacao (id, tenant_id, jetski_id, cliente_id, reserva_id, "
+            + "data_check_in, horimetro_inicio, duracao_prevista) "
+            + "VALUES ('a1000000-0000-0000-0000-000000000009', ?, 'a1000000-0000-0000-0000-000000000002', "
+            + "'a1000000-0000-0000-0000-000000000003', 'a1000000-0000-0000-0000-000000000004', "
+            + "now(), 10, 60) ON CONFLICT DO NOTHING", TENANT);
         // Preservadas: ledger de créditos e metering
         jdbc.update("INSERT INTO credito_lancamento (id, tenant_id, tipo, quantidade, saldo_apos, motivo) "
             + "VALUES ('a1000000-0000-0000-0000-000000000005', ?, 'AJUSTE', 5, 5, 'teste reset') "
@@ -86,7 +94,7 @@ class TenantResetIntegrationTest extends AbstractIntegrationTest {
         // preview) deixam dados, e outros testes usam deleteAll() global que
         // esbarraria nas FKs daqui (reserva → modelo).
         for (String tabela : new String[]{
-                "reserva", "cliente", "jetski", "modelo", "membro"}) {
+                "locacao", "reserva", "cliente", "jetski", "modelo", "membro"}) {
             jdbc.update("DELETE FROM " + tabela + " WHERE tenant_id = ?", TENANT);
         }
         jdbc.update("DELETE FROM usuario WHERE id IN "

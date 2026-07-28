@@ -61,14 +61,18 @@ public class TenantResetService {
 
     /**
      * Dados operacionais — sempre apagados, em ordem de FK (filhos antes de
-     * pais: lançamentos/anexos → reserva → locacao → cliente).
+     * pais: lançamentos/anexos → locacao → reserva → cliente). A ordem é
+     * garantida pelo teste-guarda ({@code TenantResetClassificationTest}):
+     * quatro pares estavam invertidos em FKs NO ACTION e explodiam só quando o
+     * padrão de dados existia — locacao→reserva estourou em produção no
+     * primeiro tenant com locação vinculada a reserva (28/jul).
      */
     static final List<String> TABELAS_OPERACIONAL = List.of(
         "reserva_lancamento", "reserva_aceite", "reserva_comprovante",
         "reserva_habilitacao", "documento_emitido", "avaliacao",
-        "comissao", "bonus_vendedor", "pagamento_vendedor", "presenca_vendedor",
-        "foto", "abastecimento", "locacao_item_opcional", "os_manutencao",
-        "despesa_manutencao", "despesa_operacional",
+        "comissao", "bonus_vendedor", "presenca_vendedor", "pagamento_vendedor",
+        "abastecimento", "foto", "locacao_item_opcional",
+        "despesa_manutencao", "os_manutencao", "despesa_operacional",
         "fechamento_diario", "fechamento_mensal", "fuel_price_day",
         "cliente_notificacao", "cliente_anexo", "cliente_claim_token",
         "cliente_identity_provider",
@@ -78,7 +82,7 @@ public class TenantResetService {
         // ficariam com o número velho PARA SEMPRE. A base de cobrança da plataforma
         // (metering, ledger de créditos, faturas) continua preservada à parte.
         "plataforma_metrica_diaria",
-        "reserva", "locacao", "cliente");
+        "locacao", "reserva", "cliente");
 
     /** Cadastro de frota — apagado nos níveis FROTA e TOTAL. */
     static final List<String> TABELAS_FROTA = List.of(
