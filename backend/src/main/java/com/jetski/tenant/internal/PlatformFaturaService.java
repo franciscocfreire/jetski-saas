@@ -206,11 +206,18 @@ public class PlatformFaturaService {
                 + "updated_at = now() WHERE tenant_id = :tid AND status = 'ativa'")
             .setParameter("tid", tenantId)
             .executeUpdate();
+        // Trial precisa de dt_fim: o TrialExpirationJob expira POR ELE — sem a
+        // data, o trial criado por aqui era eterno e invisível ao job (visto em
+        // produção: jetsave, trial de 11/jul sem fim). Plano pago segue sem
+        // dt_fim por design (inadimplência da fatura é quem suspende).
+        boolean trial = "Trial".equals(String.valueOf(nome));
         entityManager.createNativeQuery(
-                "INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, status) "
-                + "VALUES (:tid, :pid, 'mensal', CURRENT_DATE, 'ativa')")
+                "INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, dt_fim, status) "
+                + "VALUES (:tid, :pid, 'mensal', CURRENT_DATE, :fim, 'ativa')")
             .setParameter("tid", tenantId)
             .setParameter("pid", planoId)
+            .setParameter("fim", trial
+                ? java.time.LocalDate.now().plusDays(PlatformTenantService.TRIAL_DAYS) : null)
             .executeUpdate();
         log.warn("[PLATFORM] Plano alterado: tenant={}, novoPlano={} ({})",
             tenantId, planoId, nome);

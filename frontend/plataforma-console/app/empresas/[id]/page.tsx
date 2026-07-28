@@ -92,7 +92,16 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
         <Card titulo="Visão geral">
           <dl className="grid grid-cols-2 gap-y-3 text-sm">
             <Campo rotulo="Plano" valor={empresa.plano ?? "—"} />
-            <Campo rotulo="Vigência" valor={dataCurta(empresa.assinaturaFim)} />
+            <Campo
+              rotulo="Vigência"
+              valor={
+                empresa.assinaturaFim
+                  ? dataCurta(empresa.assinaturaFim)
+                  : empresa.plano
+                    ? "sem vencimento"
+                    : "—"
+              }
+            />
             <Campo
               rotulo="Créditos"
               valor={saldo ? String(saldo.saldo) : "—"}

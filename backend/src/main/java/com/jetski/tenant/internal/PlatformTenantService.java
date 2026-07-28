@@ -40,7 +40,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PlatformTenantService {
 
-    private static final int TRIAL_DAYS = 14;
+    /** Package-private: o mudarPlano (PlatformFaturaService) usa o mesmo prazo. */
+    static final int TRIAL_DAYS = 14;
 
     private final TenantRepository tenantRepository;
     private final com.jetski.tenant.PlanoLimiteService planoLimiteService;

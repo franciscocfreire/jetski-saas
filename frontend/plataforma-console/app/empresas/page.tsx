@@ -89,7 +89,17 @@ export default async function Empresas({
                 <StatusEmpresa status={t.status} />
               </Td>
               <Td>{t.plano ?? <span className="text-ink-300">—</span>}</Td>
-              <Td>{dataCurta(t.assinaturaFim)}</Td>
+              {/* Plano pago não tem dt_fim por design (a inadimplência da
+                  fatura é quem suspende) — "—" parecia dado faltando. */}
+              <Td>
+                {t.assinaturaFim ? (
+                  dataCurta(t.assinaturaFim)
+                ) : t.plano ? (
+                  <span className="text-ink-300">sem vencimento</span>
+                ) : (
+                  <span className="text-ink-300">—</span>
+                )}
+              </Td>
               <Td>
                 {t.emissoraHabilitada ? (
                   <Badge tom="ativo">habilitada</Badge>

@@ -153,6 +153,28 @@ class FaturamentoIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("mudar para Trial ganha dt_fim (+14d); plano pago fica sem vencimento")
+    void mudarPlanoTrialTemVencimento() {
+        // Trial SEM dt_fim é invisível ao TrialExpirationJob = trial eterno
+        // (aconteceu em produção via console). O prazo nasce aqui.
+        Integer trialId = jdbc.queryForObject(
+            "SELECT id FROM plano WHERE nome = 'Trial'", Integer.class);
+        platformService.mudarPlano(TENANT, trialId);
+        java.time.LocalDate fimTrial = jdbc.queryForObject(
+            "SELECT dt_fim FROM assinatura WHERE tenant_id = ? AND status = 'ativa'",
+            java.time.LocalDate.class, TENANT);
+        assertThat(fimTrial).isEqualTo(java.time.LocalDate.now().plusDays(14));
+
+        Integer basicId = jdbc.queryForObject(
+            "SELECT id FROM plano WHERE nome = 'Basic'", Integer.class);
+        platformService.mudarPlano(TENANT, basicId);
+        java.time.LocalDate fimBasic = jdbc.queryForObject(
+            "SELECT dt_fim FROM assinatura WHERE tenant_id = ? AND status = 'ativa'",
+            java.time.LocalDate.class, TENANT);
+        assertThat(fimBasic).isNull();
+    }
+
+    @Test
     @DisplayName("cancelar exige observação; fatura paga não cancela")
     void validacoesCancelamento() {
         platformService.gerarFaturasDoMes();
