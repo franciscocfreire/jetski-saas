@@ -112,11 +112,10 @@ public interface UserProvisioningService {
      *       → reutiliza a conta sem tocar senha/username; o e-mail é marcado como
      *       verificado — o claim (token + senha temporária) provou a posse;</li>
      *   <li>e-mail existente SEM role {@code CLIENTE} (staff) →
-     *       {@link IdentityConflictException} — populações nunca se cruzam.</li>
+     *       {@link BusinessException} — populações nunca se cruzam.</li>
      * </ul>
      *
      * @return resultado com o provider user id, ou {@code null} em falha de infraestrutura
-     * @throws IdentityConflictException se o e-mail pertence a uma conta que não é de cliente
      */
     ClienteProvisionResult provisionOrReuseCliente(
         UUID clienteId,

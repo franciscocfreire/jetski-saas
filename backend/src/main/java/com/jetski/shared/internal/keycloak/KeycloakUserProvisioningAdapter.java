@@ -1,6 +1,5 @@
 package com.jetski.shared.internal.keycloak;
 
-import com.jetski.shared.security.IdentityConflictException;
 import com.jetski.shared.security.UserProvisioningService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -83,17 +82,15 @@ class KeycloakUserProvisioningAdapter implements UserProvisioningService {
             return created == null ? null : new ClienteProvisionResult(created, false);
         }
 
-        // Populações staff × cliente nunca se cruzam: só reutiliza identidade CLIENTE.
-        if (!keycloakAdminService.userHasRealmRole(existingId, "CLIENTE")) {
-            log.warn("Claim recusado: e-mail já pertence a identidade não-cliente (keycloakId={})", existingId);
-            throw new IdentityConflictException(
-                "E-mail já pertence a uma conta que não é de cliente");
-        }
-
-        // Reuso (ex.: auto-cadastro no portal): senha/username/atributos intactos —
-        // cliente é multi-loja, o vínculo por loja fica em cliente_identity_provider.
+        // Identidade única (F2/D3, IDENTIDADE_UNICA_SPEC): a conta existente
+        // daquele e-mail é reutilizada SEJA de consumidor, Google ou STAFF —
+        // uma pessoa acumula papéis. A prova de posse é a mesma de sempre: a
+        // senha temporária do claim foi entregue ao e-mail, e o realm não
+        // permite e-mail duplicado (a conta encontrada É a da pessoa). Sem
+        // mudança de roles: a persona CLIENTE deriva do escopo, não da role.
+        // Senha/username/atributos ficam intactos (cliente é multi-loja).
         keycloakAdminService.marcarEmailVerificado(existingId);
-        log.info("Identidade CLIENTE existente reutilizada no claim: keycloakId={}", existingId);
+        log.info("Conta existente reutilizada no claim (identidade única): keycloakId={}", existingId);
         return new ClienteProvisionResult(existingId, true);
     }
 

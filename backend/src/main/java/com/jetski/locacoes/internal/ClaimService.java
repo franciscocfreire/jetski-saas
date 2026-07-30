@@ -11,7 +11,6 @@ import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.email.EmailService;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
-import com.jetski.shared.security.IdentityConflictException;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.shared.security.UserProvisioningService;
 import jakarta.persistence.EntityManager;
@@ -181,23 +180,17 @@ public class ClaimService {
             throw new BusinessException("Conta do cliente já está ativa");
         }
 
-        // Provisiona (ou reutiliza, se o cliente já se auto-cadastrou no portal com
-        // este e-mail) a identidade no Keycloak: role CLIENTE, sem Usuario/Membro.
-        UserProvisioningService.ClienteProvisionResult prov;
-        try {
-            prov = userProvisioningService.provisionOrReuseCliente(
+        // Provisiona a identidade no Keycloak — ou reutiliza a conta existente
+        // do e-mail (consumidor de outra loja, Google ou STAFF: identidade
+        // única acumula papéis, F2/D3 — a antiga IdentityConflictException
+        // aplicava a regra revogada de "populações que nunca se cruzam").
+        UserProvisioningService.ClienteProvisionResult prov =
+            userProvisioningService.provisionOrReuseCliente(
                 cliente.getId(),
                 cliente.getEmail(),
                 cliente.getNome(),
                 cliente.getTenantId(),
                 senhaTemporaria);
-        } catch (IdentityConflictException e) {
-            // Populações staff × cliente nunca se cruzam; mensagem genérica de propósito.
-            log.warn("Claim recusado (identidade não-cliente): clienteId={}", cliente.getId());
-            throw new BusinessException(
-                "Este e-mail não pode ser usado para ativar a conta de cliente. "
-                + "Procure o atendimento da loja.");
-        }
         if (prov == null) {
             throw new BusinessException("Falha ao provisionar usuário no provedor de identidade");
         }
@@ -234,7 +227,7 @@ public class ClaimService {
         tokenRepository.save(claim);
 
         eventPublisher.publishEvent(ContaAtivadaEvent.of(
-            cliente.getTenantId(), cliente.getId(), providerUserId));
+            cliente.getTenantId(), cliente.getId(), providerUserId, prov.reaproveitado()));
 
         log.info("Conta do cliente ativada: clienteId={}, providerUserId={}, reuso={}",
             cliente.getId(), providerUserId, prov.reaproveitado());

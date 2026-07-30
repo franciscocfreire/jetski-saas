@@ -1,10 +1,12 @@
 # Identidade Única — Spec de Unificação
 
-> Status: **em execução — F0 e F1 ENTREGUES** (30/jul/2026, commits bbeec5b e 30f40fe;
-> V059+V060 em produção). O escopo customer resolve pela PESSOA (policy
-> `cliente_self_read`), com fallback V029 para legado até a F3; harness não-superuser
-> cobre plataforma E customer. Próxima fase: F2 (regra nova no claim — fim da
-> IdentityConflictException, com e2e manual roteirizado antes do merge).
+> Status: **em execução — F0, F1 e F2 ENTREGUES** (30/jul/2026). V059+V060 em produção;
+> escopo customer resolve pela PESSOA (fallback V029 até a F3); a
+> IdentityConflictException MORREU — staff ativa pré-conta de cliente (acumulação).
+> E2E real em dev ANTES do merge da F2, com Keycloak+Mailpit reais: staff acumulando
+> papel e consumidor novo, ambos verificados (o caso Google é o mesmo caminho de
+> conta-existente do reuso). Próximas fases: F3 (re-key dos globais) e F4 (desligamento
+> do cliente_identity_provider).
 > Projeto previsto desde a decisão de identidade única (jul/2026, CLAUDE.md regra 3) e
 > adiado conscientemente pela F0–F6 do console ("o fluxo de claim é sensível demais para
 > mudar de passagem", `PLATAFORMA_CONSOLE_SPEC.md` §9.4).

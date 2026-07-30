@@ -127,7 +127,7 @@ class AuditEventListenerTest {
     @DisplayName("ContaAtivadaEvent → CONTA_ATIVADA/CLIENTE")
     void contaAtivada() {
         UUID tenant = UUID.randomUUID(), cliente = UUID.randomUUID();
-        listener.onContaAtivada(ContaAtivadaEvent.of(tenant, cliente, "sub-123"));
+        listener.onContaAtivada(ContaAtivadaEvent.of(tenant, cliente, "sub-123", false));
         Auditoria a = capturarSalva();
         assertThat(a.getAcao()).isEqualTo("CONTA_ATIVADA");
         assertThat(a.getEntidade()).isEqualTo("CLIENTE");

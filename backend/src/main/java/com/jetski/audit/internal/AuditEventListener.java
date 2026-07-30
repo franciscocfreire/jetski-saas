@@ -754,6 +754,7 @@ public class AuditEventListener {
         try {
             Map<String, Object> dadosNovos = new HashMap<>();
             dadosNovos.put("providerUserId", event.providerUserId());
+            dadosNovos.put("contaReutilizada", event.contaReutilizada());
 
             Auditoria auditoria = Auditoria.builder()
                     .tenantId(event.tenantId())

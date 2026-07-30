@@ -10,7 +10,6 @@ import com.jetski.locacoes.internal.repository.ClienteIdentityProviderRepository
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.email.EmailService;
 import com.jetski.shared.exception.BusinessException;
-import com.jetski.shared.security.IdentityConflictException;
 import com.jetski.shared.security.UserProvisioningService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -190,21 +189,23 @@ class ClaimServiceTest {
     }
 
     @Test
-    @DisplayName("validar: e-mail de staff é recusado (populações não se cruzam) — nada persiste, claim não consumido")
-    void validarRecusaEmailDeStaff() {
+    @DisplayName("validar: conta de STAFF acumula o papel de cliente (identidade única, F2)")
+    void validarStaffAcumulaPapelDeCliente() {
+        // A antiga IdentityConflictException aplicava a regra revogada de
+        // "populações que nunca se cruzam" — sob identidade única, a conta
+        // existente do e-mail (staff incluído) é reutilizada e o claim conclui.
         ClienteClaimToken claim = claimValido();
         when(tokenRepo.findByToken("tok")).thenReturn(Optional.of(claim));
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(preConta()));
         when(provisioning.provisionOrReuseCliente(any(), anyString(), anyString(), any(), anyString()))
-            .thenThrow(new IdentityConflictException("staff"));
+            .thenReturn(new UserProvisioningService.ClienteProvisionResult("kc-sub-staff", true));
 
-        assertThatThrownBy(() -> service.validar("tok", "Senha#123"))
-            .isInstanceOf(BusinessException.class)
-            .hasMessageNotContaining("staff"); // mensagem genérica: não vaza a natureza da conta
+        var r = service.validar("tok", "Senha#123");
 
-        verify(identityRepo, never()).save(any());
-        verify(clienteRepo, never()).save(any());
-        assertThat(claim.isUsado()).isFalse();
+        assertThat(r.getProviderUserId()).isEqualTo("kc-sub-staff");
+        assertThat(r.isContaExistente()).isTrue();
+        verify(identityRepo).save(any());
+        assertThat(claim.isUsado()).isTrue();
     }
 
     @Test
