@@ -45,6 +45,8 @@ class CustomerHabilitacaoGlobalTest extends AbstractIntegrationTest {
 
     private static final UUID TENANT_ID = UUID.fromString("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
     private static final String SUB = "sub-hab-global-teste";
+    /** Pessoa (identidade única, F4) determinística deste teste. */
+    private static final UUID USUARIO_ID = UUID.nameUUIDFromBytes(SUB.getBytes());
     private static final String GRU = "GRU-GLOBAL-TESTE-1";
 
     @Autowired private CustomerHabilitacaoSyncService syncService;
@@ -65,7 +67,6 @@ class CustomerHabilitacaoGlobalTest extends AbstractIntegrationTest {
     void setUp() {
         TenantContext.setTenantId(TENANT_ID);
         globalRepository.deleteAll();
-        jdbcTemplate.update("DELETE FROM cliente_identity_provider WHERE provider_user_id = ?", SUB);
         // Ordem FK (espelha ReservaControllerTest): locacao referencia cliente —
         // testes anteriores da suíte podem ter deixado locações do tenant seed.
         // Dependentes primeiro (ordem de FK): sobras de OUTRAS classes (comissão,
@@ -98,9 +99,16 @@ class CustomerHabilitacaoGlobalTest extends AbstractIntegrationTest {
             .genero("MASCULINO").email("global@teste.com")
             .termoAceite(true).ativo(true).build());
 
+        // Identidade única (F4): pessoa global + mapping do sub + ficha → pessoa
         jdbcTemplate.update(
-            "INSERT INTO cliente_identity_provider (tenant_id, cliente_id, provider, provider_user_id) "
-            + "VALUES (?, ?, 'keycloak', ?)", TENANT_ID, cliente.getId(), SUB);
+            "INSERT INTO usuario (id, email, nome, ativo) VALUES (?, 'sub-hab-global-teste@f4.test', "
+            + "'Cliente Global', TRUE) ON CONFLICT DO NOTHING", USUARIO_ID);
+        jdbcTemplate.update(
+            "INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id) "
+            + "SELECT ?, 'keycloak', ? WHERE NOT EXISTS (SELECT 1 FROM usuario_identity_provider "
+            + "WHERE provider = 'keycloak' AND provider_user_id = ?)", USUARIO_ID, SUB, SUB);
+        jdbcTemplate.update("UPDATE cliente SET usuario_id = (SELECT usuario_id FROM usuario_identity_provider "
+            + "WHERE provider = 'keycloak' AND provider_user_id = ?) WHERE id = ?", SUB, cliente.getId());
 
         LocalDateTime inicio = LocalDateTime.now().plusDays(1).withHour(10).withMinute(0).withSecond(0).withNano(0);
         reserva = Reserva.builder()
@@ -123,13 +131,13 @@ class CustomerHabilitacaoGlobalTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("sync cria o registro global com CPF normalizado, validade e sub do vínculo")
+    @DisplayName("sync cria o registro global com CPF normalizado, validade e pessoa do vínculo")
     void syncCriaRegistroGlobal() {
         syncService.sync(reserva.getId());
 
         CustomerHabilitacao g = globalRepository.findByGruNumero(GRU).orElseThrow();
         assertThat(g.getCpf()).isEqualTo("12345678900");
-        assertThat(g.getProviderUserId()).isEqualTo(SUB);
+        assertThat(g.getUsuarioId()).isEqualTo(USUARIO_ID);
         assertThat(g.getTenantOrigem()).isEqualTo(TENANT_ID);
         assertThat(g.getReservaOrigem()).isEqualTo(reserva.getId());
         assertThat(g.getMarinhaConfirmadaEm()).isNull();
@@ -188,7 +196,6 @@ class CustomerHabilitacaoGlobalTest extends AbstractIntegrationTest {
         // EXPURGO simulado da loja: some tudo que era tenant-scoped (incl. vínculo)
         jdbcTemplate.update("DELETE FROM reserva_habilitacao WHERE reserva_id = ?", reservaId);
         jdbcTemplate.update("DELETE FROM reserva WHERE id = ?", reservaId);
-        jdbcTemplate.update("DELETE FROM cliente_identity_provider WHERE provider_user_id = ?", SUB);
         jdbcTemplate.update("DELETE FROM cliente WHERE id = ?", cliente.getId());
 
         // Reuso: a temporária continua descoberta (fonte global, elegível p/ reuso)

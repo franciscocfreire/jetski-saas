@@ -118,7 +118,6 @@ class ClienteControllerTest extends AbstractIntegrationTest {
         jdbcTemplate.execute("DELETE FROM reserva WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM cliente_anexo WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM cliente_claim_token WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
-        jdbcTemplate.execute("DELETE FROM cliente_identity_provider WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM cliente WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
 
         // Mock OPA to allow all requests
@@ -165,7 +164,6 @@ class ClienteControllerTest extends AbstractIntegrationTest {
         jdbcTemplate.execute("DELETE FROM reserva WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM cliente_anexo WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM cliente_claim_token WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
-        jdbcTemplate.execute("DELETE FROM cliente_identity_provider WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         jdbcTemplate.execute("DELETE FROM cliente WHERE tenant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'");
         TenantContext.clear();
     }

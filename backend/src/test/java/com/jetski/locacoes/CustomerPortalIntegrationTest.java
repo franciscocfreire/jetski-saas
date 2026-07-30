@@ -49,6 +49,8 @@ class CustomerPortalIntegrationTest extends AbstractIntegrationTest {
     private static final UUID TENANT_ACME = UUID.fromString("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
     private static final UUID TENANT_MARINA = UUID.fromString("b0000000-0000-0000-0000-000000000001");
     private static final String CUSTOMER_SUB = "cccccccc-0000-0000-0000-000000000001";
+    /** Pessoa (identidade única, F4) mapeada ao CUSTOMER_SUB. */
+    private static final UUID CUSTOMER_USUARIO = UUID.fromString("cccccccc-0000-0000-0000-0000000000aa");
 
     @BeforeEach
     void setUp() {
@@ -59,7 +61,6 @@ class CustomerPortalIntegrationTest extends AbstractIntegrationTest {
         transactionTemplate.executeWithoutResult(tx -> {
             for (UUID tenant : new UUID[]{TENANT_ACME, TENANT_MARINA}) {
                 jdbcTemplate.queryForObject("SELECT set_config('app.tenant_id', ?, true)", String.class, tenant.toString());
-                jdbcTemplate.update("DELETE FROM cliente_identity_provider WHERE provider_user_id = ?", CUSTOMER_SUB);
                 jdbcTemplate.update("DELETE FROM cliente WHERE email = 'portal.p0@test.com'");
             }
         });
@@ -76,15 +77,23 @@ class CustomerPortalIntegrationTest extends AbstractIntegrationTest {
     private void seedVinculo(UUID tenant, String nomeCliente) {
         transactionTemplate.executeWithoutResult(tx -> {
             jdbcTemplate.queryForObject("SELECT set_config('app.tenant_id', ?, true)", String.class, tenant.toString());
+            // Identidade única (F4): pessoa global + mapping do sub + ficha → pessoa
+            jdbcTemplate.update(
+                "INSERT INTO usuario (id, email, nome, ativo) VALUES (?, 'portal.p0@test.com', 'Cliente Portal', TRUE) "
+                + "ON CONFLICT DO NOTHING", CUSTOMER_USUARIO);
+            jdbcTemplate.update(
+                "INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id) "
+                + "SELECT ?, 'keycloak', ? WHERE NOT EXISTS (SELECT 1 FROM usuario_identity_provider "
+                + "WHERE provider = 'keycloak' AND provider_user_id = ?)",
+                CUSTOMER_USUARIO, CUSTOMER_SUB, CUSTOMER_SUB);
+            UUID pessoa = jdbcTemplate.queryForObject(
+                "SELECT usuario_id FROM usuario_identity_provider WHERE provider = 'keycloak' AND provider_user_id = ?",
+                UUID.class, CUSTOMER_SUB);
             UUID clienteId = UUID.randomUUID();
             jdbcTemplate.update(
-                "INSERT INTO cliente (id, tenant_id, nome, email, origem, status_conta) " +
-                "VALUES (?, ?, ?, 'portal.p0@test.com', 'PORTAL', 'ATIVA')",
-                clienteId, tenant, nomeCliente);
-            jdbcTemplate.update(
-                "INSERT INTO cliente_identity_provider (tenant_id, cliente_id, provider, provider_user_id) " +
-                "VALUES (?, ?, 'keycloak', ?)",
-                tenant, clienteId, CUSTOMER_SUB);
+                "INSERT INTO cliente (id, tenant_id, nome, email, origem, status_conta, usuario_id) " +
+                "VALUES (?, ?, ?, 'portal.p0@test.com', 'PORTAL', 'ATIVA', ?)",
+                clienteId, tenant, nomeCliente, pessoa);
         });
     }
 

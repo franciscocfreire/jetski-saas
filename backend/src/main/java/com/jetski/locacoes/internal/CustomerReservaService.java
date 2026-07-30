@@ -3,12 +3,10 @@ package com.jetski.locacoes.internal;
 import com.jetski.locacoes.domain.Cliente;
 import com.jetski.locacoes.domain.CustomerProfile;
 import com.jetski.locacoes.event.HabilitacaoTemporariaReusadaEvent;
-import com.jetski.locacoes.domain.ClienteIdentityProvider;
 import com.jetski.locacoes.api.ModeloService;
 import com.jetski.locacoes.domain.Modelo;
 import com.jetski.locacoes.domain.Reserva;
 import com.jetski.locacoes.domain.ReservaComprovante;
-import com.jetski.locacoes.internal.repository.ClienteIdentityProviderRepository;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.locacoes.internal.repository.ReservaAceiteRepository;
 import com.jetski.locacoes.internal.repository.ReservaComprovanteRepository;
@@ -63,7 +61,6 @@ public class CustomerReservaService {
     private final ReservaService reservaService;
     private final ModeloService modeloService;
     private final ClienteRepository clienteRepository;
-    private final ClienteIdentityProviderRepository identityRepository;
     private final ReservaRepository reservaRepository;
     private final ReservaHabilitacaoRepository habilitacaoRepository;
     private final ReservaAceiteRepository aceiteRepository;
@@ -190,13 +187,15 @@ public class CustomerReservaService {
         }
         String cpfEfetivo = profile.getCpf();
 
-        // ATENÇÃO: lookup tenant-scoped — a policy de self-read (V029) torna
-        // vínculos de outras lojas visíveis nesta transação (app.customer_sub).
-        Optional<ClienteIdentityProvider> vinculo =
-            identityRepository.findByTenantIdAndProviderAndProviderUserId(tenantId, PROVIDER, sub);
-        if (vinculo.isPresent()) {
-            Cliente existente = clienteRepository.findById(vinculo.get().getClienteId())
-                .orElseThrow(() -> new NotFoundException("Cliente do vínculo não encontrado"));
+        // Identidade única (F4): a pessoa é resolvida/criada primeiro (sub
+        // autenticado + e-mail do JWT) e a ficha é o vínculo canônico.
+        // ATENÇÃO: lookup tenant-scoped — a policy cliente_self_read torna
+        // fichas de outras lojas visíveis nesta transação.
+        java.util.UUID pessoaId = pessoaProvisioningService.provisionarPessoa(
+            sub, email, nome, "RESERVA_PORTAL");
+        Optional<Cliente> ficha = clienteRepository.findByTenantIdAndUsuarioId(tenantId, pessoaId);
+        if (ficha.isPresent()) {
+            Cliente existente = ficha.get();
             // preenche identidade faltante no Cliente da loja
             customerProfileService.hidratarIdentidade(existente, profile);
             // contato é POR LOJA: telefone digitado no wizard completa o cadastro
@@ -208,11 +207,6 @@ public class CustomerReservaService {
                 if (existente.getWhatsapp() == null || existente.getWhatsapp().isBlank()) {
                     existente.setWhatsapp(telefone.trim());
                 }
-            }
-            // Identidade única (F0): backfill de fichas vinculadas antes da F0
-            if (existente.getUsuarioId() == null) {
-                existente.setUsuarioId(pessoaProvisioningService.provisionarPessoa(
-                    sub, email, nome, "RESERVA_PORTAL"));
             }
             return clienteRepository.save(existente);
         }
@@ -238,18 +232,8 @@ public class CustomerReservaService {
             .ativo(true)
             .build();
         customerProfileService.hidratarIdentidade(cliente, profile);
-        // Identidade única (F0, dupla escrita): sub autenticado do portal —
-        // a pessoa nasce (ou acumula o papel) junto com a primeira ficha.
-        cliente.setUsuarioId(pessoaProvisioningService.provisionarPessoa(
-            sub, email, nome, "RESERVA_PORTAL"));
+        cliente.setUsuarioId(pessoaId);
         cliente = clienteRepository.save(cliente);
-
-        identityRepository.save(ClienteIdentityProvider.builder()
-            .tenantId(tenantId)
-            .clienteId(cliente.getId())
-            .provider(PROVIDER)
-            .providerUserId(sub)
-            .build());
 
         log.info("Cliente criado no primeiro contato via portal: cliente={}, tenant={}",
             cliente.getId(), tenantId);

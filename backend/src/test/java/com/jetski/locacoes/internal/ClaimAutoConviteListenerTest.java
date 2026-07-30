@@ -4,7 +4,6 @@ import com.jetski.locacoes.domain.Cliente;
 import com.jetski.locacoes.domain.ClienteClaimToken;
 import com.jetski.locacoes.event.PreContaCriadaEvent;
 import com.jetski.locacoes.internal.repository.ClienteClaimTokenRepository;
-import com.jetski.locacoes.internal.repository.ClienteIdentityProviderRepository;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.exception.BusinessException;
 import org.junit.jupiter.api.DisplayName;
@@ -33,11 +32,10 @@ class ClaimAutoConviteListenerTest {
 
     private final ClienteRepository clienteRepo = mock(ClienteRepository.class);
     private final ClienteClaimTokenRepository tokenRepo = mock(ClienteClaimTokenRepository.class);
-    private final ClienteIdentityProviderRepository identityRepo = mock(ClienteIdentityProviderRepository.class);
     private final ClaimService claimService = mock(ClaimService.class);
 
     private final ClaimAutoConviteListener listener = new ClaimAutoConviteListener(
-        clienteRepo, tokenRepo, identityRepo, claimService);
+        clienteRepo, tokenRepo, claimService);
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID clienteId = UUID.randomUUID();
@@ -57,7 +55,6 @@ class ClaimAutoConviteListenerTest {
     @DisplayName("com e-mail e sem convite vigente → gera o claim")
     void enviaComEmail() {
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(preConta("maria@email.com")));
-        when(identityRepo.existsByClienteId(clienteId)).thenReturn(false);
         when(tokenRepo.findByClienteIdAndAtivoTrue(clienteId)).thenReturn(List.of());
 
         listener.onPreContaCriada(evento());
@@ -81,7 +78,6 @@ class ClaimAutoConviteListenerTest {
         Cliente convidada = preConta("maria@email.com");
         convidada.setStatusConta(Cliente.StatusConta.CONVIDADA);
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(convidada));
-        when(identityRepo.existsByClienteId(clienteId)).thenReturn(false);
         when(tokenRepo.findByClienteIdAndAtivoTrue(clienteId)).thenReturn(List.of(
             ClienteClaimToken.builder().tenantId(tenant).clienteId(clienteId).token("tok")
                 .ativo(true).expiraEm(Instant.now().plus(3, ChronoUnit.DAYS)).build()));
@@ -97,7 +93,6 @@ class ClaimAutoConviteListenerTest {
         Cliente convidada = preConta("maria@email.com");
         convidada.setStatusConta(Cliente.StatusConta.CONVIDADA);
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(convidada));
-        when(identityRepo.existsByClienteId(clienteId)).thenReturn(false);
         when(tokenRepo.findByClienteIdAndAtivoTrue(clienteId)).thenReturn(List.of(
             ClienteClaimToken.builder().tenantId(tenant).clienteId(clienteId).token("tok")
                 .ativo(true).expiraEm(Instant.now().minus(1, ChronoUnit.DAYS)).build()));
@@ -123,7 +118,6 @@ class ClaimAutoConviteListenerTest {
     @DisplayName("gerar lança exceção → listener não propaga (best-effort; pré-conta já commitada)")
     void naoPropagaFalha() {
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(preConta("maria@email.com")));
-        when(identityRepo.existsByClienteId(clienteId)).thenReturn(false);
         when(tokenRepo.findByClienteIdAndAtivoTrue(clienteId)).thenReturn(List.of());
         when(claimService.gerar(clienteId, "email")).thenThrow(new BusinessException("smtp fora"));
 

@@ -12,8 +12,6 @@ import java.util.UUID;
 @Repository
 public interface CustomerProfileRepository extends JpaRepository<CustomerProfile, UUID> {
 
-    Optional<CustomerProfile> findByProviderAndProviderUserId(String provider, String providerUserId);
-
     /** Caminho primário pós-F3: o perfil é da PESSOA. */
     Optional<CustomerProfile> findByUsuarioId(java.util.UUID usuarioId);
 

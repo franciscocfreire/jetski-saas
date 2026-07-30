@@ -2,11 +2,9 @@ package com.jetski.locacoes.internal;
 
 import com.jetski.locacoes.domain.Cliente;
 import com.jetski.locacoes.domain.ClienteClaimToken;
-import com.jetski.locacoes.domain.ClienteIdentityProvider;
 import com.jetski.locacoes.event.ClaimEnviadoEvent;
 import com.jetski.locacoes.event.ContaAtivadaEvent;
 import com.jetski.locacoes.internal.repository.ClienteClaimTokenRepository;
-import com.jetski.locacoes.internal.repository.ClienteIdentityProviderRepository;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.email.EmailService;
 import com.jetski.shared.exception.BusinessException;
@@ -51,7 +49,6 @@ public class ClaimService {
 
     private final ClienteRepository clienteRepository;
     private final ClienteClaimTokenRepository tokenRepository;
-    private final ClienteIdentityProviderRepository identityRepository;
     private final UserProvisioningService userProvisioningService;
     private final com.jetski.usuarios.api.PessoaProvisioningService pessoaProvisioningService;
     private final EmailService emailService;
@@ -95,7 +92,7 @@ public class ClaimService {
             .orElseThrow(() -> new NotFoundException("Cliente não encontrado: " + clienteId));
 
         if (cliente.getStatusConta() == Cliente.StatusConta.ATIVA
-                || identityRepository.existsByClienteId(clienteId)) {
+                || cliente.getUsuarioId() != null) {
             throw new BusinessException("Conta do cliente já está ativa");
         }
         if (cliente.getEmail() == null || cliente.getEmail().isBlank()) {
@@ -176,7 +173,7 @@ public class ClaimService {
         Cliente cliente = clienteRepository.findById(claim.getClienteId())
             .orElseThrow(() -> new NotFoundException("Cliente não encontrado: " + claim.getClienteId()));
 
-        if (identityRepository.existsByClienteId(cliente.getId())) {
+        if (cliente.getUsuarioId() != null) {
             throw new BusinessException("Conta do cliente já está ativa");
         }
 
@@ -196,28 +193,21 @@ public class ClaimService {
         }
         String providerUserId = prov.providerUserId();
 
-        // Reuso: o sub pode já estar vinculado a OUTRO cliente desta loja
-        // (unique cliente_identity_provider (tenant_id, provider, provider_user_id)).
-        if (prov.reaproveitado() && identityRepository
-                .findByTenantIdAndProviderAndProviderUserId(cliente.getTenantId(), PROVIDER, providerUserId)
-                .isPresent()) {
+        // A pessoa nasce (ou é resolvida) ANTES do check de duplicidade: o
+        // vínculo canônico é cliente.usuario_id (unique parcial tenant+usuario,
+        // V062) — a pessoa não pode ter DUAS fichas na mesma loja.
+        java.util.UUID pessoaId = pessoaProvisioningService.provisionarPessoa(
+            providerUserId, cliente.getEmail(), cliente.getNome(), "CLAIM");
+        boolean pessoaJaTemFichaAqui = clienteRepository
+            .findByTenantIdAndUsuarioId(cliente.getTenantId(), pessoaId)
+            .filter(outro -> !outro.getId().equals(cliente.getId()))
+            .isPresent();
+        if (pessoaJaTemFichaAqui) {
             throw new BusinessException(
                 "Este e-mail já está vinculado a um cadastro nesta loja. "
                 + "Entre no portal ou procure o atendimento.");
         }
-
-        identityRepository.save(ClienteIdentityProvider.builder()
-            .tenantId(cliente.getTenantId())
-            .clienteId(cliente.getId())
-            .provider(PROVIDER)
-            .providerUserId(providerUserId)
-            .build());
-
-        // Identidade única (F0, dupla escrita): a pessoa passa a existir como
-        // usuario global e a ficha aponta para ela. Posse do e-mail comprovada
-        // pela senha temporária entregue a ele (contrato do provisionarPessoa).
-        cliente.setUsuarioId(pessoaProvisioningService.provisionarPessoa(
-            providerUserId, cliente.getEmail(), cliente.getNome(), "CLAIM"));
+        cliente.setUsuarioId(pessoaId);
 
         cliente.setStatusConta(Cliente.StatusConta.ATIVA);
         clienteRepository.save(cliente);

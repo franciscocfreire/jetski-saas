@@ -35,11 +35,7 @@ public class CustomerProfile {
     @GeneratedValue
     private UUID id;
 
-    @Column(name = "provider", nullable = false, length = 50)
-    private String provider;
 
-    @Column(name = "provider_user_id", nullable = false, length = 255)
-    private String providerUserId;
 
     /**
      * A PESSOA (identidade única, F0): o perfil civil deixa de ser raiz

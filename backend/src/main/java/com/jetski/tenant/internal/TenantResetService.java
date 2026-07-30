@@ -75,7 +75,6 @@ public class TenantResetService {
         "despesa_manutencao", "os_manutencao", "despesa_operacional",
         "fechamento_diario", "fechamento_mensal", "fuel_price_day",
         "cliente_notificacao", "cliente_anexo", "cliente_claim_token",
-        "cliente_identity_provider",
         // Read model da plataforma (V056): dado DERIVADO — segue a fonte. Preservá-lo
         // deixaria o dashboard mostrando receita de uma empresa cujas locações foram
         // apagadas, e o job só recalcula uma janela de 7 dias: as linhas antigas

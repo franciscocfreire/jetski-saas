@@ -2,11 +2,9 @@ package com.jetski.locacoes.internal;
 
 import com.jetski.locacoes.domain.Cliente;
 import com.jetski.locacoes.domain.ClienteClaimToken;
-import com.jetski.locacoes.domain.ClienteIdentityProvider;
 import com.jetski.locacoes.event.ClaimEnviadoEvent;
 import com.jetski.locacoes.event.ContaAtivadaEvent;
 import com.jetski.locacoes.internal.repository.ClienteClaimTokenRepository;
-import com.jetski.locacoes.internal.repository.ClienteIdentityProviderRepository;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.email.EmailService;
 import com.jetski.shared.exception.BusinessException;
@@ -38,15 +36,15 @@ import static org.mockito.Mockito.when;
 
 /**
  * F2.7 — claim-token do cliente: geração/envio e validação/ativação.
- * Invariante chave: o cliente é vinculado por cliente_identity_provider e
- * NUNCA recebe Membro (o serviço sequer depende de MembroRepository).
+ * Invariante chave (identidade única, F4): o vínculo canônico é
+ * cliente.usuario_id (pessoa provisionada) e o cliente NUNCA recebe Membro
+ * (o serviço sequer depende de MembroRepository).
  */
 @DisplayName("ClaimService (F2.7)")
 class ClaimServiceTest {
 
     private final ClienteRepository clienteRepo = mock(ClienteRepository.class);
     private final ClienteClaimTokenRepository tokenRepo = mock(ClienteClaimTokenRepository.class);
-    private final ClienteIdentityProviderRepository identityRepo = mock(ClienteIdentityProviderRepository.class);
     private final UserProvisioningService provisioning = mock(UserProvisioningService.class);
     private final EmailService email = mock(EmailService.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
@@ -56,20 +54,22 @@ class ClaimServiceTest {
         mock(com.jetski.usuarios.api.PessoaProvisioningService.class);
 
     private final ClaimService service = new ClaimService(
-        clienteRepo, tokenRepo, identityRepo, provisioning, pessoa, email, events, em);
+        clienteRepo, tokenRepo, provisioning, pessoa, email, events, em);
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID clienteId = UUID.randomUUID();
+    private final UUID pessoaId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(service, "frontendUrl", "http://portal.test");
         when(tokenRepo.findByClienteIdAndAtivoTrue(clienteId)).thenReturn(List.of());
         when(tokenRepo.save(any(ClienteClaimToken.class))).thenAnswer(i -> i.getArgument(0));
-        when(identityRepo.existsByClienteId(clienteId)).thenReturn(false);
-        when(identityRepo.save(any(ClienteIdentityProvider.class))).thenAnswer(i -> i.getArgument(0));
         when(provisioning.provisionOrReuseCliente(any(), anyString(), anyString(), any(), anyString()))
             .thenReturn(new UserProvisioningService.ClienteProvisionResult("kc-sub-123", false));
+        when(pessoa.provisionarPessoa(anyString(), anyString(), anyString(), anyString()))
+            .thenReturn(pessoaId);
+        when(clienteRepo.findByTenantIdAndUsuarioId(any(), any())).thenReturn(Optional.empty());
 
         // fixarTenant(): set_config('app.tenant_id', ...) na conexão
         Query q = mock(Query.class);
@@ -136,7 +136,7 @@ class ClaimServiceTest {
     }
 
     @Test
-    @DisplayName("validar: provisiona Keycloak (CLIENTE), vincula identidade, ativa conta — sem Membro")
+    @DisplayName("validar: provisiona Keycloak (CLIENTE), vincula a pessoa (usuario_id), ativa conta — sem Membro")
     void validarAtivaConta() {
         when(tokenRepo.findByToken("tok")).thenReturn(Optional.of(claimValido()));
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(preConta()));
@@ -148,14 +148,12 @@ class ClaimServiceTest {
 
         verify(provisioning).provisionOrReuseCliente(
             eq(clienteId), eq("maria@email.com"), eq("Maria Souza"), eq(tenant), eq("Senha#123"));
-
-        ArgumentCaptor<ClienteIdentityProvider> idp = ArgumentCaptor.forClass(ClienteIdentityProvider.class);
-        verify(identityRepo).save(idp.capture());
-        assertThat(idp.getValue().getProvider()).isEqualTo("keycloak");
-        assertThat(idp.getValue().getProviderUserId()).isEqualTo("kc-sub-123");
+        verify(pessoa).provisionarPessoa(
+            eq("kc-sub-123"), eq("maria@email.com"), eq("Maria Souza"), eq("CLAIM"));
 
         ArgumentCaptor<Cliente> cli = ArgumentCaptor.forClass(Cliente.class);
         verify(clienteRepo).save(cli.capture());
+        assertThat(cli.getValue().getUsuarioId()).isEqualTo(pessoaId);
         assertThat(cli.getValue().getStatusConta()).isEqualTo(Cliente.StatusConta.ATIVA);
 
         verify(events).publishEvent(any(ContaAtivadaEvent.class));
@@ -169,20 +167,16 @@ class ClaimServiceTest {
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(preConta()));
         when(provisioning.provisionOrReuseCliente(any(), anyString(), anyString(), any(), anyString()))
             .thenReturn(new UserProvisioningService.ClienteProvisionResult("kc-existente", true));
-        when(identityRepo.findByTenantIdAndProviderAndProviderUserId(tenant, "keycloak", "kc-existente"))
-            .thenReturn(Optional.empty());
+        when(clienteRepo.findByTenantIdAndUsuarioId(tenant, pessoaId)).thenReturn(Optional.empty());
 
         ClaimService.AtivacaoResult r = service.validar("tok", "Senha#123");
 
         assertThat(r.getProviderUserId()).isEqualTo("kc-existente");
         assertThat(r.isContaExistente()).isTrue();
 
-        ArgumentCaptor<ClienteIdentityProvider> idp = ArgumentCaptor.forClass(ClienteIdentityProvider.class);
-        verify(identityRepo).save(idp.capture());
-        assertThat(idp.getValue().getProviderUserId()).isEqualTo("kc-existente");
-
         ArgumentCaptor<Cliente> cli = ArgumentCaptor.forClass(Cliente.class);
         verify(clienteRepo).save(cli.capture());
+        assertThat(cli.getValue().getUsuarioId()).isEqualTo(pessoaId);
         assertThat(cli.getValue().getStatusConta()).isEqualTo(Cliente.StatusConta.ATIVA);
 
         assertThat(claim.isUsado()).isTrue();
@@ -204,24 +198,28 @@ class ClaimServiceTest {
 
         assertThat(r.getProviderUserId()).isEqualTo("kc-sub-staff");
         assertThat(r.isContaExistente()).isTrue();
-        verify(identityRepo).save(any());
+
+        ArgumentCaptor<Cliente> cli = ArgumentCaptor.forClass(Cliente.class);
+        verify(clienteRepo).save(cli.capture());
+        assertThat(cli.getValue().getUsuarioId()).isEqualTo(pessoaId);
         assertThat(claim.isUsado()).isTrue();
     }
 
     @Test
-    @DisplayName("validar: sub reutilizado já vinculado a outro cadastro da loja é recusado (unique do vínculo)")
+    @DisplayName("validar: pessoa já vinculada a OUTRO cadastro da loja é recusada (unique tenant+usuario)")
     void validarRecusaSubJaVinculadoNaLoja() {
         when(tokenRepo.findByToken("tok")).thenReturn(Optional.of(claimValido()));
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(preConta()));
         when(provisioning.provisionOrReuseCliente(any(), anyString(), anyString(), any(), anyString()))
             .thenReturn(new UserProvisioningService.ClienteProvisionResult("kc-existente", true));
-        when(identityRepo.findByTenantIdAndProviderAndProviderUserId(tenant, "keycloak", "kc-existente"))
-            .thenReturn(Optional.of(ClienteIdentityProvider.builder()
-                .tenantId(tenant).clienteId(UUID.randomUUID())
-                .provider("keycloak").providerUserId("kc-existente").build()));
+        when(clienteRepo.findByTenantIdAndUsuarioId(tenant, pessoaId))
+            .thenReturn(Optional.of(Cliente.builder()
+                .id(UUID.randomUUID()).tenantId(tenant)
+                .nome("Outra Ficha").usuarioId(pessoaId)
+                .statusConta(Cliente.StatusConta.ATIVA).build()));
 
         assertThatThrownBy(() -> service.validar("tok", "Senha#123")).isInstanceOf(BusinessException.class);
-        verify(identityRepo, never()).save(any());
+        verify(clienteRepo, never()).save(any());
     }
 
     @Test
@@ -243,6 +241,6 @@ class ClaimServiceTest {
         when(tokenRepo.findByToken("tok")).thenReturn(Optional.of(claim));
 
         assertThatThrownBy(() -> service.validar("tok", "Senha#123")).isInstanceOf(BusinessException.class);
-        verify(identityRepo, never()).save(any());
+        verify(clienteRepo, never()).save(any());
     }
 }

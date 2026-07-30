@@ -26,8 +26,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * Identidade única — F0 (IDENTIDADE_UNICA_SPEC §5): a pessoa nasce como
- * {@code usuario} (raiz única) nos fluxos de consumidor, com dupla escrita do
- * vínculo ({@code cliente.usuario_id} ao lado de cliente_identity_provider).
+ * {@code usuario} (raiz única) nos fluxos de consumidor; desde a F4 o vínculo
+ * canônico (e único) é {@code cliente.usuario_id}.
  */
 @AutoConfigureMockMvc
 @DisplayName("Identidade única F0 — provisionamento da pessoa + dupla escrita")
@@ -53,7 +53,6 @@ class IdentidadeUnicaF0IntegrationTest extends AbstractIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        jdbc.update("DELETE FROM cliente_identity_provider WHERE tenant_id = ?", TENANT);
         jdbc.update("DELETE FROM cliente_claim_token WHERE tenant_id = ?", TENANT);
         jdbc.update("DELETE FROM cliente WHERE tenant_id = ?", TENANT);
         jdbc.update("DELETE FROM auditoria WHERE acao = 'PESSOA_PROVISIONADA' "
@@ -114,7 +113,7 @@ class IdentidadeUnicaF0IntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("ativação de claim: dupla escrita — cliente.usuario_id + vínculo legado")
+    @DisplayName("ativação de claim: cliente.usuario_id aponta para a pessoa")
     void claimAtivacaoPreencheUsuarioId() {
         Cliente cliente = clienteRepository.save(Cliente.builder()
             .tenantId(TENANT)
@@ -143,12 +142,10 @@ class IdentidadeUnicaF0IntegrationTest extends AbstractIntegrationTest {
 
         UUID usuarioId = jdbc.queryForObject(
             "SELECT usuario_id FROM cliente WHERE id = ?", UUID.class, cliente.getId());
-        assertThat(usuarioId).as("dupla escrita: ficha aponta para a pessoa").isNotNull();
+        assertThat(usuarioId).as("ficha aponta para a pessoa").isNotNull();
         assertThat(count("SELECT count(*) FROM usuario WHERE id = ? AND email = 'cliente@f0.test'",
             usuarioId)).isEqualTo(1);
-        // Caminho legado segue vivo até a F4
-        assertThat(count("SELECT count(*) FROM cliente_identity_provider "
-            + "WHERE cliente_id = ? AND provider_user_id = 'sub-f0-claim'", cliente.getId()))
-            .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM usuario_identity_provider "
+            + "WHERE usuario_id = ? AND provider_user_id = 'sub-f0-claim'", usuarioId)).isEqualTo(1);
     }
 }

@@ -1,15 +1,11 @@
 # Identidade Única — Spec de Unificação
 
-> Status: **em execução — F0, F1 e F2 ENTREGUES** (30/jul/2026). V059+V060 em produção;
-> escopo customer resolve pela PESSOA (fallback V029 até a F3); a
-> IdentityConflictException MORREU — staff ativa pré-conta de cliente (acumulação).
-> E2E real em dev ANTES do merge da F2, com Keycloak+Mailpit reais: staff acumulando
-> papel e consumidor novo, ambos verificados (o caso Google é o mesmo caminho de
-> conta-existente do reuso). Próximas fases: F3 (re-key dos globais) e F4 (desligamento
-> do cliente_identity_provider).
-> Projeto previsto desde a decisão de identidade única (jul/2026, CLAUDE.md regra 3) e
-> adiado conscientemente pela F0–F6 do console ("o fluxo de claim é sensível demais para
-> mudar de passagem", `PLATAFORMA_CONSOLE_SPEC.md` §9.4).
+> Status: **CONCLUÍDA — F0 a F4 entregues** (30/jul/2026). `usuario` é a raiz única da
+> pessoa em produção; `cliente.usuario_id` é o vínculo comercial (unique parcial por
+> tenant); `cliente_identity_provider`, a policy V029 e os provider-fields de
+> `customer_profile`/`customer_habilitacao` foram REMOVIDOS (V062). A execução completa
+> no pré-lançamento (zero dado real) dispensou a janela de convivência prevista — decisão
+> do produto em 30/jul. E2E do claim validado com Keycloak+Mailpit reais antes da F2.
 
 ---
 

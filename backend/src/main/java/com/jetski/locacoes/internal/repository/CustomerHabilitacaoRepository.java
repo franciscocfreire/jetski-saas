@@ -19,5 +19,5 @@ public interface CustomerHabilitacaoRepository extends JpaRepository<CustomerHab
 
     List<CustomerHabilitacao> findByCpfOrderByEmitidaEmDesc(String cpf);
 
-    List<CustomerHabilitacao> findByProviderUserIdOrderByEmitidaEmDesc(String providerUserId);
+    List<CustomerHabilitacao> findByUsuarioIdOrderByEmitidaEmDesc(java.util.UUID usuarioId);
 }

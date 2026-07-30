@@ -66,6 +66,9 @@ public interface ClienteRepository extends JpaRepository<Cliente, UUID> {
     /** Dedupe tenant-scoped explícito (não depende da RLS da sessão). */
     Optional<Cliente> findByTenantIdAndDocumento(java.util.UUID tenantId, String documento);
 
+    /** Ficha da PESSOA nesta loja (identidade única F4 — vínculo canônico). */
+    Optional<Cliente> findByTenantIdAndUsuarioId(java.util.UUID tenantId, java.util.UUID usuarioId);
+
     /**
      * Find customer by name within current tenant.
      *

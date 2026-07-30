@@ -69,26 +69,19 @@ public class CustomerProfileService {
                 sub, emailJwt.trim().toLowerCase(), nomeJwt, "PERFIL"));
         }
 
-        Optional<CustomerProfile> porPessoa =
-            pessoa.flatMap(repository::findByUsuarioId);
+        if (pessoa.isEmpty()) {
+            // F4: perfil é DA PESSOA — sem pessoa não há perfil. Só alcançável
+            // se um chamador passar email null para um sub nunca provisionado
+            // (não acontece nos fluxos reais: toda porta autenticada provisiona).
+            throw new BusinessException("Conta ainda não inicializada — acesse o portal novamente.");
+        }
+        Optional<CustomerProfile> porPessoa = repository.findByUsuarioId(pessoa.get());
         if (porPessoa.isPresent()) {
             return porPessoa.get();
         }
-        Optional<CustomerProfile> existente =
-            repository.findByProviderAndProviderUserId(PROVIDER, sub);
-        if (existente.isPresent()) {
-            CustomerProfile p = existente.get();
-            if (p.getUsuarioId() == null && pessoa.isPresent()) {
-                p.setUsuarioId(pessoa.get());
-                p = repository.save(p);
-            }
-            return p;
-        }
 
         CustomerProfile profile = CustomerProfile.builder()
-            .provider(PROVIDER)
-            .providerUserId(sub)
-            .usuarioId(pessoa.orElse(null))
+            .usuarioId(pessoa.get())
             .nome(nomeJwt)
             .build();
 
@@ -215,8 +208,11 @@ public class CustomerProfileService {
 
         p.setCpf(cpf);
         repository.save(p);
-        sincronizarCpfKeycloak(p.getProviderUserId(), cpf);
-        log.info("CPF definido no perfil global: sub={}", p.getProviderUserId());
+        // F4: o sub vem do mapping da pessoa (o perfil não guarda mais provider)
+        identityProviderMappingService
+            .tryResolveProviderUserId(p.getUsuarioId(), PROVIDER)
+            .ifPresent(sub -> sincronizarCpfKeycloak(sub, cpf));
+        log.info("CPF definido no perfil global: usuarioId={}", p.getUsuarioId());
     }
 
     // ============================ Hidratação p/ Cliente da loja ============================

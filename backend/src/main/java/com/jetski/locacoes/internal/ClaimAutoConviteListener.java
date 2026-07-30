@@ -3,7 +3,6 @@ package com.jetski.locacoes.internal;
 import com.jetski.locacoes.domain.Cliente;
 import com.jetski.locacoes.event.PreContaCriadaEvent;
 import com.jetski.locacoes.internal.repository.ClienteClaimTokenRepository;
-import com.jetski.locacoes.internal.repository.ClienteIdentityProviderRepository;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.security.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +32,6 @@ public class ClaimAutoConviteListener {
 
     private final ClienteRepository clienteRepository;
     private final ClienteClaimTokenRepository tokenRepository;
-    private final ClienteIdentityProviderRepository identityRepository;
     private final ClaimService claimService;
 
     @Async
@@ -64,7 +62,7 @@ public class ClaimAutoConviteListener {
         Cliente cliente = clienteOpt.get();
 
         if (cliente.getStatusConta() == Cliente.StatusConta.ATIVA
-                || identityRepository.existsByClienteId(clienteId)) {
+                || cliente.getUsuarioId() != null) {
             return; // já ativa/vinculada — nada a convidar
         }
 

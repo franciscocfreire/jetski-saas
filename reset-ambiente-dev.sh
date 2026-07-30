@@ -291,14 +291,6 @@ CREATE TABLE IF NOT EXISTS public.documento_emitido (
     s3_key varchar(500) NOT NULL, hash_sha256 varchar(64) NOT NULL, destinos jsonb,
     emitido_em timestamptz DEFAULT now() NOT NULL, created_at timestamptz DEFAULT now() NOT NULL
 );
-CREATE TABLE IF NOT EXISTS public.cliente_identity_provider (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL,
-    cliente_id uuid NOT NULL REFERENCES public.cliente(id) ON DELETE CASCADE,
-    provider varchar(50) NOT NULL, provider_user_id varchar(255) NOT NULL,
-    linked_at timestamptz DEFAULT now() NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL, updated_at timestamptz DEFAULT now() NOT NULL
-);
 
 -- RLS por tenant (idempotente)
 ALTER TABLE public.reserva_comprovante ENABLE ROW LEVEL SECURITY;
@@ -311,10 +303,6 @@ ALTER TABLE public.documento_emitido FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_documento_emitido ON public.documento_emitido;
 CREATE POLICY tenant_isolation_documento_emitido ON public.documento_emitido USING ((tenant_id = public.get_current_tenant_id()));
 
-ALTER TABLE public.cliente_identity_provider ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.cliente_identity_provider FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation_cliente_identity_provider ON public.cliente_identity_provider;
-CREATE POLICY tenant_isolation_cliente_identity_provider ON public.cliente_identity_provider USING ((tenant_id = public.get_current_tenant_id()));
 
 -- V035+V036: folio financeiro (reserva E/OU locação) — pagamentos, estornos e cobranças
 CREATE TABLE IF NOT EXISTS public.reserva_lancamento (
@@ -627,14 +615,6 @@ ALTER TABLE public.reserva ADD CONSTRAINT reserva_canal_check
 CREATE INDEX IF NOT EXISTS idx_reserva_canal_pagamento
     ON public.reserva (tenant_id, canal, pagamento_status) WHERE ativo = true;
 
--- V029: portal do cliente — leitura "self" cross-tenant dos vínculos do cliente
--- autenticado (o serviço seta app.customer_sub antes do SELECT; policy permissiva
--- soma-se à de tenant, liberando só as linhas do próprio sub)
-DROP POLICY IF EXISTS cliente_idp_self_read ON public.cliente_identity_provider;
-CREATE POLICY cliente_idp_self_read ON public.cliente_identity_provider
-    FOR SELECT
-    USING (provider_user_id = current_setting('app.customer_sub', true));
-
 -- Super admin de dev (espelha PLATFORM_ADMIN_EMAILS do compose; o seeder do backend
 -- só roda no boot — este bloco garante o acesso logo após o reset, sem restart)
 INSERT INTO public.usuario_global_roles (usuario_id, roles, unrestricted_access)
@@ -734,9 +714,8 @@ CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_cpf ON public.customer_habil
 CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_sub ON public.customer_habilitacao (provider, provider_user_id);
 
 -- V059: identidade única F0 — usuario como raiz da pessoa (spec
--- IDENTIDADE_UNICA_SPEC.md). Colunas nullable; caminho antigo
--- (cliente_identity_provider) segue vigente até a F4. O assert de
--- tabela-vazia da V059 fica só no Flyway (guarda de deploy em prod).
+-- IDENTIDADE_UNICA_SPEC.md). O assert de tabela-vazia da V059 fica só
+-- no Flyway (guarda de deploy em prod); o legado morre no bloco V062.
 -- Depois das criações de cliente/customer_profile/customer_habilitacao.
 ALTER TABLE public.cliente
     ADD COLUMN IF NOT EXISTS usuario_id uuid REFERENCES public.usuario (id);
@@ -770,6 +749,24 @@ UPDATE public.customer_habilitacao h
   FROM public.usuario_identity_provider uip
  WHERE h.usuario_id IS NULL AND h.provider IS NOT NULL
    AND uip.provider = h.provider AND uip.provider_user_id = h.provider_user_id;
+
+-- V062: identidade única F4 — desligamento do caminho legado (a criação da
+-- tabela cliente_identity_provider e as policies V004/V029 saíram deste script;
+-- o DROP cobre bancos dev antigos que ainda a tenham)
+CREATE UNIQUE INDEX IF NOT EXISTS ux_cliente_tenant_usuario
+    ON public.cliente (tenant_id, usuario_id) WHERE usuario_id IS NOT NULL;
+DROP TABLE IF EXISTS public.cliente_identity_provider;
+DELETE FROM public.customer_profile WHERE usuario_id IS NULL;
+ALTER TABLE public.customer_profile
+    ALTER COLUMN usuario_id SET NOT NULL,
+    DROP COLUMN IF EXISTS provider,
+    DROP COLUMN IF EXISTS provider_user_id;
+DROP INDEX IF EXISTS public.idx_customer_habilitacao_sub;
+ALTER TABLE public.customer_habilitacao
+    DROP COLUMN IF EXISTS provider,
+    DROP COLUMN IF EXISTS provider_user_id;
+CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_usuario
+    ON public.customer_habilitacao (usuario_id) WHERE usuario_id IS NOT NULL;
 
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;

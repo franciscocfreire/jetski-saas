@@ -53,6 +53,9 @@ class CustomerCpfMergeIntegrationTest extends AbstractIntegrationTest {
     private static final String SUB_GOOGLE = "dgdgdgdg-0000-0000-0000-000000000001";
     private static final String SUB_OWNER = "dgdgdgdg-0000-0000-0000-000000000002";
     private static final String CPF_OWNER = "111.444.777-35";
+    // Pessoas (identidade única, F4) determinísticas do teste
+    private static final UUID USUARIO_GOOGLE = UUID.fromString("dada0000-0000-0000-0000-0000000000aa");
+    private static final UUID USUARIO_OWNER = UUID.fromString("dada0000-0000-0000-0000-0000000000ab");
     private static final String CPF_OWNER_DIGITS = "11144477735";
     private static final FederatedIdentity FED_GOOGLE =
         new FederatedIdentity("google", "g-123", "pessoa@gmail.com");
@@ -63,20 +66,29 @@ class CustomerCpfMergeIntegrationTest extends AbstractIntegrationTest {
             .thenReturn(OPADecision.builder().allow(true).tenantIsValid(true).build());
         when(provisioning.definirCpf(anyString(), anyString())).thenReturn(true);
         when(provisioning.updateUserName(anyString(), anyString())).thenReturn(true);
+        // F4: o enviar() provisiona a PESSOA da duplicata via findEmailById(sub)
+        when(provisioning.findEmailById(SUB_GOOGLE)).thenReturn("merge-dup@test.com");
 
-        jdbc.update("DELETE FROM cliente_identity_provider WHERE provider_user_id IN (?, ?)",
-            SUB_GOOGLE, SUB_OWNER);
         jdbc.update("DELETE FROM cliente WHERE email IN ('merge-dup@test.com', 'merge-owner@test.com')");
-        jdbc.update("DELETE FROM customer_profile WHERE provider_user_id IN (?, ?)",
+        jdbc.update("DELETE FROM customer_profile WHERE usuario_id IN "
+            + "(SELECT usuario_id FROM usuario_identity_provider "
+            + " WHERE provider = 'keycloak' AND provider_user_id IN (?, ?))",
             SUB_GOOGLE, SUB_OWNER);
         jdbc.update("DELETE FROM auditoria WHERE acao = 'CONTA_CPF_MERGE'");
         redis.delete(redis.keys("otp:cpfmerge:*"));
 
-        // conta dona do CPF (perfil global já com CPF definido)
+        // conta dona do CPF: pessoa global + mapping + perfil já com CPF definido
+        jdbc.update("INSERT INTO usuario (id, email, nome, ativo) VALUES (?, 'merge-owner@test.com', "
+            + "'Dona do CPF', TRUE) ON CONFLICT DO NOTHING", USUARIO_OWNER);
+        jdbc.update("INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id) "
+            + "SELECT ?, 'keycloak', ? WHERE NOT EXISTS (SELECT 1 FROM usuario_identity_provider "
+            + "WHERE provider = 'keycloak' AND provider_user_id = ?)", USUARIO_OWNER, SUB_OWNER, SUB_OWNER);
         jdbc.update("""
-            INSERT INTO customer_profile (provider, provider_user_id, nome, cpf)
-            VALUES ('keycloak', ?, 'Dona do CPF', ?)
-            """, SUB_OWNER, CPF_OWNER);
+            INSERT INTO customer_profile (usuario_id, nome, cpf)
+            SELECT usuario_id, 'Dona do CPF', ?
+              FROM usuario_identity_provider
+             WHERE provider = 'keycloak' AND provider_user_id = ?
+            """, CPF_OWNER, SUB_OWNER);
     }
 
     private RequestPostProcessor cliente(String sub, String email) {
@@ -93,10 +105,18 @@ class CustomerCpfMergeIntegrationTest extends AbstractIntegrationTest {
             INSERT INTO cliente (id, tenant_id, nome, email, origem, status_conta, ativo)
             VALUES (?, ?, 'Cliente Google', ?, 'PORTAL', 'ATIVA', TRUE)
             """, clienteId, TENANT_ACME, email);
-        jdbc.update("""
-            INSERT INTO cliente_identity_provider (tenant_id, cliente_id, provider, provider_user_id)
-            VALUES (?, ?, 'keycloak', ?)
-            """, TENANT_ACME, clienteId, sub);
+        // Identidade única (F4): pessoa global + mapping do sub + ficha → pessoa
+        jdbc.update("INSERT INTO usuario (id, email, nome, ativo) VALUES (?, ?, 'Cliente Google', TRUE) "
+            + "ON CONFLICT DO NOTHING", USUARIO_GOOGLE, email);
+        jdbc.update("INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id) "
+            + "SELECT ?, 'keycloak', ? WHERE NOT EXISTS (SELECT 1 FROM usuario_identity_provider "
+            + "WHERE provider = 'keycloak' AND provider_user_id = ?)", USUARIO_GOOGLE, sub, sub);
+        // sobras de outras classes com o MESMO sub/tenant violariam o unique (tenant_id, usuario_id)
+        jdbc.update("UPDATE cliente SET usuario_id = NULL WHERE usuario_id = (SELECT usuario_id "
+            + "FROM usuario_identity_provider WHERE provider = 'keycloak' AND provider_user_id = ?) "
+            + "AND tenant_id = (SELECT tenant_id FROM cliente WHERE id = ?) AND id <> ?", sub, clienteId, clienteId);
+        jdbc.update("UPDATE cliente SET usuario_id = (SELECT usuario_id FROM usuario_identity_provider "
+            + "WHERE provider = 'keycloak' AND provider_user_id = ?) WHERE id = ?", sub, clienteId);
     }
 
     private String codigoNoRedis() {
@@ -223,9 +243,12 @@ class CustomerCpfMergeIntegrationTest extends AbstractIntegrationTest {
         verify(provisioning).transferFederatedIdentity(SUB_GOOGLE, SUB_OWNER, "google");
         verify(provisioning).deleteUser(SUB_GOOGLE);
 
-        // perfil global da duplicata descartado (criado no obter() do enviar)
+        // perfil global da duplicata descartado (criado no obter() do enviar);
+        // a PESSOA da duplicata também morre (F3/D7) — mapping some junto
         Integer dupProfiles = jdbc.queryForObject(
-            "SELECT count(*) FROM customer_profile WHERE provider_user_id = ?",
+            "SELECT count(*) FROM customer_profile WHERE usuario_id IN "
+            + "(SELECT usuario_id FROM usuario_identity_provider "
+            + " WHERE provider = 'keycloak' AND provider_user_id = ?)",
             Integer.class, SUB_GOOGLE);
         assertThat(dupProfiles).isZero();
 

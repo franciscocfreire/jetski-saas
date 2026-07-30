@@ -55,6 +55,16 @@ public class IdentityProviderMappingService {
      * @throws NotFoundException if mapping doesn't exist
      */
     /**
+     * Sub (provider_user_id) de uma pessoa num provider — inverso do resolve.
+     * Usado pelo merge por CPF (F4): o perfil não guarda mais o sub.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<String> tryResolveProviderUserId(UUID usuarioId, String provider) {
+        return mappingRepository.findByUsuarioIdAndProvider(usuarioId, provider)
+            .map(UsuarioIdentityProvider::getProviderUserId);
+    }
+
+    /**
      * Variante sem exceção: ausência de mapping é resposta válida (Optional
      * vazio). Para chamadores onde "ainda não mapeado" é caminho normal —
      * lançar aqui atravessaria proxies @Transactional marcando rollback-only.

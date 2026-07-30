@@ -10,7 +10,6 @@ import com.jetski.locacoes.internal.ClienteService;
 import com.jetski.locacoes.internal.EmissaoService;
 import com.jetski.locacoes.internal.HabilitacaoService;
 import com.jetski.locacoes.internal.repository.ClienteClaimTokenRepository;
-import com.jetski.locacoes.internal.repository.ClienteIdentityProviderRepository;
 import com.jetski.shared.email.EmailService;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.shared.security.UserProvisioningService;
@@ -59,7 +58,6 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
     @Autowired private EmissaoService emissaoService;
     @Autowired private ClaimService claimService;
     @Autowired private ClienteClaimTokenRepository claimTokenRepository;
-    @Autowired private ClienteIdentityProviderRepository identityRepository;
     @Autowired private JdbcTemplate jdbc;
 
     @MockBean private UserProvisioningService userProvisioningService;
@@ -199,12 +197,14 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
             eq(cliente.getId()), eq("roberto.e2e@example.com"), eq("Roberto Lima"),
             eq(TENANT_ID), eq(senhaTemporaria));
 
-        // estado final: ATIVA + identidade vinculada + token consumido
+        // estado final: ATIVA + pessoa vinculada (cliente.usuario_id ← mapping
+        // global usuario_identity_provider do sub provisionado) + token consumido
         assertThat(reloadCliente(cliente.getId()).getStatusConta())
             .isEqualTo(Cliente.StatusConta.ATIVA);
-        assertThat(identityRepository.findByClienteId(cliente.getId()))
-            .get().extracting("provider", "providerUserId")
-            .containsExactly("keycloak", "kc-sub-e2e");
+        UUID pessoaId = jdbc.queryForObject(
+            "SELECT usuario_id FROM usuario_identity_provider WHERE provider = 'keycloak' AND provider_user_id = ?",
+            UUID.class, "kc-sub-e2e");
+        assertThat(reloadCliente(cliente.getId()).getUsuarioId()).isEqualTo(pessoaId);
         Optional<ClienteClaimToken> tok = claimTokenRepository.findByToken(claimToken);
         assertThat(tok).get().extracting(ClienteClaimToken::getAtivo, ClienteClaimToken::isUsado)
             .containsExactly(false, true);

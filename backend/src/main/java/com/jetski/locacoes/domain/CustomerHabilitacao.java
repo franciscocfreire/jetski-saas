@@ -53,11 +53,7 @@ public class CustomerHabilitacao {
     @Column(name = "usuario_id")
     private java.util.UUID usuarioId;
 
-    @Column(name = "provider", length = 50)
-    private String provider;
 
-    @Column(name = "provider_user_id", length = 255)
-    private String providerUserId;
 
     /** Nº da GRU — identifica a habilitação (único). */
     @Column(name = "gru_numero", nullable = false, length = 60)

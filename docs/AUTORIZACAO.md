@@ -13,7 +13,7 @@ propósito:
 |---|---|---|
 | Escopo de URL | `/v1/tenants/{tenantId}/**` | `/v1/customers/**` |
 | Tenant | do path + `X-Tenant-Id` (validado) | nenhum no request — resolvido por operação |
-| Identidade | `usuario` + `membro` (por tenant) | `cliente_identity_provider` (vínculos por `sub`) |
+| Identidade | `usuario` + `membro` (por tenant) | `usuario` + `cliente.usuario_id` (ficha por loja; identidade única F0–F4) |
 | Papéis | `membro.papeis[]` (por tenant) | **persona derivada do escopo** (ver abaixo) |
 | Isolamento | RLS por `app.tenant_id` da sessão | RLS + `set_config` transaction-local por vínculo |
 

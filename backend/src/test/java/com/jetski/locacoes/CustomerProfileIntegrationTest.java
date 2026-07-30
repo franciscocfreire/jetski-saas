@@ -54,6 +54,8 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
     private static final UUID JETSKI_MARINA = UUID.fromString("77777777-7777-4777-8777-000000000042");
     private static final String SUB = "cdcdcdcd-0000-0000-0000-000000000001";
     private static final String SUB2 = "cdcdcdcd-0000-0000-0000-000000000002";
+    /** Pessoa (identidade única, F4) do SUB — a do SUB2 nasce lazy no app. */
+    private static final UUID USUARIO_ID = UUID.fromString("cdcdcdcd-0000-0000-0000-0000000000aa");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     @BeforeEach
@@ -78,10 +80,11 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
             ON CONFLICT (id) DO NOTHING
             """, JETSKI_MARINA, TENANT_MARINA, MODELO_MARINA);
 
-        jdbc.update("DELETE FROM customer_profile WHERE provider_user_id IN (?, ?)", SUB, SUB2);
+        jdbc.update("DELETE FROM customer_profile WHERE usuario_id IN "
+            + "(SELECT usuario_id FROM usuario_identity_provider "
+            + " WHERE provider = 'keycloak' AND provider_user_id IN (?, ?))", SUB, SUB2);
         jdbc.update("DELETE FROM reserva WHERE tenant_id IN (?, ?) AND canal = 'PORTAL'",
             TENANT_ACME, TENANT_MARINA);
-        jdbc.update("DELETE FROM cliente_identity_provider WHERE provider_user_id IN (?, ?)", SUB, SUB2);
         jdbc.update("DELETE FROM cliente WHERE email IN ('perfil@test.com', 'perfil2@test.com')");
     }
 
@@ -101,10 +104,18 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
             VALUES (?, ?, 'Cliente Perfil', 'perfil@test.com', '321.654.987-00', 'RG-11',
                     'Brasileira', 'Floripa/SC', 'PORTAL', 'ATIVA', TRUE)
             """, clienteId, TENANT_ACME);
-        jdbc.update("""
-            INSERT INTO cliente_identity_provider (tenant_id, cliente_id, provider, provider_user_id)
-            VALUES (?, ?, 'keycloak', ?)
-            """, TENANT_ACME, clienteId, SUB);
+        // Identidade única (F4): pessoa global + mapping do sub + ficha → pessoa
+        jdbc.update("INSERT INTO usuario (id, email, nome, ativo) VALUES (?, 'perfil@test.com', "
+            + "'Cliente Perfil', TRUE) ON CONFLICT DO NOTHING", USUARIO_ID);
+        jdbc.update("INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id) "
+            + "SELECT ?, 'keycloak', ? WHERE NOT EXISTS (SELECT 1 FROM usuario_identity_provider "
+            + "WHERE provider = 'keycloak' AND provider_user_id = ?)", USUARIO_ID, SUB, SUB);
+        // sobras de outras classes com o MESMO sub/tenant violariam o unique (tenant_id, usuario_id)
+        jdbc.update("UPDATE cliente SET usuario_id = NULL WHERE usuario_id = (SELECT usuario_id "
+            + "FROM usuario_identity_provider WHERE provider = 'keycloak' AND provider_user_id = ?) "
+            + "AND tenant_id = (SELECT tenant_id FROM cliente WHERE id = ?) AND id <> ?", SUB, clienteId, clienteId);
+        jdbc.update("UPDATE cliente SET usuario_id = (SELECT usuario_id FROM usuario_identity_provider "
+            + "WHERE provider = 'keycloak' AND provider_user_id = ?) WHERE id = ?", SUB, clienteId);
         return clienteId;
     }
 
@@ -162,10 +173,18 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
             VALUES (?, ?, 'Cliente Perfil', 'perfil@test.com', '321.654.987-00', 'RG-11',
                     'PORTAL', 'ATIVA', TRUE)
             """, clienteId, TENANT_MARINA);
-        jdbc.update("""
-            INSERT INTO cliente_identity_provider (tenant_id, cliente_id, provider, provider_user_id)
-            VALUES (?, ?, 'keycloak', ?)
-            """, TENANT_MARINA, clienteId, SUB);
+        // Identidade única (F4): pessoa global + mapping do sub + ficha → pessoa
+        jdbc.update("INSERT INTO usuario (id, email, nome, ativo) VALUES (?, 'perfil@test.com', "
+            + "'Cliente Perfil', TRUE) ON CONFLICT DO NOTHING", USUARIO_ID);
+        jdbc.update("INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id) "
+            + "SELECT ?, 'keycloak', ? WHERE NOT EXISTS (SELECT 1 FROM usuario_identity_provider "
+            + "WHERE provider = 'keycloak' AND provider_user_id = ?)", USUARIO_ID, SUB, SUB);
+        // sobras de outras classes com o MESMO sub/tenant violariam o unique (tenant_id, usuario_id)
+        jdbc.update("UPDATE cliente SET usuario_id = NULL WHERE usuario_id = (SELECT usuario_id "
+            + "FROM usuario_identity_provider WHERE provider = 'keycloak' AND provider_user_id = ?) "
+            + "AND tenant_id = (SELECT tenant_id FROM cliente WHERE id = ?) AND id <> ?", SUB, clienteId, clienteId);
+        jdbc.update("UPDATE cliente SET usuario_id = (SELECT usuario_id FROM usuario_identity_provider "
+            + "WHERE provider = 'keycloak' AND provider_user_id = ?) WHERE id = ?", SUB, clienteId);
         return clienteId;
     }
 

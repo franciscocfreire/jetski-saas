@@ -43,6 +43,7 @@ public class CustomerHabilitacaoService {
     private final com.jetski.shared.storage.StorageService storageService;
     private final com.jetski.locacoes.internal.repository.CustomerHabilitacaoRepository customerHabilitacaoRepository;
     private final com.jetski.locacoes.internal.repository.CustomerProfileRepository customerProfileRepository;
+    private final com.jetski.usuarios.api.IdentityProviderMappingService identityProviderMappingService;
 
     public record HabilitacaoTemporaria(
         String lojaSlug,
@@ -123,8 +124,12 @@ public class CustomerHabilitacaoService {
 
     /** Registros globais do titular: pelo sub do vínculo e pelo CPF do perfil. */
     private List<com.jetski.locacoes.domain.CustomerHabilitacao> registrosGlobais(String sub) {
-        var porSub = customerHabilitacaoRepository.findByProviderUserIdOrderByEmitidaEmDesc(sub);
-        var porCpf = customerProfileRepository.findByProviderAndProviderUserId(PROVIDER, sub)
+        // Identidade única (F4): pessoa primeiro; CPF continua a chave humana
+        var pessoa = identityProviderMappingService.tryResolveUsuarioId(PROVIDER, sub);
+        var porSub = pessoa
+            .map(customerHabilitacaoRepository::findByUsuarioIdOrderByEmitidaEmDesc)
+            .orElse(List.of());
+        var porCpf = pessoa.flatMap(customerProfileRepository::findByUsuarioId)
             .map(p -> p.getCpf())
             .filter(c -> c != null && !c.isBlank())
             .map(c -> customerHabilitacaoRepository

@@ -49,6 +49,7 @@ public class CustomerCpfMergeService {
     private final CustomerProfileService customerProfileService;
     private final CustomerAccountService customerAccountService;
     private final com.jetski.usuarios.api.PessoaProvisioningService pessoaProvisioningService;
+    private final com.jetski.usuarios.api.IdentityProviderMappingService identityProviderMappingService;
     private final UserProvisioningService userProvisioningService;
     private final EmailService emailService;
     private final StringRedisTemplate redis;
@@ -184,7 +185,9 @@ public class CustomerCpfMergeService {
         }
 
         // Perfil global da duplicata (criado no gate, sem CPF) não serve mais.
-        repository.findByProviderAndProviderUserId(PROVIDER, sub).ifPresent(repository::delete);
+        identityProviderMappingService.tryResolveUsuarioId(PROVIDER, sub)
+            .flatMap(repository::findByUsuarioId)
+            .ifPresent(repository::delete);
 
         // Identidade única (F3/D7): descarta a PESSOA da duplicata (usuario +
         // mapping) — sem isto o e-mail dela ficaria ocupado por um usuario
@@ -210,11 +213,15 @@ public class CustomerCpfMergeService {
 
     // ---- helpers ----
 
-    /** Dono do CPF: customer_profile primeiro; fallback username do Keycloak (=CPF). */
+    /** Dono do CPF: customer_profile → pessoa → sub; fallback username KC (=CPF). */
     private String resolverDonoDoCpf(String cpfDigits) {
         Optional<CustomerProfile> porPerfil = repository.findByCpfNormalizado(cpfDigits);
-        if (porPerfil.isPresent()) {
-            return porPerfil.get().getProviderUserId();
+        if (porPerfil.isPresent() && porPerfil.get().getUsuarioId() != null) {
+            var sub = identityProviderMappingService.tryResolveProviderUserId(
+                porPerfil.get().getUsuarioId(), PROVIDER);
+            if (sub.isPresent()) {
+                return sub.get();
+            }
         }
         return userProvisioningService.findUserIdByUsername(cpfDigits);
     }

@@ -101,13 +101,8 @@ public class CustomerHabilitacaoSyncService {
             registro.setLojaOrigemNome(tenant.getRazaoSocial());
         }
 
-        // Vínculo do portal, se existir (cliente de balcão pode não ter conta)
-        vinculoDoCliente(cliente.getId()).ifPresent(v -> {
-            registro.setProvider(v.provider());
-            registro.setProviderUserId(v.providerUserId());
-        });
-        // Identidade única (F3): a PESSOA da ficha — os provider fields acima
-        // viram legado e caem na F4
+        // Identidade única (F4): a PESSOA da ficha (null = balcão sem conta —
+        // a habilitação segue acessível pela chave humana, o CPF)
         registro.setUsuarioId(cliente.getUsuarioId());
 
         // Devolutiva confirmada: copia o PDF para o prefixo da PLATAFORMA —
@@ -125,17 +120,4 @@ public class CustomerHabilitacaoSyncService {
             hab.getGruNumero(), registro.getMarinhaConfirmadaEm() != null);
     }
 
-    private record Vinculo(String provider, String providerUserId) {}
-
-    /** Vínculo IdP do cliente (query nativa: tabela tem policy self-read + tenant). */
-    @SuppressWarnings("unchecked")
-    private java.util.Optional<Vinculo> vinculoDoCliente(UUID clienteId) {
-        List<Object[]> rows = entityManager.createNativeQuery(
-                "SELECT provider, provider_user_id FROM cliente_identity_provider "
-                + "WHERE cliente_id = :cid LIMIT 1")
-            .setParameter("cid", clienteId)
-            .getResultList();
-        return rows.stream().findFirst()
-            .map(r -> new Vinculo((String) r[0], (String) r[1]));
-    }
 }

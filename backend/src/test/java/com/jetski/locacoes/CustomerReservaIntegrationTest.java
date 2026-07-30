@@ -86,7 +86,6 @@ class CustomerReservaIntegrationTest extends AbstractIntegrationTest {
         jdbc.update("DELETE FROM reserva WHERE tenant_id = ? AND cliente_id IN " +
                     "(SELECT id FROM cliente WHERE tenant_id = ? AND email = 'p1@test.com')",
                     TENANT_ACME, TENANT_ACME);
-        jdbc.update("DELETE FROM cliente_identity_provider WHERE provider_user_id = ?", SUB);
         jdbc.update("DELETE FROM cliente WHERE tenant_id = ? AND email = 'p1@test.com'", TENANT_ACME);
         jdbc.update("DELETE FROM cliente WHERE tenant_id = ? AND documento = '111.222.333-44'", TENANT_ACME);
     }

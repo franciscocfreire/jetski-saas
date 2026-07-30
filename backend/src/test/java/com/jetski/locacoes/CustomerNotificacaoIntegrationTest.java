@@ -48,6 +48,8 @@ class CustomerNotificacaoIntegrationTest extends AbstractIntegrationTest {
     private static final UUID RESERVA_ID = UUID.fromString("77777777-7777-4777-8777-000000000054");
     private static final UUID LOCACAO_ID = UUID.fromString("77777777-7777-4777-8777-000000000055");
     private static final String SUB = "efefefef-0000-0000-0000-000000000001";
+    // Pessoa (identidade única, F4) — mesmo id no CustomerAnexoIntegrationTest (mesmo SUB)
+    private static final UUID USUARIO_ID = UUID.fromString("efefefef-0000-0000-0000-0000000000aa");
 
     @BeforeEach
     void setUp() {
@@ -75,17 +77,26 @@ class CustomerNotificacaoIntegrationTest extends AbstractIntegrationTest {
         jdbc.update("DELETE FROM reserva_habilitacao WHERE reserva_id = ?", RESERVA_ID);
         jdbc.update("DELETE FROM locacao WHERE id = ?", LOCACAO_ID);
         jdbc.update("DELETE FROM reserva WHERE id = ?", RESERVA_ID);
-        jdbc.update("DELETE FROM cliente_identity_provider WHERE provider_user_id = ?", SUB);
         jdbc.update("DELETE FROM cliente WHERE id = ?", CLIENTE_ID);
 
         jdbc.update("""
             INSERT INTO cliente (id, tenant_id, nome, email, documento, origem, status_conta, ativo)
             VALUES (?, ?, 'Cliente Notif', 'notif@test.com', '390.533.447-05', 'PORTAL', 'ATIVA', TRUE)
             """, CLIENTE_ID, TENANT_ACME);
+        jdbc.update("INSERT INTO usuario (id, email, nome, ativo) VALUES (?, ?, ?, TRUE) ON CONFLICT DO NOTHING",
+            USUARIO_ID, "notif@test.com", "Cliente Notif");
         jdbc.update("""
-            INSERT INTO cliente_identity_provider (tenant_id, cliente_id, provider, provider_user_id)
-            VALUES (?, ?, 'keycloak', ?)
-            """, TENANT_ACME, CLIENTE_ID, SUB);
+            INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id)
+            SELECT ?, 'keycloak', ?
+            WHERE NOT EXISTS (SELECT 1 FROM usuario_identity_provider
+                               WHERE provider = 'keycloak' AND provider_user_id = ?)
+            """, USUARIO_ID, SUB, SUB);
+        // sobras de outras classes com o MESMO sub/tenant violariam o unique (tenant_id, usuario_id)
+        jdbc.update("UPDATE cliente SET usuario_id = NULL WHERE usuario_id = (SELECT usuario_id "
+            + "FROM usuario_identity_provider WHERE provider = 'keycloak' AND provider_user_id = ?) "
+            + "AND tenant_id = (SELECT tenant_id FROM cliente WHERE id = ?) AND id <> ?", SUB, CLIENTE_ID, CLIENTE_ID);
+        jdbc.update("UPDATE cliente SET usuario_id = (SELECT usuario_id FROM usuario_identity_provider "
+            + "WHERE provider = 'keycloak' AND provider_user_id = ?) WHERE id = ?", SUB, CLIENTE_ID);
         jdbc.update("""
             INSERT INTO reserva (id, tenant_id, modelo_id, cliente_id, data_inicio, data_fim_prevista,
                                  status, canal, sinal_pago, pagamento_status, pagamento_tipo,

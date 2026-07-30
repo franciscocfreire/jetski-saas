@@ -22,9 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * IDENTIDADE_UNICA_SPEC §5/F1): a resolução multi-loja nova
  * (sub → usuario → fichas via policy {@code cliente_self_read}) é exercitada
  * com a RLS VALENDO — a policy é exatamente o tipo de código que a suíte
- * superuser aprovaria mesmo quebrado. Cobre também o fallback legado (V029) e
- * a propagação de identidade com o {@code saveAndFlush} por tenant (gotcha
- * flush×RLS, até hoje só coberto com RLS bypassada).
+ * superuser aprovaria mesmo quebrado. Cobre também a propagação de identidade
+ * com o {@code saveAndFlush} por tenant (gotcha flush×RLS, até hoje só
+ * coberto com RLS bypassada). O fallback legado (V029) morreu na F4.
  */
 @DisplayName("Escopo customer sob role não-superuser (cliente_self_read + fallback)")
 class CustomerNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegrationTest {
@@ -36,7 +36,6 @@ class CustomerNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
     private static final UUID FICHA_A1 = UUID.fromString("f1000000-0000-0000-0000-00000000ca01");
     private static final UUID FICHA_A2 = UUID.fromString("f1000000-0000-0000-0000-00000000ca02");
     private static final UUID FICHA_B1 = UUID.fromString("f1000000-0000-0000-0000-00000000cb01");
-    private static final UUID FICHA_LEGADA = UUID.fromString("f1000000-0000-0000-0000-00000000cc01");
 
     @Autowired private CustomerAccountService accountService;
     @Autowired private CustomerProfileService profileService;
@@ -63,13 +62,6 @@ class CustomerNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
                 + "('" + FICHA_A2 + "', '" + TENANT_DOIS + "', 'A na Dois', '" + PESSOA_A + "', true, 'PORTAL', 'ATIVA'), "
                 + "('" + FICHA_B1 + "', '" + TENANT_UM + "', 'B na Um', '" + PESSOA_B + "', true, 'PORTAL', 'ATIVA') "
                 + "ON CONFLICT DO NOTHING");
-            // Pessoa legada (pré-F0): vínculo antigo, ficha sem usuario_id, sem usuario
-            st.execute("INSERT INTO cliente (id, tenant_id, nome, ativo, origem, status_conta) VALUES "
-                + "('" + FICHA_LEGADA + "', '" + TENANT_UM + "', 'Legado na Um', true, 'PORTAL', 'ATIVA') "
-                + "ON CONFLICT DO NOTHING");
-            st.execute("INSERT INTO cliente_identity_provider (tenant_id, cliente_id, provider, provider_user_id) "
-                + "VALUES ('" + TENANT_UM + "', '" + FICHA_LEGADA + "', 'keycloak', 'sub-f1-legado') "
-                + "ON CONFLICT DO NOTHING");
         }
         // Estado real do escopo customer: sem tenant, sem unrestricted
         TenantContext.clear();
@@ -79,9 +71,8 @@ class CustomerNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
     @AfterEach
     void tearDown() throws SQLException {
         try (Connection c = superConnection(); Statement st = c.createStatement()) {
-            st.execute("DELETE FROM cliente_identity_provider WHERE provider_user_id LIKE 'sub-f1-%'");
             st.execute("DELETE FROM cliente WHERE tenant_id IN ('" + TENANT_UM + "', '" + TENANT_DOIS + "')");
-            st.execute("DELETE FROM customer_profile WHERE provider_user_id LIKE 'sub-f1-%'");
+            st.execute("DELETE FROM customer_profile WHERE usuario_id IN ('" + PESSOA_A + "', '" + PESSOA_B + "')");
             st.execute("DELETE FROM usuario_identity_provider WHERE provider_user_id LIKE 'sub-f1-%'");
             st.execute("DELETE FROM auditoria WHERE usuario_id IN ('" + PESSOA_A + "', '" + PESSOA_B + "')");
             st.execute("DELETE FROM usuario WHERE email LIKE '%@f1.test'");
@@ -113,12 +104,9 @@ class CustomerNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
     }
 
     @Test
-    @DisplayName("fallback legado (V029): sub pré-F0 sem pessoa continua resolvendo")
-    void fallbackLegadoContinuaVivo() {
-        var doLegado = accountService.vinculos("sub-f1-legado");
-
-        assertThat(doLegado).extracting("clienteId").containsExactly(FICHA_LEGADA);
-        assertThat(doLegado).extracting("slug").containsExactly("f1-loja-um");
+    @DisplayName("F4: sub sem pessoa não resolve NADA (fallback legado morreu por design)")
+    void subSemPessoaNaoResolve() {
+        assertThat(accountService.vinculos("sub-f1-inexistente")).isEmpty();
     }
 
     @Test
@@ -137,8 +125,8 @@ class CustomerNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
     void propagacaoFlushRlsReal() throws Exception {
         // Perfil civil da pessoa A (global, sem RLS)
         try (Connection c = superConnection(); Statement st = c.createStatement()) {
-            st.execute("INSERT INTO customer_profile (provider, provider_user_id, nome, usuario_id) "
-                + "VALUES ('keycloak', 'sub-f1-a', 'Pessoa A', '" + PESSOA_A + "') "
+            st.execute("INSERT INTO customer_profile (usuario_id, nome) "
+                + "VALUES ('" + PESSOA_A + "', 'Pessoa A') "
                 + "ON CONFLICT DO NOTHING");
         }
 

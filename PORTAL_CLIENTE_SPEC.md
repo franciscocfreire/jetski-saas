@@ -1,5 +1,11 @@
 # Especificação — Portal do Cliente (Frontend)
 
+> **NOTA (30/jul/2026)**: a identidade do cliente foi UNIFICADA (IDENTIDADE_UNICA_SPEC.md,
+> F0–F4): `usuario` é a raiz única da pessoa e o vínculo por loja é `cliente.usuario_id`
+> (policy `cliente_self_read`). As menções a `cliente_identity_provider`/`app.customer_sub`
+> abaixo são HISTÓRICAS — o desenho original desta spec.
+
+
 > **STATUS (jul/2026): ENTREGUE — P0–P4 em produção** (identidade, reserva online + sinal PIX, termos/CHA remotos, EMA/GRU self-service, histórico + avaliações + white-label). Este documento é a especificação de projeto, mantida como referência de desenho; as seções de "gaps"/"a criar" (§0, §9, §13) descrevem o estado de jun/2026 e foram implementadas.
 
 > **Status:** Proposta v1 (MVP) · **Data:** 2026-06-15 · **Versão do produto:** 0.8.x

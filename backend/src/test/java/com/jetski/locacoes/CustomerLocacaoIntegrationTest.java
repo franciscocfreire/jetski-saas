@@ -46,6 +46,8 @@ class CustomerLocacaoIntegrationTest extends AbstractIntegrationTest {
     private static final UUID CLIENTE_ID = UUID.fromString("77777777-7777-4777-8777-000000000033");
     private static final UUID LOCACAO_ID = UUID.fromString("77777777-7777-4777-8777-000000000034");
     private static final String SUB = "abababab-0000-0000-0000-000000000001";
+    // Pessoa (identidade única, F4) — MESMO id no CustomerHabilitacaoIntegrationTest (mesmo SUB)
+    private static final UUID USUARIO_ID = UUID.fromString("abababab-0000-0000-0000-0000000000aa");
 
     @BeforeEach
     void setUp() {
@@ -68,7 +70,6 @@ class CustomerLocacaoIntegrationTest extends AbstractIntegrationTest {
 
         jdbc.update("DELETE FROM avaliacao WHERE tenant_id = ?", TENANT_ACME);
         jdbc.update("DELETE FROM locacao WHERE id = ?", LOCACAO_ID);
-        jdbc.update("DELETE FROM cliente_identity_provider WHERE provider_user_id = ?", SUB);
         jdbc.update("DELETE FROM cliente WHERE id = ?", CLIENTE_ID);
 
         // cliente + vínculo + locação FINALIZADA
@@ -76,10 +77,7 @@ class CustomerLocacaoIntegrationTest extends AbstractIntegrationTest {
             INSERT INTO cliente (id, tenant_id, nome, email, origem, status_conta, ativo)
             VALUES (?, ?, 'Cliente P4', 'p4@test.com', 'PORTAL', 'ATIVA', TRUE)
             """, CLIENTE_ID, TENANT_ACME);
-        jdbc.update("""
-            INSERT INTO cliente_identity_provider (tenant_id, cliente_id, provider, provider_user_id)
-            VALUES (?, ?, 'keycloak', ?)
-            """, TENANT_ACME, CLIENTE_ID, SUB);
+        vincularPessoa(CLIENTE_ID, SUB, USUARIO_ID, "p4@test.com", "Cliente P4");
         jdbc.update("""
             INSERT INTO locacao (id, tenant_id, cliente_id, jetski_id, data_check_in, horimetro_inicio,
                                  duracao_prevista, data_check_out, horimetro_fim, minutos_usados,
@@ -87,6 +85,27 @@ class CustomerLocacaoIntegrationTest extends AbstractIntegrationTest {
             VALUES (?, ?, ?, ?, now() - interval '3 hours', 10.0,
                     120, now() - interval '1 hour', 12.0, 120, 120, 300.00, 300.00, 'FINALIZADA')
             """, LOCACAO_ID, TENANT_ACME, CLIENTE_ID, JETSKI_ID);
+    }
+
+
+    /** Identidade única (F4): pessoa global + mapping do sub + ficha apontando à pessoa. */
+    private void vincularPessoa(UUID clienteId, String sub, UUID usuarioId, String email, String nome) {
+        jdbc.update("INSERT INTO usuario (id, email, nome, ativo) VALUES (?, ?, ?, TRUE) ON CONFLICT DO NOTHING",
+            usuarioId, email, nome);
+        jdbc.update("""
+            INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id)
+            SELECT ?, 'keycloak', ?
+            WHERE NOT EXISTS (SELECT 1 FROM usuario_identity_provider
+                               WHERE provider = 'keycloak' AND provider_user_id = ?)
+            """, usuarioId, sub, sub);
+        UUID pessoa = jdbc.queryForObject(
+            "SELECT usuario_id FROM usuario_identity_provider WHERE provider = 'keycloak' AND provider_user_id = ?",
+            UUID.class, sub);
+        // sobras de outras classes com o MESMO sub/tenant violariam o unique (tenant_id, usuario_id)
+        jdbc.update("UPDATE cliente SET usuario_id = NULL WHERE usuario_id = ? "
+            + "AND tenant_id = (SELECT tenant_id FROM cliente WHERE id = ?) AND id <> ?",
+            pessoa, clienteId, clienteId);
+        jdbc.update("UPDATE cliente SET usuario_id = ? WHERE id = ?", pessoa, clienteId);
     }
 
     private RequestPostProcessor cliente() {

@@ -80,7 +80,6 @@ class CustomerEmaIntegrationTest extends AbstractIntegrationTest {
         jdbc.update("DELETE FROM reserva WHERE tenant_id = ? AND canal = 'PORTAL'", TENANT_ACME);
         jdbc.update("DELETE FROM cliente_anexo WHERE tenant_id = ? AND cliente_id IN " +
                     "(SELECT id FROM cliente WHERE email = 'p3@test.com')", TENANT_ACME);
-        jdbc.update("DELETE FROM cliente_identity_provider WHERE provider_user_id = ?", SUB);
         jdbc.update("DELETE FROM cliente WHERE tenant_id = ? AND email = 'p3@test.com'", TENANT_ACME);
         jdbc.update("DELETE FROM cliente WHERE tenant_id = ? AND documento = '999.888.777-66'", TENANT_ACME);
     }
