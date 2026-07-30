@@ -1,11 +1,11 @@
 # Identidade Única — Spec de Unificação
 
-> Status: **proposta** (30/jul/2026). Projeto previsto desde a decisão de identidade única
-> (jul/2026, CLAUDE.md regra 3) e adiado conscientemente pela F0–F6 do console
-> ("o fluxo de claim é sensível demais para mudar de passagem",
-> `PLATAFORMA_CONSOLE_SPEC.md` §9.4). Janela de execução ideal: **agora** —
-> `cliente_identity_provider` tem **zero linhas em produção**; o custo da migração cresce
-> com cada cliente que ativar conta no portal.
+> Status: **em execução — F0 ENTREGUE** (30/jul/2026, commit bbeec5b; V059 aplicada em
+> produção com o assert de janela passando — zero vínculos legados). Próxima fase: F1
+> (leitura pelo caminho novo + policy `cliente_self_read` + harness não-superuser).
+> Projeto previsto desde a decisão de identidade única (jul/2026, CLAUDE.md regra 3) e
+> adiado conscientemente pela F0–F6 do console ("o fluxo de claim é sensível demais para
+> mudar de passagem", `PLATAFORMA_CONSOLE_SPEC.md` §9.4).
 
 ---
 
