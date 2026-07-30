@@ -79,6 +79,7 @@ public class CustomerReservaService {
     private final ClienteAnexoService clienteAnexoService;
     private final CustomerHabilitacaoService customerHabilitacaoService;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private final com.jetski.usuarios.api.PessoaProvisioningService pessoaProvisioningService;
 
     /** Percentual do sinal sobre o valor estimado da reserva (spec §5.2: ex. 30%). */
     @Value("${jetski.portal.sinal-percentual:30}")
@@ -208,6 +209,11 @@ public class CustomerReservaService {
                     existente.setWhatsapp(telefone.trim());
                 }
             }
+            // Identidade única (F0): backfill de fichas vinculadas antes da F0
+            if (existente.getUsuarioId() == null) {
+                existente.setUsuarioId(pessoaProvisioningService.provisionarPessoa(
+                    sub, email, nome, "RESERVA_PORTAL"));
+            }
             return clienteRepository.save(existente);
         }
 
@@ -232,6 +238,10 @@ public class CustomerReservaService {
             .ativo(true)
             .build();
         customerProfileService.hidratarIdentidade(cliente, profile);
+        // Identidade única (F0, dupla escrita): sub autenticado do portal —
+        // a pessoa nasce (ou acumula o papel) junto com a primeira ficha.
+        cliente.setUsuarioId(pessoaProvisioningService.provisionarPessoa(
+            sub, email, nome, "RESERVA_PORTAL"));
         cliente = clienteRepository.save(cliente);
 
         identityRepository.save(ClienteIdentityProvider.builder()

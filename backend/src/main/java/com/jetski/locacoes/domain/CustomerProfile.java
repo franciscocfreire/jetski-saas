@@ -41,6 +41,14 @@ public class CustomerProfile {
     @Column(name = "provider_user_id", nullable = false, length = 255)
     private String providerUserId;
 
+    /**
+     * A PESSOA (identidade única, F0): o perfil civil deixa de ser raiz
+     * própria e passa a apontar para usuario. Preenchido lazy (obter) quando
+     * o sub já tem pessoa provisionada; re-key completo é a F3.
+     */
+    @Column(name = "usuario_id")
+    private java.util.UUID usuarioId;
+
     @Column(name = "nome", length = 120)
     private String nome;
 

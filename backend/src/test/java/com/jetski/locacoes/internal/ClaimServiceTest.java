@@ -53,8 +53,11 @@ class ClaimServiceTest {
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final EntityManager em = mock(EntityManager.class);
 
+    private final com.jetski.usuarios.api.PessoaProvisioningService pessoa =
+        mock(com.jetski.usuarios.api.PessoaProvisioningService.class);
+
     private final ClaimService service = new ClaimService(
-        clienteRepo, tokenRepo, identityRepo, provisioning, email, events, em);
+        clienteRepo, tokenRepo, identityRepo, provisioning, pessoa, email, events, em);
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID clienteId = UUID.randomUUID();

@@ -1013,6 +1013,42 @@ public class AuditEventListener {
     }
 
     /**
+     * Pessoa provisionada (identidade única, F0): linha GLOBAL (tenant NULL —
+     * a pessoa é da plataforma, não de uma loja; policy insert-only da V051).
+     * AFTER_COMMIT porque o usuario referenciado pela FK acabou de ser criado
+     * na transação do provisionamento.
+     */
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onPessoaProvisionada(com.jetski.usuarios.domain.event.PessoaProvisionadaEvent event) {
+        try {
+            Map<String, Object> dados = new HashMap<>();
+            dados.put("providerUserId", event.providerUserId());
+            dados.put("usuarioNovo", event.usuarioNovo());
+            dados.put("origem", event.origem());
+
+            Auditoria auditoria = Auditoria.builder()
+                    .tenantId(null)
+                    .usuarioId(event.usuarioId())
+                    .acao("PESSOA_PROVISIONADA")
+                    .entidade("USUARIO")
+                    .entidadeId(event.usuarioId())
+                    .dadosNovos(dados)
+                    .traceId(getTraceId())
+                    .ip(getRemoteIp())
+                    .build();
+
+            auditoriaRepository.save(auditoria);
+            log.info("Audit: PESSOA_PROVISIONADA usuarioId={}, novo={}, origem={}, auditId={}",
+                    event.usuarioId(), event.usuarioNovo(), event.origem(), auditoria.getId());
+        } catch (Exception e) {
+            log.error("Failed to audit PESSOA_PROVISIONADA: usuarioId={}, error={}",
+                    event.usuarioId(), e.getMessage(), e);
+        }
+    }
+
+    /**
      * Handles tenant status changes by the platform super admin (approve/suspend/reactivate).
      *
      * @param event the tenant status changed domain event

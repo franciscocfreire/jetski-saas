@@ -170,6 +170,15 @@ public class Cliente {
      * Usuário do staff que registrou o lead/pré-conta — base para métrica de
      * conversão e comissão de captação (futuras). Null para cadastros do portal.
      */
+    /**
+     * A PESSOA (identidade única, F0): FK para usuario, preenchida quando o
+     * cliente tem conta na plataforma (claim ativado ou reserva logada).
+     * NULL = ficha de balcão/lead sem conta. Vira o vínculo canônico na F4;
+     * até lá convive com cliente_identity_provider (dupla escrita).
+     */
+    @Column(name = "usuario_id")
+    private java.util.UUID usuarioId;
+
     @Column(name = "capturado_por")
     private UUID capturadoPor;
 

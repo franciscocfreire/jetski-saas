@@ -39,6 +39,7 @@ public class CustomerProfileService {
 
     private final CustomerProfileRepository repository;
     private final CustomerAccountService customerAccountService;
+    private final com.jetski.usuarios.api.IdentityProviderMappingService identityProviderMappingService;
     private final ClienteRepository clienteRepository;
     private final UserProvisioningService userProvisioningService;
     private final EntityManager entityManager;
@@ -56,7 +57,21 @@ public class CustomerProfileService {
         Optional<CustomerProfile> existente =
             repository.findByProviderAndProviderUserId(PROVIDER, sub);
         if (existente.isPresent()) {
-            return existente.get();
+            CustomerProfile p = existente.get();
+            // Identidade única (F0): liga o perfil à pessoa quando ela já foi
+            // provisionada (claim/reserva). Read-only + cacheado; re-key na F3.
+            if (p.getUsuarioId() == null) {
+                // tryResolve: sub sem pessoa provisionada é o caso NORMAL aqui
+                // (consumidor que ainda não ativou claim nem reservou) — o
+                // resolveUsuarioId lançaria e viraria 404 no /self.
+                var usuarioId = identityProviderMappingService
+                    .tryResolveUsuarioId(PROVIDER, sub);
+                if (usuarioId.isPresent()) {
+                    p.setUsuarioId(usuarioId.get());
+                    p = repository.save(p);
+                }
+            }
+            return p;
         }
 
         CustomerProfile profile = CustomerProfile.builder()

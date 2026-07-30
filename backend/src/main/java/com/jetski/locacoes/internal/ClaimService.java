@@ -54,6 +54,7 @@ public class ClaimService {
     private final ClienteClaimTokenRepository tokenRepository;
     private final ClienteIdentityProviderRepository identityRepository;
     private final UserProvisioningService userProvisioningService;
+    private final com.jetski.usuarios.api.PessoaProvisioningService pessoaProvisioningService;
     private final EmailService emailService;
     private final ApplicationEventPublisher eventPublisher;
     private final EntityManager entityManager;
@@ -218,6 +219,12 @@ public class ClaimService {
             .provider(PROVIDER)
             .providerUserId(providerUserId)
             .build());
+
+        // Identidade única (F0, dupla escrita): a pessoa passa a existir como
+        // usuario global e a ficha aponta para ela. Posse do e-mail comprovada
+        // pela senha temporária entregue a ele (contrato do provisionarPessoa).
+        cliente.setUsuarioId(pessoaProvisioningService.provisionarPessoa(
+            providerUserId, cliente.getEmail(), cliente.getNome(), "CLAIM"));
 
         cliente.setStatusConta(Cliente.StatusConta.ATIVA);
         clienteRepository.save(cliente);

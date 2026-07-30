@@ -209,13 +209,17 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
         assertThat(tok).get().extracting(ClienteClaimToken::getAtivo, ClienteClaimToken::isUsado)
             .containsExactly(false, true);
 
-        // INVARIANTE: cliente nunca vira Usuario/Membro
+        // INVARIANTE (identidade única, F0): o cliente vira PESSOA da plataforma
+        // (usuario global + cliente.usuario_id), mas NUNCA membro/staff da loja.
         Integer membros = jdbc.queryForObject(
             "SELECT count(*) FROM membro WHERE tenant_id = ?", Integer.class, TENANT_ID);
         assertThat(membros).isZero();
         Integer usuarios = jdbc.queryForObject(
             "SELECT count(*) FROM usuario WHERE email = ?", Integer.class, "roberto.e2e@example.com");
-        assertThat(usuarios).isZero();
+        assertThat(usuarios).isEqualTo(1);
+        assertThat(reloadCliente(cliente.getId()).getUsuarioId())
+            .as("dupla escrita F0: ficha aponta para a pessoa")
+            .isNotNull();
     }
 
     private Cliente reloadCliente(UUID id) {

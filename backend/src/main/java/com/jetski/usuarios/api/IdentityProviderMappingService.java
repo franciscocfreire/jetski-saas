@@ -54,6 +54,17 @@ public class IdentityProviderMappingService {
      * @return Internal user UUID
      * @throws NotFoundException if mapping doesn't exist
      */
+    /**
+     * Variante sem exceção: ausência de mapping é resposta válida (Optional
+     * vazio). Para chamadores onde "ainda não mapeado" é caminho normal —
+     * lançar aqui atravessaria proxies @Transactional marcando rollback-only.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<UUID> tryResolveUsuarioId(String provider, String providerUserId) {
+        return mappingRepository.findByProviderAndProviderUserId(provider, providerUserId)
+            .map(m -> m.getUsuario().getId());
+    }
+
     @Cacheable(
         value = "identity-provider-mapping",
         key = "#provider + ':' + #providerUserId",

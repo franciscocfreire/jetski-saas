@@ -733,6 +733,22 @@ CREATE TABLE IF NOT EXISTS public.customer_habilitacao (
 CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_cpf ON public.customer_habilitacao (cpf);
 CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_sub ON public.customer_habilitacao (provider, provider_user_id);
 
+-- V059: identidade única F0 — usuario como raiz da pessoa (spec
+-- IDENTIDADE_UNICA_SPEC.md). Colunas nullable; caminho antigo
+-- (cliente_identity_provider) segue vigente até a F4. O assert de
+-- tabela-vazia da V059 fica só no Flyway (guarda de deploy em prod).
+-- Depois das criações de cliente/customer_profile/customer_habilitacao.
+ALTER TABLE public.cliente
+    ADD COLUMN IF NOT EXISTS usuario_id uuid REFERENCES public.usuario (id);
+CREATE INDEX IF NOT EXISTS idx_cliente_usuario
+    ON public.cliente (usuario_id) WHERE usuario_id IS NOT NULL;
+ALTER TABLE public.customer_profile
+    ADD COLUMN IF NOT EXISTS usuario_id uuid REFERENCES public.usuario (id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_customer_profile_usuario
+    ON public.customer_profile (usuario_id) WHERE usuario_id IS NOT NULL;
+ALTER TABLE public.customer_habilitacao
+    ADD COLUMN IF NOT EXISTS usuario_id uuid REFERENCES public.usuario (id);
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 
