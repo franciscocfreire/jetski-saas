@@ -106,6 +106,9 @@ public class CustomerHabilitacaoSyncService {
             registro.setProvider(v.provider());
             registro.setProviderUserId(v.providerUserId());
         });
+        // Identidade única (F3): a PESSOA da ficha — os provider fields acima
+        // viram legado e caem na F4
+        registro.setUsuarioId(cliente.getUsuarioId());
 
         // Devolutiva confirmada: copia o PDF para o prefixo da PLATAFORMA —
         // o prefixo do tenant é apagado num eventual expurgo da loja.

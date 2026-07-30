@@ -48,6 +48,7 @@ public class CustomerCpfMergeService {
     private final CustomerProfileRepository repository;
     private final CustomerProfileService customerProfileService;
     private final CustomerAccountService customerAccountService;
+    private final com.jetski.usuarios.api.PessoaProvisioningService pessoaProvisioningService;
     private final UserProvisioningService userProvisioningService;
     private final EmailService emailService;
     private final StringRedisTemplate redis;
@@ -73,7 +74,10 @@ public class CustomerCpfMergeService {
             throw new BusinessException("CPF inválido.");
         }
 
-        CustomerProfile atual = customerProfileService.obter(sub, nomeJwt);
+        // findEmailById: o merge roda fora de request com claims completos e a
+        // conta duplicada precisa de pessoa para o descarte da F3 (D7)
+        CustomerProfile atual = customerProfileService.obter(
+            sub, nomeJwt, userProvisioningService.findEmailById(sub));
         if (atual.getCpf() != null && !atual.getCpf().isBlank()) {
             throw new BusinessException("Sua conta já tem CPF definido.");
         }
@@ -181,6 +185,12 @@ public class CustomerCpfMergeService {
 
         // Perfil global da duplicata (criado no gate, sem CPF) não serve mais.
         repository.findByProviderAndProviderUserId(PROVIDER, sub).ifPresent(repository::delete);
+
+        // Identidade única (F3/D7): descarta a PESSOA da duplicata (usuario +
+        // mapping) — sem isto o e-mail dela ficaria ocupado por um usuario
+        // órfão de conta. Só remove se não houver papéis/fichas (por construção
+        // do merge: duplicata sem vínculos).
+        pessoaProvisioningService.descartarPessoaSemPapeis(sub);
 
         // Best-effort: conta órfã sem link Google é inócua (sem senha Google e
         // sem vínculos); não aborta o merge já concluído.

@@ -759,6 +759,18 @@ CREATE POLICY cliente_self_read ON public.cliente
         AND usuario_id = NULLIF(current_setting('app.customer_usuario', true), '')::uuid
     );
 
+-- V061: backfill do re-key F3 (idempotente — só preenche NULL)
+UPDATE public.customer_profile p
+   SET usuario_id = uip.usuario_id
+  FROM public.usuario_identity_provider uip
+ WHERE p.usuario_id IS NULL
+   AND uip.provider = p.provider AND uip.provider_user_id = p.provider_user_id;
+UPDATE public.customer_habilitacao h
+   SET usuario_id = uip.usuario_id
+  FROM public.usuario_identity_provider uip
+ WHERE h.usuario_id IS NULL AND h.provider IS NOT NULL
+   AND uip.provider = h.provider AND uip.provider_user_id = h.provider_user_id;
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 

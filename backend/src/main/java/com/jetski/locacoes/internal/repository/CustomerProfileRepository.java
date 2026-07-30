@@ -14,6 +14,9 @@ public interface CustomerProfileRepository extends JpaRepository<CustomerProfile
 
     Optional<CustomerProfile> findByProviderAndProviderUserId(String provider, String providerUserId);
 
+    /** Caminho primário pós-F3: o perfil é da PESSOA. */
+    Optional<CustomerProfile> findByUsuarioId(java.util.UUID usuarioId);
+
     Optional<CustomerProfile> findByCpf(String cpf);
 
     /**

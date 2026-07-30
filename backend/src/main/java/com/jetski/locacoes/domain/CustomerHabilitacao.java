@@ -49,6 +49,10 @@ public class CustomerHabilitacao {
     @Column(name = "cpf", nullable = false, length = 14)
     private String cpf;
 
+    /** A PESSOA (identidade única, F3). Provider fields viram legado até a F4. */
+    @Column(name = "usuario_id")
+    private java.util.UUID usuarioId;
+
     @Column(name = "provider", length = 50)
     private String provider;
 

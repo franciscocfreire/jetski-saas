@@ -176,7 +176,7 @@ public class CustomerReservaService {
      */
     private Cliente resolverOuCriarCliente(UUID tenantId, String sub, String email,
                                            String nome, String cpf, String telefone) {
-        CustomerProfile profile = customerProfileService.obter(sub, nome);
+        CustomerProfile profile = customerProfileService.obter(sub, nome, email);
 
         // CPF do wizard: define no perfil se ainda não há; divergente ⇒ bloqueia
         if (cpf != null && !cpf.isBlank()) {

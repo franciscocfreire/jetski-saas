@@ -40,6 +40,7 @@ public class CustomerProfileService {
     private final CustomerProfileRepository repository;
     private final CustomerAccountService customerAccountService;
     private final com.jetski.usuarios.api.IdentityProviderMappingService identityProviderMappingService;
+    private final com.jetski.usuarios.api.PessoaProvisioningService pessoaProvisioningService;
     private final ClienteRepository clienteRepository;
     private final UserProvisioningService userProvisioningService;
     private final EntityManager entityManager;
@@ -50,26 +51,36 @@ public class CustomerProfileService {
     /**
      * Perfil do sub — cria com backfill lazy dos Clientes já vinculados
      * (vínculo mais recente primeiro; primeiro valor não-nulo vence).
-     * Cobre clientes pré-existentes sem migração de dados.
+     *
+     * <p>Identidade única (F3): o perfil é da PESSOA. Se o sub ainda não tem
+     * pessoa e o chamador trouxe o e-mail do JWT, ela nasce AQUI — é a porta
+     * dos logins que não passam por claim/reserva (Google, primeiro acesso).
+     * Autenticou ⇒ posse do e-mail comprovada: no realm, VERIFY_EMAIL bloqueia
+     * o login por senha, Google é trustEmail e o e-mail-code prova posse por
+     * construção. Lookup primário por usuario_id; provider fields = legado F4.
+     *
+     * @param emailJwt e-mail do token (null = não provisiona pessoa nova)
      */
     @Transactional
-    public CustomerProfile obter(String sub, String nomeJwt) {
+    public CustomerProfile obter(String sub, String nomeJwt, String emailJwt) {
+        var pessoa = identityProviderMappingService.tryResolveUsuarioId(PROVIDER, sub);
+        if (pessoa.isEmpty() && emailJwt != null && !emailJwt.isBlank()) {
+            pessoa = Optional.of(pessoaProvisioningService.provisionarPessoa(
+                sub, emailJwt.trim().toLowerCase(), nomeJwt, "PERFIL"));
+        }
+
+        Optional<CustomerProfile> porPessoa =
+            pessoa.flatMap(repository::findByUsuarioId);
+        if (porPessoa.isPresent()) {
+            return porPessoa.get();
+        }
         Optional<CustomerProfile> existente =
             repository.findByProviderAndProviderUserId(PROVIDER, sub);
         if (existente.isPresent()) {
             CustomerProfile p = existente.get();
-            // Identidade única (F0): liga o perfil à pessoa quando ela já foi
-            // provisionada (claim/reserva). Read-only + cacheado; re-key na F3.
-            if (p.getUsuarioId() == null) {
-                // tryResolve: sub sem pessoa provisionada é o caso NORMAL aqui
-                // (consumidor que ainda não ativou claim nem reservou) — o
-                // resolveUsuarioId lançaria e viraria 404 no /self.
-                var usuarioId = identityProviderMappingService
-                    .tryResolveUsuarioId(PROVIDER, sub);
-                if (usuarioId.isPresent()) {
-                    p.setUsuarioId(usuarioId.get());
-                    p = repository.save(p);
-                }
+            if (p.getUsuarioId() == null && pessoa.isPresent()) {
+                p.setUsuarioId(pessoa.get());
+                p = repository.save(p);
             }
             return p;
         }
@@ -77,6 +88,7 @@ public class CustomerProfileService {
         CustomerProfile profile = CustomerProfile.builder()
             .provider(PROVIDER)
             .providerUserId(sub)
+            .usuarioId(pessoa.orElse(null))
             .nome(nomeJwt)
             .build();
 
@@ -105,8 +117,8 @@ public class CustomerProfileService {
         Boolean estrangeiro, LocalDate dataNascimento) {}
 
     @Transactional
-    public CustomerProfile atualizar(String sub, String nomeJwt, AtualizarCmd cmd) {
-        CustomerProfile p = obter(sub, nomeJwt);
+    public CustomerProfile atualizar(String sub, String nomeJwt, String emailJwt, AtualizarCmd cmd) {
+        CustomerProfile p = obter(sub, nomeJwt, emailJwt);
 
         if (cmd.cpf() != null && !cmd.cpf().isBlank()) {
             definirCpf(p, cmd.cpf());
@@ -226,7 +238,8 @@ public class CustomerProfileService {
     /** Espelha a identidade do Cliente da loja para o perfil (write-through do EMA). */
     @Transactional
     public void absorverIdentidade(String sub, String nomeJwt, Cliente c) {
-        CustomerProfile p = obter(sub, nomeJwt);
+        // email null: o EMA roda sobre uma reserva — a pessoa já nasceu lá
+        CustomerProfile p = obter(sub, nomeJwt, null);
         if (!isBlank(c.getDocumento()) && isBlank(p.getCpf())) {
             definirCpf(p, c.getDocumento());
         }

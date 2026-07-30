@@ -142,7 +142,7 @@ class CustomerNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
                 + "ON CONFLICT DO NOTHING");
         }
 
-        profileService.atualizar("sub-f1-a", "Pessoa A",
+        profileService.atualizar("sub-f1-a", "Pessoa A", "pessoa-a@f1.test",
             new CustomerProfileService.AtualizarCmd(
                 null, "RG-F1-999", "SSP", null, null, null, null));
 

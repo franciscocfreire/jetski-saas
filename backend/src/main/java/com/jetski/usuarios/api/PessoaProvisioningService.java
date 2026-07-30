@@ -38,6 +38,7 @@ public class PessoaProvisioningService {
     private final UsuarioRepository usuarioRepository;
     private final IdentityProviderMappingService mappingService;
     private final ApplicationEventPublisher eventPublisher;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     /**
      * @param providerUserId sub autenticado do Keycloak
@@ -78,5 +79,49 @@ public class PessoaProvisioningService {
         log.info("[IDENTIDADE] Pessoa provisionada: usuarioId={}, novo={}, origem={}",
             usuario.getId(), novo, origem);
         return usuario.getId();
+    }
+
+    /**
+     * Descarta a pessoa de uma conta DUPLICADA (merge por CPF, F3/D7): remove
+     * mapping e usuario — somente se a pessoa não tiver NENHUM papel ou ficha
+     * (membro, papéis de plataforma, cliente.usuario_id). Checagens por SQL
+     * nativo de propósito: a ficha vive no módulo locacoes e uma dependência
+     * usuarios→locacoes criaria ciclo — o convite (usuarios) já é consumido
+     * pelo módulo de fichas.
+     *
+     * @return true se descartou; false se a pessoa tinha papéis (mantida)
+     */
+    @Transactional
+    public boolean descartarPessoaSemPapeis(String providerUserId) {
+        var pessoa = mappingService.tryResolveUsuarioId(PROVIDER, providerUserId);
+        if (pessoa.isEmpty()) {
+            return false;
+        }
+        UUID usuarioId = pessoa.get();
+        Long papeis = jdbcTemplate.queryForObject(
+            "SELECT (SELECT count(*) FROM membro WHERE usuario_id = ?) + "
+            + "(SELECT count(*) FROM usuario_global_roles WHERE usuario_id = ?) + "
+            + "(SELECT count(*) FROM cliente WHERE usuario_id = ?)",
+            Long.class, usuarioId, usuarioId, usuarioId);
+        if (papeis != null && papeis > 0) {
+            log.warn("[IDENTIDADE] Pessoa duplicada NÃO descartada (tem papéis/fichas): usuarioId={}",
+                usuarioId);
+            return false;
+        }
+        jdbcTemplate.update(
+            "DELETE FROM usuario_identity_provider WHERE usuario_id = ?", usuarioId);
+        // Trilha pode referenciar a pessoa (FK) — nesse caso mantém o usuario
+        // (inativo) e o e-mail é liberado por sufixo, como no tombstone de tenant
+        Long trilha = jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM auditoria WHERE usuario_id = ?", Long.class, usuarioId);
+        if (trilha != null && trilha > 0) {
+            jdbcTemplate.update(
+                "UPDATE usuario SET ativo = false, email = email || '+descartada-' || substr(id::text, 1, 8) "
+                + "WHERE id = ?", usuarioId);
+        } else {
+            jdbcTemplate.update("DELETE FROM usuario WHERE id = ?", usuarioId);
+        }
+        log.info("[IDENTIDADE] Pessoa duplicada descartada no merge: usuarioId={}", usuarioId);
+        return true;
     }
 }

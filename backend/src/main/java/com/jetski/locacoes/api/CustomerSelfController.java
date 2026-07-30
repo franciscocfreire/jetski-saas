@@ -84,7 +84,7 @@ public class CustomerSelfController {
     public ResponseEntity<SelfResponse> self(@AuthenticationPrincipal Jwt jwt) {
         Boolean verified = jwt.getClaimAsBoolean("email_verified");
         CustomerProfile profile = customerProfileService.obter(
-            jwt.getSubject(), jwt.getClaimAsString("name"));
+            jwt.getSubject(), jwt.getClaimAsString("name"), jwt.getClaimAsString("email"));
         return ResponseEntity.ok(SelfResponse.builder()
             .nome(jwt.getClaimAsString("name"))
             .email(jwt.getClaimAsString("email"))
@@ -178,7 +178,7 @@ public class CustomerSelfController {
             @Valid @RequestBody AtualizarPerfilRequest request) {
         customerAccountService.atualizarNome(jwt.getSubject(), request.nome());
         CustomerProfile atualizado = customerProfileService.atualizar(
-            jwt.getSubject(), request.nome(),
+            jwt.getSubject(), request.nome(), jwt.getClaimAsString("email"),
             new CustomerProfileService.AtualizarCmd(
                 request.cpf(), request.rg(), request.orgaoEmissor(),
                 request.nacionalidade(), request.naturalidade(),
