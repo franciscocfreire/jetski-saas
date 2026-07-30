@@ -56,7 +56,9 @@ public class ModeloController {
      * @return List of models
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    // Espelha a matriz OPA (rbac.rego): VENDEDOR tem modelo:list — o menu
+    // mostrava "Modelos" e este @PreAuthorize mais restrito devolvia 403
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'VENDEDOR')")
     @Operation(
         summary = "Listar modelos de jetski",
         description = "Lista todos os modelos de jetski do tenant com informações de preços. " +
@@ -96,7 +98,7 @@ public class ModeloController {
      * @return Model details
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'VENDEDOR')")
     @Operation(
         summary = "Obter modelo por ID",
         description = "Retorna os detalhes de um modelo específico de jetski."
@@ -315,7 +317,7 @@ public class ModeloController {
      * List all media (images/videos) for a model.
      */
     @GetMapping("/{id}/midias")
-    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'VENDEDOR')")
     @Operation(
         summary = "Listar mídias do modelo",
         description = "Lista todas as imagens e vídeos associados a um modelo de jetski."

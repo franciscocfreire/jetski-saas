@@ -53,7 +53,9 @@ public class JetskiController {
      * @return List of jetskis
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    // Espelha a matriz OPA (rbac.rego): VENDEDOR/MECANICO têm jetski:list —
+    // o menu mostrava "Jetskis" e este @PreAuthorize mais restrito devolvia 403
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'VENDEDOR', 'MECANICO')")
     @Operation(
         summary = "Listar jetskis da frota",
         description = "Lista todos os jetskis do tenant com informações de status e horímetro. " +
@@ -102,7 +104,7 @@ public class JetskiController {
      * @return Jetski details
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'VENDEDOR', 'MECANICO')")
     @Operation(
         summary = "Obter jetski por ID",
         description = "Retorna os detalhes de um jetski específico da frota."

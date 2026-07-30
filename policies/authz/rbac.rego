@@ -111,6 +111,10 @@ role_permissions := {
         "politicas-comissao:*",
         "config:*",      # Configurações do tenant (comissões, bônus, etc)
         "frota:*",       # Dashboard de frota e KPIs
+        # Dashboard financeiro (calendário/DRE/receitas×despesas): antes só o
+        # ADMIN_TENANT (via "*") enxergava — gerente sem visão do próprio negócio
+        "dashboard:list",
+        "dashboard:view",
         "relatorio:operacional",
         "relatorio:comissoes",
         "vendedor:view",
@@ -157,6 +161,9 @@ role_permissions := {
         "politica-comissao:create",
         "relatorio:financeiro",
         "relatorio:comissoes",
+        # Dashboard financeiro é a tela de trabalho deste papel (DRE, receitas)
+        "dashboard:list",
+        "dashboard:view",
         "vendedor:view",
         "vendedor:list",
         "cliente:view",

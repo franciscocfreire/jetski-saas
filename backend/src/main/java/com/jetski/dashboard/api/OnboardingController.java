@@ -21,6 +21,10 @@ import java.util.UUID;
  * @author Jetski Team
  */
 @Slf4j
+// Espelha o OPA: /dashboard/onboarding vira a ação dashboard:list (ADMIN,
+// GERENTE, FINANCEIRO). Checklist não é sensível, mas fica sem barreira única.
+@org.springframework.security.access.prepost.PreAuthorize(
+    "hasAnyRole('ADMIN_TENANT', 'GERENTE', 'FINANCEIRO')")
 @RestController
 @RequestMapping("/v1/tenants/{tenantId}/dashboard/onboarding")
 @RequiredArgsConstructor

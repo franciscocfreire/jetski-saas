@@ -52,6 +52,8 @@ public class PlatformFaturaService {
     private final PlatformTenantService platformTenantService;
     private final EmailService emailService;
     private final EntityManager entityManager;
+    private final com.jetski.tenant.internal.repository.TenantRepository tenantRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     /** Mesma chave PIX da plataforma usada na venda de créditos. */
     @Value("${jetski.creditos.pix-chave:pix@meujet.com.br}")
@@ -224,6 +226,14 @@ public class PlatformFaturaService {
             .setParameter("fim", trial
                 ? java.time.LocalDate.now().plusDays(PlatformTenantService.TRIAL_DAYS) : null)
             .executeUpdate();
+        // Trilha durável (padrão das demais ações de plataforma): quem trocou o
+        // plano de quem, para quê — o log some, a auditoria fica.
+        tenantRepository.findById(tenantId).ifPresent(t ->
+            eventPublisher.publishEvent(com.jetski.tenant.domain.event.TenantStatusChangedEvent.of(
+                tenantId, "TENANT_PLANO_ALTERADO", t.getStatus().name(), t.getStatus().name(),
+                com.jetski.shared.security.TenantContext.getUsuarioId(),
+                "plano=" + nome + " (id=" + planoId + ")",
+                t.getRazaoSocial(), t.getSlug())));
         log.warn("[PLATFORM] Plano alterado: tenant={}, novoPlano={} ({})",
             tenantId, planoId, nome);
     }

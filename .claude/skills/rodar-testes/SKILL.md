@@ -22,6 +22,7 @@ Pré-requisito: Docker rodando (Testcontainers sobe Postgres + Redis).
 - **"Failed to load ApplicationContext" em cascata**: a causa real está no FUNDO da stack trace, atrás do flywayInitializer. Frequentemente é `too many clients` ou migration quebrada.
 - **CORS**: `SecurityConfigTest` afirma a lista exata de origens — mexeu no CORS, atualize o teste.
 - **RBAC**: 403 = deny de autorização (OPA/@PreAuthorize); 400 = deny de negócio (BusinessException). Não confundir nas asserções.
+- **RLS**: a suíte conecta como SUPERUSER — policies não valem e bug de contexto RLS passa batido (aconteceu 3× em 28/jul/2026). Código novo de rota de plataforma (`/v1/platform/**`) que toca tabela com RLS deve ganhar caso no `PlatformNonSuperuserIntegrationTest` (datasource `app_test`, espelho do `jetski_app` de prod, `TenantContext` sem tenant + unrestricted). Policies puras: `RlsEnforcementIntegrationTest`.
 
 ## Depurar CI vermelho
 1. O `ci.yml` imprime `surefire-reports/*.txt` no log quando falha — ler a stack lá.

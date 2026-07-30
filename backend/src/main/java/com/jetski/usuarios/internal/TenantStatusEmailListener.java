@@ -34,12 +34,23 @@ public class TenantStatusEmailListener {
 
     private static final String ADMIN_ROLE = "ADMIN_TENANT";
 
+    /** Ações que têm template em EmailTemplates.tenantStatusSubject/Html. */
+    private static final java.util.Set<String> ACOES_COM_EMAIL = java.util.Set.of(
+        "TENANT_APPROVED", "TENANT_SUSPENDED", "TENANT_REACTIVATED");
+
     private final MembroRepository membroRepository;
     private final EmailService emailService;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onTenantStatusChanged(TenantStatusChangedEvent event) {
+        // Só as ações com template de e-mail: os demais eventos do mesmo tipo
+        // (TENANT_RESET/IMPORT/EXCLUSAO/PLANO_ALTERADO) são trilha de auditoria —
+        // sem este filtro, EmailTemplates lançava "Ação desconhecida" e o warn
+        // "Falha (ignorada) ao avisar admin" sujava o log a cada reset.
+        if (!ACOES_COM_EMAIL.contains(event.acao())) {
+            return;
+        }
         try {
             // Thread async nasce sem contexto: o TenantAwareDataSource lê o
             // ThreadLocal a cada getConnection() para satisfazer a RLS.

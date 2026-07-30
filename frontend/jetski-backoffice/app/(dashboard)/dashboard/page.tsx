@@ -14,6 +14,7 @@ import {
   Timer,
 } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
+import { usePermissions } from '@/lib/hooks/use-permissions'
 import { jetskisService, locacoesService, clientesService, dashboardService } from '@/lib/api/services'
 import { formatCurrency } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -145,16 +146,23 @@ export default function DashboardPage() {
     enabled: !!currentTenant,
   })
 
+  // Receita é frota:list no OPA (GERENTE/ADMIN): para os demais papéis o
+  // fetch dava 403 silencioso e os cards mostravam "R$ 0,00" — que lia como
+  // "não vendemos nada hoje". Sem a permissão, nem busca nem renderiza.
+  const { can } = usePermissions()
+  const podeVerReceita = can('frota:list')
+
   // Dashboard metrics (cached on backend)
   const { data: metrics, isLoading: loadingMetrics } = useQuery({
     queryKey: ['dashboard-metrics', currentTenant?.id],
     queryFn: () => dashboardService.getMetrics(),
-    enabled: !!currentTenant,
+    enabled: !!currentTenant && podeVerReceita,
     staleTime: 1000 * 60 * 5, // 5 minutes (match backend cache TTL)
     refetchOnWindowFocus: true, // Refetch when user returns to tab
   })
 
-  const isLoading = loadingJetskis || loadingLocacoes || loadingClientes || loadingMetrics
+  const isLoading = loadingJetskis || loadingLocacoes || loadingClientes
+    || (podeVerReceita && loadingMetrics)
 
   // Calculate stats - backend returns simple arrays, not paginated
   const totalJetskis = jetskis?.length || 0
@@ -207,13 +215,15 @@ export default function DashboardPage() {
           </>
         ) : (
           <>
-            <StatCard
-              title="Receita Hoje"
-              value={formatCurrency(receitaHoje)}
-              description={`${locacoesHoje} locações finalizadas`}
-              icon={<DollarSign className="h-6 w-6" />}
-              variant="success"
-            />
+            {podeVerReceita && (
+              <StatCard
+                title="Receita Hoje"
+                value={formatCurrency(receitaHoje)}
+                description={`${locacoesHoje} locações finalizadas`}
+                icon={<DollarSign className="h-6 w-6" />}
+                variant="success"
+              />
+            )}
             <StatCard
               title="Locações Ativas"
               value={locacoesAtivas}
@@ -225,12 +235,14 @@ export default function DashboardPage() {
               value={totalClientes}
               icon={<Users className="h-6 w-6" />}
             />
-            <StatCard
-              title="Receita Mensal"
-              value={formatCurrency(receitaMes)}
-              description={`${locacoesMes} locações no mês`}
-              icon={<Calendar className="h-6 w-6" />}
-            />
+            {podeVerReceita && (
+              <StatCard
+                title="Receita Mensal"
+                value={formatCurrency(receitaMes)}
+                description={`${locacoesMes} locações no mês`}
+                icon={<Calendar className="h-6 w-6" />}
+              />
+            )}
           </>
         )}
       </div>

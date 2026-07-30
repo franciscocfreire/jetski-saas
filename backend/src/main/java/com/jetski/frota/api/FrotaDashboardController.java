@@ -34,6 +34,10 @@ import java.util.UUID;
  * @author Jetski Team
  * @since 0.9.0
  */
+// Defesa em profundidade: espelha o OPA (frota:list/delete = GERENTE; ADMIN
+// via "*"). KPIs de receita não podem depender de barreira única.
+@org.springframework.security.access.prepost.PreAuthorize(
+    "hasAnyRole('ADMIN_TENANT', 'GERENTE')")
 @RestController
 @RequestMapping("/v1/frota")
 @Tag(name = "Frota Dashboard", description = "Fleet management dashboard with KPIs and metrics")

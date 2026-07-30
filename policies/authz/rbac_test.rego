@@ -376,3 +376,53 @@ test_user_permissions_empty_roles_is_empty if {
 test_user_permissions_unknown_role_is_empty if {
     count(user_permissions) == 0 with input as {"user": {"roles": ["PAPEL_INEXISTENTE"]}}
 }
+
+# ==================== Dashboard financeiro (alinhamento 30/jul) ====================
+# GERENTE e FINANCEIRO enxergam o dashboard financeiro; papéis operacionais não.
+# Antes só o ADMIN_TENANT (via "*") tinha dashboard:* — o menu apagava o item
+# para quem mais precisava dele.
+
+test_gerente_can_view_dashboard_financeiro if {
+    allow_rbac with input as {
+        "user": {"role": "GERENTE"},
+        "action": "dashboard:list"
+    }
+}
+
+test_financeiro_can_view_dashboard_financeiro if {
+    allow_rbac with input as {
+        "user": {"role": "FINANCEIRO"},
+        "action": "dashboard:view"
+    }
+}
+
+test_operador_cannot_view_dashboard_financeiro if {
+    not allow_rbac with input as {
+        "user": {"role": "OPERADOR"},
+        "action": "dashboard:list"
+    }
+}
+
+test_vendedor_cannot_view_dashboard_financeiro if {
+    not allow_rbac with input as {
+        "user": {"role": "VENDEDOR"},
+        "action": "dashboard:list"
+    }
+}
+
+# VENDEDOR/MECANICO leem a frota (menu Jetskis/Modelos) — o @PreAuthorize dos
+# controllers espelha esta matriz; divergir de novo = 403 com item de menu aceso.
+
+test_vendedor_can_list_jetskis if {
+    allow_rbac with input as {
+        "user": {"role": "VENDEDOR"},
+        "action": "jetski:list"
+    }
+}
+
+test_mecanico_can_list_jetskis if {
+    allow_rbac with input as {
+        "user": {"role": "MECANICO"},
+        "action": "jetski:list"
+    }
+}

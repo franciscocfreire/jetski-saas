@@ -27,6 +27,11 @@ import java.util.UUID;
  * @author Jetski Team
  * @since 0.9.0
  */
+// Defesa em profundidade: espelha a matriz OPA (dashboard:list/view = ADMIN,
+// GERENTE, FINANCEIRO). Sem isto, a confidencialidade de receita/DRE dependia
+// exclusivamente do OPA — qualquer JWT do tenant passava pelo Spring.
+@org.springframework.security.access.prepost.PreAuthorize(
+    "hasAnyRole('ADMIN_TENANT', 'GERENTE', 'FINANCEIRO')")
 @RestController
 @RequestMapping("/v1/tenants/{tenantId}/dashboard/financeiro")
 @RequiredArgsConstructor
