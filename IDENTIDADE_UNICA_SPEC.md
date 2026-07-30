@@ -1,8 +1,10 @@
 # Identidade Única — Spec de Unificação
 
-> Status: **em execução — F0 ENTREGUE** (30/jul/2026, commit bbeec5b; V059 aplicada em
-> produção com o assert de janela passando — zero vínculos legados). Próxima fase: F1
-> (leitura pelo caminho novo + policy `cliente_self_read` + harness não-superuser).
+> Status: **em execução — F0 e F1 ENTREGUES** (30/jul/2026, commits bbeec5b e 30f40fe;
+> V059+V060 em produção). O escopo customer resolve pela PESSOA (policy
+> `cliente_self_read`), com fallback V029 para legado até a F3; harness não-superuser
+> cobre plataforma E customer. Próxima fase: F2 (regra nova no claim — fim da
+> IdentityConflictException, com e2e manual roteirizado antes do merge).
 > Projeto previsto desde a decisão de identidade única (jul/2026, CLAUDE.md regra 3) e
 > adiado conscientemente pela F0–F6 do console ("o fluxo de claim é sensível demais para
 > mudar de passagem", `PLATAFORMA_CONSOLE_SPEC.md` §9.4).
