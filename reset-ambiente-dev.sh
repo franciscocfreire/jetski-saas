@@ -749,6 +749,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_customer_profile_usuario
 ALTER TABLE public.customer_habilitacao
     ADD COLUMN IF NOT EXISTS usuario_id uuid REFERENCES public.usuario (id);
 
+-- V060: self-read da FICHA pela pessoa (identidade única F1). Permissiva
+-- (soma com OR) — lookups de staff seguem tenant-scoped explícitos.
+DROP POLICY IF EXISTS cliente_self_read ON public.cliente;
+CREATE POLICY cliente_self_read ON public.cliente
+    FOR SELECT
+    USING (
+        usuario_id IS NOT NULL
+        AND usuario_id = NULLIF(current_setting('app.customer_usuario', true), '')::uuid
+    );
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 

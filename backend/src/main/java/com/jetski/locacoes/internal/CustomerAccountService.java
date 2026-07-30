@@ -35,6 +35,7 @@ public class CustomerAccountService {
     private final UserProvisioningService userProvisioningService;
     private final EntityManager entityManager;
     private final com.jetski.locacoes.internal.repository.ClienteRepository clienteRepository;
+    private final com.jetski.usuarios.api.IdentityProviderMappingService identityProviderMappingService;
 
     /** Auto-cadastro público: identidade global + VERIFY_EMAIL (Keycloak envia o link). */
     public void signup(String nome, String email, String senha) {
@@ -50,14 +51,47 @@ public class CustomerAccountService {
         }
     }
 
-    /** Lojas às quais este login já está vinculado (1 Cliente por tenant). */
+    /**
+     * Lojas às quais este login já está vinculado (1 Cliente por tenant).
+     *
+     * <p>Identidade única (F1): o caminho primário é sub → pessoa
+     * ({@code usuario_identity_provider}, global) → fichas
+     * ({@code cliente.usuario_id} sob a policy {@code cliente_self_read},
+     * GUC {@code app.customer_usuario}). Completo para tudo pós-F0: pessoa e
+     * ficha nascem na MESMA transação (dupla escrita), e o assert da V059
+     * garantiu que produção não tinha vínculo anterior. Sub sem pessoa cai no
+     * caminho legado da V029 ({@code app.customer_sub}) — fallback até a F3.
+     */
     @Transactional(readOnly = true)
     @SuppressWarnings("unchecked")
     public List<VinculoLoja> vinculos(String providerUserId) {
+        var usuarioId = identityProviderMappingService
+            .tryResolveUsuarioId(PROVIDER, providerUserId);
+        if (usuarioId.isPresent()) {
+            entityManager.createNativeQuery("SELECT set_config('app.customer_usuario', :uid, true)")
+                .setParameter("uid", usuarioId.get().toString())
+                .getSingleResult();
+            List<Object[]> rows = entityManager.createNativeQuery("""
+                    SELECT c.tenant_id, c.id, t.slug, t.razao_social
+                      FROM cliente c
+                      JOIN tenant t ON t.id = c.tenant_id
+                     WHERE c.usuario_id = :uid
+                     ORDER BY c.created_at
+                    """)
+                .setParameter("uid", usuarioId.get())
+                .getResultList();
+            if (!rows.isEmpty()) {
+                return mapearVinculos(rows);
+            }
+            // Pessoa sem ficha linkada: pode existir vínculo pré-F0 (estado
+            // híbrido impossível em produção — assert da V059 + dupla escrita —
+            // mas real em dev/fixtures de teste). Cai no legado.
+        }
+
+        // Fallback legado (V029) — sub sem pessoa OU sem ficha linkada
         entityManager.createNativeQuery("SELECT set_config('app.customer_sub', :sub, true)")
             .setParameter("sub", providerUserId)
             .getSingleResult();
-
         List<Object[]> rows = entityManager.createNativeQuery("""
                 SELECT cip.tenant_id, cip.cliente_id, t.slug, t.razao_social
                   FROM cliente_identity_provider cip
@@ -69,7 +103,10 @@ public class CustomerAccountService {
             .setParameter("provider", PROVIDER)
             .setParameter("sub", providerUserId)
             .getResultList();
+        return mapearVinculos(rows);
+    }
 
+    private List<VinculoLoja> mapearVinculos(List<Object[]> rows) {
         return rows.stream()
             .map(r -> VinculoLoja.builder()
                 .tenantId((UUID) r[0])

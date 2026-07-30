@@ -44,12 +44,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * cross-tenant e leitura de trilha não podem depender da RLS que está sendo
  * testada.
  */
-@SpringBootTest
-@ActiveProfiles("test")
 @DisplayName("Plataforma sob role não-superuser (RLS valendo de verdade)")
-class PlatformNonSuperuserIntegrationTest {
+class PlatformNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegrationTest {
 
-    private static final String APP_ROLE = "app_test";
     private static final UUID TENANT = UUID.fromString("a4000000-0000-0000-0000-0000000000aa");
     private static final String SLUG = "nonsuper-teste";
 
@@ -57,64 +54,6 @@ class PlatformNonSuperuserIntegrationTest {
     @Autowired private TenantImportService importService;
     @Autowired private PlatformFaturaService faturaService;
     @Autowired private JdbcTemplate jdbc; // conecta como app_test
-
-    @DynamicPropertySource
-    static void nonSuperuserDatasource(DynamicPropertyRegistry registry) {
-        // Referenciar AbstractIntegrationTest dispara o static-init dos
-        // containers singleton — mesmo Postgres/Redis do resto da suíte.
-        var postgres = AbstractIntegrationTest.postgres;
-        var redis = AbstractIntegrationTest.redis;
-
-        criarRoleApp();
-
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", () -> APP_ROLE);
-        registry.add("spring.datasource.password", () -> APP_ROLE);
-        // Migrations como superuser (dono do schema), igual produção. A url
-        // precisa vir junto: só user/password não faz o Flyway derivar a do
-        // datasource ("Unable to find suitable method for url").
-        registry.add("spring.flyway.url", postgres::getJdbcUrl);
-        registry.add("spring.flyway.user", postgres::getUsername);
-        registry.add("spring.flyway.password", postgres::getPassword);
-
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-        registry.add("spring.security.oauth2.resourceserver.jwt.issuer-uri", () -> "http://localhost:9999");
-        registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> "http://localhost:9999/certs");
-    }
-
-    /**
-     * Role da aplicação + grants, ANTES do contexto subir. O DEFAULT PRIVILEGES
-     * (para o role que roda as migrations) cobre tabelas criadas depois — esta
-     * classe funciona rodando primeiro ou depois do resto da suíte.
-     */
-    private static void criarRoleApp() {
-        try (Connection c = superConnection(); Statement st = c.createStatement()) {
-            st.execute("""
-                DO $$ BEGIN
-                  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'app_test') THEN
-                    CREATE ROLE app_test LOGIN PASSWORD 'app_test' NOSUPERUSER NOBYPASSRLS;
-                  END IF;
-                END $$;
-                """);
-            st.execute("GRANT USAGE ON SCHEMA public TO app_test");
-            st.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_test");
-            // UPDATE nas sequences: setval do import (mesmo grant da V058)
-            st.execute("GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO app_test");
-            st.execute("ALTER DEFAULT PRIVILEGES FOR ROLE test IN SCHEMA public "
-                + "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_test");
-            st.execute("ALTER DEFAULT PRIVILEGES FOR ROLE test IN SCHEMA public "
-                + "GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO app_test");
-        } catch (SQLException e) {
-            throw new IllegalStateException("Falha ao preparar role app_test", e);
-        }
-    }
-
-    private static Connection superConnection() throws SQLException {
-        var postgres = AbstractIntegrationTest.postgres;
-        return DriverManager.getConnection(
-            postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
-    }
 
     // ------------------------------------------------------------------
     // Fixture (superuser: seed cross-tenant não pode depender da RLS testada)
