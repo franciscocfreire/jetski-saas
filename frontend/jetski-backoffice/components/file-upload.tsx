@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Upload, X, FileCheck, Camera } from 'lucide-react'
+import { Upload, X, FileCheck, Camera, SwitchCamera } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { comprimirImagem } from '@/lib/image-compress'
@@ -25,6 +25,7 @@ export function FileUpload({
   onChange,
   initialUrl,
   tipoDocumento,
+  cameraPadrao,
 }: {
   label: string
   accept?: string
@@ -33,6 +34,11 @@ export function FileUpload({
   initialUrl?: string
   /** Tipo do documento — define o preset de compressão da imagem (plataforma). */
   tipoDocumento?: TipoImagemDoc
+  /**
+   * Câmera que abre por padrão: "user" (frontal, selfie) ou "environment" (traseira).
+   * Sem valor, selfie abre na frontal e o resto na traseira.
+   */
+  cameraPadrao?: 'user' | 'environment'
 }) {
   const { presetPara } = useImagemConfig()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -43,6 +49,10 @@ export function FileUpload({
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [trocar, setTrocar] = useState(false)
+  const [facing, setFacing] = useState<'user' | 'environment'>(
+    cameraPadrao ?? (tipoDocumento === 'SELFIE' ? 'user' : 'environment')
+  )
+  const [variasCameras, setVariasCameras] = useState(false)
 
   // Liga o stream ao <video> quando a câmera abre.
   useEffect(() => {
@@ -78,17 +88,32 @@ export function FileUpload({
     onChange?.(null)
   }
 
-  async function abrirCamera() {
+  async function abrirCamera(modo: 'user' | 'environment' = facing) {
     setErro(null)
     try {
       const s = await navigator.mediaDevices
-        .getUserMedia({ video: { facingMode: 'environment' } })
+        .getUserMedia({ video: { facingMode: { ideal: modo } } })
         .catch(() => navigator.mediaDevices.getUserMedia({ video: true }))
       setStream(s)
+      setFacing(modo)
       setCameraAberta(true)
+      // Só faz sentido oferecer a troca quando existe mais de uma câmera. A
+      // contagem só é confiável depois da permissão concedida (acima).
+      navigator.mediaDevices
+        .enumerateDevices()
+        .then((ds) => setVariasCameras(ds.filter((d) => d.kind === 'videoinput').length > 1))
+        .catch(() => {})
     } catch {
       setErro('Não foi possível acessar a câmera. Verifique as permissões.')
     }
+  }
+
+  function trocarCamera() {
+    // Libera a câmera atual antes de pedir a outra: em vários celulares as duas
+    // não abrem ao mesmo tempo e o getUserMedia falharia.
+    stream?.getTracks().forEach((t) => t.stop())
+    setStream(null)
+    abrirCamera(facing === 'environment' ? 'user' : 'environment')
   }
 
   function fecharCamera() {
@@ -136,8 +161,33 @@ export function FileUpload({
 
       {cameraAberta ? (
         <div className="space-y-2 rounded-xl border bg-card p-3">
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video ref={videoRef} playsInline muted className="w-full rounded-md bg-black" />
+          <div className="relative">
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video
+              ref={videoRef}
+              playsInline
+              muted
+              className={cn(
+                'w-full rounded-md bg-black',
+                // Selfie fica espelhada na prévia (como o usuário se vê no espelho);
+                // o arquivo capturado sai sem espelho.
+                facing === 'user' && '-scale-x-100'
+              )}
+            />
+            {variasCameras && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                title="Trocar câmera (frontal/traseira)"
+                aria-label="Trocar câmera"
+                className="absolute right-2 top-2 h-8 w-8 rounded-full bg-black/50 text-white hover:bg-black/70"
+                onClick={trocarCamera}
+              >
+                <SwitchCamera className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button type="button" className="flex-1" onClick={capturar}>
               <Camera className="mr-2 h-4 w-4" /> Capturar
@@ -179,7 +229,7 @@ export function FileUpload({
               variant="outline"
               size="sm"
               className="w-full"
-              onClick={abrirCamera}
+              onClick={() => abrirCamera()}
             >
               <Camera className="mr-2 h-4 w-4" /> Tirar foto (câmera/webcam)
             </Button>

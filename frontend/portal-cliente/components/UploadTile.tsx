@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Camera, CheckCircle2, Loader2, UploadCloud } from "lucide-react";
+import { Camera, CheckCircle2, Loader2, SwitchCamera, UploadCloud } from "lucide-react";
 
 /**
  * Tile de upload de documento com preview e captura pela câmera.
@@ -14,6 +14,9 @@ export function UploadTile({ rotulo, presente, previewUrl, camera = "environment
   onFile: (dataUrl: string) => void;
 }) {
   const [lendo, setLendo] = useState(false);
+  // Qual câmera o celular deve abrir. Começa na sugerida pelo tipo de documento,
+  // mas o usuário pode inverter (o app nativo nem sempre deixa trocar depois).
+  const [lente, setLente] = useState<"user" | "environment">(camera);
   const arquivoRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
@@ -50,13 +53,19 @@ export function UploadTile({ rotulo, presente, previewUrl, camera = "environment
           className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-400">
           <Camera size={13} /> Tirar foto
         </button>
+        <button type="button" onClick={() => setLente((l) => (l === "user" ? "environment" : "user"))}
+          title={lente === "user" ? "Usando a câmera frontal — tocar para a traseira" : "Usando a câmera traseira — tocar para a frontal"}
+          aria-label="Trocar câmera"
+          className="flex items-center rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-400">
+          <SwitchCamera size={13} />
+        </button>
         <button type="button" onClick={() => arquivoRef.current?.click()}
           className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-400">
           <UploadCloud size={13} /> Enviar arquivo
         </button>
       </div>
       {/* capture abre a câmera direto no celular; no desktop cai no seletor de arquivo */}
-      <input ref={cameraRef} type="file" accept="image/*" capture={camera}
+      <input ref={cameraRef} type="file" accept="image/*" capture={lente}
         className="hidden" onChange={lerArquivo} />
       <input ref={arquivoRef} type="file" accept="image/jpeg,image/png,image/webp"
         className="hidden" onChange={lerArquivo} />
