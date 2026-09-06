@@ -155,13 +155,17 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
             VALUES (?, ?, ?, ?, now() + interval '1 day', now() + interval '1 day' + interval '2 hours')
             """, reservaId, TENANT_ID, MODELO_ID, cliente.getId());
 
-        // 3) Habilitação via EMA + GRU paga → resolvida
+        // 3) Habilitação via EMA + GRU paga → resolvida. Videoaula assistida no player
+        //    do passo Orientações (V063) — sem ela a Marinha não recebe o e-mail.
         ReservaHabilitacao hab = habilitacaoService.registrar(reservaId, ReservaHabilitacao.builder()
             .via(ReservaHabilitacao.Via.EMA)
+            .videoaulaEm(java.time.Instant.now())
+            .videoaulaModo(ReservaHabilitacao.VideoaulaModo.PLAYER).videoaulaIdioma("pt")
             .anexoSaude(true).anexoRegras(true).anexoResidencia(true).instrutorId(UUID.randomUUID())
             .gruNumero("GRU-E2E-001").gruValor(new BigDecimal("23.13")).gruPago(true)
             .build());
         assertThat(hab.getResolvida()).isTrue();
+        assertThat(hab.getVideoaulaModo()).isEqualTo(ReservaHabilitacao.VideoaulaModo.PLAYER);
 
         // 4) Aceite (assinatura no pad) → arquiva PNG no storage (round-trip real)
         ReservaAceite aceite = aceiteService.registrar(

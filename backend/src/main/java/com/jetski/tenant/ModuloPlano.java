@@ -72,6 +72,16 @@ public enum ModuloPlano {
     LOJA_ONLINE(
         "Loja online",
         "Vitrine própria da loja e reserva online pelo portal do cliente",
+        List.of()),
+
+    // Módulo "de permissão": o passo Orientações do balcão SEMPRE exibe a videoaula
+    // da Marinha (via EMA); por padrão é obrigatório assistir até o fim para
+    // continuar. Ter este módulo no plano libera o toggle em Configurações ›
+    // Documentos para a empresa desligar essa obrigação. Enforcement programático
+    // (TenantConfigService, EmissaoService, UserTenantsController).
+    VIDEO_ORIENTACAO(
+        "Videoaula no balcão — configurável",
+        "Permite à empresa desligar a obrigação de assistir a videoaula da Marinha até o fim no balcão (sem o módulo, o atendimento EMA só continua ao término do vídeo)",
         List.of());
 
     private final String rotulo;

@@ -197,13 +197,15 @@ public class DevEmailService implements EmailService {
 
     @Override
     public void sendEmailComAnexo(String to, String subject, String htmlBody,
-                                  String attachmentName, byte[] attachment, String attachmentContentType) {
+                                  String attachmentName, byte[] attachment, String attachmentContentType,
+                                  String replyTo) {
         int size = attachment == null ? 0 : attachment.length;
-        String body = String.format("%s%n%n[ANEXO] %s (%s, %d bytes)",
-            htmlBody, attachmentName, attachmentContentType, size);
+        String body = String.format("%s%n%n[ANEXO] %s (%s, %d bytes)%s",
+            htmlBody, attachmentName, attachmentContentType, size,
+            replyTo != null ? String.format("%n[REPLY-TO] %s", replyTo) : "");
         logAndSaveEmail(to, subject, body);
         // Mailpit recebe o HTML COM o anexo (p/ inspeção/download em dev).
-        maybeSendViaSmtp(to, subject, htmlBody, attachmentName, attachment, attachmentContentType);
+        maybeSendViaSmtp(to, subject, htmlBody, attachmentName, attachment, attachmentContentType, replyTo);
     }
 
     @Override
@@ -248,11 +250,12 @@ public class DevEmailService implements EmailService {
      * Best-effort: uma falha de SMTP NUNCA interrompe o fluxo (signup/convite) nem o E2E.
      */
     private void maybeSendViaSmtp(String to, String subject, String htmlBody) {
-        maybeSendViaSmtp(to, subject, htmlBody, null, null, null);
+        maybeSendViaSmtp(to, subject, htmlBody, null, null, null, null);
     }
 
     private void maybeSendViaSmtp(String to, String subject, String htmlBody,
-                                  String attachmentName, byte[] attachment, String attachmentContentType) {
+                                  String attachmentName, byte[] attachment, String attachmentContentType,
+                                  String replyTo) {
         boolean comAnexo = attachment != null && attachment.length > 0;
 
         // Tenant com SMTP próprio → envio real pela conta da empresa ("from" da loja).
@@ -263,7 +266,7 @@ public class DevEmailService implements EmailService {
             try {
                 String nome = (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : fromName;
                 senderFactory.send(senderFactory.build(s), s.from(), nome, to, subject, htmlBody,
-                    attachmentName, comAnexo ? attachment : null, attachmentContentType);
+                    attachmentName, comAnexo ? attachment : null, attachmentContentType, replyTo);
                 log.info("📨 Email enviado pelo SMTP do tenant: to={}, from={}", to, s.from());
             } catch (Exception e) {
                 log.warn("Falha (ignorada) ao enviar pelo SMTP do tenant: to={}, error={}", to, e.getMessage());
@@ -280,6 +283,9 @@ public class DevEmailService implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, comAnexo, "UTF-8");
             helper.setFrom(fromEmail, fromName);
             helper.setTo(to);
+            if (replyTo != null && !replyTo.isBlank()) {
+                helper.setReplyTo(replyTo);
+            }
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
             if (comAnexo) {

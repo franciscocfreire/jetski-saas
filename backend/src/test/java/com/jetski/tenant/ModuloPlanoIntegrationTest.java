@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -94,6 +95,57 @@ class ModuloPlanoIntegrationTest extends AbstractIntegrationTest {
                 .claim("roles", List.of("ADMIN_TENANT")))
             .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
                 "ROLE_ADMIN_TENANT"));
+    }
+
+    @Test
+    @DisplayName("VIDEO_ORIENTACAO (V063): desligar a videoaula obrigatória só com o módulo no plano")
+    void videoaulaConfiguravelPorModulo() throws Exception {
+        String desligada = """
+            {"obrigatoriosMarinha":{"identidade":true,"selfie":true,"saude":true,"regras":true,
+             "residencia":true,"instrutor":true,"nacionalidade":true,"naturalidade":true,"videoaula":false}}
+            """;
+
+        // Plano sem o módulo → 400 com o rótulo do módulo
+        mockMvc.perform(put("/v1/tenants/{t}/config/documento", TENANT)
+                .header("X-Tenant-Id", TENANT.toString())
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content(desligada)
+                .with(jwtAdmin()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value(
+                org.hamcrest.Matchers.containsString("Videoaula no balcão")));
+        mockMvc.perform(get("/v1/tenants/{t}/config/documento", TENANT)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.obrigatoriosMarinha.videoaula").value(true));
+
+        // Com o módulo → aceita e persiste o toggle
+        jdbc.update("UPDATE plano SET modulos = '[\"MANUTENCAO\",\"VIDEO_ORIENTACAO\"]'::jsonb "
+            + "WHERE nome = 'Modulos Teste'");
+        limparCache();
+        mockMvc.perform(put("/v1/tenants/{t}/config/documento", TENANT)
+                .header("X-Tenant-Id", TENANT.toString())
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content(desligada)
+                .with(jwtAdmin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.obrigatoriosMarinha.videoaula").value(false));
+        mockMvc.perform(get("/v1/tenants/{t}/config/documento", TENANT)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(jsonPath("$.obrigatoriosMarinha.videoaula").value(false));
+
+        // Ligar de volta nunca depende do módulo
+        jdbc.update("UPDATE plano SET modulos = '[\"MANUTENCAO\"]'::jsonb WHERE nome = 'Modulos Teste'");
+        limparCache();
+        mockMvc.perform(put("/v1/tenants/{t}/config/documento", TENANT)
+                .header("X-Tenant-Id", TENANT.toString())
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .content(desligada.replace("\"videoaula\":false", "\"videoaula\":true"))
+                .with(jwtAdmin()))
+            .andExpect(status().isOk());
+        assertThat(ModuloPlano.VIDEO_ORIENTACAO.patterns()).isEmpty();
     }
 
     @Test

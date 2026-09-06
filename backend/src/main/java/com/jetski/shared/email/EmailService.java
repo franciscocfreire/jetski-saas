@@ -62,8 +62,18 @@ public interface EmailService {
      * @param attachment conteúdo do anexo
      * @param attachmentContentType tipo MIME do anexo (ex: application/pdf)
      */
+    default void sendEmailComAnexo(String to, String subject, String htmlBody,
+                                   String attachmentName, byte[] attachment, String attachmentContentType) {
+        sendEmailComAnexo(to, subject, htmlBody, attachmentName, attachment, attachmentContentType, null);
+    }
+
+    /**
+     * Idem, com {@code Reply-To} opcional (ex.: o e-mail oficial do EAMA no ofício à
+     * Capitania — NORMAM-212 item 5.4.2 — quando o "from" é o SMTP da plataforma).
+     */
     void sendEmailComAnexo(String to, String subject, String htmlBody,
-                           String attachmentName, byte[] attachment, String attachmentContentType);
+                           String attachmentName, byte[] attachment, String attachmentContentType,
+                           String replyTo);
 
     /**
      * Notifica um super admin de plataforma sobre uma nova empresa aguardando aprovação.

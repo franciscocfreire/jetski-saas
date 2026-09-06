@@ -75,7 +75,9 @@ public class VinculoEmissaoService {
         String capitaniaCodigo, String marinhaEmail, String contatoEmail,
         UUID instrutorId, String instrutorNome, String instrutorRg,
         String instrutorOrgaoEmissor, String instrutorCpf, String instrutorCha,
-        java.time.LocalDate instrutorDataEmissao, String instrutorAssinaturaS3Key) {}
+        java.time.LocalDate instrutorDataEmissao, String instrutorAssinaturaS3Key,
+        // Ofício à Capitania (V064): a EAMA emissora assina o e-mail (NORMAM-212 5.4.2)
+        String eamaRegistro, String responsavelNome, String telefone, String emailOficial) {}
 
     // ==================== ciclo de vida do vínculo ====================
 
@@ -348,7 +350,8 @@ public class VinculoEmissaoService {
             try {
                 t = (Object[]) entityManager.createNativeQuery(
                         "SELECT t.razao_social, t.cnpj, t.cidade, t.uf, t.marinha_email, "
-                        + "t.email_remetente, t.emissora_habilitada, c.codigo "
+                        + "t.email_remetente, t.emissora_habilitada, c.codigo, "
+                        + "t.eama_registro, t.responsavel_nome, t.telefone, t.email_oficial "
                         + "FROM tenant t LEFT JOIN capitania c ON c.id = t.capitania_id "
                         + "WHERE t.id = ?1")
                     .setParameter(1, emissorId)
@@ -393,7 +396,8 @@ public class VinculoEmissaoService {
             return new DelegacaoContext(v.getId(), emissorId,
                 (String) t[0], (String) t[1], (String) t[2], (String) t[3],
                 (String) t[7], (String) t[4], (String) t[5],
-                insId, insNome, insRg, insOrgao, insCpf, insCha, insData, insAssinatura);
+                insId, insNome, insRg, insOrgao, insCpf, insCha, insData, insAssinatura,
+                (String) t[8], (String) t[9], (String) t[10], (String) t[11]);
         });
     }
 

@@ -168,6 +168,8 @@ public class CustomerEmaService {
         ReservaHabilitacao dados = ReservaHabilitacao.builder()
             .via(ReservaHabilitacao.Via.EMA)
             .videoaulaEm(Boolean.TRUE.equals(cmd.videoaulaAssistida()) ? Instant.now() : null)
+            .videoaulaModo(Boolean.TRUE.equals(cmd.videoaulaAssistida())
+                ? ReservaHabilitacao.VideoaulaModo.DECLARACAO : null)
             .anexoSaude(cmd.anexoSaude())
             .anexoRegras(cmd.anexoRegras())
             .anexoResidencia(cmd.anexoResidencia())

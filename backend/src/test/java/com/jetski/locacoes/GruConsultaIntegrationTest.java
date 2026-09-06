@@ -182,15 +182,21 @@ class GruConsultaIntegrationTest extends AbstractIntegrationTest {
             "SELECT marinha_enviado_em FROM documento_emitido WHERE id = ?", docId);
         assertThat(row.get("marinha_enviado_em")).isNotNull();
 
+        // Ofício NORMAM-212 5.4.2 (7 args: Reply-To): nº da GRU no corpo, reserva no fim do assunto
         org.mockito.ArgumentCaptor<String> subjects = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<String> bodies = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.Mockito.verify(emailService, org.mockito.Mockito.atLeastOnce())
-            .sendEmailComAnexo(anyString(), subjects.capture(), anyString(), anyString(), any(), anyString());
-        assertThat(subjects.getAllValues()).anyMatch(s -> s.contains("GRU 608931002438533333"));
+            .sendEmailComAnexo(anyString(), subjects.capture(), bodies.capture(), anyString(), any(),
+                anyString(), org.mockito.ArgumentMatchers.nullable(String.class));
+        assertThat(subjects.getAllValues()).anyMatch(s ->
+            s.startsWith("Solicitação de Emissão de CHA-MTA-E") && s.contains("(reenvio) – reserva #"));
+        assertThat(bodies.getAllValues()).anyMatch(b -> b.contains("GRU paga: <b>608931002438533333</b>"));
 
         // falha de SMTP → não registra (zera e tenta de novo com mock quebrado)
         jdbc.update("UPDATE documento_emitido SET marinha_enviado_em = NULL WHERE id = ?", docId);
         doThrow(new RuntimeException("smtp fora")).when(emailService)
-            .sendEmailComAnexo(anyString(), anyString(), anyString(), anyString(), any(), anyString());
+            .sendEmailComAnexo(anyString(), anyString(), anyString(), anyString(), any(), anyString(),
+                org.mockito.ArgumentMatchers.nullable(String.class));
         mockMvc.perform(post("/v1/tenants/{t}/documentos/{id}/reenviar", TENANT_ACME, docId)
                 .header("X-Tenant-Id", TENANT_ACME.toString()).with(staff()))
             .andExpect(status().isOk())

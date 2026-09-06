@@ -133,8 +133,18 @@ public class HabilitacaoService {
         h.setChaCategoria(dados.getChaCategoria());
         h.setChaNumero(dados.getChaNumero());
         h.setChaValidade(dados.getChaValidade());
+        // Videoaula (V063): o carimbo é do servidor e NUNCA rebaixa — só grava na
+        // primeira vez ou quando uma declaração manual vira término no player.
         if (dados.getVideoaulaEm() != null) {
-            h.setVideoaulaEm(dados.getVideoaulaEm());
+            ReservaHabilitacao.VideoaulaModo modo = dados.getVideoaulaModo() != null
+                ? dados.getVideoaulaModo() : ReservaHabilitacao.VideoaulaModo.DECLARACAO;
+            boolean upgrade = modo == ReservaHabilitacao.VideoaulaModo.PLAYER
+                && h.getVideoaulaModo() != ReservaHabilitacao.VideoaulaModo.PLAYER;
+            if (h.getVideoaulaEm() == null || upgrade) {
+                h.setVideoaulaEm(dados.getVideoaulaEm());
+                h.setVideoaulaModo(modo);
+                h.setVideoaulaIdioma(dados.getVideoaulaIdioma());
+            }
         }
         // Preserva quando o passo não envia o campo (fluxo dividido: GRU x pré-requisitos).
         if (dados.getAnexoSaude() != null) h.setAnexoSaude(dados.getAnexoSaude());

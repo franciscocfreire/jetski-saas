@@ -25,6 +25,8 @@ public class HabilitacaoResponse {
     private LocalDate chaValidade;
 
     private Instant videoaulaEm;
+    private String videoaulaModo;
+    private String videoaulaIdioma;
     private Boolean anexoSaude;
     private Boolean anexoRegras;
     private Boolean anexoResidencia;

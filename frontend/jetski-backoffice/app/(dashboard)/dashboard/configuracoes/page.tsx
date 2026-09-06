@@ -27,6 +27,10 @@ import { Logo } from '@/components/logo'
 import { PlanoUsoTab } from '@/components/configuracoes/plano-uso-tab'
 import { PermissoesTab } from '@/components/configuracoes/permissoes-tab'
 import { usePermissions } from '@/lib/hooks/use-permissions'
+import { useVideoaulaObrigatoria, USER_TENANTS_QUERY_KEY } from '@/lib/hooks/use-videoaula-obrigatoria'
+import { userTenantsService } from '@/lib/api/services/user-tenants'
+import { useTenantStore } from '@/lib/store/tenant-store'
+import { Badge } from '@/components/ui/badge'
 
 export default function ConfiguracoesPage() {
   return (
@@ -46,6 +50,9 @@ function ConfiguracoesConteudo() {
   // continua como backstop.
   const { can, isLoading: permsLoading } = usePermissions()
   const podeAcessar = !permsLoading && can('config:list')
+  // Videoaula obrigatória (V063): desligar é direito do módulo VIDEO_ORIENTACAO.
+  const { moduloPermiteDesativar: podeDesligarVideoaula } = useVideoaulaObrigatoria()
+  const { currentTenant, setCurrentTenant } = useTenantStore()
   // Deep-link p/ uma aba (?tab=empresa) — usado pelo checklist "Primeiros passos"
   const searchParams = useSearchParams()
   const tabParam = searchParams.get('tab')
@@ -71,6 +78,9 @@ function ConfiguracoesConteudo() {
   const [cidade, setCidade] = useState('')
   const [marinhaEmail, setMarinhaEmail] = useState('')
   const [emailRemetente, setEmailRemetente] = useState('')
+  const [responsavelNome, setResponsavelNome] = useState('')
+  const [telefone, setTelefone] = useState('')
+  const [emailOficial, setEmailOficial] = useState('')
   const [pixChave, setPixChave] = useState('')
   // SMTP por tenant
   const [smtpHost, setSmtpHost] = useState('')
@@ -92,6 +102,9 @@ function ConfiguracoesConteudo() {
       setCidade(geral.cidade ?? '')
       setMarinhaEmail(geral.marinhaEmail ?? '')
       setEmailRemetente(geral.emailRemetente ?? '')
+      setResponsavelNome(geral.responsavelNome ?? '')
+      setTelefone(geral.telefone ?? '')
+      setEmailOficial(geral.emailOficial ?? '')
       setPixChave(geral.pixChave ?? '')
       setSmtpHost(geral.smtpHost ?? '')
       setSmtpPort(geral.smtpPort?.toString() ?? '587')
@@ -120,6 +133,9 @@ function ConfiguracoesConteudo() {
       cidade,
       marinhaEmail,
       emailRemetente,
+      responsavelNome,
+      telefone,
+      emailOficial,
       pixChave,
       smtpHost,
       smtpPort: smtpPort ? Number(smtpPort) : undefined,
@@ -142,10 +158,20 @@ function ConfiguracoesConteudo() {
 
   const updateDoc = useMutation({
     mutationFn: (req: DocumentoConfig) => configuracoesService.updateDocumentoConfig(req),
-    onSuccess: (saved) => {
+    onSuccess: async (saved) => {
       queryClient.invalidateQueries({ queryKey: ['documento-config'] })
       setDocCfg(saved)
       toast({ title: 'Configuração de documentos salva', description: 'Recorte por destino atualizado.' })
+      // Videoaula (V063): a regra efetiva vem no summary do tenant — atualiza o
+      // store e a query para o Balcão refletir sem recarregar a página.
+      queryClient.invalidateQueries({ queryKey: USER_TENANTS_QUERY_KEY })
+      try {
+        const r = await userTenantsService.getMyTenants()
+        const fresh = r.tenants?.find((t) => t.id === currentTenant?.id)
+        if (fresh) setCurrentTenant(fresh)
+      } catch {
+        /* best-effort: o layout reconcilia no próximo boot */
+      }
     },
     onError: (e: Error) =>
       toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' }),
@@ -502,6 +528,53 @@ function ConfiguracoesConteudo() {
                   </p>
                 </div>
               </div>
+
+              {/* Ofício à Capitania (NORMAM-212 item 5.4.2 / Anexo 5-A) */}
+              <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                  <h4 className="text-sm font-medium">Ofício à Capitania (CHA-MTA-E)</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Assinatura do e-mail de solicitação de emissão enviado à Capitania (NORMAM-212/DPC,
+                    item 5.4.2). Use os dados declarados no Anexo 5-A do credenciamento do EAMA.
+                    Campos em branco são omitidos da assinatura.
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="responsavelNome">Responsável pelo EAMA</Label>
+                    <Input
+                      id="responsavelNome"
+                      placeholder="Nome completo"
+                      value={responsavelNome}
+                      onChange={(e) => setResponsavelNome(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="telefone">Telefone</Label>
+                    <Input
+                      id="telefone"
+                      placeholder="(21) 99999-9999"
+                      value={telefone}
+                      onChange={(e) => setTelefone(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="emailOficial">E-mail oficial (Anexo 5-A)</Label>
+                    <Input
+                      id="emailOficial"
+                      type="email"
+                      placeholder="eama@suaempresa.com.br"
+                      value={emailOficial}
+                      onChange={(e) => setEmailOficial(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  A NORMAM exige que o envio saia do e-mail do EAMA declarado no Anexo 5-A: configure o
+                  SMTP próprio abaixo com esse endereço. Sem SMTP próprio, o e-mail sai da plataforma com
+                  <em> responder-para</em> = e-mail oficial.
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -853,6 +926,36 @@ function ConfiguracoesConteudo() {
                         />
                       </label>
                     ))}
+                    {/* Videoaula (V063): linha dedicada — `videoaula` é opcional no tipo e o
+                        toggle só é editável com o módulo VIDEO_ORIENTACAO no plano. */}
+                    <label className="flex items-center justify-between gap-3 text-sm">
+                      <span>
+                        <span className="flex flex-wrap items-center gap-2">
+                          Videoaula assistida até o final (player do balcão)
+                          {!podeDesligarVideoaula && (
+                            <Badge variant="outline" className="font-normal">
+                              Sempre ativa no seu plano
+                            </Badge>
+                          )}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          O passo Orientações sempre exibe a videoaula oficial da Marinha; ligado, o
+                          atendimento só continua quando o vídeo chega ao fim. Desligado, o operador confirma e segue.
+                          {!podeDesligarVideoaula && ' Desligar exige o módulo "Videoaula no balcão — configurável".'}
+                        </span>
+                      </span>
+                      <Switch
+                        disabled={!podeDesligarVideoaula}
+                        checked={!podeDesligarVideoaula || docCfg.obrigatoriosMarinha.videoaula !== false}
+                        onCheckedChange={(v) =>
+                          setDocCfg((prev) =>
+                            prev
+                              ? { ...prev, obrigatoriosMarinha: { ...prev.obrigatoriosMarinha, videoaula: v } }
+                              : prev
+                          )
+                        }
+                      />
+                    </label>
                   </div>
 
                   <div className="flex justify-end">

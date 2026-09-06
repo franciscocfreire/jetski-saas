@@ -23,4 +23,10 @@ public class TenantSummary {
     private List<String> roles;
     /** Módulos do plano (V046); null = todos — usado no gating do menu. */
     private List<String> modulos;
+    /**
+     * Videoaula da Marinha exigida no balcão (via EMA) — regra efetiva (V063):
+     * sem o módulo VIDEO_ORIENTACAO é sempre true; com ele, vale o toggle da empresa.
+     * Vem aqui porque o OPERADOR (quem atende o balcão) não lê /config/documento.
+     */
+    private Boolean videoaulaObrigatoria;
 }

@@ -198,6 +198,11 @@ class CustomerEmaIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.anexoRegras").value(true))
             .andExpect(jsonPath("$.usaLentes").value(true))
             .andExpect(jsonPath("$.resolvida").value(false));
+
+        // Portal = declaração manual (V063): modo DECLARACAO, nunca PLAYER
+        assertThat(jdbc.queryForObject(
+            "SELECT videoaula_modo FROM reserva_habilitacao WHERE reserva_id = ?::uuid", String.class, id))
+            .isEqualTo("DECLARACAO");
     }
 
     @Test

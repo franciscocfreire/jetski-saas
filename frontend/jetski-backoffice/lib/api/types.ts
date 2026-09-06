@@ -317,6 +317,9 @@ export interface HabilitacaoRequest {
   chaValidade?: string
   // EMA
   videoaulaAssistida?: boolean
+  /** Como a videoaula foi cumprida (V063): PLAYER = término detectado; DECLARACAO = manual. */
+  videoaulaModo?: VideoaulaModo
+  videoaulaIdioma?: VideoaulaIdioma
   anexoSaude?: boolean
   anexoRegras?: boolean
   anexoResidencia?: boolean
@@ -330,6 +333,9 @@ export interface HabilitacaoRequest {
   gruValor?: number
   gruPago?: boolean
 }
+
+export type VideoaulaModo = 'PLAYER' | 'DECLARACAO'
+export type VideoaulaIdioma = 'pt' | 'en' | 'es'
 
 // Instrutor (EAMA) — Anexo 5-B-1
 export interface Instrutor extends BaseEntity {
@@ -361,6 +367,8 @@ export interface Habilitacao {
   chaNumero?: string
   chaValidade?: string
   videoaulaEm?: string
+  videoaulaModo?: VideoaulaModo
+  videoaulaIdioma?: VideoaulaIdioma
   anexoSaude: boolean
   anexoRegras: boolean
   anexoResidencia: boolean
@@ -904,6 +912,11 @@ export interface TenantSummary {
   exclusaoAgendadaEm?: string | null
   /** Módulos do plano (V046, chaves do enum ModuloPlano); null/ausente = todos. */
   modulos?: string[] | null
+  /**
+   * Videoaula da Marinha exigida no balcão (via EMA) — regra efetiva (V063): sem o
+   * módulo VIDEO_ORIENTACAO é sempre true; com ele, vale o toggle da empresa.
+   */
+  videoaulaObrigatoria?: boolean
   /** EAMA emissora validada pelo super admin (V047) — vem só no painel de plataforma. */
   emissoraHabilitada?: boolean
   /** Registro EAMA declarado pela empresa (painel de plataforma; null = não preenchido). */
@@ -1475,6 +1488,10 @@ export interface TenantGeralConfig {
   cidade?: string
   marinhaEmail?: string
   emailRemetente?: string
+  /** Dados do EAMA no ofício à Capitania (V064 — NORMAM-212 5.4.2 / Anexo 5-A). */
+  responsavelNome?: string
+  telefone?: string
+  emailOficial?: string
   pixChave?: string
   smtpHost?: string
   smtpPort?: number
@@ -1489,6 +1506,9 @@ export interface TenantGeralConfigRequest {
   cidade?: string
   marinhaEmail?: string
   emailRemetente?: string
+  responsavelNome?: string
+  telefone?: string
+  emailOficial?: string
   pixChave?: string
   smtpHost?: string
   smtpPort?: number
@@ -1520,6 +1540,8 @@ export interface DocumentoObrigatoriosMarinha {
   instrutor: boolean
   nacionalidade: boolean
   naturalidade: boolean
+  /** Videoaula assistida no player do balcão (V063). Só desligável com o módulo VIDEO_ORIENTACAO. */
+  videoaula?: boolean
 }
 
 /** Parametrização de emissão: o que vai para Marinha vs Cliente + obrigatórios. */

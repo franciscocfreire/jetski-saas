@@ -1,6 +1,6 @@
 # Status de Implementação — Meu Jet
 
-**Data:** 2026-07-11 · **Estado:** em produção · **Testes:** ~1072 (`mvn test`) · **Migrations:** V001–V046
+**Data:** 2026-07-11 · **Estado:** em produção · **Testes:** ~1072 (`mvn test`) · **Migrations:** V001–V064
 **Arquitetura:** monolito modular (Spring Modulith) — Java 21 / Spring Boot 3.3
 
 Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (backoffice) ·
@@ -10,7 +10,12 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
 
 ### Núcleo operacional (backoffice)
 - Frota (modelos, jetskis, mídias de marketplace), agenda/reservas com conflito e prontidão,
-  balcão em 7 passos (cliente → passeio → habilitação → documentos → termos → pagamento → emissão).
+  balcão em 8 passos (cliente → passeio → habilitação → documentos → **orientações** → termos →
+  pagamento → emissão). O passo Orientações (V063, só via EMA) sempre exibe a videoaula oficial da
+  Marinha num player integrado (YouTube IFrame API, tela cheia, sem adiantar, toggle de legendas);
+  por padrão só libera após o término + checkbox do operador; com a obrigação desligada o operador
+  confirma e segue. `reserva_habilitacao.videoaula_modo` (PLAYER/DECLARACAO) + idioma vão para a
+  página de auditoria do PDF; com a obrigação ligada, sem videoaula a Marinha não recebe.
 - Check-in/check-out com fotos obrigatórias, itens opcionais, combustível (RN03, 3 modos),
   manutenção/OS (RN06 bloqueia agenda), despesas.
 - Financeiro: folio por reserva/locação (`reserva_lancamento`, V035–V037), pagamento presencial
@@ -27,6 +32,14 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
 ### Documentação náutica (NORMAM-212)
 - Emissão CHA/EMA com anexos 5-B-1/5-B-2/5-C, instrutores, envio à Marinha por e-mail com
   gate de documentação completa, devolutiva da Marinha anexável (V038), PDF consolidado.
+- **E-mail à Capitania no formato de ofício** (set/2026, `MarinhaEmailTemplate`, NORMAM-212/DPC
+  item 5.4.2 — norma versionada em `docs/normativos/`): assunto
+  `Solicitação de Emissão de CHA-MTA-E – NOME – CPF – reserva #xxxxxxxx`, corpo com a lista de
+  documentos realmente incluídos, assinatura do responsável/EAMA/CNPJ/telefone/e-mail oficial
+  (V064: `tenant.responsavel_nome/telefone/email_oficial`, aba Empresa), anexo nomeado
+  `"Nome completo CPF.pdf"` (passaporte p/ estrangeiro), `Reply-To` = e-mail oficial. Texto único
+  para emissão, reenvio pela loja (agora respeita a delegação via `emissor_snapshot`) e reenvio
+  pela EAMA emissora.
 - **Robô GRU** (HTTP em Java, validado no site real): geração PIX/boleto, verificação de
   pagamento, comprovante — com fallback manual (ver `GRU_HTTP_CONTRACT.md`).
 - Assinatura eletrônica de termos: fases A (auditoria + carimbo RFC 3161), B (OTP e-mail/
@@ -164,7 +177,10 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   com negação de negócio e mensagem de upgrade.
 - **Módulos por plano** (V046, `plano.modulos` jsonb): super admin define a oferta por plano
   (Emissão à Marinha, Comissões, Manutenção, Fechamentos, Relatórios, Despesas, Marketplace,
-  Loja online); NULL = todos. Gating em três camadas: menu do backoffice (itens somem), API
+  Loja online, Videoaula no balcão — configurável); NULL = todos. `VIDEO_ORIENTACAO` (V063) é
+  um módulo "de permissão": assistir a videoaula até o fim é obrigatório por padrão; tê-lo no
+  plano libera o toggle em Configurações › Documentos para desligar essa obrigação (PUT sem o
+  módulo → 400). O passo Orientações é exibido sempre. Gating em três camadas: menu do backoffice (itens somem), API
   (`ModuloPlanoInterceptor`, 400 com pedido de upgrade; superadmin isento; cache Redis com
   evict na troca) e canais públicos — Marketplace tira a empresa do marketplace agregado;
   Loja online desativa a vitrine própria, a disponibilidade pública e a reserva online.

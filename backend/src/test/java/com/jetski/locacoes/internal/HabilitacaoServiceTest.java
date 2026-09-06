@@ -71,6 +71,49 @@ class HabilitacaoServiceTest {
     }
 
     @Test
+    @DisplayName("Videoaula (V063): PLAYER grava carimbo+modo+idioma; DECLARACAO depois não rebaixa")
+    void videoaulaPlayerNaoRebaixa() {
+        java.time.Instant t1 = java.time.Instant.parse("2026-09-06T14:00:00Z");
+        ReservaHabilitacao h = service.registrar(reservaId, ReservaHabilitacao.builder()
+            .via(Via.EMA).videoaulaEm(t1)
+            .videoaulaModo(ReservaHabilitacao.VideoaulaModo.PLAYER).videoaulaIdioma("en").build());
+        assertThat(h.getVideoaulaEm()).isEqualTo(t1);
+        assertThat(h.getVideoaulaModo()).isEqualTo(ReservaHabilitacao.VideoaulaModo.PLAYER);
+        assertThat(h.getVideoaulaIdioma()).isEqualTo("en");
+
+        // Termos legado reenvia videoaulaAssistida=true (sem modo) → nada muda.
+        when(repo.findByReservaId(reservaId)).thenReturn(Optional.of(h));
+        ReservaHabilitacao h2 = service.registrar(reservaId, ReservaHabilitacao.builder()
+            .via(Via.EMA).videoaulaEm(java.time.Instant.parse("2026-09-06T15:00:00Z")).build());
+        assertThat(h2.getVideoaulaEm()).isEqualTo(t1);
+        assertThat(h2.getVideoaulaModo()).isEqualTo(ReservaHabilitacao.VideoaulaModo.PLAYER);
+        assertThat(h2.getVideoaulaIdioma()).isEqualTo("en");
+
+        // Sem videoaulaEm no request → também preserva.
+        ReservaHabilitacao h3 = service.registrar(reservaId, ReservaHabilitacao.builder()
+            .via(Via.EMA).anexoRegras(true).build());
+        assertThat(h3.getVideoaulaEm()).isEqualTo(t1);
+    }
+
+    @Test
+    @DisplayName("Videoaula (V063): declaração manual vira PLAYER quando o término é detectado (upgrade)")
+    void videoaulaDeclaracaoUpgradeParaPlayer() {
+        java.time.Instant t1 = java.time.Instant.parse("2026-09-06T14:00:00Z");
+        ReservaHabilitacao h = service.registrar(reservaId, ReservaHabilitacao.builder()
+            .via(Via.EMA).videoaulaEm(t1).build()); // modo ausente → DECLARACAO
+        assertThat(h.getVideoaulaModo()).isEqualTo(ReservaHabilitacao.VideoaulaModo.DECLARACAO);
+
+        when(repo.findByReservaId(reservaId)).thenReturn(Optional.of(h));
+        java.time.Instant t2 = java.time.Instant.parse("2026-09-06T15:00:00Z");
+        ReservaHabilitacao h2 = service.registrar(reservaId, ReservaHabilitacao.builder()
+            .via(Via.EMA).videoaulaEm(t2)
+            .videoaulaModo(ReservaHabilitacao.VideoaulaModo.PLAYER).videoaulaIdioma("pt").build());
+        assertThat(h2.getVideoaulaEm()).isEqualTo(t2);
+        assertThat(h2.getVideoaulaModo()).isEqualTo(ReservaHabilitacao.VideoaulaModo.PLAYER);
+        assertThat(h2.getVideoaulaIdioma()).isEqualTo("pt");
+    }
+
+    @Test
     @DisplayName("Via EMA com GRU paga → resolvida=true + gruPagoEm")
     void emaComGruResolve() {
         ReservaHabilitacao dados = ReservaHabilitacao.builder()

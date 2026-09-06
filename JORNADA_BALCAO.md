@@ -30,13 +30,16 @@ Operador de balcão · Cliente (locatário) · Instrutor (EAMA) · Marinha/Capit
    a. Gera e cobra a **GRU** (PIX/QR ou boleto) via PagTesouro; verificação automática do
       pagamento + comprovante.
    b. Pode enviar o **1º e-mail ao cliente com o número da GRU**.
-   c. Pré-requisitos: **vídeos** (videoaula) → **termos** → **assinatura** (autodeclaração de
-      saúde 5-C e demais anexos).
+   c. Pré-requisitos: **videoaula** (player integrado no passo Orientações — obrigatória, só
+      libera ao terminar) → **termos** → **assinatura** (autodeclaração de saúde 5-C e demais anexos).
 7. **Instrutor** — escolhe o instrutor (EAMA) do atestado de demonstração (5-B-1).
 8. **Emissão da documentação & preparo p/ Marinha** — gera o PDF consolidado (anexos
    NORMAM-212 + identidade + comprovante + selfie), disponibiliza ao cliente (download/e-mail)
    e prepara o envio à Marinha. **REGRA: o e-mail à Marinha só sai se TODA a documentação
-   estiver cumprida.**
+   estiver cumprida.** O e-mail é o ofício do item 5.4.2 da NORMAM-212 (`MarinhaEmailTemplate`,
+   norma em `docs/normativos/`): PDF único nomeado "Nome completo CPF.pdf", assunto com a reserva
+   no final, assinatura do responsável pelo EAMA (Configurações › Empresa) e `Reply-To` no e-mail
+   oficial do Anexo 5-A.
 9. **Desfecho — reserva + fila de espera**
    - Tudo cumprido → **reserva CONFIRMADA**.
    - Faltou documento → **reserva PENDENTE** (cliente se compromete a entregar depois; ao
@@ -69,14 +72,21 @@ PENDENTE → CONFIRMADA → EM CURSO (locação) → FINALIZADA · (CANCELADA / 
 | 5. Decisão habilitação | `StepHabilitacao` (CHA vs EMA) | ok |
 | 6a. GRU | `GruClient`/`GruService` (PIX/boleto/verificar pagamento/comprovante) | ok |
 | 6b. 1º e-mail com nº da GRU | — | **falta** |
-| 6c. Vídeos→termos→assinatura | videoaula (checkbox), `StepTermos` (assinatura), anexos 5-C | vídeo é só checkbox |
+| 6c. Vídeos→termos→assinatura | `StepOrientacoes` (player YouTube, tela cheia, anti-seek, `videoaula_modo` V063), `StepTermos` (assinatura), anexos 5-C | ok — desligável só com o módulo `VIDEO_ORIENTACAO` |
 | 7. Instrutor | `StepHabilitacao` (select de instrutor EMA) | ok |
 | 8. Emissão + envio Marinha | `EmissaoService` gera PDF + envia Marinha **e** cliente | **falta travar Marinha por documentação completa** |
 | 9. Reserva confirmada/pendente | emissão confirma a reserva (PENDENTE→CONFIRMADA) | falta "pendente por falta de doc" + compromisso de entrega |
 | 9. Fila de espera | — (jetski alocado só no embarque) | **falta o conceito de fila por modelo/horário** |
 
 ## Implementado nesta leva (jun/2026)
-- **Wizard reordenado**: Cliente → **Passeio & Preço** → Documentos → Habilitação → Termos → Emissão.
+- **Wizard reordenado**: Cliente → **Passeio & Preço** → Habilitação → Documentos → Termos → Emissão.
+- **Videoaula no balcão (set/2026, V063)**: passo **Orientações** entre Documentos e Termos
+  (só via EMA, sempre exibido): player integrado da videoaula oficial (PT/EN/ES), tela cheia, sem
+  adiantar, legendas opcionais. Por padrão o "Continuar" libera só após o término + checkbox do
+  operador (registro `PLAYER` com carimbo do servidor); com a obrigação desligada (toggle em
+  Configurações, só com o módulo `VIDEO_ORIENTACAO` no plano) o operador confirma e segue
+  (`DECLARACAO`). Fallback auditável `DECLARACAO` se o YouTube não carregar. Com a obrigação
+  ligada, sem videoaula a reserva fica PENDENTE e a Marinha não é notificada.
 - **Travar Marinha por documentação completa** (habilitação resolvida + termos + anexos NORMAM
   5-C/regras/residência + instrutor). Completo → reserva CONFIRMADA; faltando → PENDENTE (segue na fila).
   `StepEmissao` lista as pendências.
@@ -85,5 +95,5 @@ PENDENTE → CONFIRMADA → EM CURSO (locação) → FINALIZADA · (CANCELADA / 
   jetski alocado só no embarque (não consome unidade na reserva).
 - **Checklist de pré-requisitos (EMA)** com tick por item no drawer da reserva.
 
-> Pendente/futuro: vídeo como conteúdo de fato (hoje é checkbox); refinos da fila (chamar próximo,
+> Pendente/futuro: refinos da fila (chamar próximo,
 > notificação ao cliente); pendências entregues depois → reenvio automático à Marinha quando completar.

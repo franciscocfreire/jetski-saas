@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { CheckCircle2, ShieldCheck, Send } from 'lucide-react'
+import { CheckCircle2, ShieldCheck, Send, PlayCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { SignaturePad } from '@/components/signature-pad'
 import { aceiteService, habilitacaoService } from '@/lib/api/services'
 import { formatDateTime } from '@/lib/utils'
+import { rotuloIdioma } from '@/lib/videoaulas'
 import type { Atendimento } from '../types'
 
 const TERMO = `TERMO DE RESPONSABILIDADE E CIÊNCIA DE RISCOS
@@ -33,10 +34,9 @@ export function StepTermos({
   const ema = !atendimento.temCha
   const [assinatura, setAssinatura] = useState<string | null>(null)
   const [reassinar, setReassinar] = useState(false)
-  // Declarações do locatário (conferidas na hora de assinar): ciência das regras,
-  // videoaula e autodeclaração de saúde (Anexo 5-C).
+  // Declarações do locatário (conferidas na hora de assinar): ciência das regras
+  // e autodeclaração de saúde (Anexo 5-C). A videoaula vem do passo Orientações.
   const [cienteRegras, setCienteRegras] = useState(false)
-  const [videoaula, setVideoaula] = useState(false)
   const [usaLentes, setUsaLentes] = useState(false)
   const [usaAparelho, setUsaAparelho] = useState(false)
 
@@ -58,12 +58,20 @@ export function StepTermos({
     if (!habSalva || prefilled.current) return
     prefilled.current = true
     setCienteRegras(!!habSalva.anexoRegras)
-    setVideoaula(!!habSalva.videoaulaEm)
     setUsaLentes(!!habSalva.usaLentes)
     setUsaAparelho(!!habSalva.usaAparelho)
   }, [habSalva])
 
   const jaAssinado = !!aceiteExistente && !reassinar
+
+  // Videoaula (V063): cumprida no passo Orientações (player ou declaração) — aqui
+  // só o status. Sem registro (reserva antiga retomada), volta-se ao passo.
+  const videoaulaEm = atendimento.videoaulaEm ?? habSalva?.videoaulaEm
+  const videoaulaModo = atendimento.videoaulaModo ?? habSalva?.videoaulaModo
+  const videoaulaIdioma = atendimento.videoaulaIdioma ?? habSalva?.videoaulaIdioma
+  const videoaulaViaPlayer = !!videoaulaEm
+  const videoaulaPendente = ema && !videoaulaEm
+  const videoaulaOk = videoaulaViaPlayer
 
   // OTP (Fase B): se o tenant exige, confirma o código antes de habilitar a assinatura.
   const { data: otp } = useQuery({
@@ -112,7 +120,7 @@ export function StepTermos({
             via: 'EMA',
             anexoSaude: true,
             anexoRegras: cienteRegras,
-            videoaulaAssistida: videoaula,
+            // A videoaula foi registrada no passo Orientações — não se reenvia aqui.
             usaLentes,
             usaAparelho,
           })
@@ -149,18 +157,23 @@ export function StepTermos({
             <Checkbox checked={cienteRegras} onCheckedChange={(v) => setCienteRegras(!!v)} /> Declaro
             ciência das regras de navegação (NORMAM-212)
           </label>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={videoaula} onCheckedChange={(v) => setVideoaula(!!v)} /> Assisti à
-            videoaula de orientação
-          </label>
-          <p className="pl-6 text-xs text-muted-foreground">
-            Videoaulas oficiais:{' '}
-            <a className="text-primary hover:underline" href="https://youtu.be/Tjoj0eb-yj8" target="_blank" rel="noreferrer">Português</a>
-            {' · '}
-            <a className="text-primary hover:underline" href="https://youtu.be/W3rextGEmKM" target="_blank" rel="noreferrer">English</a>
-            {' · '}
-            <a className="text-primary hover:underline" href="https://youtu.be/xbYgwNqBpys" target="_blank" rel="noreferrer">Español</a>
-          </p>
+          {videoaulaViaPlayer ? (
+            <p className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+              <span>
+                Videoaula assistida em {formatDateTime(videoaulaEm!)}{' '}
+                <span className="text-xs text-muted-foreground">
+                  ({videoaulaModo === 'PLAYER' ? 'player integrado' : 'declaração manual'}
+                  {videoaulaIdioma && <> · {rotuloIdioma(videoaulaIdioma)}</>})
+                </span>
+              </span>
+            </p>
+          ) : (
+            <p className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+              <PlayCircle className="h-4 w-4 shrink-0" /> Videoaula pendente — volte ao passo{' '}
+              <strong>Orientações</strong>.
+            </p>
+          )}
           <div className="space-y-2 pt-1">
             <p className="text-xs font-medium text-muted-foreground">
               Autodeclaração de saúde (Anexo 5-C)
@@ -262,10 +275,14 @@ export function StepTermos({
         </div>
       )}
 
-      {ema && (!cienteRegras || !videoaula) && (
+      {ema && (!cienteRegras || !videoaulaOk) && (
         <p className="text-xs text-amber-700 dark:text-amber-400">
-          Marque <strong>ciência das regras</strong> e <strong>videoaula assistida</strong> para
-          continuar (obrigatórias).
+          {videoaulaPendente ? (
+            <>A <strong>videoaula</strong> precisa ser registrada no passo Orientações antes de assinar.</>
+          ) : (
+            <>Marque <strong>ciência das regras</strong> e <strong>videoaula assistida</strong> para
+            continuar (obrigatórias).</>
+          )}
         </p>
       )}
 
@@ -282,7 +299,7 @@ export function StepTermos({
         {jaAssinado ? (
           <Button
             type="button"
-            disabled={concluir.isPending || (ema && (!cienteRegras || !videoaula))}
+            disabled={concluir.isPending || (ema && (!cienteRegras || !videoaulaOk))}
             onClick={() => concluir.mutate()}
           >
             {concluir.isPending ? 'Salvando…' : 'Avançar'}
@@ -291,7 +308,7 @@ export function StepTermos({
           <Button
             type="button"
             disabled={
-              !assinatura || concluir.isPending || otpPendente || (ema && (!cienteRegras || !videoaula))
+              !assinatura || concluir.isPending || otpPendente || (ema && (!cienteRegras || !videoaulaOk))
             }
             onClick={() => concluir.mutate()}
           >

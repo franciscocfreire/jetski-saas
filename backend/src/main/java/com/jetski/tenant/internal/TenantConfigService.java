@@ -44,6 +44,7 @@ public class TenantConfigService {
     private final CapitaniaRepository capitaniaRepository;
     private final SecretCipher secretCipher;
     private final StorageService storageService;
+    private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
 
     /** Dados gerais/e-mail da empresa (tenant). */
     @Transactional(readOnly = true)
@@ -57,6 +58,9 @@ public class TenantConfigService {
             .cidade(t.getCidade())
             .marinhaEmail(t.getMarinhaEmail())
             .emailRemetente(t.getEmailRemetente())
+            .responsavelNome(t.getResponsavelNome())
+            .telefone(t.getTelefone())
+            .emailOficial(t.getEmailOficial())
             .pixChave(t.getPixChave())
             .smtpHost(t.getSmtpHost())
             .smtpPort(t.getSmtpPort())
@@ -77,6 +81,9 @@ public class TenantConfigService {
         if (req.getCidade() != null) t.setCidade(blankToNull(req.getCidade()));
         if (req.getMarinhaEmail() != null) t.setMarinhaEmail(blankToNull(req.getMarinhaEmail()));
         if (req.getEmailRemetente() != null) t.setEmailRemetente(blankToNull(req.getEmailRemetente()));
+        if (req.getResponsavelNome() != null) t.setResponsavelNome(blankToNull(req.getResponsavelNome()));
+        if (req.getTelefone() != null) t.setTelefone(blankToNull(req.getTelefone()));
+        if (req.getEmailOficial() != null) t.setEmailOficial(blankToNull(req.getEmailOficial()));
         if (req.getPixChave() != null) t.setPixChave(blankToNull(req.getPixChave()));
         // SMTP por tenant: host/usuário/from/porta/tls sempre que enviados; senha SÓ se
         // não-branca (preserva a existente quando o form não reenvia o segredo).
@@ -247,6 +254,13 @@ public class TenantConfigService {
             throw new BusinessException("Configuração de documentos ausente");
         }
         DocumentoConfig cfg = request.comDefaults();
+        // Videoaula obrigatória: desligar é um direito do módulo VIDEO_ORIENTACAO (V063).
+        if (Boolean.FALSE.equals(cfg.obrigatoriosMarinha().videoaula())
+                && !planoLimiteService.moduloHabilitado(tenantId, com.jetski.tenant.ModuloPlano.VIDEO_ORIENTACAO)) {
+            throw new BusinessException("Desligar a videoaula obrigatória exige o módulo \""
+                + com.jetski.tenant.ModuloPlano.VIDEO_ORIENTACAO.rotulo() + "\" no plano. "
+                + "Faça upgrade em Plano e Faturas para habilitá-lo.");
+        }
         tenant.setDocumentoConfig(cfg);
         tenantRepository.save(tenant);
         log.info("DocumentoConfig atualizada para o tenant {}", tenantId);

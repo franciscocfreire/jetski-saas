@@ -197,7 +197,7 @@ public class EmissaoService {
         }
 
         // Documentação completa? Só com tudo cumprido a Marinha pode receber o e-mail.
-        java.util.List<String> pendencias = pendenciasDocumentacao(hab, cliente, cfg.obrigatoriosMarinha());
+        java.util.List<String> pendencias = pendenciasDocumentacao(reserva.getTenantId(), hab, cliente, cfg);
         boolean docCompleta = pendencias.isEmpty();
 
         // Finaliza o atendimento: RASCUNHO/PENDENTE/CONFIRMADA → CONFIRMADA (completo)
@@ -216,8 +216,10 @@ public class EmissaoService {
         customerHabilitacaoSyncService.sync(reservaId);
 
         // E-mail à Marinha só quando aplicável (EMA) e a documentação está completa.
-        boolean enviadoMarinha = marinhaAplicavel && docCompleta && enviar(marinhaEmail,
-            assuntoMarinha(hab, reservaId), corpoMarinha(cliente), pdfMarinha.conteudo());
+        // Ofício no formato da NORMAM-212 5.4.2, assinado pelo emissor (a EAMA, na delegada).
+        boolean enviadoMarinha = marinhaAplicavel && docCompleta && enviarMarinha(marinhaEmail,
+            oficio(Emissor.of(tenant, delegacao), cliente, hab, reservaId, cfg, pdfMarinha.sha256(), false),
+            pdfMarinha.conteudo());
         boolean enviadoCliente = enviar(clienteEmail,
             "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente, hab), pdfCliente.conteudo());
         if (!docCompleta) {
@@ -270,8 +272,9 @@ public class EmissaoService {
      * sempre exigida; os demais itens (EMA) são parametrizados por tenant em
      * {@link DocumentoConfig.ObrigatoriosMarinha}.
      */
-    private java.util.List<String> pendenciasDocumentacao(ReservaHabilitacao hab, Cliente cliente,
-            DocumentoConfig.ObrigatoriosMarinha obr) {
+    private java.util.List<String> pendenciasDocumentacao(UUID tenantId, ReservaHabilitacao hab, Cliente cliente,
+            DocumentoConfig cfg) {
+        DocumentoConfig.ObrigatoriosMarinha obr = cfg.obrigatoriosMarinha();
         java.util.List<String> p = new java.util.ArrayList<>();
         if (!Boolean.TRUE.equals(hab.getResolvida())) {
             p.add(hab.getVia() == ReservaHabilitacao.Via.CHA ? "CHA não informada" : "GRU não paga");
@@ -287,6 +290,13 @@ public class EmissaoService {
             if (obr.instrutorReq() && hab.getInstrutorId() == null) p.add("Instrutor");
             if (obr.nacionalidadeReq() && vazio(cliente.getNacionalidade())) p.add("Nacionalidade");
             if (obr.naturalidadeReq() && vazio(cliente.getNaturalidade())) p.add("Naturalidade");
+            // Videoaula (V063): sempre exigida, salvo empresa com o módulo VIDEO_ORIENTACAO
+            // que a desligou em Configurações — mesma fórmula do balcão/summary.
+            boolean podeDesativar = planoLimiteService.moduloHabilitado(
+                tenantId, com.jetski.tenant.ModuloPlano.VIDEO_ORIENTACAO);
+            if (cfg.videoaulaExigida(podeDesativar) && hab.getVideoaulaEm() == null) {
+                p.add("Videoaula de orientação não assistida");
+            }
         }
         return p;
     }
@@ -312,7 +322,7 @@ public class EmissaoService {
                 aceitoEm, aceite.getIp(), aceite.getUserAgent(),
                 aceite.getOperadorId() != null ? aceite.getOperadorId().toString() : "—",
                 aceite.getOrigem(), aceite.getMetodo() != null ? aceite.getMetodo().name() : "—",
-                Boolean.TRUE.equals(hab.getAnexoRegras()), hab.getVideoaulaEm() != null,
+                Boolean.TRUE.equals(hab.getAnexoRegras()), descricaoVideoaula(hab),
                 otpTxt,
                 pdf.sha256(),
                 carimbo.getFonte(), carimbo.getAutoridade(), carimboData, carimbo.getSerial());
@@ -322,6 +332,17 @@ public class EmissaoService {
             log.warn("Página de auditoria não anexada (segue sem): {}", e.getMessage());
             return pdf;
         }
+    }
+
+    /** Texto da videoaula na página de auditoria: como, em que idioma e quando foi cumprida. */
+    static String descricaoVideoaula(ReservaHabilitacao hab) {
+        if (hab.getVideoaulaEm() == null) return "—";
+        String quando = " em " + AUD_FMT.format(hab.getVideoaulaEm());
+        if (hab.getVideoaulaModo() == ReservaHabilitacao.VideoaulaModo.PLAYER) {
+            String idioma = hab.getVideoaulaIdioma() != null ? ", " + hab.getVideoaulaIdioma().toUpperCase() : "";
+            return "Sim — assistida no balcão (player integrado" + idioma + ")" + quando;
+        }
+        return "Sim — declarada" + quando;
     }
 
     private static String sha256Hex(byte[] data) {
@@ -437,7 +458,7 @@ public class EmissaoService {
 
         // Anti-furo: prévia NUNCA sai limpa — o documento sem carimbo só existe via
         // emissão (contabilizada). Com pendências carimba RASCUNHO; completo, PRÉVIA.
-        String marcaDagua = !pendenciasDocumentacao(hab, cliente, cfg.obrigatoriosMarinha()).isEmpty()
+        String marcaDagua = !pendenciasDocumentacao(reserva.getTenantId(), hab, cliente, cfg).isEmpty()
             ? DocumentoPdfService.MARCA_RASCUNHO
             : DocumentoPdfService.MARCA_PREVIA;
         byte[] pdf = gerarParaDestino(dados, assinatura, cliente.getId(), hab, destinoCfg, marcaDagua).conteudo();
@@ -474,6 +495,12 @@ public class EmissaoService {
             m.put("cidade", d.cidade());
             m.put("uf", d.uf());
             m.put("capitania", d.capitaniaCodigo());
+            // Ofício à Capitania (V064): o reenvio assina pela EAMA como ela era na emissão.
+            m.put("marinhaEmail", d.marinhaEmail());
+            m.put("eamaRegistro", d.eamaRegistro());
+            m.put("responsavelNome", d.responsavelNome());
+            m.put("telefone", d.telefone());
+            m.put("emailOficial", d.emailOficial());
             if (d.instrutorId() != null) {
                 Map<String, Object> i = new LinkedHashMap<>();
                 i.put("id", d.instrutorId());
@@ -704,8 +731,12 @@ public class EmissaoService {
                 pdfMarinha = pdfCliente; // legado: emissão sem PDF da Marinha separado
             }
         }
-        boolean enviadoMarinha = pdfMarinha != null && enviar(tenant.getMarinhaEmail(),
-            assuntoMarinha(hab, reserva.getId()), corpoMarinha(cliente), pdfMarinha);
+        // Delegada: o ofício e o destino são os da EAMA emissora, como registrados no
+        // snapshot da emissão (não depende do vínculo atual). Própria: o tenant.
+        Emissor emissor = Emissor.fromSnapshot(doc.getEmissorSnapshot(), tenant, objectMapper);
+        boolean enviadoMarinha = pdfMarinha != null && enviarMarinha(emissor.marinhaEmail(),
+            oficio(emissor, cliente, hab, reserva.getId(), configDocumento(tenant), doc.getHashSha256(), true),
+            pdfMarinha);
         boolean enviadoCliente = enviar(cliente.getEmail(),
             "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente, hab), pdfCliente);
         if (enviadoMarinha) doc.setMarinhaEnviadoEm(Instant.now());
@@ -720,14 +751,103 @@ public class EmissaoService {
     }
 
     /**
-     * Subject do e-mail à Marinha COM o nº da GRU — é a referência que a
-     * Marinha usa para correlacionar o pedido (o UUID da reserva é interno).
+     * Quem assina o ofício à Capitania: o próprio tenant (emissão própria) ou a EAMA
+     * emissora (delegada) — na emissão pelo {@code DelegacaoContext}, no reenvio pelo
+     * {@code emissor_snapshot} do documento (campos ausentes caem no tenant).
      */
-    private static String assuntoMarinha(ReservaHabilitacao hab, UUID reservaId) {
-        String gru = hab != null ? hab.getGruNumero() : null;
-        return gru != null && !gru.isBlank()
-            ? "Documentos NORMAM-212 — GRU " + gru + " — reserva " + reservaId
-            : "Documentos NORMAM-212 — reserva " + reservaId;
+    record Emissor(String nome, String cnpj, String registro, String responsavel, String telefone,
+                   String emailOficial, String marinhaEmail) {
+
+        static Emissor of(Tenant t, VinculoEmissaoService.DelegacaoContext d) {
+            if (d != null) {
+                return new Emissor(d.razaoSocial(), d.cnpj(), d.eamaRegistro(), d.responsavelNome(),
+                    d.telefone(), d.emailOficial(), d.marinhaEmail());
+            }
+            return new Emissor(t.getRazaoSocial(), t.getCnpj(), t.getEamaRegistro(), t.getResponsavelNome(),
+                t.getTelefone(), t.getEmailOficial(), t.getMarinhaEmail());
+        }
+
+        @SuppressWarnings("unchecked")
+        static Emissor fromSnapshot(String snapshotJson, Tenant t, ObjectMapper om) {
+            Emissor proprio = of(t, null);
+            if (snapshotJson == null || snapshotJson.isBlank()) return proprio;
+            try {
+                Map<String, Object> m = om.readValue(snapshotJson, Map.class);
+                return new Emissor(
+                    str(m, "razaoSocial", proprio.nome()), str(m, "cnpj", proprio.cnpj()),
+                    str(m, "eamaRegistro", null), str(m, "responsavelNome", null),
+                    str(m, "telefone", null), str(m, "emailOficial", null),
+                    // snapshots antigos (antes da V064) não têm o e-mail: cai no tenant
+                    str(m, "marinhaEmail", proprio.marinhaEmail()));
+            } catch (Exception e) {
+                return proprio;
+            }
+        }
+
+        private static String str(Map<String, Object> m, String k, String fallback) {
+            Object v = m.get(k);
+            return v instanceof String s && !s.isBlank() ? s : fallback;
+        }
+    }
+
+    /** Monta o ofício (NORMAM-212 5.4.2) com a lista dos documentos realmente incluídos no PDF. */
+    private MarinhaEmailTemplate.DadosOficio oficio(Emissor e, Cliente c, ReservaHabilitacao hab,
+            UUID reservaId, DocumentoConfig cfg, String hash, boolean reenvio) {
+        return new MarinhaEmailTemplate.DadosOficio(
+            e.nome(), e.cnpj(), e.registro(), e.responsavel(), e.telefone(), e.emailOficial(),
+            c.getNome(), c.getDocumento(), Boolean.TRUE.equals(c.getEstrangeiro()),
+            hab != null ? hab.getGruNumero() : null, reservaId,
+            anexosOficio(cfg.marinha(), c, hab), hash, reenvio);
+    }
+
+    /** Itens do 5.4.2-a presentes no PDF da Marinha, conforme o recorte do tenant e o que o cliente entregou. */
+    private java.util.List<String> anexosOficio(DocumentoConfig.Destino d, Cliente c, ReservaHabilitacao hab) {
+        java.util.List<String> a = new java.util.ArrayList<>();
+        if (d.saudeOn()) a.add("Autodeclaração de Atestado de Saúde – Anexo 5-C");
+        if (d.instrutorOn()) {
+            a.add(Boolean.TRUE.equals(c.getEstrangeiro())
+                ? "Atestado de Demonstração – Anexo 5-B (5-B-1/5-B-2 e versões em inglês 5-B-3/5-B-4)"
+                : "Atestado de Demonstração – Anexo 5-B (5-B-1 e 5-B-2)");
+        }
+        if (d.residenciaOn() && hab != null && Boolean.TRUE.equals(hab.getAnexoResidencia())) {
+            a.add("Declaração de Residência – Anexo 1-C");
+        }
+        if (d.anexoComprovanteOn() && anexoPresente(c.getId(),
+                com.jetski.locacoes.domain.ClienteAnexo.Tipo.COMPROVANTE_RESIDENCIA)) {
+            a.add("Comprovante de residência");
+        }
+        if (d.anexoIdentidadeOn() && anexoPresente(c.getId(),
+                com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE)) {
+            a.add("Documento oficial de identificação, com fotografia");
+        }
+        if (d.anexoSelfieOn() && anexoPresente(c.getId(),
+                com.jetski.locacoes.domain.ClienteAnexo.Tipo.SELFIE)) {
+            a.add("Fotografia do locatário");
+        }
+        if (d.comprovanteGruOn() && hab != null && hab.getGruComprovanteS3Key() != null) {
+            a.add("Comprovante de pagamento da GRU");
+        }
+        return a;
+    }
+
+    /**
+     * E-mail à Capitania: anexo nomeado "Nome completo + CPF.pdf" e Reply-To no e-mail
+     * oficial do EAMA (NORMAM-212 5.4.2). Best-effort como {@link #enviar}.
+     */
+    private boolean enviarMarinha(String to, MarinhaEmailTemplate.DadosOficio oficio, byte[] pdf) {
+        if (to == null || to.isBlank()) {
+            return false;
+        }
+        String subject = MarinhaEmailTemplate.assunto(oficio);
+        try {
+            emailService.sendEmailComAnexo(to, subject, MarinhaEmailTemplate.corpoHtml(oficio),
+                MarinhaEmailTemplate.nomeArquivo(oficio), pdf, "application/pdf", oficio.emailOficial());
+            return true;
+        } catch (Exception e) {
+            log.warn("Falha ao enviar e-mail à Marinha (segue sem enviar): to={}, subject={}, erro={}",
+                to, subject, e.getMessage());
+            return false;
+        }
     }
 
     private boolean enviar(String to, String subject, String htmlBody, byte[] pdf) {
@@ -746,10 +866,6 @@ public class EmissaoService {
         }
     }
 
-    private String corpoMarinha(Cliente c) {
-        return "<p>Segue em anexo a documentação (NORMAM-212/DPC) referente ao locatário "
-            + "<b>" + safe(c.getNome()) + "</b> (CPF " + safe(c.getDocumento()) + ").</p>";
-    }
 
     private String corpoCliente(Cliente c, ReservaHabilitacao hab) {
         StringBuilder sb = new StringBuilder();

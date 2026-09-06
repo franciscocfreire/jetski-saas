@@ -91,7 +91,7 @@ public class DocumentoPdfService {
             String nome, String cpf, String email, String telefone,
             String aceitoEm, String ip, String dispositivo, String operador,
             String origem, String metodo,
-            boolean cienciaRegras, boolean videoaula,
+            boolean cienciaRegras, String videoaula,
             String otp,
             String docHash,
             String carimboFonte, String carimboAutoridade, String carimboData, String carimboSerial
@@ -430,7 +430,7 @@ public class DocumentoPdfService {
             linhasAud(doc, f,
                 new String[]{"Ciência das regras (NORMAM-212)", "Videoaula de orientação"},
                 new String[]{a.cienciaRegras() ? "Sim, declarado" : "—",
-                             a.videoaula() ? "Sim, assistida" : "—"});
+                             nz(a.videoaula())});
 
             secaoAud(doc, f, "Integridade e carimbo de tempo");
             linhasAud(doc, f,

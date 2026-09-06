@@ -65,7 +65,9 @@ public record DocumentoConfig(
             @JsonProperty("residencia") Boolean residencia,
             @JsonProperty("instrutor") Boolean instrutor,
             @JsonProperty("nacionalidade") Boolean nacionalidade,
-            @JsonProperty("naturalidade") Boolean naturalidade
+            @JsonProperty("naturalidade") Boolean naturalidade,
+            /** Videoaula assistida no player do balcão (V063). Só desligável com o módulo VIDEO_ORIENTACAO. */
+            @JsonProperty("videoaula") Boolean videoaula
     ) {
         private boolean req(Boolean b) {
             return b == null || b;
@@ -79,6 +81,17 @@ public record DocumentoConfig(
         public boolean instrutorReq() { return req(instrutor); }
         public boolean nacionalidadeReq() { return req(nacionalidade); }
         public boolean naturalidadeReq() { return req(naturalidade); }
+        public boolean videoaulaReq() { return req(videoaula); }
+    }
+
+    /**
+     * Regra efetiva da videoaula obrigatória (única fórmula, usada pela emissão,
+     * pela validação da config e pelo summary do tenant): sem o módulo
+     * {@code VIDEO_ORIENTACAO} no plano ela é sempre exigida; com o módulo, vale
+     * o toggle {@code obrigatoriosMarinha.videoaula} (null = exigida).
+     */
+    public boolean videoaulaExigida(boolean podeDesativar) {
+        return !podeDesativar || comDefaults().obrigatoriosMarinha().videoaulaReq();
     }
 
     public static DocumentoConfig padrao() {
@@ -89,7 +102,7 @@ public record DocumentoConfig(
                 // Cliente: tudo, inclusive o Termo.
                 new Destino(true, true, true, true, true, true, true, true),
                 // Obrigatórios à Marinha: tudo exigido (identidade, selfie + demais).
-                new ObrigatoriosMarinha(true, true, true, true, true, true, true, true));
+                new ObrigatoriosMarinha(true, true, true, true, true, true, true, true, true));
     }
 
     /** Nunca devolve null — campos/destinos ausentes caem no padrão. */

@@ -768,6 +768,22 @@ ALTER TABLE public.customer_habilitacao
 CREATE INDEX IF NOT EXISTS idx_customer_habilitacao_usuario
     ON public.customer_habilitacao (usuario_id) WHERE usuario_id IS NOT NULL;
 
+-- V063: videoaula obrigatória no balcão — modo (PLAYER|DECLARACAO) e idioma
+ALTER TABLE public.reserva_habilitacao
+    ADD COLUMN IF NOT EXISTS videoaula_modo   varchar(12),
+    ADD COLUMN IF NOT EXISTS videoaula_idioma varchar(5);
+ALTER TABLE public.reserva_habilitacao
+    DROP CONSTRAINT IF EXISTS reserva_habilitacao_videoaula_modo_check;
+ALTER TABLE public.reserva_habilitacao
+    ADD CONSTRAINT reserva_habilitacao_videoaula_modo_check
+    CHECK (videoaula_modo IS NULL OR videoaula_modo IN ('PLAYER', 'DECLARACAO'));
+
+-- V064: dados do EAMA para o ofício à Capitania (responsável, telefone, e-mail oficial)
+ALTER TABLE public.tenant
+    ADD COLUMN IF NOT EXISTS responsavel_nome varchar(120),
+    ADD COLUMN IF NOT EXISTS telefone         varchar(30),
+    ADD COLUMN IF NOT EXISTS email_oficial    varchar(255);
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 

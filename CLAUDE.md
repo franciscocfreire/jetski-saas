@@ -10,14 +10,14 @@ In **production** (Oracle Cloud ARM, docker compose + Cloudflare Tunnel): site p
 
 ## Codebase Map
 
-- **Backend** `backend/`: Spring Boot 3.3 / Java 21 **modular monolith** (Spring Modulith). Modules: `tenant`, `tenants`, `usuarios`, `signup`, `frota`, `reservas`, `locacoes` (inclui GRU/EMA/assinatura), `manutencao`, `comissoes`, `fechamento`, `combustivel`, `despesas`, `pagamentos`, `bonus`, `dashboard`, `marketplace`, `creditos`, `metering`, `plataforma` (console: dashboard consolidado, trilha global, saúde, sessão de suporte), `audit`, `metrics` + `shared` (subpacotes expostos exigem `@NamedInterface`). Migrations Flyway V001–V057 (próximo número: `ls backend/src/main/resources/db/migration | sort | tail`), ~1195 testes (Testcontainers Postgres+Redis).
+- **Backend** `backend/`: Spring Boot 3.3 / Java 21 **modular monolith** (Spring Modulith). Modules: `tenant`, `tenants`, `usuarios`, `signup`, `frota`, `reservas`, `locacoes` (inclui GRU/EMA/assinatura), `manutencao`, `comissoes`, `fechamento`, `combustivel`, `despesas`, `pagamentos`, `bonus`, `dashboard`, `marketplace`, `creditos`, `metering`, `plataforma` (console: dashboard consolidado, trilha global, saúde, sessão de suporte), `audit`, `metrics` + `shared` (subpacotes expostos exigem `@NamedInterface`). Migrations Flyway V001–V064 (próximo número: `ls backend/src/main/resources/db/migration | sort | tail`), ~1195 testes (Testcontainers Postgres+Redis).
 - **Backoffice** `frontend/jetski-backoffice/`: Next.js 15 + React 19 + shadcn/ui, NextAuth + Keycloak (público + PKCE), TanStack Query/Table, Playwright.
 - **Portal do cliente** `frontend/portal-cliente/`: Next.js no subdomínio próprio (`cliente.*`), login por e-mail ou CPF, reserva online com sinal PIX.
 - **Console da plataforma** `frontend/plataforma-console/`: Next.js no subdomínio `admin.*`, app do operador de plataforma (separado do backoffice das empresas). Client Keycloak próprio, **sem `X-Tenant-Id`** — o alvo vai no path. F0 entregue; ver `PLATAFORMA_CONSOLE_SPEC.md`.
 - **Infra**: `docker-compose.yml` (+ `.prod.yml`/`.ci.yml`), `infra/` (nginx, keycloak realm, OPA policies em `policies/`, observability, `infra/prod/backup.sh` — backup diário com off-site), scripts na raiz (`rebuild.sh`, `reset-ambiente-dev.sh`, `deploy.sh`).
 - **Mobile** (KMM): apenas docs (`mobile/*.md`); código em working dir separado (`/mnt/c/repos/jetski-mobile`).
 
-Referências: `IMPLEMENTATION_STATUS.md` (status por feature), `PORTAL_CLIENTE_SPEC.md`, `DEPLOY.md`, `BRAND.md`, `inicial.md` (spec original, histórica — inclui cenários BDD e schema SQL).
+Referências: `IMPLEMENTATION_STATUS.md` (status por feature), `PORTAL_CLIENTE_SPEC.md`, `DEPLOY.md`, `BRAND.md`, `inicial.md` (spec original, histórica — inclui cenários BDD e schema SQL), `docs/normativos/` (NORMAM-212/DPC versionada + excerto do item 5.4.2 que o e-mail à Capitania implementa).
 
 **Conhecimento especializado** vive em `.claude/agents/` (`backend-dev`, `frontend-dev`, `devops`) e `.claude/skills/` (`/nova-migration`, `/rebuild-dev`, `/rodar-testes`, `/deploy-prod`) — consulte-os antes de mexer nas respectivas áreas; eles carregam os gotchas do projeto.
 

@@ -28,6 +28,14 @@ public class TenantGeralConfigRequest {
     @Size(max = 255)
     private String emailRemetente;
 
+    // Dados do EAMA no ofício à Capitania (V064): responsável, telefone e e-mail oficial (Anexo 5-A).
+    @Size(max = 120)
+    private String responsavelNome;
+    @Size(max = 30)
+    private String telefone;
+    @Email(message = "E-mail oficial inválido")
+    @Size(max = 255)
+    private String emailOficial;
     /** Chave PIX da empresa — destino do sinal das reservas do portal. */
     @Size(max = 140)
     private String pixChave;

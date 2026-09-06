@@ -124,6 +124,17 @@ public class Tenant {
     @Column(name = "email_remetente", length = 255)
     private String emailRemetente;
 
+    // Dados do EAMA para o ofício à Capitania (V064 — NORMAM-212 item 5.4.2 / Anexo 5-A).
+    /** Responsável pelo EAMA — assina o e-mail de solicitação da CHA-MTA-E. */
+    @Column(name = "responsavel_nome", length = 120)
+    private String responsavelNome;
+    /** Telefone institucional (Anexo 5-A). */
+    @Column(name = "telefone", length = 30)
+    private String telefone;
+    /** E-mail oficial declarado no Anexo 5-A — Reply-To do e-mail à Capitania. */
+    @Column(name = "email_oficial", length = 255)
+    private String emailOficial;
+
     // SMTP próprio da loja (envio "from" real da empresa). Senha é segredo (write-only na API).
     @Column(name = "smtp_host", length = 255)
     private String smtpHost;

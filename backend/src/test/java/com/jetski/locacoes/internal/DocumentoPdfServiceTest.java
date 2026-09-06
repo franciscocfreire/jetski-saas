@@ -89,7 +89,8 @@ class DocumentoPdfServiceTest {
         var aud = new DocumentoPdfService.DadosAuditoria(
                 "Roberto Lima", "987.654.321-00", "roberto@example.com", "(24) 99999-0000",
                 "16/06/2026 14:32:05", "191.0.0.10", "Mozilla/5.0 (iPhone)", "op-123",
-                "BALCAO", "SIGNATURE_PAD", true, true,
+                "BALCAO", "SIGNATURE_PAD", true,
+                "Sim — assistida no balcão (player integrado, PT) em 16/06/2026 14:20:11",
                 "Confirmado via EMAIL (ro***@example.com)",
                 "a".repeat(64), "TSA", "https://freetsa.org/tsr", "16/06/2026 14:32:07", "ABCD1234EF567890");
         DocumentoPdfService.DocumentoPdf pdf = service.paginaAuditoria(aud);

@@ -79,9 +79,10 @@ public class SmtpEmailService implements EmailService {
 
     @Override
     public void sendEmailComAnexo(String to, String subject, String htmlBody,
-                                  String attachmentName, byte[] attachment, String attachmentContentType) {
+                                  String attachmentName, byte[] attachment, String attachmentContentType,
+                                  String replyTo) {
         try {
-            dispatch(to, subject, htmlBody, attachmentName, attachment, attachmentContentType);
+            dispatch(to, subject, htmlBody, attachmentName, attachment, attachmentContentType, replyTo);
             log.info("Email com anexo enviado: to={}, subject={}, anexo={} ({} bytes)",
                 to, subject, attachmentName, attachment == null ? 0 : attachment.length);
         } catch (Exception e) {
@@ -93,7 +94,7 @@ public class SmtpEmailService implements EmailService {
     @Override
     public void sendEmail(String to, String subject, String htmlBody) {
         try {
-            dispatch(to, subject, htmlBody, null, null, null);
+            dispatch(to, subject, htmlBody, null, null, null, null);
             log.info("Email sent successfully: to={}, subject={}", to, subject);
         } catch (Exception e) {
             // Best-effort: uma falha de email NÃO deve interromper o fluxo de negócio
@@ -108,15 +109,15 @@ public class SmtpEmailService implements EmailService {
      * ou o SMTP global da plataforma como fallback.
      */
     private void dispatch(String to, String subject, String html,
-                          String attName, byte[] att, String attType) throws Exception {
+                          String attName, byte[] att, String attType, String replyTo) throws Exception {
         var perTenant = tenantSmtpResolver.forCurrentTenant();
         if (perTenant.isPresent()) {
             var s = perTenant.get();
             String nome = (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : fromName;
-            senderFactory.send(senderFactory.build(s), s.from(), nome, to, subject, html, attName, att, attType);
+            senderFactory.send(senderFactory.build(s), s.from(), nome, to, subject, html, attName, att, attType, replyTo);
             log.debug("E-mail enviado pelo SMTP do tenant (from={})", s.from());
         } else {
-            senderFactory.send(mailSender, fromEmail, fromName, to, subject, html, attName, att, attType);
+            senderFactory.send(mailSender, fromEmail, fromName, to, subject, html, attName, att, attType, replyTo);
         }
     }
 

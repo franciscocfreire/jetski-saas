@@ -29,6 +29,10 @@ public class HabilitacaoRequest {
 
     // Via EMA
     private Boolean videoaulaAssistida;
+    /** PLAYER (término detectado no balcão) | DECLARACAO (manual). Ausente com videoaulaAssistida=true → DECLARACAO. */
+    private String videoaulaModo;
+    /** pt | en | es — idioma da videoaula assistida. */
+    private String videoaulaIdioma;
     private Boolean anexoSaude;
     private Boolean anexoRegras;
     private Boolean anexoResidencia;

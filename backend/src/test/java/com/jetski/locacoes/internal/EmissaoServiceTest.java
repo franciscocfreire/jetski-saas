@@ -90,6 +90,9 @@ class EmissaoServiceTest {
         when(habRepo.findByReservaId(reservaId)).thenReturn(Optional.of(ReservaHabilitacao.builder()
             .via(ReservaHabilitacao.Via.EMA).resolvida(true)
             .anexoSaude(true).anexoRegras(true).anexoResidencia(true).instrutorId(UUID.randomUUID())
+            // Videoaula (V063): obrigatória por padrão — sem ela a Marinha não recebe.
+            .videoaulaEm(java.time.Instant.now()).videoaulaModo(ReservaHabilitacao.VideoaulaModo.PLAYER)
+            .videoaulaIdioma("pt")
             .gruNumero("GRU-1").gruValor(new BigDecimal("23.13")).build()));
         when(aceiteRepo.findFirstByReservaIdOrderByAceitoEmDesc(reservaId))
             .thenReturn(Optional.of(ReservaAceite.builder().assinaturaS3Key("t/r/assinatura.png").build()));
@@ -102,6 +105,7 @@ class EmissaoServiceTest {
         when(tenantQuery.findById(tenant)).thenReturn(Tenant.builder()
             .razaoSocial("Jet Save Turismo Náutico LTDA").cnpj("65.455.888/0001-00")
             .marinhaEmail("capitania@example.com").cidade("Angra dos Reis")
+            .responsavelNome("Maria da Silva").emailOficial("eama@jetsave.com.br")
             .emissoraHabilitada(true).build());
         when(storage.getObject(anyString())).thenReturn("png".getBytes());
         when(storage.generatePresignedDownloadUrl(anyString(), anyInt()))
@@ -131,10 +135,23 @@ class EmissaoServiceTest {
         verify(reservaRepo).save(any(Reserva.class)); // documento_emitido_em
         verify(events).publishEvent(any(DocumentosEmitidosEvent.class));
 
-        // Subject à Marinha carrega o nº da GRU (referência de consulta lá)
-        org.mockito.ArgumentCaptor<String> subjects = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(email, times(2)).sendEmailComAnexo(anyString(), subjects.capture(), anyString(), anyString(), any(), anyString());
-        assertThat(subjects.getAllValues()).anyMatch(s -> s.contains("GRU GRU-1"));
+        // Marinha: ofício NORMAM-212 5.4.2 — assunto com a reserva no final, anexo "Nome CPF.pdf",
+        // GRU no corpo, Reply-To = e-mail oficial do EAMA. Cliente: e-mail próprio (6 args).
+        org.mockito.ArgumentCaptor<String> subject = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<String> body = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<String> anexo = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(email).sendEmailComAnexo(eq("capitania@example.com"), subject.capture(), body.capture(),
+            anexo.capture(), any(), eq("application/pdf"), eq("eama@jetsave.com.br"));
+        assertThat(subject.getValue())
+            .startsWith("Solicitação de Emissão de CHA-MTA-E – Roberto Lima – CPF 987.654.321-00 – reserva #")
+            .endsWith("reserva #" + reservaId.toString().substring(0, 8));
+        assertThat(anexo.getValue()).isEqualTo("Roberto Lima 987.654.321-00.pdf");
+        assertThat(body.getValue())
+            .contains("item 5.4.2").contains("GRU paga: <b>GRU-1</b>")
+            .contains("Anexo 5-C").contains("Anexo 5-B").contains("Anexo 1-C")
+            .contains("Documento oficial de identificação")
+            .contains("<b>Maria da Silva</b><br>EAMA Jet Save Turismo Náutico LTDA<br>CNPJ: 65.455.888/0001-00");
+        verify(email).sendEmailComAnexo(eq("roberto@email.com"), anyString(), anyString(), anyString(), any(), anyString());
     }
 
     @Test
@@ -167,6 +184,66 @@ class EmissaoServiceTest {
         verify(pdfService, org.mockito.Mockito.never())
             .gerarDocumentoConsolidado(any(), any(), any(), any(), nullable(String.class));
         verify(docRepo, org.mockito.Mockito.never()).save(any(DocumentoEmitido.class));
+    }
+
+    @Test
+    @DisplayName("Videoaula (V063): sem o módulo VIDEO_ORIENTACAO ela é sempre exigida — falta vira pendência e trava a Marinha")
+    void videoaulaObrigatoriaSemModulo() {
+        when(habRepo.findByReservaId(reservaId)).thenReturn(Optional.of(ReservaHabilitacao.builder()
+            .via(ReservaHabilitacao.Via.EMA).resolvida(true)
+            .anexoSaude(true).anexoRegras(true).anexoResidencia(true).instrutorId(UUID.randomUUID())
+            .gruNumero("GRU-1").build()));
+        // módulo ausente (default do mock = false) e tenant sem config → exigida
+
+        EmissaoService.ResultadoEmissao r = service.emitir(reservaId);
+
+        assertThat(r.isDocCompleta()).isFalse();
+        assertThat(r.getPendencias()).contains("Videoaula de orientação não assistida");
+        assertThat(r.isEnviadoMarinha()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Videoaula (V063): com o módulo e o toggle desligado, a falta NÃO é pendência")
+    void videoaulaDesligadaComModulo() {
+        when(planoLimiteService.moduloHabilitado(any(UUID.class),
+            eq(com.jetski.tenant.ModuloPlano.VIDEO_ORIENTACAO))).thenReturn(true);
+        when(habRepo.findByReservaId(reservaId)).thenReturn(Optional.of(ReservaHabilitacao.builder()
+            .via(ReservaHabilitacao.Via.EMA).resolvida(true)
+            .anexoSaude(true).anexoRegras(true).anexoResidencia(true).instrutorId(UUID.randomUUID())
+            .gruNumero("GRU-1").build()));
+        var padrao = com.jetski.tenant.domain.DocumentoConfig.padrao();
+        var obr = padrao.obrigatoriosMarinha();
+        var cfg = new com.jetski.tenant.domain.DocumentoConfig(padrao.marinha(), padrao.cliente(),
+            new com.jetski.tenant.domain.DocumentoConfig.ObrigatoriosMarinha(
+                obr.identidade(), obr.selfie(), obr.saude(), obr.regras(), obr.residencia(),
+                obr.instrutor(), obr.nacionalidade(), obr.naturalidade(), false));
+        when(tenantQuery.findById(tenant)).thenReturn(Tenant.builder()
+            .razaoSocial("Jet Save Turismo Náutico LTDA").cnpj("65.455.888/0001-00")
+            .marinhaEmail("capitania@example.com").cidade("Angra dos Reis")
+            .emissoraHabilitada(true).documentoConfig(cfg).build());
+
+        EmissaoService.ResultadoEmissao r = service.emitir(reservaId);
+
+        assertThat(r.getPendencias()).doesNotContain("Videoaula de orientação não assistida");
+        assertThat(r.isEnviadoMarinha()).isTrue();
+
+        // Toggle desligado SEM o módulo continua exigindo (o módulo é a permissão de desligar).
+        assertThat(cfg.videoaulaExigida(false)).isTrue();
+        assertThat(cfg.videoaulaExigida(true)).isFalse();
+        assertThat(padrao.videoaulaExigida(true)).isTrue();
+    }
+
+    @Test
+    @DisplayName("Página de auditoria descreve COMO a videoaula foi cumprida (player+idioma+quando / declarada / —)")
+    void descricaoVideoaulaAuditoria() {
+        java.time.Instant em = java.time.Instant.parse("2026-09-06T17:32:10Z"); // 14:32:10 em São Paulo
+        assertThat(EmissaoService.descricaoVideoaula(ReservaHabilitacao.builder()
+            .videoaulaEm(em).videoaulaModo(ReservaHabilitacao.VideoaulaModo.PLAYER).videoaulaIdioma("pt").build()))
+            .isEqualTo("Sim — assistida no balcão (player integrado, PT) em 06/09/2026 14:32:10");
+        assertThat(EmissaoService.descricaoVideoaula(ReservaHabilitacao.builder()
+            .videoaulaEm(em).videoaulaModo(ReservaHabilitacao.VideoaulaModo.DECLARACAO).build()))
+            .isEqualTo("Sim — declarada em 06/09/2026 14:32:10");
+        assertThat(EmissaoService.descricaoVideoaula(ReservaHabilitacao.builder().build())).isEqualTo("—");
     }
 
     @Test

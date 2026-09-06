@@ -52,6 +52,13 @@ public class ReservaHabilitacao {
     // Via EMA
     @Column(name = "videoaula_em")
     private Instant videoaulaEm;
+    // Como a videoaula foi cumprida (V063): PLAYER = término detectado no balcão;
+    // DECLARACAO = checkbox/declaração manual (Termos legado, portal, fallback).
+    @Enumerated(EnumType.STRING)
+    @Column(name = "videoaula_modo", length = 12)
+    private VideoaulaModo videoaulaModo;
+    @Column(name = "videoaula_idioma", length = 5)
+    private String videoaulaIdioma;
     @Column(name = "anexo_saude", nullable = false)
     @Builder.Default
     private Boolean anexoSaude = false;
@@ -133,5 +140,13 @@ public class ReservaHabilitacao {
     public enum Via {
         CHA,
         EMA
+    }
+
+    /** Como a videoaula foi cumprida (V063). */
+    public enum VideoaulaModo {
+        /** Término detectado pelo player integrado do balcão. */
+        PLAYER,
+        /** Checkbox/declaração manual (Termos legado, portal, fallback do player). */
+        DECLARACAO
     }
 }

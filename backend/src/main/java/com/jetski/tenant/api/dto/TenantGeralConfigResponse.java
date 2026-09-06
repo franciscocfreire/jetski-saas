@@ -17,6 +17,9 @@ public class TenantGeralConfigResponse {
     private String cidade;
     private String marinhaEmail;
     private String emailRemetente;
+    private String responsavelNome;
+    private String telefone;
+    private String emailOficial;
     private String pixChave;
     // SMTP (a senha NUNCA é retornada — só o indicador de configurado).
     private String smtpHost;

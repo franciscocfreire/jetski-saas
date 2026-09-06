@@ -170,6 +170,11 @@ public class UserTenantsController {
                 // Módulos do plano (V046): null = todos — o menu do backoffice
                 // filtra por isto (sentinela "*" vira null p/ o frontend)
                 List<String> modulos = planoLimiteService.modulosDoPlano(membro.getTenantId());
+                boolean podeDesativarVideoaula = modulos.contains("*")
+                    || modulos.contains(com.jetski.tenant.ModuloPlano.VIDEO_ORIENTACAO.name());
+                com.jetski.tenant.domain.DocumentoConfig docCfg =
+                    tenant != null && tenant.getDocumentoConfig() != null
+                        ? tenant.getDocumentoConfig() : com.jetski.tenant.domain.DocumentoConfig.padrao();
                 return TenantSummary.builder()
                     .id(membro.getTenantId())
                     .slug(tenant != null ? tenant.getSlug() : null)
@@ -177,6 +182,7 @@ public class UserTenantsController {
                     .status(tenant != null && tenant.getStatus() != null ? tenant.getStatus().name() : null)
                     .roles(membro.getPapeis() != null ? List.of(membro.getPapeis()) : List.of())
                     .modulos(modulos.contains("*") ? null : modulos)
+                    .videoaulaObrigatoria(docCfg.videoaulaExigida(podeDesativarVideoaula))
                     .build();
             })
             .collect(Collectors.toList());

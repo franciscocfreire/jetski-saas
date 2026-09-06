@@ -37,6 +37,7 @@ const MODULOS: Record<string, string> = {
   DESPESAS: 'Despesas operacionais',
   MARKETPLACE: 'Marketplace',
   LOJA_ONLINE: 'Loja online',
+  VIDEO_ORIENTACAO: 'Videoaula no balcão — configurável',
 }
 
 const mesAno = (iso: string) => {

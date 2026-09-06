@@ -258,6 +258,16 @@ public class HabilitacaoController {
         }
     }
 
+    /** Modo ausente = declaração manual (Termos legado / clientes antigos). */
+    private ReservaHabilitacao.VideoaulaModo parseVideoaulaModo(String modo) {
+        if (modo == null || modo.isBlank()) return ReservaHabilitacao.VideoaulaModo.DECLARACAO;
+        try {
+            return ReservaHabilitacao.VideoaulaModo.valueOf(modo.trim().toUpperCase());
+        } catch (Exception e) {
+            throw new BusinessException("videoaulaModo inválido: " + modo + " (use PLAYER ou DECLARACAO)");
+        }
+    }
+
     private ReservaHabilitacao toEntity(HabilitacaoRequest r) {
         return ReservaHabilitacao.builder()
             .via(parseVia(r.getVia()))
@@ -265,6 +275,8 @@ public class HabilitacaoController {
             .chaNumero(r.getChaNumero())
             .chaValidade(r.getChaValidade())
             .videoaulaEm(Boolean.TRUE.equals(r.getVideoaulaAssistida()) ? Instant.now() : null)
+            .videoaulaModo(Boolean.TRUE.equals(r.getVideoaulaAssistida()) ? parseVideoaulaModo(r.getVideoaulaModo()) : null)
+            .videoaulaIdioma(Boolean.TRUE.equals(r.getVideoaulaAssistida()) ? r.getVideoaulaIdioma() : null)
             .anexoSaude(r.getAnexoSaude())
             .anexoRegras(r.getAnexoRegras())
             .anexoResidencia(r.getAnexoResidencia())
@@ -286,6 +298,8 @@ public class HabilitacaoController {
             .chaNumero(h.getChaNumero())
             .chaValidade(h.getChaValidade())
             .videoaulaEm(h.getVideoaulaEm())
+            .videoaulaModo(h.getVideoaulaModo() != null ? h.getVideoaulaModo().name() : null)
+            .videoaulaIdioma(h.getVideoaulaIdioma())
             .anexoSaude(h.getAnexoSaude())
             .anexoRegras(h.getAnexoRegras())
             .anexoResidencia(h.getAnexoResidencia())

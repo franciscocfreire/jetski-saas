@@ -81,9 +81,12 @@ public class EmissaoDelegadaService {
         } catch (Exception ex) {
             throw new BusinessException("PDF desta emissão não pôde ser lido do storage");
         }
+        // Ofício no formato da NORMAM-212 5.4.2, assinado pela EAMA (este tenant).
+        MarinhaEmailTemplate.DadosOficio oficio = oficio(tenantId, e);
         try {
             emailService.sendEmailComAnexo(destino,
-                assuntoReenvio(e), corpoReenvio(e), "documentos.pdf", pdf, "application/pdf");
+                MarinhaEmailTemplate.assunto(oficio), MarinhaEmailTemplate.corpoHtml(oficio),
+                MarinhaEmailTemplate.nomeArquivo(oficio), pdf, "application/pdf", oficio.emailOficial());
         } catch (Exception ex) {
             throw new BusinessException("Falha ao enviar o e-mail: " + ex.getMessage());
         }
@@ -104,24 +107,31 @@ public class EmissaoDelegadaService {
         return t != null ? t.getMarinhaEmail() : null;
     }
 
-    private String assuntoReenvio(EmissaoDelegada e) {
-        return e.getGruNumero() != null && !e.getGruNumero().isBlank()
-            ? "Documentos NORMAM-212 — GRU " + e.getGruNumero() + " (reenvio)"
-            : "Documentos NORMAM-212 (reenvio)";
+    /**
+     * Ofício do reenvio: dados da EAMA (este tenant) + condutor/GRU/hash do espelho.
+     * O espelho não guarda o id da reserva; ele vem da chave do PDF
+     * ({@code {tenant}/reserva/{reservaId}/documento-marinha.pdf}).
+     */
+    private MarinhaEmailTemplate.DadosOficio oficio(UUID tenantId, EmissaoDelegada e) {
+        Tenant t = tenantQueryService.findById(tenantId);
+        return new MarinhaEmailTemplate.DadosOficio(
+            t != null ? t.getRazaoSocial() : null, t != null ? t.getCnpj() : null,
+            t != null ? t.getEamaRegistro() : null, t != null ? t.getResponsavelNome() : null,
+            t != null ? t.getTelefone() : null, t != null ? t.getEmailOficial() : null,
+            e.getCondutorNome(), e.getCondutorCpf(), false, e.getGruNumero(),
+            reservaIdDaChave(e.getS3Key()),
+            java.util.List.of(
+                "Autodeclaração de Atestado de Saúde – Anexo 5-C",
+                "Atestado de Demonstração – Anexo 5-B",
+                "Declaração de Residência – Anexo 1-C (ou comprovante de residência)",
+                "Documento oficial de identificação, com fotografia"),
+            e.getDocumentoHash(), true);
     }
 
-    private String corpoReenvio(EmissaoDelegada e) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<p>Segue em anexo a documentação (NORMAM-212/DPC) referente ao condutor <b>")
-          .append(e.getCondutorNome() != null ? e.getCondutorNome() : "—").append("</b>");
-        if (e.getCondutorCpf() != null) {
-            sb.append(" (CPF ").append(e.getCondutorCpf()).append(")");
-        }
-        sb.append(".</p>");
-        if (e.getDocumentoHash() != null) {
-            sb.append("<p>Hash SHA-256 do documento: <code>").append(e.getDocumentoHash())
-              .append("</code></p>");
-        }
-        return sb.toString();
+    static UUID reservaIdDaChave(String s3Key) {
+        if (s3Key == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern
+            .compile("/reserva/([0-9a-fA-F-]{36})/").matcher(s3Key);
+        return m.find() ? UUID.fromString(m.group(1)) : null;
     }
 }

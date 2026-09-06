@@ -37,6 +37,13 @@ public class SmtpSenderFactory {
     public void send(JavaMailSender sender, String from, String fromName, String to, String subject,
                      String html, String attachmentName, byte[] attachment, String attachmentContentType)
             throws Exception {
+        send(sender, from, fromName, to, subject, html, attachmentName, attachment, attachmentContentType, null);
+    }
+
+    public void send(JavaMailSender sender, String from, String fromName, String to, String subject,
+                     String html, String attachmentName, byte[] attachment, String attachmentContentType,
+                     String replyTo)
+            throws Exception {
         MimeMessage message = sender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, attachment != null, "UTF-8");
         if (fromName != null && !fromName.isBlank()) {
@@ -45,6 +52,9 @@ public class SmtpSenderFactory {
             helper.setFrom(from);
         }
         helper.setTo(to);
+        if (replyTo != null && !replyTo.isBlank()) {
+            helper.setReplyTo(replyTo);
+        }
         helper.setSubject(subject);
         helper.setText(html, true);
         if (attachment != null) {
