@@ -177,4 +177,9 @@ class KeycloakUserProvisioningAdapter implements UserProvisioningService {
     public boolean resetPassword(String providerUserId, String novaSenha) {
         return keycloakAdminService.resetPassword(providerUserId, novaSenha);
     }
+
+    @Override
+    public boolean garantirRealmRole(String providerUserId, String role) {
+        return keycloakAdminService.garantirRealmRole(providerUserId, role);
+    }
 }

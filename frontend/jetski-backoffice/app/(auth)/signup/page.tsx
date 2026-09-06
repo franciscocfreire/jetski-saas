@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { Loader2, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -29,6 +30,10 @@ export default function SignupPage() {
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // 409 EMAIL_JA_CADASTRADO: este formulário é anônimo e não pode vincular a empresa
+  // a uma conta existente sem prova de posse do e-mail. Em vez de deixar a pessoa
+  // presa no erro, levamos ao login e retomamos o cadastro autenticado.
+  const [contaExistente, setContaExistente] = useState(false)
 
   const [formData, setFormData] = useState({
     razaoSocial: '',
@@ -90,9 +95,26 @@ export default function SignupPage() {
     setSlugAvailable(null)
   }
 
+  /**
+   * Leva ao login guardando o que já foi digitado: ao voltar autenticado, o painel
+   * abre o cadastro de empresa com estes dados (ver NovaEmpresaDialog).
+   */
+  const entrarECadastrar = () => {
+    sessionStorage.setItem(
+      'meujet:nova-empresa',
+      JSON.stringify({
+        razaoSocial: formData.razaoSocial,
+        slug: formData.slug,
+        cnpj: formData.cnpj,
+      })
+    )
+    signIn('keycloak', { callbackUrl: '/dashboard?novaEmpresa=1' })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setContaExistente(false)
     setIsLoading(true)
 
     try {
@@ -105,7 +127,10 @@ export default function SignupPage() {
       })
       setSuccess(true)
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } }
+      const error = err as {
+        response?: { data?: { message?: string; details?: { code?: string } } }
+      }
+      setContaExistente(error.response?.data?.details?.code === 'EMAIL_JA_CADASTRADO')
       setError(error.response?.data?.message || 'Erro ao criar conta. Tente novamente.')
     } finally {
       setIsLoading(false)
@@ -205,7 +230,19 @@ export default function SignupPage() {
             {error && (
               <Alert variant="destructive" className="mb-4">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>
+                  {error}
+                  {contaExistente && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="mt-3 w-full"
+                      onClick={entrarECadastrar}
+                    >
+                      Entrar e cadastrar a empresa
+                    </Button>
+                  )}
+                </AlertDescription>
               </Alert>
             )}
 

@@ -129,6 +129,24 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Adesão escopa a RLS no tenant alvo (aprovação vem do console, sem tenant no contexto)")
+    void testAdesaoEscopaRlsNoTenantAlvo() {
+        // A aprovação da empresa dispara o grant, e o console da plataforma não manda
+        // X-Tenant-Id: a transação chega sem contexto. Como os testes rodam com bypass
+        // de RLS, o insert passaria de qualquer forma — o que se verifica aqui é o
+        // set_config, que é o que faz a policy aceitar a escrita em produção.
+        TenantContext.clear();
+
+        String contexto = transactionTemplate.execute(status -> {
+            creditoService.lancarAdesao(TENANT_MARINA);
+            return jdbcTemplate.queryForObject(
+                "SELECT current_setting('app.tenant_id', true)", String.class);
+        });
+
+        assertThat(contexto).isEqualTo(TENANT_MARINA.toString());
+    }
+
+    @Test
     @DisplayName("Ledger é append-only: UPDATE e DELETE são rejeitados pelo banco")
     void testAppendOnly() {
         creditoService.lancarAdesao(TENANT_ACME);

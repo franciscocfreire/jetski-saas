@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { LucideIcon } from 'lucide-react'
@@ -20,6 +21,7 @@ import {
   LogOut,
   Building2,
   ChevronDown,
+  Plus,
   PieChart,
   Receipt,
   Settings,
@@ -34,6 +36,7 @@ import {
   Handshake,
   ShieldCheck,
 } from 'lucide-react'
+import { NovaEmpresaDialog } from '@/components/nova-empresa-dialog'
 import {
   Sidebar,
   SidebarContent,
@@ -212,6 +215,11 @@ export function AppSidebar() {
   const { collapsed, toggleGroup } = useSidebarStore()
   const { data: session } = useSession()
   const { canAny, isLoading: permsLoading, isError: permsError } = usePermissions()
+  const [novaEmpresaAberta, setNovaEmpresaAberta] = useState(false)
+
+  // Papel sintético que o layout injeta ao entrar por sessão de suporte (não é papel
+  // de membro — nada no backend o consulta).
+  const emSessaoDeSuporte = currentTenant?.roles?.includes('SUPORTE') ?? false
 
   // Logo white-label do tenant (mesma query do TenantThemeProvider — deduplicada)
   const { data: branding } = useQuery({
@@ -380,8 +388,31 @@ export function AppSidebar() {
                     </div>
                   </DropdownMenuItem>
                 ))}
+                {/* Empresa adicional para quem já opera uma. Fica fora da sessão de
+                    suporte: ali o operador está dentro da empresa de outra pessoa,
+                    com prazo e trilha — não é hora de abrir uma nova. */}
+                {!emSessaoDeSuporte && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onSelect={(e) => {
+                        e.preventDefault() // o menu fecharia antes do diálogo montar
+                        setNovaEmpresaAberta(true)
+                      }}
+                    >
+                      <Plus className="mr-2 size-4" />
+                      Cadastrar nova empresa
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
+            {/* Fora do DropdownMenu: montado ali, sumiria junto com o menu ao fechar. */}
+            <NovaEmpresaDialog
+              open={novaEmpresaAberta}
+              onOpenChange={setNovaEmpresaAberta}
+            />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

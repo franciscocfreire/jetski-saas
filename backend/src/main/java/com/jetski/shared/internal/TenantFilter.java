@@ -411,6 +411,12 @@ public class TenantFilter extends OncePerRequestFilter {
                normalizedPath.equals("/v1/auth/complete-activation") ||  // Account activation (Option 2: temp password)
                normalizedPath.equals("/v1/auth/magic-activate") ||  // Account activation (Magic link JWT - one-click UX)
                normalizedPath.startsWith("/v1/signup/") ||  // Self-service tenant signup (public)
+               // Cadastrar empresa é ação da PESSOA, não de uma empresa: quem chama aqui é
+               // justamente quem ainda não tem nenhuma (ou quer mais uma) e portanto não tem
+               // X-Tenant-Id para mandar. Autenticação continua exigida — SecurityConfig
+               // (anyRequest().authenticated()) e @PreAuthorize no controller — e o dono sai
+               // do próprio JWT: o membro ADMIN_TENANT é criado para o sub do token.
+               normalizedPath.equals("/v1/tenants/create") ||
                normalizedPath.startsWith("/v1/public/") ||  // Public marketplace API (no auth, no tenant)
                normalizedPath.startsWith("/v1/pdf/") ||  // Abertura de PDF por token (público, sem tenant)
                normalizedPath.startsWith("/v1/storage/local/") ||  // Local storage endpoints (simulated presigned URLs)

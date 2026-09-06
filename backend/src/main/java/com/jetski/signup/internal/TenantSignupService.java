@@ -114,9 +114,14 @@ public class TenantSignupService {
         }
 
         // 2. Validate email doesn't exist
+        // Este fluxo é ANÔNIMO: aceitar um e-mail que já é identidade seria promover
+        // alguém a ADMIN_TENANT por coincidência de e-mail, sem prova de posse. Quem já
+        // tem conta cadastra empresa autenticado (POST /v1/tenants/create); o código
+        // abaixo é o que permite ao frontend oferecer esse caminho em vez de um beco.
         if (usuarioService.existsByEmail(request.adminEmail())) {
             throw new ConflictException(
-                "Este email já possui uma conta. Use o login para acessar ou crie a empresa pelo dashboard."
+                "Este e-mail já tem conta no Meu Jet. Entre com ela para cadastrar a empresa.",
+                "EMAIL_JA_CADASTRADO"
             );
         }
 
@@ -258,6 +263,21 @@ public class TenantSignupService {
         .setParameter(3, new String[]{"ADMIN_TENANT"})
         .executeUpdate();
         log.info("TenantAccess created for user {} in tenant {}", usuarioId, tenant.getId());
+
+        // 7. Realm role no provedor. O vínculo em membro governa o OPA, mas o
+        // @PreAuthorize dos controllers lê realm_access.roles do token: sem ADMIN_TENANT
+        // lá, o dono da empresa recém-criada entra e toma 403 em quase tudo. Quem chega
+        // por convite/ativação ganha a role na criação da conta; aqui a conta já existia.
+        identityMappingService.tryResolveProviderUserId(usuarioId, "keycloak").ifPresentOrElse(
+            providerUserId -> {
+                if (!userProvisioningService.garantirRealmRole(providerUserId, "ADMIN_TENANT")) {
+                    log.warn("Realm role ADMIN_TENANT não atribuída (usuario={}, tenant={}): "
+                        + "o vínculo existe, mas o acesso só funciona após corrigir no provedor",
+                        usuarioId, tenant.getId());
+                }
+            },
+            () -> log.warn("Sem mapeamento keycloak para o usuário {} — realm role não atribuída", usuarioId)
+        );
 
         // Notifica super admins sobre a nova empresa aguardando aprovação (best-effort)
         notifyPlatformAdmins(tenant);

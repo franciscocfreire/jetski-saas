@@ -259,4 +259,16 @@ public interface UserProvisioningService {
      * @return {@code true} se redefinida
      */
     boolean resetPassword(String providerUserId, String novaSenha);
+
+    /**
+     * Garante que o usuário JÁ EXISTENTE tenha a realm role indicada (idempotente).
+     *
+     * <p>O provisionamento de conta nova atribui as roles na criação; quem já tem conta
+     * e passa a ocupar um papel novo (ex.: cadastra a própria empresa e vira
+     * ADMIN_TENANT) precisa disto — sem a role no token, o {@code @PreAuthorize} dos
+     * controllers nega, mesmo com o vínculo correto no banco.
+     *
+     * @return {@code true} se o usuário terminou com a role (já tinha ou foi atribuída)
+     */
+    boolean garantirRealmRole(String providerUserId, String role);
 }

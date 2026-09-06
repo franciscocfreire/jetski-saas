@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { userTenantsService } from '@/lib/api/services'
+import { NovaEmpresaDialog } from '@/components/nova-empresa-dialog'
 
 /** Deriva a URL do console da plataforma a partir do host atual (app./www. → admin.). */
 function consoleUrl(): string {
@@ -115,11 +116,19 @@ export function NoTenantGate() {
             <div className="flex-1">
               <p className="text-sm font-medium">Tenho uma locadora e quero usar o Meu Jet</p>
               <p className="text-xs text-muted-foreground">
-                Cadastre sua empresa — a conta entra em análise e você recebe a liberação.
+                Cadastre sua empresa — ela entra em análise e você recebe a liberação.
               </p>
-              <Button asChild size="sm" variant="outline" className="mt-2">
-                <a href="/signup">Cadastrar minha empresa</a>
-              </Button>
+              {/* Daqui NÃO se manda para /signup: aquele fluxo é anônimo e recusa
+                  e-mail que já tem conta (409) — quem está nesta tela já está logado
+                  e cairia exatamente nesse erro. Cadastra autenticado, com vínculo
+                  explícito. */}
+              <NovaEmpresaDialog
+                trigger={
+                  <Button size="sm" variant="outline" className="mt-2">
+                    Cadastrar minha empresa
+                  </Button>
+                }
+              />
             </div>
           </div>
 

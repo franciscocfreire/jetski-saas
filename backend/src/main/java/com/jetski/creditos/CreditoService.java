@@ -151,12 +151,23 @@ public class CreditoService {
         return quantidade;
     }
 
-    /** Grant de adesão (idempotente pelo unique parcial — 1 ADESAO por tenant). */
+    /**
+     * Grant de adesão (idempotente pelo unique parcial — 1 ADESAO por tenant).
+     *
+     * <p>Escopa a RLS no tenant alvo, mesma doutrina do PlatformCreditoService: quem
+     * dispara isto é a aprovação da empresa, e o console da plataforma não tem empresa
+     * corrente (não manda {@code X-Tenant-Id}), então a transação chega sem contexto.
+     * Sem o {@code set_config} o INSERT era recusado pela policy — e, pior, silencioso
+     * antes disso: a checagem de idempotência e o saldo liam zero linhas.
+     */
     @Transactional
     public void lancarAdesao(UUID tenantId) {
         if (creditosAdesao <= 0) {
             return;
         }
+        entityManager.createNativeQuery("SELECT set_config('app.tenant_id', ?1, true)")
+            .setParameter(1, tenantId.toString())
+            .getSingleResult();
         if (repository.existsByTenantIdAndTipo(tenantId, TipoLancamento.ADESAO)) {
             log.debug("Adesão já creditada para o tenant {}", tenantId);
             return;

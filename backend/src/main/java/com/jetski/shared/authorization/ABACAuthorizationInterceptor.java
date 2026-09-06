@@ -281,6 +281,11 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
                // vínculo e resolveu os roles; payload derivado só dos roles do próprio
                // usuário — sem essa exceção haveria deny circular (ação fora do RBAC)
                action.equals("user:permissions") ||
+               // Cadastro da própria empresa (POST /v1/tenants/create): não há papel a
+               // consultar — quem pede ainda não é membro de empresa nenhuma. O gate real
+               // é humano e vem depois: a empresa nasce PENDENTE_APROVACAO e só opera
+               // quando um operador de plataforma aprova.
+               action.equals("tenant:create") ||
                action.equals("capitania:list") ||   // Catálogo de capitanias (V047) — autenticado, sem tenant específico
                action.equals("capitania:view") ||
                action.equals("user:invite") ||   // Convidar usuário - validação por Spring Security roles

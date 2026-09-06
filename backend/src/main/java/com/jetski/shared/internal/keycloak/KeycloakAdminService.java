@@ -351,6 +351,36 @@ public class KeycloakAdminService implements com.jetski.shared.security.TrustedD
     }
 
     /**
+     * Garante a realm role no usuário existente (idempotente).
+     *
+     * <p>Usado quando alguém que já tem conta assume um papel novo — cadastrar a
+     * própria empresa, por exemplo. O vínculo em {@code membro} manda no OPA, mas o
+     * {@code @PreAuthorize} lê {@code realm_access.roles} do token: sem a role lá, o
+     * controller nega mesmo com o vínculo correto.
+     *
+     * @return {@code true} se o usuário terminou com a role
+     */
+    public boolean garantirRealmRole(String keycloakUserId, String role) {
+        try (Keycloak keycloak = buildKeycloakClient()) {
+            RealmResource realmResource = keycloak.realm(targetRealm);
+            UserResource userResource = realmResource.users().get(keycloakUserId);
+            boolean jaTem = userResource.roles().realmLevel().listAll().stream()
+                .anyMatch(r -> role.equals(r.getName()));
+            if (jaTem) {
+                return true;
+            }
+            userResource.roles().realmLevel()
+                .add(List.of(realmResource.roles().get(role).toRepresentation()));
+            log.info("Realm role atribuída a usuário existente: userId={}, role={}", keycloakUserId, role);
+            return true;
+        } catch (Exception e) {
+            log.error("Erro ao garantir realm role: userId={}, role={}, error={}",
+                keycloakUserId, role, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
      * Best-effort: marca o e-mail como verificado e remove a required action
      * VERIFY_EMAIL (o claim de balcão — token + senha temporária recebidos por
      * e-mail — provou a posse do endereço). Falha não interrompe o fluxo.

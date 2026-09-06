@@ -150,13 +150,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             ConflictException ex,
             HttpServletRequest request) {
 
-        log.warn("Resource conflict: path={}, message={}", request.getRequestURI(), ex.getMessage());
+        log.warn("Resource conflict: path={}, code={}, message={}",
+                request.getRequestURI(), ex.getCode(), ex.getMessage());
 
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.CONFLICT.value())
                 .error(HttpStatus.CONFLICT.getReasonPhrase())
                 .message(ex.getMessage())
                 .path(request.getRequestURI())
+                .details(ex.getCode() == null ? null : Map.of("code", ex.getCode()))
                 .build();
 
         return ResponseEntity

@@ -16,11 +16,29 @@ package com.jetski.shared.exception;
  */
 public class ConflictException extends RuntimeException {
 
+    /**
+     * Código estável do conflito (ex.: {@code EMAIL_JA_CADASTRADO}), exposto em
+     * {@code details.code}. Existe para o cliente escolher o que oferecer a seguir
+     * sem casar a mensagem por string — o texto muda, o código não. Nulo quando o
+     * conflito não tem tratamento específico do outro lado.
+     */
+    private final String code;
+
     public ConflictException(String message) {
+        this(message, (String) null);
+    }
+
+    public ConflictException(String message, String code) {
         super(message);
+        this.code = code;
     }
 
     public ConflictException(String message, Throwable cause) {
         super(message, cause);
+        this.code = null;
+    }
+
+    public String getCode() {
+        return code;
     }
 }
