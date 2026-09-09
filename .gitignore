@@ -33,3 +33,7 @@ nohup.out
 # Environment specific
 *.local
 .env
+
+# Capturas de tela da apresentação à Capitania (PNG 3840x2160, geradas por
+# frontend/jetski-backoffice/e2e/capturas/capturar.mjs)
+capturas-apresentacao/

@@ -1,0 +1,53 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  body{margin:0;background:#fff;font-family:"Barlow",system-ui,sans-serif}
+  .cartao{position:relative;width:1200px;height:760px;overflow:hidden;
+    background:linear-gradient(150deg,#EFF3F1 0%,#E3EAE6 100%);
+    border:2px solid #C3CFC9;display:grid;grid-template-rows:auto 1fr auto}
+  .topo{display:flex;justify-content:space-between;align-items:center;
+    padding:26px 40px;border-bottom:2px solid #B9C7C0;background:#DDE6E1}
+  .topo h1{font-family:"Barlow Condensed",sans-serif;font-size:34px;font-weight:700;
+    letter-spacing:.06em;text-transform:uppercase;margin:0;color:#20342B}
+  .topo span{font-family:"IBM Plex Mono",monospace;font-size:15px;letter-spacing:.16em;
+    text-transform:uppercase;color:#5E7268}
+  .miolo{display:grid;grid-template-columns:300px 1fr;gap:44px;padding:40px}
+  .foto{background:#CBD6D0;border:2px solid #AEBDB6;display:grid;place-items:center;
+    align-self:start;height:380px}
+  .foto span{font-family:"IBM Plex Mono",monospace;font-size:14px;letter-spacing:.14em;
+    text-transform:uppercase;color:#66786F;text-align:center;line-height:2}
+  dl{margin:0;display:grid;gap:22px;align-content:start}
+  dt{font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.16em;
+    text-transform:uppercase;color:#6B7D74;margin-bottom:4px}
+  dd{margin:0;font-size:27px;font-weight:600;color:#16241D}
+  .par{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  .rodape{padding:20px 40px;background:#D3DED8;border-top:2px solid #B9C7C0;
+    font-family:"IBM Plex Mono",monospace;font-size:15px;color:#4A5C53;letter-spacing:.04em}
+  .marca{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+  .marca span{font-family:"Barlow Condensed",sans-serif;font-size:170px;font-weight:700;
+    letter-spacing:.14em;color:#8A9C93;opacity:.22;transform:rotate(-24deg);white-space:nowrap}
+</style></head><body>
+<div class="cartao">
+  <div class="topo">
+    <h1>Documento de identidade</h1>
+    <span>amostra para demonstração</span>
+  </div>
+  <div class="miolo">
+    <div class="foto"><span>sem<br>fotografia</span></div>
+    <dl>
+      <div><dt>Nome</dt><dd>Helena Andrade Vasconcelos</dd></div>
+      <div class="par">
+        <div><dt>CPF</dt><dd>847.215.903-50</dd></div>
+        <div><dt>Registro geral</dt><dd>38.914.552-7</dd></div>
+      </div>
+      <div class="par">
+        <div><dt>Órgão emissor</dt><dd>SSP/SC</dd></div>
+        <div><dt>Nascimento</dt><dd>22/06/1994</dd></div>
+      </div>
+      <div><dt>Naturalidade</dt><dd>Florianópolis — SC</dd></div>
+    </dl>
+  </div>
+  <div class="rodape">Documento fictício, gerado para demonstração do sistema. Não possui validade legal e não corresponde a pessoa existente.</div>
+  <div class="marca"><span>AMOSTRA</span></div>
+</div>
+</body></html>

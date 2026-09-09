@@ -1,0 +1,42 @@
+# Ordem de montagem — apresentação à Capitania
+
+01  0:10  narracao/01-emissao-digital-da-cha-mta-e.txt
+          captura: — (cartela, sem captura)
+02  0:30  narracao/02-hoje-o-processo-e-de-papel.txt
+          captura: — (cartela, sem captura)
+03  0:22  narracao/03-emissao.txt
+          captura: — (cartela, sem captura)
+04  0:35  narracao/04-fiscalizacao-na-agua.txt
+          captura: — (cartela, sem captura)
+05  0:30  narracao/05-analise-interna.txt
+          captura: — (cartela, sem captura)
+06  0:28  narracao/06-menos-papel-menos-erro-menos-tempo-per.txt
+          captura: — (cartela, sem captura)
+07  0:20  narracao/07-o-atendimento-em-oito-passos.txt
+          captura: 07-balcao-oito-passos.png
+08  0:30  narracao/08-passos-1-e-2-quem-e-e-o-que-vai-fazer.txt
+          captura: 08a-passo-cliente.png
+09  0:30  narracao/09-passo-3-a-pergunta-que-define-tudo.txt
+          captura: 09-habilitacao-bifurcacao.png
+10  0:40  narracao/10-a-gru-e-recolhida-antes.txt
+          captura: 10b-gru-paga.png
+11  0:20  narracao/11-passo-4-identidade-capturada-na-hora.txt
+          captura: 11-documento-identidade.png
+12  0:25  narracao/12-passo-5-orientacao-obrigatoria.txt
+          captura: 12a-videoaula-bloqueada.png
+13  0:45  narracao/13-passo-6-o-dossie-da-norma-montado-sozi.txt
+          captura: 13-anexos-normam.png
+14  0:25  narracao/14-assinatura-com-confirmacao-por-codigo.txt
+          captura: 14a-assinatura.png
+15  0:35  narracao/15-o-documento-carrega-a-propria-prova.txt
+          captura: 15-pagina-auditoria.png
+16  0:15  narracao/16-passo-8-um-clique.txt
+          captura: 16-emissao-resultado.png
+17  0:55  narracao/17-o-que-chega-a-capitania.txt
+          captura: 17-oficio-recebido.png
+18  0:30  narracao/18-o-documento-vai-para-a-agua-no-celular.txt
+          captura: 18-documento-no-celular.png
+19  0:25  narracao/19-tudo-o-que-foi-encaminhado-fica-regist.txt
+          captura: 19-lista-emissoes.png
+20  0:20  narracao/20-os-tres-eixos.txt
+          captura: — (cartela, sem captura)

@@ -1,0 +1,3 @@
+O sistema cuida de toda a operação da locadora. Mas hoje vamos entrar em um só ponto, o primeiro eixo: o atendimento de balcão de um cliente que não tem habilitação e precisa da carteira de motonauta para pilotar.
+
+É um roteiro fixo, em oito passos. O operador não escolhe a ordem, e não consegue pular nenhum deles.

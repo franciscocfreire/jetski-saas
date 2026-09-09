@@ -1,0 +1,1 @@
+Antes de assinar qualquer coisa, o cliente assiste à orientação de segurança. Repare no botão: ele só habilita quando o vídeo chega ao fim. E o sistema registra que aquele locatário, naquele atendimento, recebeu a orientação.

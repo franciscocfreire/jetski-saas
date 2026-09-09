@@ -1,0 +1,3 @@
+Aqui o sistema faz a pergunta que define todo o resto: este cliente já é habilitado, ou vai pilotar sob a autorização especial de motonauta?
+
+Se ele já tem carteira, o número é registrado e o atendimento segue, sem documentação a encaminhar à Marinha. Se não tem, entramos no caminho da norma — e daqui em diante nenhum passo é opcional.
