@@ -118,7 +118,11 @@ export function StepDocumentos({
     staleTime: 24 * 60 * 60 * 1000, // lista de municípios não muda — cache de 1 dia
     retry: 1,
   })
-  const [estrangeiro, setEstrangeiro] = useState(c.estrangeiro ?? false)
+  // O tipo do documento vem do passo 1, onde a identificação acontece.
+  const documentoEhPassaporte = c.documentoTipo === 'PASSAPORTE'
+  const [estrangeiro, setEstrangeiro] = useState(
+    documentoEhPassaporte || (c.estrangeiro ?? false)
+  )
   // Anexos capturados (dataURL) p/ incluir no PDF: identidade, comprovante, selfie.
   const [anexos, setAnexos] = useState<{
     IDENTIDADE?: string
@@ -289,9 +293,22 @@ export function StepDocumentos({
           </div>
         </div>
         <label className="flex items-center gap-2 pt-1 text-sm">
-          <Checkbox checked={estrangeiro} onCheckedChange={(v) => setEstrangeiro(!!v)} />
+          <Checkbox
+            checked={estrangeiro}
+            // Passaporte já implica estrangeiro (o backend liga a flag na
+            // gravação). A recíproca não vale: estrangeiro residente tem CPF e
+            // continua precisando dos anexos em inglês — por isso o campo segue
+            // marcável à mão quando o documento é CPF.
+            disabled={documentoEhPassaporte}
+            onCheckedChange={(v) => setEstrangeiro(!!v)}
+          />
           Locatário estrangeiro (emite também os anexos 5-B em inglês)
         </label>
+        {documentoEhPassaporte && (
+          <p className="text-xs text-muted-foreground">
+            Marcado automaticamente: o cliente foi identificado por passaporte.
+          </p>
+        )}
       </div>
 
       <div className="space-y-3 rounded-lg border p-4">

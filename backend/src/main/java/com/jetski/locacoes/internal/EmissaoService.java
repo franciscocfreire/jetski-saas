@@ -652,8 +652,13 @@ public class EmissaoService {
         String instrutorDataEmissao = insData != null
             ? String.format("%02d/%02d/%d", insData.getDayOfMonth(), insData.getMonthValue(), insData.getYear())
             : null;
+        // Fronteira de apresentação: o documento é guardado canônico (V066), mas
+        // os anexos da NORMAM são peça formal — sai pontuado, como se escreve.
+        String documentoExibicao = com.jetski.locacoes.domain.Documentos.formatar(
+            cliente.getDocumentoTipo(), cliente.getDocumento());
+
         return new DocumentoPdfService.DadosDocumento(
-            cliente.getNome(), cliente.getDocumento(), cliente.getRg(), cliente.getOrgaoEmissor(),
+            cliente.getNome(), documentoExibicao, cliente.getRg(), cliente.getOrgaoEmissor(),
             cliente.getNacionalidade(), cliente.getNaturalidade(),
             cliente.getTelefone(), cliente.getWhatsapp(), cliente.getEmail(),
             end[0], end[1], end[2],

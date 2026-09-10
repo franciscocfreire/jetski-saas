@@ -101,7 +101,7 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
         jdbc.update("""
             INSERT INTO cliente (id, tenant_id, nome, email, documento, rg, nacionalidade,
                                  naturalidade, origem, status_conta, ativo)
-            VALUES (?, ?, 'Cliente Perfil', 'perfil@test.com', '321.654.987-00', 'RG-11',
+            VALUES (?, ?, 'Cliente Perfil', 'perfil@test.com', '32165498700', 'RG-11',
                     'Brasileira', 'Floripa/SC', 'PORTAL', 'ATIVA', TRUE)
             """, clienteId, TENANT_ACME);
         // Identidade única (F4): pessoa global + mapping do sub + ficha → pessoa
@@ -126,7 +126,7 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/v1/customers/self").with(cliente(SUB, "perfil@test.com")))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.identidade.cpf").value("321.654.987-00"))
+            .andExpect(jsonPath("$.identidade.cpf").value("32165498700"))
             .andExpect(jsonPath("$.identidade.rg").value("RG-11"))
             .andExpect(jsonPath("$.identidade.naturalidade").value("Floripa/SC"));
 
@@ -170,7 +170,7 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
         jdbc.update("""
             INSERT INTO cliente (id, tenant_id, nome, email, documento, rg,
                                  origem, status_conta, ativo)
-            VALUES (?, ?, 'Cliente Perfil', 'perfil@test.com', '321.654.987-00', 'RG-11',
+            VALUES (?, ?, 'Cliente Perfil', 'perfil@test.com', '32165498700', 'RG-11',
                     'PORTAL', 'ATIVA', TRUE)
             """, clienteId, TENANT_MARINA);
         // Identidade única (F4): pessoa global + mapping do sub + ficha → pessoa
@@ -297,7 +297,7 @@ class CustomerProfileIntegrationTest extends AbstractIntegrationTest {
         var row = jdbc.queryForMap(
             "SELECT documento, rg, endereco, telefone, whatsapp FROM cliente " +
             "WHERE tenant_id = ? AND email = 'perfil@test.com'", TENANT_MARINA);
-        assertThat(row.get("documento")).isEqualTo("321.654.987-00");
+        assertThat(row.get("documento")).isEqualTo("32165498700");
         assertThat(row.get("rg")).isEqualTo("RG-11");
         assertThat(row.get("endereco")).isNull();
         assertThat(row.get("telefone")).isEqualTo("48999990000");

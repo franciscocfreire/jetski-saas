@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { clientesService } from '@/lib/api/services'
-import type { Cliente } from '@/lib/api/types'
+import { formatarDocumento, rotuloDocumento } from '@/lib/documento'
+import type { Cliente, DocumentoTipo } from '@/lib/api/types'
 import type { Atendimento } from '../types'
 
 export function StepCliente({
@@ -21,6 +22,12 @@ export function StepCliente({
 }) {
   const clienteAtual = atendimento.cliente
   const [cpf, setCpf] = useState('')
+  // O tipo é escolhido AQUI, no passo 1, porque é aqui que a identificação
+  // acontece — antes o campo assumia CPF (inputMode numérico, máscara de CPF)
+  // e um estrangeiro simplesmente não era localizável: `estrangeiro` só existia
+  // três passos adiante, no passo Documentos.
+  const [tipo, setTipo] = useState<DocumentoTipo>('CPF')
+  const ehPassaporte = tipo === 'PASSAPORTE'
   const [buscou, setBuscou] = useState(false)
   const [encontrado, setEncontrado] = useState<Cliente | null>(null)
   const [form, setForm] = useState({ nome: '', email: '', celular: '' })
@@ -29,8 +36,11 @@ export function StepCliente({
     mutationFn: async () => {
       const c = await clientesService.buscarPorCpf(cpf.trim())
       if (c) return { cliente: c, nomeMarinha: null as string | null }
-      // Não está na base local → tenta o nome na Marinha pelo CPF (pré-preenchimento)
-      const nomeMarinha = await clientesService.consultarNomeMarinha(cpf.trim()).catch(() => null)
+      // Não está na base local → tenta o nome na Marinha pelo CPF. A consulta é
+      // por CPF na origem; para passaporte não há o que perguntar.
+      const nomeMarinha = ehPassaporte
+        ? null
+        : await clientesService.consultarNomeMarinha(cpf.trim()).catch(() => null)
       return { cliente: null, nomeMarinha }
     },
     onSuccess: ({ cliente, nomeMarinha }) => {
@@ -63,6 +73,7 @@ export function StepCliente({
       clientesService.criarPreConta({
         nome: form.nome.trim(),
         documento: cpf.trim() || undefined,
+        documentoTipo: cpf.trim() ? tipo : undefined,
         email: form.email.trim() || undefined,
         telefone: form.celular || undefined,
         whatsapp: form.celular || undefined,
@@ -85,7 +96,10 @@ export function StepCliente({
           <div className="min-w-[8rem] flex-1">
             <p className="font-medium">{clienteAtual.nome}</p>
             <p className="text-sm text-muted-foreground">
-              {clienteAtual.documento || 'sem CPF'} ·{' '}
+              {clienteAtual.documento
+                ? `${rotuloDocumento(clienteAtual.documentoTipo)} ${formatarDocumento(clienteAtual.documento, clienteAtual.documentoTipo)}`
+                : 'sem documento'}{' '}
+              ·{' '}
               {clienteAtual.email ?? 'sem e-mail'}
             </p>
           </div>
@@ -97,14 +111,36 @@ export function StepCliente({
 
       <div>
         <Label className="text-xs">
-          {clienteAtual ? 'Trocar cliente (buscar outro CPF)' : 'CPF do cliente'}
+          {clienteAtual
+            ? `Trocar cliente (buscar outro ${ehPassaporte ? 'passaporte' : 'CPF'})`
+            : 'Documento do cliente'}
         </Label>
         <div className="flex gap-2">
+          <div className="flex rounded-md border p-0.5">
+            {(['CPF', 'PASSAPORTE'] as const).map((t) => (
+              <Button
+                key={t}
+                type="button"
+                size="sm"
+                variant={tipo === t ? 'default' : 'ghost'}
+                className="h-8 px-3"
+                onClick={() => {
+                  setTipo(t)
+                  setBuscou(false)
+                  setEncontrado(null)
+                }}
+              >
+                {t === 'CPF' ? 'CPF' : 'Passaporte'}
+              </Button>
+            ))}
+          </div>
           <Input
             value={cpf}
             onChange={(e) => setCpf(e.target.value)}
-            placeholder="000.000.000-00"
-            inputMode="numeric"
+            placeholder={ehPassaporte ? 'AB123456' : '000.000.000-00'}
+            // Passaporte tem letra: teclado numérico no celular impediria digitar.
+            inputMode={ehPassaporte ? 'text' : 'numeric'}
+            autoCapitalize={ehPassaporte ? 'characters' : 'off'}
           />
           <Button
             type="button"
@@ -123,6 +159,8 @@ export function StepCliente({
           <div className="min-w-[8rem] flex-1">
             <p className="font-medium">{encontrado.nome}</p>
             <p className="text-sm text-muted-foreground">
+              {rotuloDocumento(encontrado.documentoTipo)}{' '}
+              {formatarDocumento(encontrado.documento, encontrado.documentoTipo)} ·{' '}
               {encontrado.email ?? 'sem e-mail'} · status: {encontrado.statusConta ?? '—'}
             </p>
           </div>

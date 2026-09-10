@@ -1,5 +1,6 @@
 package com.jetski.locacoes.internal;
 
+import com.jetski.locacoes.domain.DocumentoTipo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,7 @@ class MarinhaEmailTemplateTest {
         return new MarinhaEmailTemplate.DadosOficio(
             "Jet Save Turismo Náutico LTDA", "65.455.888/0001-00", "Portaria 12/2026",
             "Maria da Silva", "(24) 3333-4444", "eama@jetsave.com.br",
-            "Roberto Lima", "987.654.321-00", false, "608931002438533333", RESERVA,
+            "Roberto Lima", "987.654.321-00", DocumentoTipo.CPF, false, "608931002438533333", RESERVA,
             List.of("Autodeclaração de Atestado de Saúde – Anexo 5-C",
                     "Atestado de Demonstração – Anexo 5-B (5-B-1 e 5-B-2)",
                     "Declaração de Residência – Anexo 1-C",
@@ -44,7 +45,7 @@ class MarinhaEmailTemplateTest {
     @DisplayName("estrangeiro: rótulo Passaporte no assunto, no corpo e no nome do arquivo")
     void estrangeiro() {
         var d = new MarinhaEmailTemplate.DadosOficio("EAMA X", null, null, null, null, null,
-            "John Smith", "AB123456", true, "1", RESERVA, List.of(), null, false);
+            "John Smith", "AB123456", DocumentoTipo.PASSAPORTE, true, "1", RESERVA, List.of(), null, false);
         assertThat(MarinhaEmailTemplate.assunto(d))
             .isEqualTo("Solicitação de Emissão de CHA-MTA-E – John Smith – Passaporte AB123456 – reserva #abcd1234");
         assertThat(MarinhaEmailTemplate.corpoHtml(d)).contains("Passaporte: <b>AB123456</b>");
@@ -56,7 +57,7 @@ class MarinhaEmailTemplateTest {
     void nomeArquivo() {
         assertThat(MarinhaEmailTemplate.nomeArquivo(completo(false))).isEqualTo("Roberto Lima 987.654.321-00.pdf");
         var d = new MarinhaEmailTemplate.DadosOficio("E", null, null, null, null, null,
-            "  José/Antônio  \"Jr\" <x>  ", "111.222.333-44", false, null, RESERVA, List.of(), null, false);
+            "  José/Antônio  \"Jr\" <x>  ", "111.222.333-44", DocumentoTipo.CPF, false, null, RESERVA, List.of(), null, false);
         assertThat(MarinhaEmailTemplate.nomeArquivo(d)).isEqualTo("JoséAntônio Jr x 111.222.333-44.pdf");
     }
 
@@ -87,7 +88,7 @@ class MarinhaEmailTemplateTest {
     @DisplayName("assinatura omite campos não informados (nunca placeholders) e escapa HTML")
     void camposAusentesEEscape() {
         var d = new MarinhaEmailTemplate.DadosOficio("Loja & Cia", null, null, null, null, null,
-            "Ana <b>", "1", false, null, RESERVA, List.of("Anexo 5-C"), null, false);
+            "Ana <b>", "1", null, false, null, RESERVA, List.of("Anexo 5-C"), null, false);
         String html = MarinhaEmailTemplate.corpoHtml(d);
         assertThat(html)
             .contains("O EAMA <b>Loja &amp; Cia</b>, devidamente credenciado, encaminha")

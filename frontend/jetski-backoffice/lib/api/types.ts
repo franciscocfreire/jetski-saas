@@ -75,13 +75,20 @@ export interface JetskiUpdateRequest extends Partial<JetskiCreateRequest> {
 export type ClienteOrigem = 'PORTAL' | 'BALCAO' | 'LEAD'
 export type ClienteStatusConta = 'PRE_CONTA' | 'CONVIDADA' | 'ATIVA' | 'SEM_LOGIN'
 
+export type DocumentoTipo = 'CPF' | 'CNPJ' | 'PASSAPORTE'
+
 export interface Cliente extends BaseEntity {
   nome: string
   email?: string
   telefone?: string
   whatsapp?: string
-  /** Documento (CPF) — campo canônico do backend. */
+  /**
+   * Documento — campo canônico do backend, guardado NORMALIZADO (só dígitos no
+   * CPF/CNPJ, alfanumérico maiúsculo no passaporte). A pontuação é da exibição.
+   */
   documento?: string
+  /** O que `documento` é: decide a busca, o rótulo no ofício e o nome do PDF. */
+  documentoTipo?: DocumentoTipo
   rg?: string
   orgaoEmissor?: string
   nacionalidade?: string
@@ -122,6 +129,8 @@ export interface ClienteCreateRequest {
 export interface ClientePreContaRequest {
   nome: string
   documento?: string
+  /** Ausente = o backend infere pelo formato do documento. */
+  documentoTipo?: DocumentoTipo
   email?: string
   telefone?: string
   whatsapp?: string

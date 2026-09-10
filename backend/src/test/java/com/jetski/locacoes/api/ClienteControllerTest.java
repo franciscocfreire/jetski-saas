@@ -132,7 +132,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
         testCliente = Cliente.builder()
                 .tenantId(TENANT_ID)
                 .nome("Maria Santos")
-                .documento("987.654.321-00")
+                .documento("98765432100")
                 .dataNascimento(java.time.LocalDate.of(1990, 5, 15))
                 .genero("FEMININO")
                 .email("maria.santos@email.com")
@@ -182,7 +182,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
             // filtra pelo item semeado (linhas de outros tenants podem aparecer
             // no runner de testes — RLS bypass como superuser)
             .andExpect(jsonPath("$[?(@.id == '" + testCliente.getId() + "')].nome").value("Maria Santos"))
-            .andExpect(jsonPath("$[?(@.id == '" + testCliente.getId() + "')].documento").value("987.654.321-00"))
+            .andExpect(jsonPath("$[?(@.id == '" + testCliente.getId() + "')].documento").value("98765432100"))
             .andExpect(jsonPath("$[?(@.id == '" + testCliente.getId() + "')].ativo").value(true));
     }
 
@@ -203,7 +203,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
     void testCreateCliente() throws Exception {
         ClienteCreateRequest request = ClienteCreateRequest.builder()
                 .nome("João Silva")
-                .documento("123.456.789-00")
+                .documento("12345678900")
                 .dataNascimento(java.time.LocalDate.of(1985, 3, 20))
                 .genero("MASCULINO")
                 .email("joao.silva@email.com")
@@ -221,7 +221,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").exists())
             .andExpect(jsonPath("$.nome").value("João Silva"))
-            .andExpect(jsonPath("$.documento").value("123.456.789-00"))
+            .andExpect(jsonPath("$.documento").value("12345678900"))
             .andExpect(jsonPath("$.email").value("joao.silva@email.com"))
             .andExpect(jsonPath("$.telefone").value("+5511987654321"))
             .andExpect(jsonPath("$.termoAceite").value(false))
@@ -253,11 +253,11 @@ class ClienteControllerTest extends AbstractIntegrationTest {
     @DisplayName("Should find cliente by CPF (dedupe) - F2.2")
     void testBuscarPorCpf() throws Exception {
         mockMvc.perform(get("/v1/tenants/{tenantId}/clientes", TENANT_ID)
-                .param("cpf", "987.654.321-00")
+                .param("cpf", "98765432100")
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].documento").value("987.654.321-00"));
+            .andExpect(jsonPath("$[0].documento").value("98765432100"));
     }
 
     @Test
@@ -265,7 +265,7 @@ class ClienteControllerTest extends AbstractIntegrationTest {
     void testCriarPreConta_DedupeReusaExistente() throws Exception {
         ClienteCreateRequest request = ClienteCreateRequest.builder()
                 .nome("Maria Santos (balcão)")
-                .documento("987.654.321-00") // mesmo do testCliente (SEM_LOGIN)
+                .documento("98765432100") // mesmo do testCliente (SEM_LOGIN)
                 .build();
 
         mockMvc.perform(post("/v1/tenants/{tenantId}/clientes/pre-conta", TENANT_ID)

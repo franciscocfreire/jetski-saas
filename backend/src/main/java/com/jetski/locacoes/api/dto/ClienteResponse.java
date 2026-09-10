@@ -27,6 +27,9 @@ public class ClienteResponse {
     private UUID tenantId;
     private String nome;
     private String documento;
+
+    /** CPF | CNPJ | PASSAPORTE. Ausente = o backend infere pelo formato. */
+    private com.jetski.locacoes.domain.DocumentoTipo documentoTipo;
     private String rg;
     private String orgaoEmissor;
     private String nacionalidade;

@@ -809,6 +809,28 @@ CREATE INDEX IF NOT EXISTS idx_documento_emitido_envio_pendente
     ON public.documento_emitido (envio_atualizado_em)
     WHERE marinha_envio_status = 'PENDENTE' OR cliente_envio_status = 'PENDENTE';
 
+-- V066: tipificação e normalização do documento do cliente
+ALTER TABLE public.cliente ADD COLUMN IF NOT EXISTS documento_tipo varchar(12);
+UPDATE public.cliente
+   SET documento_tipo = CASE
+        WHEN documento ~ '[A-Za-z]'                                    THEN 'PASSAPORTE'
+        WHEN length(regexp_replace(documento, '[^0-9]', '', 'g')) = 11 THEN 'CPF'
+        WHEN length(regexp_replace(documento, '[^0-9]', '', 'g')) = 14 THEN 'CNPJ'
+        ELSE NULL END
+ WHERE documento_tipo IS NULL AND documento IS NOT NULL AND btrim(documento) <> '';
+UPDATE public.cliente SET documento = regexp_replace(documento, '[^0-9]', '', 'g')
+ WHERE documento_tipo IN ('CPF', 'CNPJ');
+UPDATE public.cliente SET documento = upper(regexp_replace(documento, '[^A-Za-z0-9]', '', 'g'))
+ WHERE documento_tipo = 'PASSAPORTE';
+ALTER TABLE public.cliente DROP CONSTRAINT IF EXISTS cliente_documento_tipo_check;
+ALTER TABLE public.cliente ADD CONSTRAINT cliente_documento_tipo_check
+    CHECK (documento_tipo IS NULL OR documento_tipo IN ('CPF', 'CNPJ', 'PASSAPORTE'));
+-- Passaporte implica estrangeiro; a recíproca não (estrangeiro residente tem CPF).
+UPDATE public.cliente SET estrangeiro = true
+ WHERE documento_tipo = 'PASSAPORTE' AND estrangeiro IS DISTINCT FROM true;
+CREATE INDEX IF NOT EXISTS idx_cliente_tenant_documento
+    ON public.cliente (tenant_id, documento_tipo, documento) WHERE documento IS NOT NULL;
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 
@@ -1691,8 +1713,8 @@ echo -e "${GREEN}   OK - Tabela despesa_manutencao configurada!${NC}"
 echo -e "${YELLOW}7.16 Inserindo reserva demo com GRU paga (verificar pagamento)...${NC}"
 docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << EOSQL > /dev/null 2>&1
 -- Cliente THALIA (CPF do pagamento real no PagTesouro)
-INSERT INTO cliente (id, tenant_id, nome, documento, origem, status_conta, ativo, endereco, created_at, updated_at)
-VALUES ('f0000000-0000-0000-0000-000000000001', '${TENANT_ID}', 'THALIA I G N', '23472084898',
+INSERT INTO cliente (id, tenant_id, nome, documento, documento_tipo, origem, status_conta, ativo, endereco, created_at, updated_at)
+VALUES ('f0000000-0000-0000-0000-000000000001', '${TENANT_ID}', 'THALIA I G N', '23472084898', 'CPF',
         'BALCAO', 'SEM_LOGIN', true,
         '{"cep":"11095460","logradouro":"Rua A","numero":"1","bairro":"Alemoa","cidade":"Santos","uf":"SP"}'::jsonb,
         now(), now())

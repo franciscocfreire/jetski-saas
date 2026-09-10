@@ -76,7 +76,7 @@ public class CustomerEmaService {
         if (cmd.cpf() != null && !cmd.cpf().isBlank()) {
             String novo = cmd.cpf().trim();
             if (c.getDocumento() == null || c.getDocumento().isBlank()) {
-                clienteRepository.findByDocumento(novo).ifPresent(outro -> {
+                clienteRepository.findByDocumento(com.jetski.locacoes.domain.Documentos.normalizar(novo)).ifPresent(outro -> {
                     if (!outro.getId().equals(c.getId())) {
                         throw new BusinessException(
                             "Este CPF já está em outro cadastro desta loja — fale com a loja para vincular.");
