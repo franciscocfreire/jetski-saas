@@ -71,7 +71,11 @@ INSTRUTOR_CHA="MTA-SC-014857"
 INSTRUTOR_EMISSAO="2019-03-14"
 
 LOCATARIO_NOME="Helena Andrade Vasconcelos"
-LOCATARIO_CPF="84721590350"
+# Exibido formatado no checklist; GRAVADO canônico (V066: só dígitos), que é
+# como o backend passou a guardar e comparar. Digitar com ou sem pontos acha a
+# mesma ficha — antes disso, cada formato criava um cliente novo.
+LOCATARIO_CPF="847.215.903-50"
+LOCATARIO_CPF_CANONICO="84721590350"
 LOCATARIO_NASCIMENTO="1994-06-22"
 LOCATARIO_RG="38.914.552-7"
 LOCATARIO_ORGAO="SSP/SC"
@@ -137,10 +141,29 @@ echo -e "${GREEN}   OK - ${INSTRUTOR_NOME} (CHA ${INSTRUTOR_CHA})${NC}"
 
 echo -e "${YELLOW}3. Locatária fictícia...${NC}"
 docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} -v ON_ERROR_STOP=1 <<EOSQL > /dev/null
-INSERT INTO cliente (id, tenant_id, nome, documento, data_nascimento, rg, orgao_emissor,
+-- Fichas duplicadas da persona (o balcão cria uma nova quando a busca não
+-- acha) quebram a busca seguinte: findByTenantIdAndDocumento devolve Optional
+-- e estoura com duas linhas. Some com elas antes de reinserir a boa.
+CREATE TEMP TABLE _dup AS
+  SELECT id FROM cliente
+   WHERE tenant_id = '${TENANT_ID}'
+     AND (documento IN ('${LOCATARIO_CPF}', '${LOCATARIO_CPF_CANONICO}')
+          OR upper(nome) = upper('${LOCATARIO_NOME}'))
+     AND id <> '${CLIENTE_ID}';
+CREATE TEMP TABLE _res AS SELECT id FROM reserva WHERE cliente_id IN (SELECT id FROM _dup);
+DELETE FROM documento_emitido   WHERE reserva_id IN (SELECT id FROM _res);
+DELETE FROM reserva_aceite      WHERE reserva_id IN (SELECT id FROM _res);
+DELETE FROM reserva_habilitacao WHERE reserva_id IN (SELECT id FROM _res);
+DELETE FROM reserva_lancamento  WHERE reserva_id IN (SELECT id FROM _res);
+DELETE FROM reserva             WHERE id IN (SELECT id FROM _res);
+DELETE FROM cliente_anexo       WHERE cliente_id IN (SELECT id FROM _dup);
+DELETE FROM cliente             WHERE id IN (SELECT id FROM _dup);
+DROP TABLE _res; DROP TABLE _dup;
+
+INSERT INTO cliente (id, tenant_id, nome, documento, documento_tipo, data_nascimento, rg, orgao_emissor,
         nacionalidade, naturalidade, email, telefone, whatsapp, origem, status_conta,
         ativo, estrangeiro, endereco)
-VALUES ('${CLIENTE_ID}', '${TENANT_ID}', '${LOCATARIO_NOME}', '${LOCATARIO_CPF}',
+VALUES ('${CLIENTE_ID}', '${TENANT_ID}', '${LOCATARIO_NOME}', '${LOCATARIO_CPF_CANONICO}', 'CPF',
         DATE '${LOCATARIO_NASCIMENTO}', '${LOCATARIO_RG}', '${LOCATARIO_ORGAO}',
         'Brasileira', 'Florianópolis - SC', '${LOCATARIO_EMAIL}',
         '${LOCATARIO_TELEFONE}', '${LOCATARIO_TELEFONE}', 'BALCAO', 'SEM_LOGIN',
@@ -150,6 +173,7 @@ VALUES ('${CLIENTE_ID}', '${TENANT_ID}', '${LOCATARIO_NOME}', '${LOCATARIO_CPF}'
           "cidade":"Florianópolis","uf":"SC"}'::jsonb)
 ON CONFLICT (id) DO UPDATE SET
     nome = EXCLUDED.nome, documento = EXCLUDED.documento,
+    documento_tipo = EXCLUDED.documento_tipo,
     data_nascimento = EXCLUDED.data_nascimento, rg = EXCLUDED.rg,
     orgao_emissor = EXCLUDED.orgao_emissor, nacionalidade = EXCLUDED.nacionalidade,
     naturalidade = EXCLUDED.naturalidade, email = EXCLUDED.email,
@@ -241,7 +265,7 @@ echo ""
 echo -e "${BLUE}=== Pronto. Roteiro de capturas ===${NC}"
 echo ""
 echo -e "  Login:      ${GREEN}operador@acme.com${NC} / operador123"
-echo -e "  Balcão:     abrir a reserva de hoje de ${GREEN}${LOCATARIO_NOME}${NC}"
+echo -e "  Balcão:     buscar o CPF ${GREEN}${LOCATARIO_CPF}${NC} (a ficha já existe)"
 echo -e "  GRU:        ${GREEN}${GRU_NUMERO}${NC} — clicar em 'Verificar pagamento' (slide 10)"
 echo -e "  Instrutor:  ${GREEN}${INSTRUTOR_NOME}${NC} (Anexo 5-B-1, slide 13)"
 echo -e "  Ofício:     vai para ${GREEN}${MARINHA_EMAIL}${NC}"

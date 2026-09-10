@@ -22,6 +22,7 @@
  */
 
 import { chromium } from '@playwright/test';
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as readline from 'node:readline/promises';
@@ -35,9 +36,35 @@ const EMAIL = process.env.EMAIL || 'operador@acme.com';
 const SENHA = process.env.SENHA || 'operador123';
 const SAIDA = process.env.SAIDA || path.resolve(AQUI, '../../../../capturas-apresentacao');
 
+/**
+ * A janela precisa CABER na sua tela (com a barra do navegador em cima), mas a
+ * foto precisa sair grande para o projetor. São duas coisas diferentes: o
+ * viewport define o que você opera, e o fator de escala multiplica só o PNG.
+ * 1600x900 @2.4 = 3840x2160 — mesma proporção 16:9, janela folgada em 1920x1080.
+ */
+const JANELA_W = Number(process.env.JANELA_W || 1600);
+const JANELA_H = Math.round(JANELA_W * 9 / 16);
+const ALVO_W = Number(process.env.ALVO_W || 3840);
+const ESCALA = ALVO_W / JANELA_W;
+
+/**
+ * WSL sem janela visível? Em vez de abrir um Chrome dentro do Linux (que
+ * depende do WSLg aparecer na sua tela), o script se conecta ao Chrome do
+ * WINDOWS por depuração remota — você opera o navegador que já usa.
+ *
+ *   1) feche o Chrome e abra assim, no Windows (cmd ou PowerShell):
+ *      "C:\Program Files\Google\Chrome\Application\chrome.exe"
+ *        --remote-debugging-port=9222 --user-data-dir=C:\temp\chrome-captura
+ *      (o --user-data-dir é obrigatório: sem ele o Chrome só reaproveita a
+ *       instância aberta e ignora a porta de depuração)
+ *   2) CDP=1 node e2e/capturas/capturar.mjs 08 09 10 ...
+ */
+const CDP = process.env.CDP;
+
 const AUTO = process.env.AUTO === '1';
 const ESPERA_AUTO = Number(process.env.ESPERA_AUTO || 2500);
 
+const VERMELHO = '\x1b[0;31m';
 const VERDE = '\x1b[0;32m', AMARELO = '\x1b[1;33m', AZUL = '\x1b[0;34m', CINZA = '\x1b[0;90m', OFF = '\x1b[0m';
 
 /**
@@ -59,7 +86,9 @@ const CENAS = [
   { slide: '10a', arquivo: 'gru-gerada',
     instrucao: 'Guia gerada: número 80893100047512026 e o código PIX na tela. O número precisa estar legível.' },
   { slide: '10b', arquivo: 'gru-paga',
-    instrucao: 'Depois de "Verificar pagamento": guia confirmada e comprovante anexado.' },
+    instrucao: 'Guia CONFIRMADA. Se "Verificar pagamento" disser que não identificou, use '
+             + '"Paguei por outro meio" e anexe apresentacao/insumos/documento-amostra.png. '
+             + 'NUNCA fotografe com o aviso vermelho de pagamento não identificado na tela.' },
 
   { slide: '11',  arquivo: 'documento-identidade', manual: true,
     instrucao: 'Passo Documentos: suba apresentacao/insumos/documento-amostra.png e deixe a miniatura visível.' },
@@ -70,7 +99,8 @@ const CENAS = [
     instrucao: 'Mesmo passo, vídeo terminado e confirmação do operador marcada — botão Continuar habilitado.' },
 
   { slide: '13',  arquivo: 'anexos-normam',
-    instrucao: 'Prévia do documento aberta. Role até enquadrar os anexos 1-C / 5-C / 5-B-1 / 5-B-2 (uma foto por anexo, repita esta cena).' },
+    instrucao: 'No passo Emissão clique "Prévia Marinha" e espere o PDF abrir na aba nova. '
+             + 'Role até enquadrar as PÁGINAS dos anexos (1-C / 5-C / 5-B-1 / 5-B-2) — não a tela do wizard.' },
 
   { slide: '14a', arquivo: 'assinatura', manual: true,
     instrucao: 'Passo Termos: declarações marcadas e a assinatura já traçada no quadro.' },
@@ -78,7 +108,8 @@ const CENAS = [
     instrucao: 'Campo do código de 6 dígitos preenchido (o código chega no Mailpit).' },
 
   { slide: '15',  arquivo: 'pagina-auditoria',
-    instrucao: 'Página de auditoria do PDF: data/hora, IP, dispositivo, carimbo de tempo e o hash.' },
+    instrucao: 'Ainda no PDF aberto: role até a PÁGINA DE AUDITORIA (data/hora, IP, dispositivo, '
+             + 'carimbo de tempo e o hash). Depois feche a aba do PDF para seguir.' },
 
   { slide: '16',  arquivo: 'emissao-resultado',
     instrucao: 'Passo Emissão concluído: documento emitido, envios confirmados.' },
@@ -111,6 +142,35 @@ async function esperarEnter(texto) {
   } catch {
     return ''; // stdin fechado — fotografa e segue
   }
+}
+
+/** Endereços onde o Chrome do Windows costuma responder, visto de dentro do WSL. */
+function candidatosCdp() {
+  if (CDP && CDP !== '1') return [CDP];
+  const alvos = ['http://localhost:9222', 'http://127.0.0.1:9222'];
+  try {
+    // WSL2 sem rede espelhada: o Windows é o nameserver do resolv.conf.
+    const ip = fs.readFileSync('/etc/resolv.conf', 'utf8')
+      .split('\n').find((l) => l.startsWith('nameserver'))?.split(/\s+/)[1];
+    if (ip) alvos.push(`http://${ip}:9222`);
+  } catch { /* sem resolv.conf: só os locais */ }
+  return alvos;
+}
+
+async function conectarCdp() {
+  for (const url of candidatosCdp()) {
+    try {
+      const b = await chromium.connectOverCDP(url, { timeout: 4000 });
+      console.log(`${VERDE}Conectado ao Chrome do Windows em ${url}${OFF}`);
+      return b;
+    } catch { /* tenta o próximo */ }
+  }
+  console.log(`${VERMELHO}Não achei o Chrome com depuração remota.${OFF}`);
+  console.log(`${AMARELO}Abra no Windows (feche o Chrome antes):${OFF}`);
+  console.log('  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" \\');
+  console.log('    --remote-debugging-port=9222 --user-data-dir=C:\\temp\\chrome-captura');
+  console.log(`${CINZA}Testados: ${candidatosCdp().join(', ')}${OFF}`);
+  process.exit(1);
 }
 
 async function login(page) {
@@ -156,34 +216,52 @@ async function main() {
 
   fs.mkdirSync(SAIDA, { recursive: true });
   console.log(`${AZUL}=== Capturas da apresentação ===${OFF}`);
-  console.log(`${CINZA}saída: ${SAIDA}${OFF}\n`);
+  console.log(`${CINZA}saída: ${SAIDA}${OFF}`);
+  console.log(`${CINZA}janela ${JANELA_W}x${JANELA_H} · PNG ${ALVO_W}x${Math.round(ALVO_W*9/16)}`
+    + ` (JANELA_W=1280 se a janela não couber)${OFF}\n`);
 
-  const browser = await chromium.launch({
+  let browser, context, page;
+
+  if (CDP) {
+    browser = await conectarCdp();
+    context = browser.contexts()[0] || (await browser.newContext());
+    page = context.pages()[0] || (await context.newPage());
+    // O tamanho da janela é o do Chrome do Windows; a resolução do PNG vem do
+    // override abaixo, na hora de cada foto.
+    console.log(`${CINZA}usando a janela do Chrome do Windows${OFF}\n`);
+  } else {
+    browser = await chromium.launch({
     headless: false,
     args: [
       // Câmera falsa: o passo Documentos abre getUserMedia e, sem isto, o
       // navegador pede permissão de um dispositivo que não existe no WSL.
       '--use-fake-ui-for-media-stream',
       '--use-fake-device-for-media-stream',
-      '--window-position=0,0',
+      `--window-size=${JANELA_W},${JANELA_H + 132}`,
+      '--window-position=30,20',
     ],
-  });
+    });
 
-  const context = await browser.newContext({
-    viewport: { width: 1920, height: 1080 },
-    deviceScaleFactor: 2,        // 3840×2160: sobra resolução para projetor
-    locale: 'pt-BR',
-    timezoneId: 'America/Sao_Paulo',
-    permissions: ['camera'],
-    ignoreHTTPSErrors: true,
-    colorScheme: 'light',        // o backoffice do vídeo é claro, sempre
-  });
+    context = await browser.newContext({
+      viewport: { width: JANELA_W, height: JANELA_H },
+      deviceScaleFactor: ESCALA, // janela cabe na tela; PNG sai em ALVO_W
+      locale: 'pt-BR',
+      timezoneId: 'America/Sao_Paulo',
+      permissions: ['camera'],
+      ignoreHTTPSErrors: true,
+      colorScheme: 'light',      // o backoffice do vídeo é claro, sempre
+    });
+    page = await context.newPage();
+  }
 
-  const page = await context.newPage();
   await login(page);
 
   const feitas = [];
-  for (const cena of cenas) {
+  let ultimoHash = null, ultimoArquivo = null;
+
+  for (let c = 0; c < cenas.length; c++) {
+    const cena = cenas[c];
+
     const alvo = cena.url
       ? (cena.url.startsWith('http') ? cena.url : `${BASE_URL}${cena.url}`)
       : null;
@@ -204,10 +282,50 @@ async function main() {
       continue;
     }
 
+    // A prévia do PDF abre em ABA NOVA. Fotografar sempre a última aba, senão
+    // o script retrata a tela que ficou para trás (foi o que estragou o 13).
+    const abas = context.pages().filter((pg) => !pg.isClosed());
+    const alvoFoto = abas.length ? abas[abas.length - 1] : page;
+    if (alvoFoto !== page) {
+      await alvoFoto.bringToFront().catch(() => {});
+    }
+
     const arquivo = path.join(SAIDA, `${cena.slide}-${cena.arquivo}.png`);
-    await page.screenshot({ path: arquivo });
+    // No modo CDP a janela é a do Windows, de tamanho qualquer: forçamos as
+    // métricas só durante a foto, para o PNG sair sempre em ALVO_W x 16:9.
+    let cdpSessao = null;
+    if (CDP) {
+      try {
+        cdpSessao = await context.newCDPSession(alvoFoto);
+        await cdpSessao.send('Emulation.setDeviceMetricsOverride', {
+          width: JANELA_W, height: JANELA_H, deviceScaleFactor: ESCALA, mobile: false,
+        });
+        await page.waitForTimeout(400);
+      } catch { cdpSessao = null; }
+    }
+    const png = await alvoFoto.screenshot();
+    if (cdpSessao) {
+      await cdpSessao.send('Emulation.clearDeviceMetricsOverride').catch(() => {});
+      await cdpSessao.detach().catch(() => {});
+    }
+    const hash = crypto.createHash('md5').update(png).digest('hex');
+
+    // Guarda-corpo: a maioria das cenas NÃO navega (o wizard é conduzido por
+    // você). Se a tela é a mesma da captura anterior, o passo não avançou —
+    // salvar aqui renderia treze slides com a mesma imagem, e isso só apareceria
+    // na hora de montar o deck.
+    if (hash === ultimoHash) {
+      console.log(`${VERMELHO}   ✗ a tela não mudou desde ${ultimoArquivo}.${OFF}`);
+      console.log(`${AMARELO}     Avance o passo no navegador e aperte ENTER de novo`);
+      console.log(`     (ou "p" + ENTER se esta cena realmente repete a anterior).${OFF}\n`);
+      if (!AUTO) { c--; continue; }
+    }
+
+    fs.writeFileSync(arquivo, png);
+    ultimoHash = hash;
+    ultimoArquivo = path.basename(arquivo);
     feitas.push(arquivo);
-    console.log(`${VERDE}   ✓ ${path.basename(arquivo)}${OFF}\n`);
+    console.log(`${VERDE}   ✓ ${ultimoArquivo}${OFF}\n`);
   }
 
   console.log(`${AZUL}=== ${feitas.length} captura(s) ===${OFF}`);
@@ -216,7 +334,9 @@ async function main() {
   console.log(`${AMARELO}nenhum dado real, e o nome "Juliana Prado Loureiro" no canto de todas.${OFF}`);
 
   pergunta.close();
-  await browser.close();
+  // No modo CDP o Chrome é seu — desconecta, não fecha.
+  if (CDP) await browser.close().catch(() => {});
+  else await browser.close();
 }
 
 main().catch((e) => {
