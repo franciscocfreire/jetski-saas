@@ -831,6 +831,20 @@ UPDATE public.cliente SET estrangeiro = true
 CREATE INDEX IF NOT EXISTS idx_cliente_tenant_documento
     ON public.cliente (tenant_id, documento_tipo, documento) WHERE documento IS NOT NULL;
 
+-- V067: unicidade do documento por loja (parcial: ficha sem documento é legítima).
+-- Em dev pode haver lixo de sessões anteriores; some com a duplicata mais nova
+-- antes de criar o índice, senão o reset quebra aqui.
+DELETE FROM public.cliente c USING public.cliente d
+ WHERE c.tenant_id = d.tenant_id
+   AND c.documento_tipo IS NOT DISTINCT FROM d.documento_tipo
+   AND c.documento = d.documento
+   AND c.documento IS NOT NULL AND btrim(c.documento) <> ''
+   AND c.created_at > d.created_at
+   AND NOT EXISTS (SELECT 1 FROM public.reserva r WHERE r.cliente_id = c.id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_cliente_tenant_documento
+    ON public.cliente (tenant_id, documento_tipo, documento)
+ WHERE documento IS NOT NULL AND btrim(documento) <> '';
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 
