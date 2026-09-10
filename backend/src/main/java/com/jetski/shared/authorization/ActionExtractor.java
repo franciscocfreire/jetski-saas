@@ -268,6 +268,17 @@ public class ActionExtractor {
      * Exemplo: /locacoes/{id}/checkin → "checkin"
      */
     private String extractSubAction(String uri) {
+        // Famílias de rota: tudo abaixo do segmento responde pela ação do pai.
+        // O sufixo sozinho não dá conta de /habilitacao/gru/comprovante — a lista
+        // abaixo casa só o ÚLTIMO segmento, então cada folha nova caía no verbo
+        // HTTP: POST /habilitacao/gru virava reserva:create (que o OPERADOR tem,
+        // e passava por acidente) e PUT /habilitacao/gru/comprovante virava
+        // reserva:update (que ele não tem, e negava). Habilitação é um passo só
+        // do balcão e tem uma permissão só.
+        if (uri.contains("/habilitacao/")) {
+            return "habilitacao";
+        }
+
         // Lista de sub-actions conhecidas
         String[] knownSubActions = {
             "checkin", "checkout", "desconto", "aprovar", "fechar", "cancelar",
