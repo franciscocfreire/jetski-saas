@@ -242,6 +242,7 @@ export function StepEmissao({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <Button
+            data-testid="balcao-emissao-abrir-pdf"
             type="button"
             className="w-full"
             disabled={baixando}
@@ -301,7 +302,7 @@ export function StepEmissao({
             A reserva entrou na <strong className="text-foreground">fila de espera</strong>. O embarque
             (check-in) é feito na Fila quando o jetski do modelo estiver livre.
           </p>
-          <Button type="button" onClick={onReset}>
+          <Button data-testid="balcao-emissao-concluir" type="button" onClick={onReset}>
             Concluir atendimento
           </Button>
         </div>
@@ -352,7 +353,7 @@ export function StepEmissao({
             A reserva entrou na <strong className="text-foreground">fila de espera</strong>. O embarque
             (check-in) é feito na Fila quando o jetski do modelo estiver livre.
           </p>
-          <Button type="button" onClick={onReset}>
+          <Button data-testid="balcao-emissao-concluir" type="button" onClick={onReset}>
             Concluir atendimento
           </Button>
         </div>
@@ -410,7 +411,7 @@ export function StepEmissao({
         )}
         <div className="flex justify-between">
           <Button type="button" variant="outline" onClick={onBack}>Voltar</Button>
-          <Button type="button" onClick={onReset}>Concluir atendimento</Button>
+          <Button data-testid="balcao-emissao-concluir" type="button" onClick={onReset}>Concluir atendimento</Button>
         </div>
       </div>
     )
@@ -446,7 +447,7 @@ export function StepEmissao({
             </p>
           ) : (
             <Select value={instrutorId} onValueChange={escolherInstrutor} disabled={salvandoInstrutor}>
-              <SelectTrigger>
+              <SelectTrigger data-testid="balcao-emissao-instrutor">
                 <SelectValue placeholder="Selecione quem fez a demonstração" />
               </SelectTrigger>
               <SelectContent>
@@ -473,6 +474,7 @@ export function StepEmissao({
           Voltar
         </Button>
         <Button
+          data-testid="balcao-emissao-emitir"
           type="button"
           disabled={emitir.isPending || !instrutorOk}
           title={!instrutorOk ? 'Selecione o instrutor da demonstração' : undefined}

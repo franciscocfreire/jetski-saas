@@ -25,7 +25,7 @@
 12  0:25  narracao/12-passo-5-orientacao-obrigatoria.txt
           captura: 12a-videoaula-bloqueada.png
 13  0:45  narracao/13-passo-6-o-dossie-da-norma-montado-sozi.txt
-          captura: 13-anexos-normam.png
+          captura: ['13a-anexo-1c.png', '13b-anexo-5c.png', '13c-anexo-5b1.png', '13d-anexo-5b2.png']
 14  0:25  narracao/14-assinatura-com-confirmacao-por-codigo.txt
           captura: 14a-assinatura.png
 15  0:35  narracao/15-o-documento-carrega-a-propria-prova.txt

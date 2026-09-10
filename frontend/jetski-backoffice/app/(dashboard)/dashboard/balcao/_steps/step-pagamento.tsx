@@ -151,7 +151,7 @@ export function StepPagamento({
           <Button type="button" variant="outline" onClick={onBack}>
             Voltar
           </Button>
-          <Button type="button" onClick={() => onDone(reserva!)}>
+          <Button data-testid="balcao-pag-continuar" type="button" onClick={() => onDone(reserva!)}>
             Continuar
           </Button>
         </div>
@@ -180,7 +180,7 @@ export function StepPagamento({
         <div>
           <Label className="text-xs">Forma de pagamento</Label>
           <Select value={forma} onValueChange={(v) => setForma(v as FormaPagamento)}>
-            <SelectTrigger className="h-9">
+            <SelectTrigger data-testid="balcao-pag-forma" className="h-9">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -302,10 +302,11 @@ export function StepPagamento({
           Voltar
         </Button>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" onClick={onSkip}>
+          <Button data-testid="balcao-pag-depois" type="button" variant="ghost" onClick={onSkip}>
             Registrar depois
           </Button>
           <Button
+            data-testid="balcao-pag-registrar"
             type="button"
             disabled={!valido || registrar.isPending}
             onClick={() => registrar.mutate()}

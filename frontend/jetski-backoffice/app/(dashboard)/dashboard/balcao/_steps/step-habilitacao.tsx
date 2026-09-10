@@ -182,10 +182,10 @@ export function StepHabilitacao({
       <div className="space-y-2 rounded-lg border p-4">
         <Label className="text-sm font-medium">O cliente já tem habilitação (CHA/CHV)?</Label>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant={temCha ? 'default' : 'outline'} size="sm" onClick={() => setTemCha(true)}>
+          <Button data-testid="balcao-hab-tem-cha" type="button" variant={temCha ? 'default' : 'outline'} size="sm" onClick={() => setTemCha(true)}>
             Sim, já tem CHA/CHV
           </Button>
-          <Button type="button" variant={!temCha ? 'default' : 'outline'} size="sm" onClick={() => setTemCha(false)}>
+          <Button data-testid="balcao-hab-sem-cha" type="button" variant={!temCha ? 'default' : 'outline'} size="sm" onClick={() => setTemCha(false)}>
             Não → emitir temporária (EMA + GRU)
           </Button>
         </div>
@@ -217,6 +217,7 @@ export function StepHabilitacao({
             <FileUpload
               label="Enviar/tirar foto da CHA"
               accept="image/*"
+              testId="balcao-hab-foto-cha"
               tipoDocumento="CHA"
               initialUrl={chaFotoUrl ?? undefined}
               onChange={(f) => setChaFoto(f?.dataUrl)}
@@ -228,10 +229,10 @@ export function StepHabilitacao({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Label className="text-sm font-medium">GRU (taxa CHA-MTA-E)</Label>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant="secondary" disabled={gerarGru.isPending} onClick={() => gerarGru.mutate()}>
+              <Button data-testid="balcao-hab-gerar-pix" type="button" size="sm" variant="secondary" disabled={gerarGru.isPending} onClick={() => gerarGru.mutate()}>
                 {gerarGru.isPending ? 'Gerando…' : 'Gerar PIX'}
               </Button>
-              <Button type="button" size="sm" variant="outline" disabled={boletoBusy} onClick={gerarBoleto}>
+              <Button data-testid="balcao-hab-gerar-boleto" type="button" size="sm" variant="outline" disabled={boletoBusy} onClick={gerarBoleto}>
                 {boletoBusy ? 'Gerando…' : 'Gerar boleto (PDF)'}
               </Button>
             </div>
@@ -329,6 +330,7 @@ export function StepHabilitacao({
               <div className="flex flex-wrap gap-2">
                 {temSessaoPix && (
                   <Button
+                    data-testid="balcao-hab-verificar-pix"
                     type="button"
                     variant="secondary"
                     size="sm"
@@ -340,6 +342,7 @@ export function StepHabilitacao({
                 )}
                 {!modoComprovante && (
                   <Button
+                    data-testid="balcao-hab-outro-meio"
                     type="button"
                     variant="outline"
                     size="sm"
@@ -357,11 +360,13 @@ export function StepHabilitacao({
                   <FileUpload
                     label="Enviar/tirar foto do comprovante"
                     accept="image/*,application/pdf"
+                    testId="balcao-hab-comprovante"
                     tipoDocumento="GRU_COMPROVANTE"
                     onChange={(f) => setComprovante(f?.dataUrl)}
                   />
                   <div className="flex gap-2">
                     <Button
+                      data-testid="balcao-hab-confirmar-comprovante"
                       type="button"
                       size="sm"
                       disabled={!comprovante || enviarComprovante.isPending}
@@ -400,6 +405,7 @@ export function StepHabilitacao({
         <div className="flex flex-wrap items-center gap-2">
           {via === 'EMA' && !pago && (
             <Button
+              data-testid="balcao-hab-prosseguir-sem-gru"
               type="button"
               variant="outline"
               disabled={avancar.isPending}
@@ -411,6 +417,7 @@ export function StepHabilitacao({
             </Button>
           )}
           <Button
+            data-testid="balcao-hab-avancar"
             type="button"
             disabled={avancar.isPending || (via === 'EMA' && !pago)}
             onClick={() => avancar.mutate()}

@@ -76,7 +76,9 @@ const CENAS = [
     instrucao: 'Balcão no primeiro passo, indicador de passos visível no topo. Confira "Juliana Prado Loureiro" no canto.' },
 
   { slide: '08a', arquivo: 'passo-cliente',
-    instrucao: 'Passo Cliente com a ficha de HELENA ANDRADE VASCONCELOS preenchida (busque pelo CPF 847.215.903-50).' },
+    instrucao: 'Passo Cliente com a ficha de HELENA ANDRADE VASCONCELOS ENCONTRADA (busque 847.215.903-50). '
+             + 'Tem que aparecer o cartão verde "Usar este cliente" — se disser "nenhum cliente com este CPF", '
+             + 'rode o seed de novo antes de fotografar.' },
   { slide: '08b', arquivo: 'passo-passeio',
     instrucao: 'Passo Passeio & Preço com o modelo e a duração escolhidos, valor calculado à vista.' },
 

@@ -180,6 +180,7 @@ export function StepOrientacoes({
             <Label className="text-sm font-medium">Confirmação do operador</Label>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
+                data-testid="balcao-orient-confirmar"
                 checked={confirmado}
                 disabled={!podeConfirmar}
                 onCheckedChange={(v) => setConfirmado(!!v)}
@@ -210,7 +211,7 @@ export function StepOrientacoes({
         <Button type="button" variant="outline" onClick={onBack}>
           Voltar
         </Button>
-        <Button type="button" disabled={!podeContinuar || registrar.isPending} onClick={continuar}>
+        <Button data-testid="balcao-orient-continuar" type="button" disabled={!podeContinuar || registrar.isPending} onClick={continuar}>
           {registrar.isPending ? 'Registrando…' : 'Continuar'}
         </Button>
       </div>

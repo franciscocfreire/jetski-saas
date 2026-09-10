@@ -103,7 +103,7 @@ export function StepCliente({
               {clienteAtual.email ?? 'sem e-mail'}
             </p>
           </div>
-          <Button type="button" className="w-full sm:w-auto" onClick={() => onDone(clienteAtual)}>
+          <Button data-testid="balcao-cliente-continuar" type="button" className="w-full sm:w-auto" onClick={() => onDone(clienteAtual)}>
             Continuar
           </Button>
         </div>
@@ -120,6 +120,7 @@ export function StepCliente({
             {(['CPF', 'PASSAPORTE'] as const).map((t) => (
               <Button
                 key={t}
+                data-testid={`balcao-cliente-tipo-${t}`}
                 type="button"
                 size="sm"
                 variant={tipo === t ? 'default' : 'ghost'}
@@ -135,6 +136,7 @@ export function StepCliente({
             ))}
           </div>
           <Input
+            data-testid="balcao-cliente-documento"
             value={cpf}
             onChange={(e) => setCpf(e.target.value)}
             placeholder={ehPassaporte ? 'AB123456' : '000.000.000-00'}
@@ -143,6 +145,7 @@ export function StepCliente({
             autoCapitalize={ehPassaporte ? 'characters' : 'off'}
           />
           <Button
+            data-testid="balcao-cliente-buscar"
             type="button"
             variant="outline"
             disabled={!cpf.trim() || buscar.isPending}
@@ -164,7 +167,7 @@ export function StepCliente({
               {encontrado.email ?? 'sem e-mail'} · status: {encontrado.statusConta ?? '—'}
             </p>
           </div>
-          <Button type="button" className="w-full sm:w-auto" onClick={() => onDone(encontrado)}>
+          <Button data-testid="balcao-cliente-usar" type="button" className="w-full sm:w-auto" onClick={() => onDone(encontrado)}>
             Usar este cliente
           </Button>
         </div>
@@ -178,7 +181,7 @@ export function StepCliente({
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label className="text-xs">Nome *</Label>
-              <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+              <Input data-testid="balcao-cliente-nome" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
             </div>
             <div>
               <Label className="text-xs">E-mail</Label>
@@ -191,12 +194,14 @@ export function StepCliente({
             <div>
               <Label className="text-xs">Celular / WhatsApp</Label>
               <PhoneInput
+                data-testid="balcao-cliente-celular"
                 value={form.celular}
                 onChange={(v) => setForm({ ...form, celular: v })}
               />
             </div>
           </div>
           <Button
+            data-testid="balcao-cliente-criar"
             type="button"
             disabled={!form.nome.trim() || criar.isPending}
             onClick={() => criar.mutate()}

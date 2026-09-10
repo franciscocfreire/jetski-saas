@@ -164,7 +164,9 @@ SLIDES = [
                  "registra que aquele locatário, naquele atendimento, recebeu a orientação.",
     ),
     dict(
-        n="13", dur="0:45", arquivo="13-anexos-normam.png",
+        n="13", dur="0:45",
+        arquivo=["13a-anexo-1c.png", "13b-anexo-5c.png",
+                 "13c-anexo-5b1.png", "13d-anexo-5b2.png"],
         titulo="Passo 6 — o dossiê da norma, montado sozinho",
         bullets=["1-C · declaração de residência",
                  "5-C · autodeclaração de saúde",
@@ -315,7 +317,14 @@ li::before{content:"";position:absolute;left:0;top:.62em;width:16px;height:2px;
 .corpo.com-lista{grid-template-columns:1fr 460px}
 .moldura{border:1px solid var(--regua);background:var(--fundo-2);overflow:hidden;
   display:grid;place-items:center;min-height:0}
-.moldura img{width:100%;height:100%;object-fit:contain;display:block}
+/* max-* em vez de width/height 100%: com 100% a imagem era esticada até a
+   largura da moldura e o excedente ficava cortado pelo overflow — uma foto de
+   celular (retrato, 355px) virava um recorte ampliado do topo. Assim a
+   proporção manda e a peça inteira aparece, centrada. */
+.moldura img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;margin:auto}
+.grade{display:grid;grid-template-columns:1fr 1fr;gap:18px;min-height:0}
+.grade .moldura{padding:10px}
+.grade figcaption,.grade .rot{display:none}
 .vazio{font-family:"IBM Plex Mono",monospace;font-size:24px;color:var(--tinta-fraca);
   text-align:center;line-height:1.8;padding:40px}
 .vazio b{color:var(--mar);display:block;font-size:28px;margin-bottom:14px}
@@ -430,17 +439,29 @@ def render_slide(s, total):
                    f'<p class="sub" style="margin-top:28px">{esc(s["sub"])}</p>' if s.get("sub") else "",
                    lista, "</div>"]
     else:
-        img = AQUI.parent / "capturas-apresentacao" / s["arquivo"]
-        if img.exists():
-            miolo = f'<img src="../capturas-apresentacao/{s["arquivo"]}" alt="">'
+        arquivos = s["arquivo"] if isinstance(s["arquivo"], list) else [s["arquivo"]]
+        faltando = [a for a in arquivos
+                    if not (AQUI.parent / "capturas-apresentacao" / a).exists()]
+        if faltando:
+            miolo = ('<div class="vazio"><b>captura pendente</b>'
+                     + "<br>".join(f"capturas-apresentacao/{a}" for a in faltando)
+                     + f'<br>node e2e/capturas/capturar.mjs {s["n"]}</div>')
+        elif len(arquivos) == 1:
+            miolo = f'<img src="../capturas-apresentacao/{arquivos[0]}" alt="">'
         else:
-            miolo = (f'<div class="vazio"><b>captura pendente</b>'
-                     f'capturas-apresentacao/{s["arquivo"]}<br>'
-                     f'node e2e/capturas/capturar.mjs {s["n"]}</div>')
+            # Grade: quatro páginas juntas dizem "dossiê"; uma página só não diz.
+            miolo = ('<div class="grade">' + "".join(
+                f'<div class="moldura"><img src="../capturas-apresentacao/{a}" alt=""></div>'
+                for a in arquivos) + '</div>')
         corpo_cls = "corpo com-lista" if lista else "corpo"
         partes += [
             f'<div><p class="olho">slide {s["n"]}</p><h1>{esc(s["titulo"])}</h1></div>',
-            f'<div class="{corpo_cls}"><div class="moldura">{miolo}</div>',
+            # A grade já traz as próprias molduras; a imagem única precisa de uma.
+            # Em nenhum dos casos fechamos o corpo aqui: a coluna dos bullets
+            # ainda vai entrar dentro dele (fechar cedo jogava a lista para
+            # fora do grid e o último item saía por baixo do rodapé).
+            (f'<div class="{corpo_cls}">{miolo}' if miolo.startswith('<div class="grade"')
+             else f'<div class="{corpo_cls}"><div class="moldura">{miolo}</div>'),
             f'<div class="lista">{lista}</div>' if lista else "",
             "</div>",
         ]
@@ -490,8 +511,13 @@ def main():
         ordem.append(f"          captura: {s['arquivo'] or '— (cartela, sem captura)'}")
     (AQUI / "ORDEM.txt").write_text("\n".join(ordem) + "\n", encoding="utf-8")
 
-    faltando = [s["arquivo"] for s in SLIDES
-                if s["arquivo"] and not (AQUI.parent / "capturas-apresentacao" / s["arquivo"]).exists()]
+    faltando = []
+    for s in SLIDES:
+        if not s["arquivo"]:
+            continue
+        for a in (s["arquivo"] if isinstance(s["arquivo"], list) else [s["arquivo"]]):
+            if not (AQUI.parent / "capturas-apresentacao" / a).exists():
+                faltando.append(a)
     print(f"deck.html          {len(SLIDES)} slides")
     print(f"narracao/          {len(SLIDES)} arquivos de texto")
     print("ORDEM.txt          ordem de montagem")

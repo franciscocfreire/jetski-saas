@@ -154,7 +154,7 @@ export function StepTermos({
             Confirme com o cliente antes de assinar.
           </p>
           <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={cienteRegras} onCheckedChange={(v) => setCienteRegras(!!v)} /> Declaro
+            <Checkbox data-testid="balcao-termos-ciencia" checked={cienteRegras} onCheckedChange={(v) => setCienteRegras(!!v)} /> Declaro
             ciência das regras de navegação (NORMAM-212)
           </label>
           {videoaulaViaPlayer ? (
@@ -179,11 +179,11 @@ export function StepTermos({
               Autodeclaração de saúde (Anexo 5-C)
             </p>
             <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={usaLentes} onCheckedChange={(v) => setUsaLentes(!!v)} /> Faço uso de
+              <Checkbox data-testid="balcao-termos-lentes" checked={usaLentes} onCheckedChange={(v) => setUsaLentes(!!v)} /> Faço uso de
               lentes de correção visual
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={usaAparelho} onCheckedChange={(v) => setUsaAparelho(!!v)} /> Faço uso
+              <Checkbox data-testid="balcao-termos-aparelho" checked={usaAparelho} onCheckedChange={(v) => setUsaAparelho(!!v)} /> Faço uso
               de aparelho de correção auditiva
             </label>
           </div>
@@ -209,6 +209,7 @@ export function StepTermos({
               </p>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Button
+                  data-testid="balcao-termos-enviar-codigo"
                   type="button"
                   variant="outline"
                   size="sm"
@@ -228,6 +229,7 @@ export function StepTermos({
               {otpEnviado !== null && (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Input
+                    data-testid="balcao-termos-codigo"
                     inputMode="numeric"
                     maxLength={6}
                     placeholder="Código de 6 dígitos"
@@ -236,6 +238,7 @@ export function StepTermos({
                     className="w-full sm:max-w-40"
                   />
                   <Button
+                    data-testid="balcao-termos-verificar-codigo"
                     type="button"
                     size="sm"
                     className="w-full sm:w-auto"
@@ -271,7 +274,7 @@ export function StepTermos({
           <Label className="mb-2 block text-sm font-medium">
             Assinatura do locatário ({atendimento.cliente?.nome})
           </Label>
-          <SignaturePad onChange={setAssinatura} />
+          <SignaturePad testId="balcao-termos-assinatura" onChange={setAssinatura} />
         </div>
       )}
 
@@ -298,6 +301,7 @@ export function StepTermos({
         </Button>
         {jaAssinado ? (
           <Button
+            data-testid="balcao-termos-avancar"
             type="button"
             disabled={concluir.isPending || (ema && (!cienteRegras || !videoaulaOk))}
             onClick={() => concluir.mutate()}
@@ -306,6 +310,7 @@ export function StepTermos({
           </Button>
         ) : (
           <Button
+            data-testid="balcao-termos-assinar-avancar"
             type="button"
             disabled={
               !assinatura || concluir.isPending || otpPendente || (ema && (!cienteRegras || !videoaulaOk))

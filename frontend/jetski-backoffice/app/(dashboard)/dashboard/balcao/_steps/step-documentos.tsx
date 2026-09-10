@@ -207,6 +207,7 @@ export function StepDocumentos({
           <Label className="mb-1 block text-xs">Documento de identidade (RG/CNH)</Label>
           <FileUpload
             label="Enviar RG/CNH"
+            testId="balcao-doc-identidade"
             tipoDocumento="IDENTIDADE"
             initialUrl={anexosUrls?.IDENTIDADE}
             onChange={(f) => setAnexos((a) => ({ ...a, IDENTIDADE: f?.dataUrl }))}
@@ -217,6 +218,7 @@ export function StepDocumentos({
           <FileUpload
             label="Tirar/enviar selfie"
             accept="image/*"
+            testId="balcao-doc-selfie"
             tipoDocumento="SELFIE"
             initialUrl={anexosUrls?.SELFIE}
             onChange={(f) => setAnexos((a) => ({ ...a, SELFIE: f?.dataUrl }))}
@@ -229,11 +231,11 @@ export function StepDocumentos({
         <div className="grid gap-3 sm:grid-cols-4">
           <div>
             <Label className="text-xs">RG (identidade)</Label>
-            <Input value={rg} onChange={(e) => setRg(e.target.value)} />
+            <Input data-testid="balcao-doc-rg" value={rg} onChange={(e) => setRg(e.target.value)} />
           </div>
           <div>
             <Label className="text-xs">Órgão emissor</Label>
-            <Input value={orgaoEmissor} onChange={(e) => setOrgaoEmissor(e.target.value)} placeholder="SSP/RJ" />
+            <Input data-testid="balcao-doc-orgao" value={orgaoEmissor} onChange={(e) => setOrgaoEmissor(e.target.value)} placeholder="SSP/RJ" />
           </div>
           <div>
             <Label className="text-xs">
@@ -329,6 +331,7 @@ export function StepDocumentos({
             Tem comprovante
           </Button>
           <Button
+            data-testid="balcao-doc-sem-comprovante"
             type="button"
             variant={!temComprovante ? 'default' : 'outline'}
             size="sm"
@@ -351,7 +354,7 @@ export function StepDocumentos({
         <Button type="button" variant="outline" onClick={onBack}>
           Voltar
         </Button>
-        <Button type="button" disabled={salvarDados.isPending} onClick={avancar}>
+        <Button data-testid="balcao-doc-avancar" type="button" disabled={salvarDados.isPending} onClick={avancar}>
           {salvarDados.isPending ? 'Salvando…' : 'Avançar'}
         </Button>
       </div>
