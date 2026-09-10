@@ -1,0 +1,3 @@
+Encerrado o atendimento, o cliente recebe o documento no próprio celular, por um link que abre sem aplicativo e sem login. Ele não precisa levar papel para dentro da água.
+
+Este é o segundo eixo. Hoje, entregamos o documento ao cliente. O passo seguinte, que queremos construir junto com a Marinha, é a consulta pelo lado da fiscalização: o agente conferindo, na abordagem, a situação do condutor e da embarcação.

@@ -1,0 +1,3 @@
+Tudo o que foi encaminhado fica registrado. Um duplo clique não gera dois processos. Um reenvio não sobrescreve o anterior: gera um novo arquivo, com nova impressão digital, e os dois ficam na trilha.
+
+E a loja que ainda não é credenciada só consegue emitir através de uma escola credenciada parceira, da mesma Capitania, com o vínculo registrado nos dois lados.

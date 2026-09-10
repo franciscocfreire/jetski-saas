@@ -46,11 +46,21 @@ public class Cliente {
     private String nome;
 
     /**
-     * CPF (individual) or CNPJ (legal entity)
-     * Optional but recommended for liability tracking
+     * Documento de identificação, sempre NORMALIZADO (dígitos para CPF/CNPJ,
+     * alfanumérico maiúsculo para passaporte) — ver {@link Documentos}.
+     * A pontuação é aplicada na exibição, nunca aqui.
      */
     @Column
     private String documento;
+
+    /**
+     * O que {@link #documento} é. Decide a busca, o rótulo no ofício à Capitania
+     * e o nome do PDF anexo. {@code null} = documento malformado, ainda não
+     * tipificado (a V066 preferiu deixar em branco a chutar).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "documento_tipo", length = 12)
+    private DocumentoTipo documentoTipo;
 
     /** Identidade (RG) e órgão emissor — usados nos anexos NORMAM-212. */
     @Column(name = "rg")
@@ -194,11 +204,32 @@ public class Cliente {
     protected void onCreate() {
         createdAt = Instant.now();
         updatedAt = Instant.now();
+        normalizarDocumento();
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = Instant.now();
+        normalizarDocumento();
+    }
+
+    /**
+     * Invariante de armazenamento: o documento é gravado normalizado e com tipo.
+     *
+     * <p>Fica no ciclo de vida da entidade, e não em um service, porque são
+     * quatro caminhos que escrevem cliente (balcão, portal, perfil, merge de
+     * CPF) e basta um esquecer para voltar a existir a mesma pessoa com duas
+     * grafias — o defeito que a V066 corrigiu.
+     */
+    void normalizarDocumento() {
+        if (documentoTipo == null) {
+            documentoTipo = Documentos.inferirTipo(documento);
+        }
+        documento = Documentos.normalizar(documentoTipo, documento);
+        // Só liga: estrangeiro residente tem CPF e continua estrangeiro.
+        if (documentoTipo != null && documentoTipo.implicaEstrangeiro()) {
+            estrangeiro = true;
+        }
     }
 
     /**

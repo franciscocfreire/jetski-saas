@@ -1,0 +1,3 @@
+Primeiro identificamos a pessoa. O cadastro é feito uma única vez: se este cliente voltar amanhã, em qualquer loja que use o sistema, os dados dele já estão aqui — mas a loja só enxerga a ficha depois que existe um aluguel de fato.
+
+Em seguida, o passeio: qual moto, que horário, por quanto tempo. Esta parte é comercial. O que interessa à Marinha começa no passo seguinte.

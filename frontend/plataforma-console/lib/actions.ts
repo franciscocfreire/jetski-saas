@@ -269,6 +269,17 @@ export async function salvarImagemConfig(tipos: Record<string, { maxDimensao: nu
   );
 }
 
+export async function salvarEmissaoEnvioConfig(assincrono: boolean) {
+  return executar(
+    () =>
+      platformFetch("/v1/platform/emissao/envio-config", {
+        method: "PUT",
+        body: JSON.stringify({ assincrono }),
+      }),
+    "/catalogo",
+  );
+}
+
 // ===================== Operadores da plataforma =====================
 
 export async function concederAcesso(email: string, papeis: string[]) {

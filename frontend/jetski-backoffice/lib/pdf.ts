@@ -1,8 +1,12 @@
 /**
- * Abre um PDF por uma URL pública temporária (uso único) — a forma mais confiável
+ * Abre um PDF por uma URL pública temporária — a forma mais confiável
  * no iOS Safari, que renderiza PDFs de URLs https nativamente (mas não blob: em aba
  * nova). `mintUrl` faz a chamada autenticada que gera o PDF no servidor e devolve
  * a URL ({url}); a aba é aberta sincronicamente (preserva o gesto do clique).
+ *
+ * O link é multiuso enquanto valer: a URL que aparece na barra de endereço pode ser
+ * copiada e enviada ao cliente (dias, no caso do documento emitido). O nome do arquivo
+ * vem do servidor no Content-Disposition — é ele que o navegador mostra e salva.
  */
 export async function abrirPdfPorLink(mintUrl: () => Promise<{ url: string }>): Promise<void> {
   const win = window.open('', '_blank')

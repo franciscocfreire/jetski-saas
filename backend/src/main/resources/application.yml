@@ -135,6 +135,17 @@ jetski:
       - https://539d02e90662.ngrok-free.app
   frontend:
     url: http://localhost:3000
+  emissao:
+    # Os e-mails da emissão (ofício à Capitania + via do cliente) saem FORA do request.
+    # Eram ~24 s dos ~25 s da emissão, dentro da transação. Este é só o default: uma vez
+    # gravada pelo super admin, a chave `emissao_envio` em plataforma_config manda.
+    email-assincrono: ${JETSKI_EMISSAO_EMAIL_ASSINCRONO:true}
+  pdf-link:
+    # Links /v1/pdf/<token>. Efêmero = PDF gerado na hora (ficha, prévia), guardado no
+    # Redis. Compartilhável = referência ao objeto no storage, para o operador mandar
+    # ao cliente; é público (sem login) enquanto valer — daí a validade curta em dias.
+    efemero-minutos: ${JETSKI_PDF_LINK_EFEMERO_MINUTOS:15}
+    compartilhavel-dias: ${JETSKI_PDF_LINK_COMPARTILHAVEL_DIAS:7}
   gru:
     # Valor oficial da taxa da GRU (CHA-MTA-E). Usado para exibição no caminho de
     # BOLETO, que não passa pelo PagTesouro. O PIX sempre sobrescreve com o valor real.

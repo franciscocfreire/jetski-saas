@@ -118,7 +118,11 @@ export function StepDocumentos({
     staleTime: 24 * 60 * 60 * 1000, // lista de municípios não muda — cache de 1 dia
     retry: 1,
   })
-  const [estrangeiro, setEstrangeiro] = useState(c.estrangeiro ?? false)
+  // O tipo do documento vem do passo 1, onde a identificação acontece.
+  const documentoEhPassaporte = c.documentoTipo === 'PASSAPORTE'
+  const [estrangeiro, setEstrangeiro] = useState(
+    documentoEhPassaporte || (c.estrangeiro ?? false)
+  )
   // Anexos capturados (dataURL) p/ incluir no PDF: identidade, comprovante, selfie.
   const [anexos, setAnexos] = useState<{
     IDENTIDADE?: string
@@ -203,6 +207,7 @@ export function StepDocumentos({
           <Label className="mb-1 block text-xs">Documento de identidade (RG/CNH)</Label>
           <FileUpload
             label="Enviar RG/CNH"
+            testId="balcao-doc-identidade"
             tipoDocumento="IDENTIDADE"
             initialUrl={anexosUrls?.IDENTIDADE}
             onChange={(f) => setAnexos((a) => ({ ...a, IDENTIDADE: f?.dataUrl }))}
@@ -213,6 +218,7 @@ export function StepDocumentos({
           <FileUpload
             label="Tirar/enviar selfie"
             accept="image/*"
+            testId="balcao-doc-selfie"
             tipoDocumento="SELFIE"
             initialUrl={anexosUrls?.SELFIE}
             onChange={(f) => setAnexos((a) => ({ ...a, SELFIE: f?.dataUrl }))}
@@ -225,11 +231,11 @@ export function StepDocumentos({
         <div className="grid gap-3 sm:grid-cols-4">
           <div>
             <Label className="text-xs">RG (identidade)</Label>
-            <Input value={rg} onChange={(e) => setRg(e.target.value)} />
+            <Input data-testid="balcao-doc-rg" value={rg} onChange={(e) => setRg(e.target.value)} />
           </div>
           <div>
             <Label className="text-xs">Órgão emissor</Label>
-            <Input value={orgaoEmissor} onChange={(e) => setOrgaoEmissor(e.target.value)} placeholder="SSP/RJ" />
+            <Input data-testid="balcao-doc-orgao" value={orgaoEmissor} onChange={(e) => setOrgaoEmissor(e.target.value)} placeholder="SSP/RJ" />
           </div>
           <div>
             <Label className="text-xs">
@@ -289,9 +295,22 @@ export function StepDocumentos({
           </div>
         </div>
         <label className="flex items-center gap-2 pt-1 text-sm">
-          <Checkbox checked={estrangeiro} onCheckedChange={(v) => setEstrangeiro(!!v)} />
+          <Checkbox
+            checked={estrangeiro}
+            // Passaporte já implica estrangeiro (o backend liga a flag na
+            // gravação). A recíproca não vale: estrangeiro residente tem CPF e
+            // continua precisando dos anexos em inglês — por isso o campo segue
+            // marcável à mão quando o documento é CPF.
+            disabled={documentoEhPassaporte}
+            onCheckedChange={(v) => setEstrangeiro(!!v)}
+          />
           Locatário estrangeiro (emite também os anexos 5-B em inglês)
         </label>
+        {documentoEhPassaporte && (
+          <p className="text-xs text-muted-foreground">
+            Marcado automaticamente: o cliente foi identificado por passaporte.
+          </p>
+        )}
       </div>
 
       <div className="space-y-3 rounded-lg border p-4">
@@ -312,6 +331,7 @@ export function StepDocumentos({
             Tem comprovante
           </Button>
           <Button
+            data-testid="balcao-doc-sem-comprovante"
             type="button"
             variant={!temComprovante ? 'default' : 'outline'}
             size="sm"
@@ -334,7 +354,7 @@ export function StepDocumentos({
         <Button type="button" variant="outline" onClick={onBack}>
           Voltar
         </Button>
-        <Button type="button" disabled={salvarDados.isPending} onClick={avancar}>
+        <Button data-testid="balcao-doc-avancar" type="button" disabled={salvarDados.isPending} onClick={avancar}>
           {salvarDados.isPending ? 'Salvando…' : 'Avançar'}
         </Button>
       </div>

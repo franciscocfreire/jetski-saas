@@ -11,9 +11,12 @@ import { Button } from '@/components/ui/button'
 export function SignaturePad({
   onChange,
   height = 180,
+  testId = 'assinatura-canvas',
 }: {
   onChange?: (dataUrl: string | null) => void
   height?: number
+  /** Alvo estável para automação: o traço é feito com pointer sobre o canvas. */
+  testId?: string
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
@@ -69,6 +72,7 @@ export function SignaturePad({
       <div className="relative overflow-hidden rounded-xl border-2 border-dashed border-muted-foreground/30 bg-muted/30">
         <canvas
           ref={ref}
+          data-testid={testId}
           width={600}
           height={height}
           onPointerDown={down}

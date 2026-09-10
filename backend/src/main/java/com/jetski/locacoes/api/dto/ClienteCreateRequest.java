@@ -33,6 +33,9 @@ public class ClienteCreateRequest {
     @Size(max = 20, message = "Documento deve ter no máximo 20 caracteres")
     private String documento;
 
+    /** CPF | CNPJ | PASSAPORTE. Ausente = o backend infere pelo formato. */
+    private com.jetski.locacoes.domain.DocumentoTipo documentoTipo;
+
     // Documentos NORMAM-212 (preenchimento manual)
     private String rg;
     private String orgaoEmissor;

@@ -1,5 +1,8 @@
 package com.jetski.locacoes.internal;
 
+import com.jetski.locacoes.domain.DocumentoTipo;
+import com.jetski.locacoes.domain.Documentos;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -33,6 +36,9 @@ public final class MarinhaEmailTemplate {
             String emailOficial,
             String locatarioNome,
             String documento,
+            /** Como o documento é rotulado. {@code null} cai no {@code estrangeiro}. */
+            DocumentoTipo documentoTipo,
+            /** Anexos 5-B em inglês. Independe do tipo: estrangeiro residente tem CPF. */
             boolean estrangeiro,
             String gruNumero,
             UUID reservaId,
@@ -49,8 +55,23 @@ public final class MarinhaEmailTemplate {
             return reservaId != null ? "#" + reservaId.toString().substring(0, 8) : "#—";
         }
 
+        /**
+         * O rótulo vem do TIPO do documento, não da nacionalidade. Antes saía de
+         * {@code estrangeiro} — um checkbox marcado três passos depois da
+         * identificação — e um esquecimento mandava à Capitania um ofício
+         * dizendo "CPF: AB123456".
+         */
         String rotuloDocumento() {
+            if (documentoTipo != null) {
+                return documentoTipo.rotulo();
+            }
             return estrangeiro ? "Passaporte" : "CPF";
+        }
+
+        /** Valor pontuado: o documento é guardado canônico, mas o ofício é um ofício. */
+        String documentoExibicao() {
+            String f = Documentos.formatar(documentoTipo, documento);
+            return f != null ? f : documento;
         }
     }
 
@@ -61,17 +82,17 @@ public final class MarinhaEmailTemplate {
     public static String assunto(DadosOficio d) {
         StringBuilder sb = new StringBuilder("Solicitação de Emissão de CHA-MTA-E – ")
             .append(nz(d.locatarioNome(), "Locatário"))
-            .append(" – ").append(d.rotuloDocumento()).append(' ').append(nz(d.documento(), "—"));
+            .append(" – ").append(d.rotuloDocumento()).append(' ').append(nz(d.documentoExibicao(), "—"));
         if (d.reenvio()) sb.append(" (reenvio)");
         return sb.append(" – reserva ").append(d.reservaCodigo()).toString();
     }
 
-    /** Nome do PDF anexo exigido pela NORMAM-212 5.4.2: nome completo + CPF/passaporte. */
+    /**
+     * Nome do PDF anexo exigido pela NORMAM-212 5.4.2: nome completo + CPF/passaporte.
+     * A regra virou padrão do sistema — vive em {@link DocumentoNome}.
+     */
     public static String nomeArquivo(DadosOficio d) {
-        String base = (nz(d.locatarioNome(), "Locatario") + " " + nz(d.documento(), "")).trim();
-        // Sem separadores de caminho/caracteres proibidos em nome de arquivo; acentos ficam.
-        base = base.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "").replaceAll("\\s+", " ").trim();
-        return base + ".pdf";
+        return DocumentoNome.de(d.locatarioNome(), d.documento());
     }
 
     public static String corpoHtml(DadosOficio d) {
@@ -85,7 +106,7 @@ public final class MarinhaEmailTemplate {
         sb.append(", encaminha para análise e emissão da Carteira de Habilitação de Motonauta Especial"
             + " – CHA-MTA-E, referente ao locatário abaixo:</p>");
         sb.append("<p>Nome: <b>").append(esc(nz(d.locatarioNome(), "—"))).append("</b><br>")
-          .append(d.rotuloDocumento()).append(": <b>").append(esc(nz(d.documento(), "—"))).append("</b></p>");
+          .append(d.rotuloDocumento()).append(": <b>").append(esc(nz(d.documentoExibicao(), "—"))).append("</b></p>");
         if (d.reenvio()) {
             sb.append("<p><i>Reenvio da documentação já encaminhada anteriormente.</i></p>");
         }

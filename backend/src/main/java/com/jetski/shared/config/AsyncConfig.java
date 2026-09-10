@@ -7,10 +7,13 @@ import org.springframework.aop.interceptor.SimpleAsyncUncaughtExceptionHandler;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.context.annotation.Bean;
+import org.springframework.core.task.TaskDecorator;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * Async configuration with TenantContext propagation.
@@ -58,7 +61,22 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setAwaitTerminationSeconds(30);
 
         // TaskDecorator to propagate TenantContext to async threads
-        executor.setTaskDecorator(runnable -> {
+        executor.setTaskDecorator(tenantAwareDecorator());
+
+        executor.initialize();
+        log.info("Async executor initialized with TenantContext propagation support");
+
+        return executor;
+    }
+
+
+    /**
+     * Propaga o TenantContext (ThreadLocal) para a thread assíncrona e limpa depois.
+     * Sem isto, a RLS derruba as queries do worker; sem o clear, o tenant vaza para a
+     * próxima tarefa da mesma thread de pool — com RLS, vazamento entre lojas.
+     */
+    private TaskDecorator tenantAwareDecorator() {
+        return runnable -> {
             // Capture context from the calling thread
             UUID tenantId = TenantContext.getTenantId();
             UUID usuarioId = TenantContext.getUsuarioId();
@@ -87,11 +105,32 @@ public class AsyncConfig implements AsyncConfigurer {
                     log.debug("Cleared context after async task completion");
                 }
             };
-        });
+        };
+    }
 
+    /**
+     * Pool próprio para o envio dos e-mails da emissão. Separado do pool de auditoria
+     * porque cada envio segura a thread por ~12 s por anexo de 1 MB: com core 2
+     * compartilhado, dois envios atrasariam as gravações da trilha.
+     *
+     * <p>{@code CallerRunsPolicy} em vez do {@code AbortPolicy} default: com a fila
+     * cheia, abortar deixaria o documento PENDENTE órfão em silêncio; rodar na thread
+     * chamadora degrada para o comportamento antigo (lento), mas o e-mail sai.
+     */
+    @Bean("envioDocumentosExecutor")
+    public Executor envioDocumentosExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("envio-doc-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        // O envio em curso precisa terminar antes do shutdown, senão o documento fica
+        // PENDENTE e só sai por reenvio manual.
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(90);
+        executor.setTaskDecorator(tenantAwareDecorator());
         executor.initialize();
-        log.info("Async executor initialized with TenantContext propagation support");
-
         return executor;
     }
 

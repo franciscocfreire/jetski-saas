@@ -3,7 +3,7 @@ import { Shell } from "@/components/Shell";
 import { platform } from "@/lib/platform";
 import { Card, Erro, TituloPagina } from "@/components/ui";
 import { PlatformApiError } from "@/lib/api";
-import { Capitanias, ImagemConfig, ModulosPorPlano } from "./editores";
+import { Capitanias, EmissaoEnvio, ImagemConfig, ModulosPorPlano } from "./editores";
 
 export const dynamic = "force-dynamic";
 
@@ -13,13 +13,14 @@ export default async function Catalogo() {
 
   let dados;
   try {
-    const [planos, modulos, capitanias, imagem] = await Promise.all([
+    const [planos, modulos, capitanias, imagem, emissao] = await Promise.all([
       platform.planos(),
       platform.modulos(),
       platform.capitanias(),
       platform.imagemConfig(),
+      platform.emissaoEnvioConfig(),
     ]);
-    dados = { planos, modulos, capitanias, imagem };
+    dados = { planos, modulos, capitanias, imagem, emissao };
   } catch (e) {
     const err = e as PlatformApiError;
     return (
@@ -54,6 +55,13 @@ export default async function Catalogo() {
           descricao="Catálogo usado no perfil de emissão da empresa e no e-mail oficial da Marinha."
         >
           <Capitanias capitanias={dados.capitanias} />
+        </Card>
+
+        <Card
+          titulo="Emissão de documentos"
+          descricao="Como os e-mails da emissão (ofício à Capitania e via do cliente) saem."
+        >
+          <EmissaoEnvio assincrono={dados.emissao.assincrono ?? true} />
         </Card>
 
         <Card

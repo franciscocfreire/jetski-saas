@@ -54,12 +54,30 @@ public class DocumentoEmitido {
     @Column(name = "emissor_snapshot", columnDefinition = "jsonb")
     private String emissorSnapshot;
 
-    // Resultado do envio best-effort (V039): null = não enviado, falha ou
-    // emissão anterior ao registro — o remédio em todos os casos é reenviar.
+    // Resultado do envio best-effort (V039): quando o destino recebeu de fato.
+    // Status é ESTADO, timestamp é FATO — os dois coexistem: um reenvio que falha
+    // deixa FALHOU sem apagar a hora do envio que deu certo antes.
     @Column(name = "marinha_enviado_em")
     private Instant marinhaEnviadoEm;
     @Column(name = "cliente_enviado_em")
     private Instant clienteEnviadoEm;
+
+    // Estado do envio por destino (V065). Null = emissão anterior ao registro.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "marinha_envio_status", length = 20)
+    private EnvioStatus marinhaEnvioStatus;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cliente_envio_status", length = 20)
+    private EnvioStatus clienteEnvioStatus;
+
+    @Column(name = "marinha_envio_erro")
+    private String marinhaEnvioErro;
+    @Column(name = "cliente_envio_erro")
+    private String clienteEnvioErro;
+
+    /** Última mudança de status — acha PENDENTE órfão (backend reiniciado com a fila cheia). */
+    @Column(name = "envio_atualizado_em")
+    private Instant envioAtualizadoEm;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

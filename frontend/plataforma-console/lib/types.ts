@@ -237,6 +237,14 @@ export interface ImagemPreset {
   qualidade: number;
 }
 
+/**
+ * Como os e-mails da emissão saem. Assíncrono = fora do request (o balcão responde
+ * em ~1,5 s em vez de ~25 s). Síncrono é o rollback, não o modo normal.
+ */
+export interface EmissaoEnvioConfig {
+  assincrono: boolean;
+}
+
 export interface ImagemCompressaoConfig {
   tipos: Record<string, ImagemPreset>;
 }

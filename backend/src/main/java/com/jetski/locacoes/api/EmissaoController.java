@@ -33,16 +33,20 @@ public class EmissaoController {
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
     @Operation(
         summary = "Emitir documentos consolidados",
-        description = "Gera o PDF (anexos + termo), arquiva, registra, envia à Marinha e ao cliente, " +
-                      "e devolve a URL de download + dados da GRU. Exige habilitação resolvida e termos assinados."
+        description = "Gera o PDF (anexos + termo), arquiva, registra, dispara os e-mails (à Marinha e ao "
+                    + "cliente) e devolve a URL de download + dados da GRU. Exige habilitação resolvida e "
+                    + "termos assinados. Idempotente: se a reserva já tem documento, devolve o existente "
+                    + "(reaproveitado=true) sem debitar crédito — use reemitir=true para forçar uma nova."
     )
     public ResponseEntity<EmissaoService.ResultadoEmissao> emitir(
         @Parameter(description = "UUID do tenant") @PathVariable UUID tenantId,
-        @Parameter(description = "UUID da reserva") @PathVariable UUID id
+        @Parameter(description = "UUID da reserva") @PathVariable UUID id,
+        @Parameter(description = "Força uma emissão nova mesmo já havendo documento — DEBITA OUTRO CRÉDITO")
+        @RequestParam(defaultValue = "false") boolean reemitir
     ) {
-        log.info("POST /v1/tenants/{}/reservas/{}/emitir-documentos", tenantId, id);
+        log.info("POST /v1/tenants/{}/reservas/{}/emitir-documentos reemitir={}", tenantId, id, reemitir);
         validateTenantContext(tenantId);
-        return ResponseEntity.ok(emissaoService.emitir(id));
+        return ResponseEntity.ok(emissaoService.emitir(id, reemitir));
     }
 
     @GetMapping(value = "/preview", produces = MediaType.APPLICATION_PDF_VALUE)
@@ -72,7 +76,7 @@ public class EmissaoController {
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
     @Operation(
         summary = "Link temporário da prévia (abre por URL, compatível com iOS)",
-        description = "Gera a prévia e devolve uma URL pública de uso único (/v1/pdf/<token>) "
+        description = "Gera a prévia e devolve uma URL pública de curta duração (/v1/pdf/<token>) "
                     + "para abrir o PDF — o iOS Safari não renderiza blob: em aba nova."
     )
     public ResponseEntity<Map<String, String>> previewLink(
@@ -81,7 +85,8 @@ public class EmissaoController {
         @RequestParam(defaultValue = "CLIENTE") EmissaoService.Destino destino
     ) {
         validateTenantContext(tenantId);
-        String url = pdfLinkService.criarLink(emissaoService.preview(id, destino));
+        var previa = emissaoService.previewNomeado(id, destino);
+        String url = pdfLinkService.criarLink(previa.conteudo(), previa.filename());
         return ResponseEntity.ok(Map.of("url", url));
     }
 

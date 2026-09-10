@@ -268,6 +268,17 @@ public class ActionExtractor {
      * Exemplo: /locacoes/{id}/checkin → "checkin"
      */
     private String extractSubAction(String uri) {
+        // Famílias de rota: tudo abaixo do segmento responde pela ação do pai.
+        // O sufixo sozinho não dá conta de /habilitacao/gru/comprovante — a lista
+        // abaixo casa só o ÚLTIMO segmento, então cada folha nova caía no verbo
+        // HTTP: POST /habilitacao/gru virava reserva:create (que o OPERADOR tem,
+        // e passava por acidente) e PUT /habilitacao/gru/comprovante virava
+        // reserva:update (que ele não tem, e negava). Habilitação é um passo só
+        // do balcão e tem uma permissão só.
+        if (uri.contains("/habilitacao/")) {
+            return "habilitacao";
+        }
+
         // Lista de sub-actions conhecidas
         String[] knownSubActions = {
             "checkin", "checkout", "desconto", "aprovar", "fechar", "cancelar",
@@ -280,6 +291,7 @@ public class ActionExtractor {
             // Balcão / validação de pagamento (Fase 2)
             "recusar-pagamento", "emitir-documentos", "claim", "reenviar", "habilitacao", "aceite",
             "download",  // Download de documento emitido
+            "envio",     // Status do envio por e-mail do documento (polling da tela de emissão)
             // Folio (reserva/locação) / não comparecimento
             "registrar-pagamento", "no-show", "registrar-estorno", "extrato",
             // Emissão delegada (V048/V049): vínculo operadora×EAMA + painel do emissor

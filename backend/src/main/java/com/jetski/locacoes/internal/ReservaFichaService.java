@@ -92,6 +92,19 @@ public class ReservaFichaService {
 
     /** Bytes do PDF da ficha (link temporário mintado pelo controller). */
     @Transactional(readOnly = true)
+    /** PDF da ficha + nome do arquivo (mesma convenção dos demais documentos). */
+    public record FichaPdf(byte[] conteudo, String filename) {}
+
+    /**
+     * Ficha nomeada pelo locatário — o link abria tudo como "documento.pdf",
+     * então o operador não sabia de quem era o PDF na aba.
+     */
+    public FichaPdf gerarPdfNomeado(UUID reservaId) {
+        Cliente cliente = clienteService.findById(reservaService.findById(reservaId).getClienteId());
+        return new FichaPdf(gerarPdf(reservaId),
+            DocumentoNome.de("Ficha", cliente.getNome(), cliente.getDocumento()));
+    }
+
     public byte[] gerarPdf(UUID reservaId) {
         ReservaFichaResponse f = ficha(reservaId);
         Tenant tenant = tenantQueryService.findById(TenantContext.getTenantId());

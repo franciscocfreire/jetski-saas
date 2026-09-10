@@ -124,7 +124,7 @@ export function StepAluguel({
           </div>
         ) : (
           <Select value={modeloId} onValueChange={setModeloId}>
-            <SelectTrigger>
+            <SelectTrigger data-testid="balcao-aluguel-modelo">
               <SelectValue placeholder="Selecione o modelo" />
             </SelectTrigger>
             <SelectContent>
@@ -146,6 +146,7 @@ export function StepAluguel({
           {PRESETS.map((m) => (
             <Button
               key={m}
+              data-testid={`balcao-aluguel-duracao-${m}`}
               type="button"
               size="sm"
               variant={duracaoMin === m ? 'default' : 'outline'}
@@ -191,7 +192,7 @@ export function StepAluguel({
         <Button type="button" variant="outline" onClick={onBack}>
           Voltar
         </Button>
-        <Button type="button" disabled={!modelo || salvar.isPending} onClick={() => salvar.mutate()}>
+        <Button data-testid="balcao-aluguel-continuar" type="button" disabled={!modelo || salvar.isPending} onClick={() => salvar.mutate()}>
           {salvar.isPending ? 'Salvando…' : 'Continuar'}
         </Button>
       </div>

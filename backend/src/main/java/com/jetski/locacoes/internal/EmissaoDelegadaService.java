@@ -118,7 +118,12 @@ public class EmissaoDelegadaService {
             t != null ? t.getRazaoSocial() : null, t != null ? t.getCnpj() : null,
             t != null ? t.getEamaRegistro() : null, t != null ? t.getResponsavelNome() : null,
             t != null ? t.getTelefone() : null, t != null ? t.getEmailOficial() : null,
-            e.getCondutorNome(), e.getCondutorCpf(), false, e.getGruNumero(),
+            // O espelho da EAMA guarda só o CPF do condutor (campo `condutorCpf`),
+            // então o tipo sai da inferência — e vira null se o valor estiver
+            // malformado, caindo no rótulo por `estrangeiro`.
+            e.getCondutorNome(), e.getCondutorCpf(),
+            com.jetski.locacoes.domain.Documentos.inferirTipo(e.getCondutorCpf()), false,
+            e.getGruNumero(),
             reservaIdDaChave(e.getS3Key()),
             java.util.List.of(
                 "Autodeclaração de Atestado de Saúde – Anexo 5-C",

@@ -1,0 +1,3 @@
+A taxa da União é recolhida antes, no próprio balcão. O sistema gera a guia em nome do locatário, apresenta o pagamento por pix, confere a quitação na origem e guarda o comprovante junto do processo.
+
+Enquanto a guia não estiver paga e confirmada, o botão de emissão fica bloqueado. Não é uma recomendação ao operador: é uma trava. Não existe documentação encaminhada à Capitania sem guia quitada.

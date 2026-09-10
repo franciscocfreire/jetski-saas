@@ -213,7 +213,8 @@ public class CustomerReservaService {
 
         if (cpfEfetivo != null && !cpfEfetivo.isBlank()) {
             Optional<Cliente> mesmoCpf =
-                clienteRepository.findByTenantIdAndDocumento(tenantId, cpfEfetivo.trim());
+                clienteRepository.findByTenantIdAndDocumento(
+                    tenantId, com.jetski.locacoes.domain.Documentos.normalizar(cpfEfetivo));
             if (mesmoCpf.isPresent()) {
                 throw new BusinessException(
                     "Este CPF já tem cadastro nesta loja. Peça à loja o link de ativação " +

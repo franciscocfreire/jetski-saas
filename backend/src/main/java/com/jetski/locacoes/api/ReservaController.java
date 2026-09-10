@@ -606,14 +606,15 @@ public class ReservaController {
 
     @GetMapping("/{id}/ficha/download-link")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
-    @Operation(summary = "Gera link temporário (uso único) do PDF da ficha da reserva")
+    @Operation(summary = "Gera link temporário do PDF da ficha da reserva")
     public ResponseEntity<java.util.Map<String, String>> fichaDownloadLink(
         @PathVariable UUID tenantId,
         @PathVariable UUID id
     ) {
         validateTenantContext(tenantId);
+        var ficha = reservaFichaService.gerarPdfNomeado(id);
         return ResponseEntity.ok(java.util.Map.of(
-            "url", pdfLinkService.criarLink(reservaFichaService.gerarPdf(id))));
+            "url", pdfLinkService.criarLink(ficha.conteudo(), ficha.filename())));
     }
 
     private ReservaLancamento.Forma parseFormaPagamento(String forma) {

@@ -94,10 +94,30 @@ public class DocumentoConsultaService {
 
     @Transactional(readOnly = true)
     public DocumentoArquivo baixar(UUID id) {
+        Referencia ref = referencia(id);
+        return new DocumentoArquivo(storageService.getObject(ref.s3Key()), ref.filename());
+    }
+
+    /** Onde o PDF está e como ele deve se chamar — sem baixar os bytes. */
+    public record Referencia(String s3Key, String filename) {}
+
+    /**
+     * Usada pelo link de compartilhamento: guardar a referência (e não o conteúdo)
+     * é o que permite um link de dias sem encher o Redis.
+     */
+    @Transactional(readOnly = true)
+    public Referencia referencia(UUID id) {
         DocumentoEmitido d = documentoRepository.findById(id)
             .orElseThrow(() -> new com.jetski.shared.exception.NotFoundException("Documento não encontrado: " + id));
-        byte[] bytes = storageService.getObject(d.getS3Key());
-        String ref = d.getReservaId() != null ? d.getReservaId().toString().substring(0, 8) : "doc";
-        return new DocumentoArquivo(bytes, "documento-" + ref + ".pdf");
+        Cliente c = reservaRepository.findById(d.getReservaId())
+            .map(Reserva::getClienteId)
+            .flatMap(clienteRepository::findById)
+            .orElse(null);
+        String filename = c != null
+            ? DocumentoNome.de(c.getNome(), c.getDocumento())
+            // Sem cliente (não deveria acontecer): cai no código curto da reserva.
+            : "documento-" + (d.getReservaId() != null
+                ? d.getReservaId().toString().substring(0, 8) : "doc") + ".pdf";
+        return new Referencia(d.getS3Key(), filename);
     }
 }

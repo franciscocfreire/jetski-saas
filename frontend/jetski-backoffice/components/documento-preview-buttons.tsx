@@ -50,7 +50,8 @@ export function DocumentoPreviewButtons({
             variant="outline"
             size="sm"
             disabled={carregando !== null}
-            onClick={() => abrir('MARINHA')}
+            data-testid="balcao-emissao-previa-marinha"
+          onClick={() => abrir('MARINHA')}
           >
             {carregando === 'MARINHA' ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -65,6 +66,7 @@ export function DocumentoPreviewButtons({
           variant="outline"
           size="sm"
           disabled={carregando !== null}
+          data-testid="balcao-emissao-previa-cliente"
           onClick={() => abrir('CLIENTE')}
         >
           {carregando === 'CLIENTE' ? (

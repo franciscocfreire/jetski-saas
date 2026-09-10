@@ -75,13 +75,20 @@ export interface JetskiUpdateRequest extends Partial<JetskiCreateRequest> {
 export type ClienteOrigem = 'PORTAL' | 'BALCAO' | 'LEAD'
 export type ClienteStatusConta = 'PRE_CONTA' | 'CONVIDADA' | 'ATIVA' | 'SEM_LOGIN'
 
+export type DocumentoTipo = 'CPF' | 'CNPJ' | 'PASSAPORTE'
+
 export interface Cliente extends BaseEntity {
   nome: string
   email?: string
   telefone?: string
   whatsapp?: string
-  /** Documento (CPF) — campo canônico do backend. */
+  /**
+   * Documento — campo canônico do backend, guardado NORMALIZADO (só dígitos no
+   * CPF/CNPJ, alfanumérico maiúsculo no passaporte). A pontuação é da exibição.
+   */
   documento?: string
+  /** O que `documento` é: decide a busca, o rótulo no ofício e o nome do PDF. */
+  documentoTipo?: DocumentoTipo
   rg?: string
   orgaoEmissor?: string
   nacionalidade?: string
@@ -122,6 +129,8 @@ export interface ClienteCreateRequest {
 export interface ClientePreContaRequest {
   nome: string
   documento?: string
+  /** Ausente = o backend infere pelo formato do documento. */
+  documentoTipo?: DocumentoTipo
   email?: string
   telefone?: string
   whatsapp?: string
@@ -545,6 +554,19 @@ export interface Aceite {
   aceitoEm: string
 }
 
+/**
+ * Estado do envio de um documento por destino (V065).
+ * PENDENTE = a caminho (o e-mail sai fora do request); BLOQUEADO = documentação
+ * incompleta; SEM_DESTINATARIO = falta o e-mail no cadastro.
+ */
+export type EnvioStatus =
+  | 'NAO_APLICAVEL'
+  | 'BLOQUEADO'
+  | 'SEM_DESTINATARIO'
+  | 'PENDENTE'
+  | 'ENVIADO'
+  | 'FALHOU'
+
 /** Resultado de POST /reservas/{id}/emitir-documentos. */
 export interface ResultadoEmissao {
   documentoId: string
@@ -555,8 +577,22 @@ export interface ResultadoEmissao {
   gruValor?: string
   enviadoMarinha: boolean
   enviadoCliente: boolean
+  marinhaEnvioStatus: EnvioStatus
+  clienteEnvioStatus: EnvioStatus
   docCompleta: boolean
   pendencias: string[]
+  /** Documento já existia: devolvemos o mesmo em vez de emitir (e cobrar) outro. */
+  reaproveitado: boolean
+}
+
+/** GET /documentos/{id}/envio — o que a tela consulta enquanto os e-mails saem. */
+export interface DocumentoEnvioStatus {
+  documentoId: string
+  marinha: { status: EnvioStatus; em?: string; erro?: string }
+  cliente: { status: EnvioStatus; em?: string; erro?: string }
+  /** Derivado no servidor: nenhum destino continua PENDENTE. Fim do polling. */
+  concluido: boolean
+  atualizadoEm?: string
 }
 
 /** Documento emitido (consulta por cliente). */

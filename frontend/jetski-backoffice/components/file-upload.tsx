@@ -26,6 +26,7 @@ export function FileUpload({
   initialUrl,
   tipoDocumento,
   cameraPadrao,
+  testId,
 }: {
   label: string
   accept?: string
@@ -39,6 +40,13 @@ export function FileUpload({
    * Sem valor, selfie abre na frontal e o resto na traseira.
    */
   cameraPadrao?: 'user' | 'environment'
+  /**
+   * Identificador estável para automação (harness de capturas, Playwright).
+   * Vai no <input type=file> — que é oculto, mas aceita setInputFiles() sem
+   * abrir diálogo nenhum. Sem isto a automação teria que caçar o botão pelo
+   * texto do rótulo, que muda.
+   */
+  testId?: string
 }) {
   const { presetPara } = useImagemConfig()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -150,6 +158,7 @@ export function FileUpload({
     <div>
       <input
         ref={inputRef}
+        data-testid={testId}
         type="file"
         accept={accept}
         className="hidden"

@@ -74,6 +74,8 @@ function BalcaoWizard() {
   // livremente (ida e volta) entre os passos já visitados, inclusive ao retomar
   // uma reserva direto num passo avançado.
   const [maxOrdem, setMaxOrdem] = useState(0)
+  /** Emissão em curso: congela a navegação (Stepper) até ela terminar. */
+  const [emitindo, setEmitindo] = useState(false)
   useEffect(() => {
     setMaxOrdem((m) => Math.max(m, ordemDe(stepKey)))
   }, [stepKey])
@@ -273,7 +275,11 @@ function BalcaoWizard() {
             steps={[...stepsAtivos]}
             current={current}
             maxStep={maxStepAtivo}
-            onStepClick={(i) => i <= maxStepAtivo && setStepKey(stepsAtivos[i].key)}
+            // Durante a emissão a navegação congela: trocar de passo no meio dos
+            // segundos de emissão desmontaria o step e o operador perderia o retorno.
+            onStepClick={
+              emitindo ? undefined : (i) => i <= maxStepAtivo && setStepKey(stepsAtivos[i].key)
+            }
           />
         </CardHeader>
         <CardContent>
@@ -364,7 +370,12 @@ function BalcaoWizard() {
           )}
 
           {stepKey === 'emissao' && (
-            <StepEmissao atendimento={at} onBack={() => anterior('emissao')} onReset={reset} />
+            <StepEmissao
+              atendimento={at}
+              onBack={() => anterior('emissao')}
+              onReset={reset}
+              onBusyChange={setEmitindo}
+            />
           )}
         </CardContent>
       </Card>

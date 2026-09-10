@@ -70,11 +70,21 @@ class EmissaoServiceTest {
 
     private final ClienteNotificacaoService notificacaoService =
         mock(ClienteNotificacaoService.class);
+    // Serviço de envio REAL, ligado aos mesmos mocks: é ele que monta o ofício
+    // NORMAM-212 e chama o EmailService, então os asserts do ofício continuam
+    // valendo aqui. Mockar este colaborador faria os verify(email, ...) pararem de
+    // disparar e a cobertura sumiria sem nenhum teste ficar vermelho.
+    private final DocumentoEnvioService envioService = new DocumentoEnvioService(
+        reservaRepo, clienteRepo, habRepo, docRepo, storage, email, tenantQuery,
+        anexoService, new ObjectMapper());
+    private final EmissaoEnvioConfigService envioConfig = mock(EmissaoEnvioConfigService.class);
+    private final EmissaoLockService lockService = mock(EmissaoLockService.class);
+
     private final EmissaoService service = new EmissaoService(
-        reservaRepo, mock(CustomerHabilitacaoSyncService.class), notificacaoService, clienteRepo, instrutorRepo, habRepo, aceiteRepo, docRepo, storage, email,
+        reservaRepo, mock(CustomerHabilitacaoSyncService.class), notificacaoService, clienteRepo, instrutorRepo, habRepo, aceiteRepo, docRepo, storage,
         tenantQuery, pdfService, anexoService, creditoService, planoLimiteService,
         vinculoEmissaoService, events, new ObjectMapper(),
-        carimboService, padesService);
+        carimboService, padesService, envioService, envioConfig, lockService);
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID reservaId = UUID.randomUUID();
@@ -82,6 +92,13 @@ class EmissaoServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Modo SÍNCRONO nos testes: o envio acontece dentro do emitir() e os asserts de
+        // enviadoMarinha/enviadoCliente valem sem esperar por thread. O caminho
+        // assíncrono é coberto pelos testes próprios abaixo.
+        when(envioConfig.assincrono()).thenReturn(false);
+        // Reserva sem documento anterior: a idempotência não intercepta.
+        when(docRepo.findByTenantIdAndReservaIdOrderByEmitidoEmDesc(any(UUID.class), any(UUID.class)))
+            .thenReturn(java.util.List.of());
         // Plano com emissão própria → comportamento clássico (delegação só quando ausente)
         when(planoLimiteService.moduloHabilitado(any(UUID.class),
             eq(com.jetski.tenant.ModuloPlano.EMISSAO_PROPRIA))).thenReturn(true);
@@ -116,6 +133,70 @@ class EmissaoServiceTest {
         // Anexos obrigatórios à Marinha presentes (identidade + selfie, por padrão).
         when(anexoService.buscar(eq(clienteId), any(com.jetski.locacoes.domain.ClienteAnexo.Tipo.class)))
             .thenReturn(Optional.of(mock(com.jetski.locacoes.domain.ClienteAnexo.class)));
+    }
+
+    @Test
+    @DisplayName("Modo assíncrono: nada de SMTP dentro do emitir — status PENDENTE e evento publicado")
+    void modoAssincronoNaoEnviaNoRequest() {
+        when(envioConfig.assincrono()).thenReturn(true);
+
+        EmissaoService.ResultadoEmissao r = service.emitir(reservaId);
+
+        // O que motivou a mudança: os ~24 s de SMTP não podem acontecer no request.
+        verify(email, org.mockito.Mockito.never())
+            .sendEmailComAnexo(anyString(), anyString(), anyString(), anyString(), any(), anyString());
+        assertThat(r.getMarinhaEnvioStatus()).isEqualTo(com.jetski.locacoes.domain.EnvioStatus.PENDENTE);
+        assertThat(r.getClienteEnvioStatus()).isEqualTo(com.jetski.locacoes.domain.EnvioStatus.PENDENTE);
+        assertThat(r.isEnviadoMarinha()).isFalse();
+        assertThat(r.isEnviadoCliente()).isFalse();
+        // O documento em si saiu: PDF arquivado e crédito debitado como sempre.
+        verify(storage, times(2)).putObject(anyString(), any(), eq("application/pdf"));
+        verify(creditoService).debitarEmissaoDocumento(eq(tenant), any(), eq(reservaId));
+        verify(events).publishEvent(any(com.jetski.locacoes.event.EnvioDocumentosSolicitadoEvent.class));
+    }
+
+    @Test
+    @DisplayName("Idempotência: segunda emissão devolve o documento existente, sem PDF, crédito ou e-mail")
+    void segundaEmissaoReaproveitaDocumento() {
+        UUID docExistente = UUID.randomUUID();
+        when(docRepo.findByTenantIdAndReservaIdOrderByEmitidoEmDesc(tenant, reservaId))
+            .thenReturn(java.util.List.of(DocumentoEmitido.builder()
+                .id(docExistente).tenantId(tenant).reservaId(reservaId)
+                .s3Key("t/reserva/r/documento.pdf").hashSha256("abc123hash")
+                .marinhaEnvioStatus(com.jetski.locacoes.domain.EnvioStatus.ENVIADO)
+                .clienteEnvioStatus(com.jetski.locacoes.domain.EnvioStatus.ENVIADO)
+                .build()));
+
+        EmissaoService.ResultadoEmissao r = service.emitir(reservaId);
+
+        // Foi exatamente isto que debitou 2 créditos em produção: F5 + segundo clique.
+        assertThat(r.isReaproveitado()).isTrue();
+        assertThat(r.getDocumentoId()).isEqualTo(docExistente);
+        verify(creditoService, org.mockito.Mockito.never()).debitarEmissaoDocumento(any(), any(), any());
+        verify(storage, org.mockito.Mockito.never()).putObject(anyString(), any(), anyString());
+        verify(docRepo, org.mockito.Mockito.never()).save(any(DocumentoEmitido.class));
+        verify(email, org.mockito.Mockito.never())
+            .sendEmailComAnexo(anyString(), anyString(), anyString(), anyString(), any(), anyString());
+    }
+
+    @Test
+    @DisplayName("Idempotência: reemitir=true força nova emissão, com novo crédito e key versionada")
+    void reemitirForcaNovaEmissao() {
+        when(docRepo.findByTenantIdAndReservaIdOrderByEmitidoEmDesc(tenant, reservaId))
+            .thenReturn(java.util.List.of(DocumentoEmitido.builder()
+                .id(UUID.randomUUID()).tenantId(tenant).reservaId(reservaId)
+                .s3Key("t/reserva/r/documento.pdf").hashSha256("abc123hash").build()));
+
+        EmissaoService.ResultadoEmissao r = service.emitir(reservaId, true);
+
+        assertThat(r.isReaproveitado()).isFalse();
+        verify(creditoService).debitarEmissaoDocumento(eq(tenant), any(), eq(reservaId));
+        // Key versionada: a fixa sobrescreveria o PDF da emissão anterior, deixando a
+        // linha antiga com um hash_sha256 que não confere mais.
+        org.mockito.ArgumentCaptor<String> keys = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(storage, times(2)).putObject(keys.capture(), any(), eq("application/pdf"));
+        assertThat(keys.getAllValues().get(0)).doesNotEndWith("/documento.pdf");
+        assertThat(keys.getAllValues().get(1)).endsWith("-marinha.pdf");
     }
 
     @Test

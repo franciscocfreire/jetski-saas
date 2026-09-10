@@ -71,6 +71,7 @@ role_permissions := {
         "documento:view",
         "documento:download",
         "documento:reenviar",
+        "documento:envio",          # status do envio por e-mail (polling da tela de emissão)
         "documento:imagem-config",  # leitura da config de compressão de imagem (upload)
         "gru:list",   # Módulo GRUs (ciclo Marinha)
         "gru:view",
@@ -179,6 +180,7 @@ role_permissions := {
         "documento:view",
         "documento:download",
         "documento:reenviar",
+        "documento:envio",
         "gru:list",   # Módulo GRUs (ciclo Marinha)
         "gru:view"
     ],

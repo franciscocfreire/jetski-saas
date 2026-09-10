@@ -87,7 +87,7 @@ class CustomerReservaIntegrationTest extends AbstractIntegrationTest {
                     "(SELECT id FROM cliente WHERE tenant_id = ? AND email = 'p1@test.com')",
                     TENANT_ACME, TENANT_ACME);
         jdbc.update("DELETE FROM cliente WHERE tenant_id = ? AND email = 'p1@test.com'", TENANT_ACME);
-        jdbc.update("DELETE FROM cliente WHERE tenant_id = ? AND documento = '111.222.333-44'", TENANT_ACME);
+        jdbc.update("DELETE FROM cliente WHERE tenant_id = ? AND documento = '11122233344'", TENANT_ACME);
     }
 
     private RequestPostProcessor cliente() {
@@ -167,7 +167,7 @@ class CustomerReservaIntegrationTest extends AbstractIntegrationTest {
     void testDedupeCpf() throws Exception {
         jdbc.update("""
             INSERT INTO cliente (id, tenant_id, nome, documento, origem, status_conta, ativo)
-            VALUES (gen_random_uuid(), ?, 'Pré-existente Balcão', '111.222.333-44', 'BALCAO', 'PRE_CONTA', TRUE)
+            VALUES (gen_random_uuid(), ?, 'Pré-existente Balcão', '11122233344', 'BALCAO', 'PRE_CONTA', TRUE)
             """, TENANT_ACME);
 
         LocalDateTime inicio = LocalDateTime.now().plusDays(4).withHour(9).withMinute(0).withSecond(0).withNano(0);

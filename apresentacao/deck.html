@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Emissão da CHA — Capitania dos Portos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --fundo:#08131A; --fundo-2:#0D1F2A; --tinta:#EAF2F6; --tinta-fraca:#93A9B5;
+  --regua:#1E3540; --mar:#4FA8CC; --trama:#D2A550;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#04090C;color:var(--tinta);
+  font-family:"Source Serif 4",Georgia,serif;-webkit-font-smoothing:antialiased}
+
+/* Um slide = 1920x1080 escalado por --z, para caber na janela sem reflow:
+   assim o que você vê é exatamente o que sai no PDF. */
+#palco{position:fixed;inset:0;display:grid;place-items:center;overflow:hidden}
+.slide{position:absolute;width:1920px;height:1080px;background:var(--fundo);
+  transform-origin:center center;opacity:0;pointer-events:none;
+  display:grid;padding:88px 104px;gap:44px}
+.slide.ativo{opacity:1;pointer-events:auto}
+
+.olho{font-family:"IBM Plex Mono",monospace;font-size:22px;letter-spacing:.28em;
+  text-transform:uppercase;color:var(--mar);margin:0}
+h1{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:700;
+  text-transform:uppercase;letter-spacing:.005em;line-height:.94;margin:0;
+  text-wrap:balance}
+.sub{font-size:34px;line-height:1.4;color:var(--tinta-fraca);margin:0;max-width:44ch}
+ul{margin:0;padding:0;list-style:none;display:grid;gap:18px}
+li{font-size:33px;line-height:1.35;color:var(--tinta);padding-left:34px;position:relative}
+li::before{content:"";position:absolute;left:0;top:.62em;width:16px;height:2px;
+  background:var(--mar)}
+
+/* capa */
+.slide.capa{place-content:center;text-align:left}
+.slide.capa h1{font-size:150px}
+.slide.capa .sub{font-size:38px;margin-top:26px}
+.slide.capa .fio{width:180px;height:5px;background:var(--trama);margin-bottom:52px}
+
+/* cartela e eixo */
+.slide.cartela{align-content:center;grid-template-columns:1fr}
+.slide.cartela h1{font-size:104px;max-width:26ch}
+.slide.cartela ul{margin-top:34px}
+.slide.eixo{align-content:center;grid-template-columns:280px 1fr;align-items:center}
+.slide.eixo .num{font-family:"Barlow Condensed",sans-serif;font-size:300px;font-weight:700;
+  line-height:.8;color:var(--trama)}
+.slide.eixo h1{font-size:110px}
+
+/* captura */
+.slide.tela{grid-template-rows:auto 1fr;gap:38px}
+.slide.tela.com-pe{grid-template-rows:auto 1fr auto}
+.slide.tela .pe-legenda{font-size:30px;line-height:1.35;color:var(--tinta-fraca);margin:0;max-width:none}
+.slide.tela h1{font-size:62px}
+.corpo{display:grid;gap:52px;min-height:0}
+.corpo.com-lista{grid-template-columns:1fr 460px}
+.moldura{border:1px solid var(--regua);background:var(--fundo-2);overflow:hidden;
+  display:grid;place-items:center;min-height:0}
+/* max-* em vez de width/height 100%: com 100% a imagem era esticada até a
+   largura da moldura e o excedente ficava cortado pelo overflow — uma foto de
+   celular (retrato, 355px) virava um recorte ampliado do topo. Assim a
+   proporção manda e a peça inteira aparece, centrada. */
+.moldura img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block;margin:auto}
+.grade{display:grid;grid-template-columns:1fr 1fr;gap:18px;min-height:0}
+.grade .moldura{padding:10px}
+.grade figcaption,.grade .rot{display:none}
+.vazio{font-family:"IBM Plex Mono",monospace;font-size:24px;color:var(--tinta-fraca);
+  text-align:center;line-height:1.8;padding:40px}
+.vazio b{color:var(--mar);display:block;font-size:28px;margin-bottom:14px}
+.corpo .lista{align-content:center}
+.slide.destaque{background:linear-gradient(160deg,#0B2030 0%,#08131A 60%)}
+.slide.destaque h1{color:#fff}
+
+/* rodapé */
+.pe{position:absolute;left:104px;right:104px;bottom:44px;display:flex;
+  justify-content:space-between;align-items:baseline;
+  font-family:"IBM Plex Mono",monospace;font-size:19px;color:#546B78;
+  border-top:1px solid var(--regua);padding-top:16px}
+
+/* notas de narração (tecla n) */
+#notas{position:fixed;left:0;right:0;bottom:0;max-height:42vh;overflow:auto;
+  background:#02070A;border-top:2px solid var(--mar);padding:26px 34px;
+  font-size:19px;line-height:1.65;color:#C9D8E0;display:none}
+#notas.on{display:block}
+#notas h4{font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--mar);margin:0 0 12px}
+#notas p{margin:0 0 12px;max-width:120ch}
+#ajuda{position:fixed;right:16px;top:16px;font-family:"IBM Plex Mono",monospace;
+  font-size:13px;color:#3E5461;letter-spacing:.08em}
+
+@media print{
+  @page{size:1920px 1080px;margin:0}
+  html,body{background:#fff}
+  #palco{position:static;display:block;overflow:visible}
+  .slide{position:static;opacity:1;transform:none!important;page-break-after:always}
+  #notas,#ajuda{display:none!important}
+}
+</style></head><body>
+<div id="ajuda">← → navega · n narração · f tela cheia</div>
+<div id="palco">
+<section class="slide capa" data-n="01" data-dur="0:10" data-narracao="Comandante, senhores.">
+<div><div class="fio"></div>
+<h1>Emissão digital da CHA-MTA-E</h1>
+<p class="sub">Apresentação à Capitania dos Portos · setembro de 2026</p></div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>01 / 20</span></div>
+</section>
+<section class="slide cartela" data-n="02" data-dur="0:30" data-narracao="Hoje, o processo de documentação para a utilização de motos aquáticas ainda depende, em grande parte, do preenchimento manual de documentos em papel.
+
+Isso gera uma série de dificuldades. O cliente precisa preencher, assinar, aguardar a conferência e, muitas vezes, o documento ainda precisa ser fotografado e encaminhado por aplicativo. Em um ambiente de praia, com vento, água, movimento e clientes com pressa, esse processo pode gerar erros, documentos ilegíveis e perda de tempo.
+
+Mas o principal ponto é que essa dificuldade não está apenas na emissão do documento. Ela acompanha toda a operação.">
+<div><h1>Hoje, o processo é de papel</h1>
+<ul><li>Preencher, assinar, conferir</li><li>Fotografar e enviar por aplicativo</li><li>Vento, água, pressa — erro e ilegibilidade</li></ul>
+</div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>02 / 20</span></div>
+</section>
+<section class="slide eixo" data-n="03" data-dur="0:22" data-narracao="Primeiro, temos a emissão: o processo poderia ser muito mais rápido e organizado, com o preenchimento digital das informações e assinatura eletrônica, reduzindo erros e eliminando etapas manuais desnecessárias.">
+<div class="num">1</div>
+<div><h1>Emissão</h1><p class="sub" style="margin-top:28px">Preenchimento digital, assinatura eletrônica, menos etapas manuais.</p></div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>03 / 20</span></div>
+</section>
+<section class="slide eixo" data-n="04" data-dur="0:35" data-narracao="Segundo, temos a fiscalização dentro da água. O cliente atualmente pode sair para navegar levando um documento em papel. E água e papel não combinam. O documento pode molhar, rasgar ou perder a legibilidade. Em uma abordagem, isso pode dificultar a conferência da documentação pelo agente fiscalizador.
+
+Com um sistema digital, a fiscalização poderia ter acesso rápido às informações necessárias, permitindo verificar a situação do condutor e da moto aquática de maneira muito mais eficiente.">
+<div class="num">2</div>
+<div><h1>Fiscalização na água</h1><p class="sub" style="margin-top:28px">Água e papel não combinam. O documento molha, rasga, perde a legibilidade.</p></div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>04 / 20</span></div>
+</section>
+<section class="slide eixo" data-n="05" data-dur="0:30" data-narracao="E terceiro, temos a análise interna da própria Marinha. Em vez de receber documentos fotografados, separados ou com diferentes padrões de preenchimento, a Marinha poderia receber as informações de forma organizada e padronizada, facilitando a conferência, a pesquisa, o armazenamento e a análise dos documentos.">
+<div class="num">3</div>
+<div><h1>Análise interna</h1><p class="sub" style="margin-top:28px">Informação organizada e padronizada — conferência, pesquisa, armazenamento e análise.</p></div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>05 / 20</span></div>
+</section>
+<section class="slide cartela" data-n="06" data-dur="0:28" data-narracao="Ou seja, a proposta não busca apenas digitalizar um formulário. Busca reduzir o tempo e aumentar a eficiência em todo o ciclo: desde o momento em que o documento é emitido, passando pela fiscalização na água, até a análise e o controle interno da Marinha.
+
+O objetivo é simples: menos papel, menos erro, menos tempo perdido — e mais agilidade, rastreabilidade e segurança para todos os envolvidos. E, principalmente, utilizar a tecnologia para facilitar o trabalho da fiscalização e da própria Marinha, mantendo o controle e a confiabilidade que o processo exige.
+
+O que vamos mostrar a seguir é como esse mesmo atendimento acontece no nosso sistema — e, principalmente, o que a Capitania passa a receber no fim dele.">
+<div><h1>Menos papel, menos erro, menos tempo perdido</h1>
+<ul><li>Mais agilidade, rastreabilidade e segurança</li><li>Tecnologia a favor da fiscalização e da Marinha</li><li>Mantendo o controle e a confiabilidade do processo</li></ul>
+</div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>06 / 20</span></div>
+</section>
+<section class="slide tela com-pe" data-n="07" data-dur="0:20" data-narracao="O sistema cuida de toda a operação da locadora. Mas hoje vamos entrar em um só ponto, o primeiro eixo: o atendimento de balcão de um cliente que não tem habilitação e precisa da carteira de motonauta para pilotar.
+
+É um roteiro fixo, em oito passos. O operador não escolhe a ordem, e não consegue pular nenhum deles.">
+<div><p class="olho">slide 07</p><h1>O atendimento em oito passos</h1></div>
+<div class="corpo"><div class="moldura"><img src="../capturas-apresentacao/07-balcao-oito-passos.png" alt=""></div>
+</div>
+<p class="pe-legenda">Cliente · Passeio · Habilitação · Documentos · Orientações · Termos · Pagamento · Emissão</p>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>07 / 20</span></div>
+</section>
+<section class="slide tela com-pe" data-n="08" data-dur="0:30" data-narracao="Primeiro identificamos a pessoa. O cadastro é feito uma única vez: se este cliente voltar amanhã, em qualquer loja que use o sistema, os dados dele já estão aqui — mas a loja só enxerga a ficha depois que existe um aluguel de fato.
+
+Em seguida, o passeio: qual moto, que horário, por quanto tempo. Esta parte é comercial. O que interessa à Marinha começa no passo seguinte.">
+<div><p class="olho">slide 08</p><h1>Passos 1 e 2 — quem é, e o que vai fazer</h1></div>
+<div class="corpo"><div class="moldura"><img src="../capturas-apresentacao/08a-passo-cliente.png" alt=""></div>
+</div>
+<p class="pe-legenda">Cadastro único da pessoa. A loja só enxerga a ficha quando existe um aluguel.</p>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>08 / 20</span></div>
+</section>
+<section class="slide tela" data-n="09" data-dur="0:30" data-narracao="Aqui o sistema faz a pergunta que define todo o resto: este cliente já é habilitado, ou vai pilotar sob a autorização especial de motonauta?
+
+Se ele já tem carteira, o número é registrado e o atendimento segue, sem documentação a encaminhar à Marinha. Se não tem, entramos no caminho da norma — e daqui em diante nenhum passo é opcional.">
+<div><p class="olho">slide 09</p><h1>Passo 3 — a pergunta que define tudo</h1></div>
+<div class="corpo com-lista"><div class="moldura"><img src="../capturas-apresentacao/09-habilitacao-bifurcacao.png" alt=""></div>
+<div class="lista"><ul><li>Já habilitado → registra o número e segue</li><li>Não habilitado → entra o rito da NORMAM-212</li></ul></div>
+</div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>09 / 20</span></div>
+</section>
+<section class="slide tela" data-n="10" data-dur="0:40" data-narracao="A taxa da União é recolhida antes, no próprio balcão. O sistema gera a guia em nome do locatário, apresenta o pagamento por pix, confere a quitação na origem e guarda o comprovante junto do processo.
+
+Enquanto a guia não estiver paga e confirmada, o botão de emissão fica bloqueado. Não é uma recomendação ao operador: é uma trava. Não existe documentação encaminhada à Capitania sem guia quitada.">
+<div><p class="olho">slide 10</p><h1>A GRU é recolhida antes</h1></div>
+<div class="corpo com-lista"><div class="moldura"><img src="../capturas-apresentacao/10b-gru-paga.png" alt=""></div>
+<div class="lista"><ul><li>Guia gerada em nome do locatário, paga no balcão</li><li>Pagamento conferido na origem, comprovante anexado</li><li>Sem guia paga, a emissão fica bloqueada</li></ul></div>
+</div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>10 / 20</span></div>
+</section>
+<section class="slide tela com-pe" data-n="11" data-dur="0:20" data-narracao="O documento de identidade é capturado ali mesmo, pela câmera, já anexado ao processo — sem foto de aplicativo, sem arquivo que ninguém sabe de onde veio.">
+<div><p class="olho">slide 11</p><h1>Passo 4 — identidade capturada na hora</h1></div>
+<div class="corpo"><div class="moldura"><img src="../capturas-apresentacao/11-documento-identidade.png" alt=""></div>
+</div>
+<p class="pe-legenda">Pela câmera, direto no processo. Sem foto de aplicativo, sem arquivo de origem desconhecida.</p>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>11 / 20</span></div>
+</section>
+<section class="slide tela com-pe" data-n="12" data-dur="0:25" data-narracao="Antes de assinar qualquer coisa, o cliente assiste à orientação de segurança. Repare no botão: ele só habilita quando o vídeo chega ao fim. E o sistema registra que aquele locatário, naquele atendimento, recebeu a orientação.">
+<div><p class="olho">slide 12</p><h1>Passo 5 — orientação obrigatória</h1></div>
+<div class="corpo"><div class="moldura"><img src="../capturas-apresentacao/12a-videoaula-bloqueada.png" alt=""></div>
+</div>
+<p class="pe-legenda">O avanço só libera quando o vídeo termina. O sistema registra que aquele locatário recebeu a orientação.</p>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>12 / 20</span></div>
+</section>
+<section class="slide tela" data-n="13" data-dur="0:45" data-narracao="Este é o dossiê que a norma exige, montado pelo sistema com os dados que já foram informados. Ninguém redigita nada.
+
+Declaração de residência, anexo um-cê. Autodeclaração de saúde, anexo cinco-cê. Atestado de demonstração assinado pelo instrutor credenciado, anexo cinco-bê-um. E a declaração do próprio locatário, cinco-bê-dois. Ao final, a identidade anexada, com carimbo identificando cada página.
+
+Sempre no mesmo formato, sempre na mesma ordem, sempre legível — é o terceiro eixo, o da padronização, aparecendo na prática. E, se o locatário for estrangeiro, os anexos cinco-bê saem automaticamente em inglês, com o passaporte como documento de referência.">
+<div><p class="olho">slide 13</p><h1>Passo 6 — o dossiê da norma, montado sozinho</h1></div>
+<div class="corpo com-lista"><div class="grade"><div class="moldura"><img src="../capturas-apresentacao/13a-anexo-1c.png" alt=""></div><div class="moldura"><img src="../capturas-apresentacao/13b-anexo-5c.png" alt=""></div><div class="moldura"><img src="../capturas-apresentacao/13c-anexo-5b1.png" alt=""></div><div class="moldura"><img src="../capturas-apresentacao/13d-anexo-5b2.png" alt=""></div></div>
+<div class="lista"><ul><li>1-C · declaração de residência</li><li>5-C · autodeclaração de saúde</li><li>5-B-1 · atestado do instrutor credenciado</li><li>5-B-2 · declaração do locatário</li></ul></div>
+</div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>13 / 20</span></div>
+</section>
+<section class="slide tela com-pe" data-n="14" data-dur="0:25" data-narracao="O cliente assina na tela. Antes de fechar, ele confirma um código enviado ao e-mail ou ao WhatsApp dele. Isso amarra a assinatura a uma identidade verificada, e não a um rabisco anônimo.">
+<div><p class="olho">slide 14</p><h1>Assinatura com confirmação por código</h1></div>
+<div class="corpo"><div class="moldura"><img src="../capturas-apresentacao/14a-assinatura.png" alt=""></div>
+</div>
+<p class="pe-legenda">O código vai ao e-mail ou ao WhatsApp do próprio cliente. A assinatura fica amarrada a uma identidade verificada.</p>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>14 / 20</span></div>
+</section>
+<section class="slide tela" data-n="15" data-dur="0:35" data-narracao="E o documento carrega a própria prova: uma página de auditoria com data, hora, endereço de rede e dispositivo; um carimbo de tempo emitido por autoridade externa; e a impressão digital do arquivo.
+
+Se um único caractere do documento mudar, essa impressão digital muda junto. Qualquer pessoa pode conferir — inclusive a Capitania, anos depois.">
+<div><p class="olho">slide 15</p><h1>O documento carrega a própria prova</h1></div>
+<div class="corpo com-lista"><div class="moldura"><img src="../capturas-apresentacao/15-pagina-auditoria.png" alt=""></div>
+<div class="lista"><ul><li>Data, hora, endereço de rede e dispositivo</li><li>Carimbo de tempo de autoridade externa</li><li>Impressão digital do arquivo (SHA-256)</li></ul></div>
+</div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>15 / 20</span></div>
+</section>
+<section class="slide tela com-pe" data-n="16" data-dur="0:15" data-narracao="Um clique. O sistema gera o documento único, arquiva, registra e encaminha.">
+<div><p class="olho">slide 16</p><h1>Passo 8 — um clique</h1></div>
+<div class="corpo"><div class="moldura"><img src="../capturas-apresentacao/16-emissao-resultado.png" alt=""></div>
+</div>
+<p class="pe-legenda">Gera o documento único, arquiva, registra e encaminha.</p>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>16 / 20</span></div>
+</section>
+<section class="slide tela destaque" data-n="17" data-dur="0:55" data-narracao="E é isto que chega à Capitania. O assunto identifica o pedido, o nome, o cê-pê-efe e a referência do atendimento.
+
+O corpo é um ofício: a escola credenciada, com o número do seu credenciamento, encaminha a documentação para análise e emissão da carteira, e lista item por item o que exige o item cinco ponto quatro ponto dois da NORMAM duzentos e doze — a guia paga com o número, o cinco-cê, o cinco-bê, o um-cê e a identidade.
+
+A resposta vai para o e-mail oficial declarado no anexo cinco-á. O arquivo anexo é um só, nomeado exatamente como a norma pede: nome completo e cê-pê-efe, ou passaporte no caso de estrangeiro. E no rodapé, a impressão digital do arquivo.">
+<div><p class="olho">slide 17</p><h1>O que chega à Capitania</h1></div>
+<div class="corpo com-lista"><div class="moldura"><img src="../capturas-apresentacao/17-oficio-recebido.png" alt=""></div>
+<div class="lista"><ul><li>Ofício com o credenciamento da escola emissora</li><li>Itens da NORMAM-212, um a um</li><li>Anexo único, nomeado como a norma pede</li><li>Resposta ao e-mail oficial do Anexo 5-A</li></ul></div>
+</div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>17 / 20</span></div>
+</section>
+<section class="slide tela com-pe" data-n="18" data-dur="0:30" data-narracao="Encerrado o atendimento, o cliente recebe o documento no próprio celular, por um link que abre sem aplicativo e sem login. Ele não precisa levar papel para dentro da água.
+
+Este é o segundo eixo. Hoje, entregamos o documento ao cliente. O passo seguinte, que queremos construir junto com a Marinha, é a consulta pelo lado da fiscalização: o agente conferindo, na abordagem, a situação do condutor e da embarcação.">
+<div><p class="olho">slide 18</p><h1>O documento vai para a água — no celular</h1></div>
+<div class="corpo"><div class="moldura"><img src="../capturas-apresentacao/18-documento-no-celular.png" alt=""></div>
+</div>
+<p class="pe-legenda">Abre por link, sem aplicativo e sem login. Não molha, não rasga, não fica ilegível.</p>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>18 / 20</span></div>
+</section>
+<section class="slide tela" data-n="19" data-dur="0:25" data-narracao="Tudo o que foi encaminhado fica registrado. Um duplo clique não gera dois processos. Um reenvio não sobrescreve o anterior: gera um novo arquivo, com nova impressão digital, e os dois ficam na trilha.
+
+E a loja que ainda não é credenciada só consegue emitir através de uma escola credenciada parceira, da mesma Capitania, com o vínculo registrado nos dois lados.">
+<div><p class="olho">slide 19</p><h1>Tudo o que foi encaminhado fica registrado</h1></div>
+<div class="corpo com-lista"><div class="moldura"><img src="../capturas-apresentacao/19-lista-emissoes.png" alt=""></div>
+<div class="lista"><ul><li>Duplo clique não gera dois processos</li><li>Reenvio gera novo arquivo, com nova impressão digital</li><li>Loja sem credenciamento só emite por escola parceira da mesma Capitania</li></ul></div>
+</div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>19 / 20</span></div>
+</section>
+<section class="slide cartela" data-n="20" data-dur="0:20" data-narracao="Voltando aos três eixos: a emissão, os senhores acabaram de ver funcionando. A fiscalização na água, demos o primeiro passo, tirando o papel da mão do cliente. E a análise interna é justamente onde precisamos da orientação da Marinha.">
+<div><h1>Os três eixos</h1>
+<ul><li>1 · Emissão — funcionando</li><li>2 · Fiscalização — primeiro passo dado</li><li>3 · Análise interna — com a orientação da Marinha</li></ul>
+</div>
+<div class="pe"><span>Ilha Sul Náutica · Emissão CHA-MTA-E</span><span>20 / 20</span></div>
+</section>
+</div>
+<div id="notas"></div>
+<script>
+const slides = [...document.querySelectorAll('.slide')];
+let i = 0;
+
+function escalar(){
+  const z = Math.min(innerWidth/1920, innerHeight/1080);
+  slides.forEach(s => s.style.transform = `scale(${z})`);
+}
+function mostrar(n){
+  i = Math.max(0, Math.min(slides.length - 1, n));
+  slides.forEach((s, k) => s.classList.toggle('ativo', k === i));
+  const s = slides[i];
+  notas.innerHTML = '<h4>slide ' + s.dataset.n + ' · ' + s.dataset.dur + '</h4>'
+    + (s.dataset.narracao || '').split('\n\n').map(p => '<p>' + p + '</p>').join('');
+  location.hash = s.dataset.n;
+}
+addEventListener('resize', escalar);
+addEventListener('keydown', e => {
+  if (['ArrowRight',' ','PageDown','Enter'].includes(e.key)) { mostrar(i+1); e.preventDefault(); }
+  else if (['ArrowLeft','PageUp','Backspace'].includes(e.key)) { mostrar(i-1); e.preventDefault(); }
+  else if (e.key === 'Home') mostrar(0);
+  else if (e.key === 'End') mostrar(slides.length-1);
+  else if (e.key === 'n') notas.classList.toggle('on');
+  else if (e.key === 'f') document.documentElement.requestFullscreen?.();
+});
+addEventListener('click', e => { if (!e.target.closest('#notas')) mostrar(i+1); });
+
+// Abrir/compartilhar direto num slide (deck.html#13) e navegar pelo histórico.
+function doHash(){
+  const k = slides.findIndex(s => s.dataset.n === location.hash.slice(1));
+  if (k >= 0 && k !== i) mostrar(k);
+}
+addEventListener('hashchange', doHash);
+escalar();
+const inicial = slides.findIndex(s => s.dataset.n === location.hash.slice(1));
+mostrar(inicial >= 0 ? inicial : 0);
+</script>
+</body></html>

@@ -1,6 +1,7 @@
 package com.jetski.locacoes.internal;
 
 import com.jetski.locacoes.domain.Cliente;
+import com.jetski.locacoes.domain.Documentos;
 import com.jetski.locacoes.event.PreContaCriadaEvent;
 import com.jetski.locacoes.internal.repository.ClienteRepository;
 import com.jetski.shared.exception.BusinessException;
@@ -139,10 +140,17 @@ public class ClienteService {
         if (documento == null || documento.isBlank()) {
             return Optional.empty();
         }
+        // Normaliza a ENTRADA: o banco guarda canônico (V066), então buscar
+        // "847.215.903-50" e "84721590350" tem que cair na mesma ficha. Sem
+        // isto, cada formato digitado criava um cliente novo.
+        String canonico = Documentos.normalizar(documento);
+        if (canonico == null) {
+            return Optional.empty();
+        }
         // Tenant-scoped EXPLÍCITO (regra nº 1: nunca confiar só na RLS — testes
         // rodam como superuser e CPF repetido em outro tenant virava NonUnique).
         return clienteRepository.findByTenantIdAndDocumento(
-            TenantContext.getTenantId(), documento.trim());
+            TenantContext.getTenantId(), canonico);
     }
 
     /**
@@ -182,9 +190,15 @@ public class ClienteService {
             // Tenant-scoped explícito (mesma razão do buscarPorDocumento): o dedupe
             // do balcão é POR LOJA — cliente com o mesmo CPF em outra loja é outra
             // ficha, não um reuso.
-            Optional<Cliente> existente = clienteRepository.findByTenantIdAndDocumento(
-                dados.getTenantId() != null ? dados.getTenantId() : TenantContext.getTenantId(),
-                documento.trim());
+            // Mesma normalização da busca — senão a trava anti-takeover logo
+            // abaixo ("já existe conta ATIVA") é contornada só trocando a
+            // pontuação do CPF.
+            documento = Documentos.normalizar(dados.getDocumentoTipo(), documento);
+            dados.setDocumento(documento);
+            Optional<Cliente> existente = documento == null ? Optional.empty()
+                : clienteRepository.findByTenantIdAndDocumento(
+                    dados.getTenantId() != null ? dados.getTenantId() : TenantContext.getTenantId(),
+                    documento);
             if (existente.isPresent()) {
                 Cliente c = existente.get();
                 if (c.getStatusConta() == Cliente.StatusConta.ATIVA) {
