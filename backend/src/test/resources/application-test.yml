@@ -63,6 +63,12 @@ management:
 
 # Custom application properties
 jetski:
+  emissao:
+    # A suíte roda no modo SÍNCRONO: o envio acontece dentro do emitir(), então os
+    # asserts de enviadoMarinha/enviadoCliente valem sem esperar por thread.
+    # O caminho assíncrono tem teste próprio, que grava a chave em plataforma_config.
+    # (Este arquivo sombreia o application-test.yml de main/resources — editar aqui.)
+    email-assincrono: false
   tenant:
     header-name: X-Tenant-Id
     default-tenant-id: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11

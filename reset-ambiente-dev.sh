@@ -784,6 +784,31 @@ ALTER TABLE public.tenant
     ADD COLUMN IF NOT EXISTS telefone         varchar(30),
     ADD COLUMN IF NOT EXISTS email_oficial    varchar(255);
 
+-- V065: status do envio dos documentos emitidos (Marinha e cliente)
+ALTER TABLE public.documento_emitido
+    ADD COLUMN IF NOT EXISTS marinha_envio_status varchar(20),
+    ADD COLUMN IF NOT EXISTS cliente_envio_status varchar(20),
+    ADD COLUMN IF NOT EXISTS marinha_envio_erro   text,
+    ADD COLUMN IF NOT EXISTS cliente_envio_erro   text,
+    ADD COLUMN IF NOT EXISTS envio_atualizado_em  timestamptz;
+UPDATE public.documento_emitido d SET
+    cliente_envio_status = CASE WHEN d.cliente_enviado_em IS NOT NULL THEN 'ENVIADO' ELSE 'FALHOU' END,
+    marinha_envio_status = CASE
+        WHEN d.marinha_enviado_em IS NOT NULL THEN 'ENVIADO'
+        WHEN h.via = 'CHA'                    THEN 'NAO_APLICAVEL'
+        ELSE 'FALHOU' END,
+    envio_atualizado_em = COALESCE(d.marinha_enviado_em, d.cliente_enviado_em, d.emitido_em)
+FROM public.reserva_habilitacao h
+WHERE h.reserva_id = d.reserva_id AND d.cliente_envio_status IS NULL;
+UPDATE public.documento_emitido SET
+    cliente_envio_status = CASE WHEN cliente_enviado_em IS NOT NULL THEN 'ENVIADO' ELSE 'FALHOU' END,
+    marinha_envio_status = CASE WHEN marinha_enviado_em IS NOT NULL THEN 'ENVIADO' ELSE 'FALHOU' END,
+    envio_atualizado_em  = COALESCE(marinha_enviado_em, cliente_enviado_em, emitido_em)
+WHERE cliente_envio_status IS NULL;
+CREATE INDEX IF NOT EXISTS idx_documento_emitido_envio_pendente
+    ON public.documento_emitido (envio_atualizado_em)
+    WHERE marinha_envio_status = 'PENDENTE' OR cliente_envio_status = 'PENDENTE';
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 

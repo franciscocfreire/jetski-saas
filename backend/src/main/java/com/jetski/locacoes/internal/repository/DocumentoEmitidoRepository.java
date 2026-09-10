@@ -12,6 +12,12 @@ public interface DocumentoEmitidoRepository extends JpaRepository<DocumentoEmiti
 
     List<DocumentoEmitido> findByReservaIdOrderByEmitidoEmDesc(UUID reservaId);
 
+    /**
+     * Lookup explicitamente tenant-scoped (regra 1 do projeto: não confiar só na RLS)
+     * — usado pela idempotência da emissão, que decide entre reaproveitar e reemitir.
+     */
+    List<DocumentoEmitido> findByTenantIdAndReservaIdOrderByEmitidoEmDesc(UUID tenantId, UUID reservaId);
+
     List<DocumentoEmitido> findByReservaIdInOrderByEmitidoEmDesc(List<UUID> reservaIds);
 
     List<DocumentoEmitido> findTop200ByOrderByEmitidoEmDesc();

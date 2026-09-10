@@ -10,6 +10,7 @@ import type {
   RegistroSuporte,
   PapelInfo,
   ImagemCompressaoConfig,
+  EmissaoEnvioConfig,
   ModuloCatalogo,
   PlanoInfo,
   PlatformCapitania,
@@ -89,6 +90,9 @@ export const platform = {
 
   imagemConfig: () =>
     platformFetch<ImagemCompressaoConfig>("/v1/platform/documentos/imagem-config"),
+
+  emissaoEnvioConfig: () =>
+    platformFetch<EmissaoEnvioConfig>("/v1/platform/emissao/envio-config"),
 
   // O endpoint de listagem devolve só as CHAVES (List<String> — o storage não
   // lista metadados); os campos ricos (bytes/tabelas/arquivos) existem apenas no

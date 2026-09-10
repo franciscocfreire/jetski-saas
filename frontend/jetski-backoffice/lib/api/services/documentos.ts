@@ -1,9 +1,15 @@
 import { apiClient, getTenantId } from '../client'
-import type { DocumentoEmitido } from '../types'
+import type { DocumentoEmitido, DocumentoEnvioStatus } from '../types'
 
 const getBasePath = () => `/v1/tenants/${getTenantId()}/documentos`
 
 export const documentosService = {
+  /** Estado do envio por e-mail — consultado em polling enquanto houver PENDENTE. */
+  async envioStatus(id: string): Promise<DocumentoEnvioStatus> {
+    const { data } = await apiClient.get<DocumentoEnvioStatus>(`${getBasePath()}/${id}/envio`)
+    return data
+  },
+
   /** Lista documentos emitidos; filtra por cliente quando clienteId é informado. */
   async list(clienteId?: string): Promise<DocumentoEmitido[]> {
     const { data } = await apiClient.get<DocumentoEmitido[]>(getBasePath(), {

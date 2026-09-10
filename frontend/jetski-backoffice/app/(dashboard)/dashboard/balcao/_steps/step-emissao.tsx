@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMutation } from '@tanstack/react-query'
-import { FileDown, CheckCircle2, Anchor, Mail, Printer, AlertTriangle, Ship } from 'lucide-react'
+import { FileDown, CheckCircle2, Anchor, Mail, Printer, AlertTriangle, Ship, Loader2, Send, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { DocumentoPreviewButtons } from '@/components/documento-preview-buttons'
@@ -20,16 +20,19 @@ import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { abrirPdfPorLink } from '@/lib/pdf'
 import type { Atendimento } from '../types'
-import type { ResultadoEmissao } from '@/lib/api/types'
+import type { EnvioStatus, ResultadoEmissao } from '@/lib/api/types'
 
 export function StepEmissao({
   atendimento,
   onBack,
   onReset,
+  onBusyChange,
 }: {
   atendimento: Atendimento
   onBack: () => void
   onReset: () => void
+  /** Avisa o wizard enquanto a emissão está em curso, para congelar a navegação. */
+  onBusyChange?: (busy: boolean) => void
 }) {
   const [resultado, setResultado] = useState<ResultadoEmissao | null>(null)
   const [baixando, setBaixando] = useState(false)
@@ -108,7 +111,9 @@ export function StepEmissao({
     mutationFn: () => reservasService.emitirDocumentos(atendimento.reserva!.id),
     onSuccess: (r) => {
       setResultado(r)
-      toast.success('Documentos emitidos.')
+      // reaproveitado = a reserva já tinha documento (o backend devolveu o mesmo em
+      // vez de emitir e cobrar outro). Não anunciar uma emissão que não aconteceu.
+      toast.success(r.reaproveitado ? 'Documentos já emitidos para esta reserva.' : 'Documentos emitidos.')
     },
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -116,12 +121,123 @@ export function StepEmissao({
     },
   })
 
+  // O wizard congela a navegação enquanto emitimos: sair no meio desmontaria o step.
+  useEffect(() => {
+    onBusyChange?.(emitir.isPending)
+    return () => onBusyChange?.(false)
+  }, [emitir.isPending, onBusyChange])
+
+  // Os e-mails saem fora do request: acompanhamos até os dois destinos ficarem
+  // num estado terminal. O servidor decide quando acabou (campo `concluido`) —
+  // duplicar essa regra aqui em lista de strings sairia de sincronia.
+  const [envioParou, setEnvioParou] = useState(false)
+  const queryClient = useQueryClient()
+
+  // A query é a fonte da verdade do envio (inclusive depois de um reenvio); quem
+  // decide se ainda vale perguntar é o refetchInterval. No modo síncrono a primeira
+  // resposta já vem concluída e o polling nem começa.
+  const { data: envio } = useQuery({
+    queryKey: ['documento-envio', resultado?.documentoId],
+    queryFn: () => documentosService.envioStatus(resultado!.documentoId),
+    enabled: !!resultado,
+    refetchInterval: (query) => (envioParou || query.state.data?.concluido ? false : 2000),
+  })
+
+  const aguardandoEnvio = !!resultado && !envio?.concluido
+
+  // Teto de ~60 s: se o envio não concluir, paramos de perguntar e dizemos onde olhar.
+  useEffect(() => {
+    if (!aguardandoEnvio || envioParou) return
+    const t = setTimeout(() => setEnvioParou(true), 60_000)
+    return () => clearTimeout(t)
+  }, [aguardandoEnvio, envioParou])
+
+  const marinhaStatus: EnvioStatus | undefined = envio?.marinha.status ?? resultado?.marinhaEnvioStatus
+  const clienteStatus: EnvioStatus | undefined = envio?.cliente.status ?? resultado?.clienteEnvioStatus
+
+  const reenviar = useMutation({
+    mutationFn: () => documentosService.reenviar(resultado!.documentoId),
+    onSuccess: () => {
+      setEnvioParou(false)
+      queryClient.invalidateQueries({ queryKey: ['documento-envio', resultado?.documentoId] })
+      toast.success('Reenvio disparado.')
+    },
+    onError: () => toast.error('Não foi possível reenviar.'),
+  })
+
+  /** Uma linha de destino: ícone + texto conforme o estado do envio. */
+  function LinhaEnvio({
+    icone,
+    status,
+    rotulo,
+    semDestinatario,
+  }: {
+    icone: React.ReactNode
+    status: EnvioStatus | undefined
+    rotulo: string
+    semDestinatario: string
+  }) {
+    if (status === 'PENDENTE') {
+      return (
+        <p className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 size={15} className="animate-spin" />
+          {envioParou ? `${rotulo}: ainda enviando — confira no módulo GRUs` : `Enviando ${rotulo.toLowerCase()}…`}
+        </p>
+      )
+    }
+    if (status === 'ENVIADO') {
+      return (
+        <p className="flex items-center gap-2">
+          <span className="text-emerald-600">{icone}</span> ✓ {rotulo}
+        </p>
+      )
+    }
+    if (status === 'SEM_DESTINATARIO') {
+      return (
+        <p className="flex items-center gap-2 text-muted-foreground">{icone} {semDestinatario}</p>
+      )
+    }
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-amber-700 dark:text-amber-500">
+        <XCircle size={15} /> {rotulo}: falhou no envio
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={reenviar.isPending}
+          onClick={() => reenviar.mutate()}
+        >
+          <Send size={13} className="mr-1" /> {reenviar.isPending ? 'Reenviando…' : 'Reenviar'}
+        </Button>
+      </div>
+    )
+  }
+
+  // Emissão em curso: bloco amigável no lugar do formulário. Sem Dialog — o
+  // DialogContent do projeto tem o X fixo e não dá para torná-lo não-dispensável.
+  if (emitir.isPending) {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center gap-3 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+        <p className="text-lg font-semibold">Emitindo os documentos…</p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Gerando o PDF, arquivando e preparando os e-mails. Leva alguns segundos — não feche
+          esta tela.
+        </p>
+      </div>
+    )
+  }
+
   if (resultado) {
     return (
       <div className="space-y-5">
         <div className="flex items-center gap-2 text-emerald-600">
           <CheckCircle2 className="h-6 w-6" />
-          <span className="text-lg font-semibold">Documentos emitidos</span>
+          <span className="text-lg font-semibold">
+            {resultado.reaproveitado ? 'Documentos já emitidos' : 'Documentos emitidos'}
+          </span>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -147,10 +263,12 @@ export function StepEmissao({
               <Anchor size={15} /> Habilitação por CHA — sem envio à Marinha.
             </p>
           ) : resultado.docCompleta ? (
-            <p className="flex items-center gap-2">
-              <Anchor size={15} className={resultado.enviadoMarinha ? 'text-emerald-600' : 'text-muted-foreground'} />
-              {resultado.enviadoMarinha ? '✓ Enviado à Marinha' : 'Não enviado à Marinha (sem e-mail configurado)'}
-            </p>
+            <LinhaEnvio
+              icone={<Anchor size={15} />}
+              status={marinhaStatus}
+              rotulo="Enviado à Marinha"
+              semDestinatario="Não enviado à Marinha (sem e-mail configurado)"
+            />
           ) : (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-800 dark:bg-amber-950/30">
               <p className="flex items-center gap-2 font-medium">
@@ -166,10 +284,12 @@ export function StepEmissao({
               </p>
             </div>
           )}
-          <p className="flex items-center gap-2">
-            <Mail size={15} className={resultado.enviadoCliente ? 'text-emerald-600' : 'text-muted-foreground'} />
-            {resultado.enviadoCliente ? '✓ E-mail ao cliente' : 'Não enviado ao cliente (sem e-mail)'}
-          </p>
+          <LinhaEnvio
+            icone={<Mail size={15} />}
+            status={clienteStatus}
+            rotulo="E-mail ao cliente"
+            semDestinatario="Não enviado ao cliente (sem e-mail)"
+          />
           {resultado.gruValor && (
             <p className="text-muted-foreground">GRU {resultado.gruNumero} — R$ {resultado.gruValor}</p>
           )}

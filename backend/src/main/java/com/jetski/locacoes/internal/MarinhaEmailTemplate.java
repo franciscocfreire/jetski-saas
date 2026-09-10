@@ -66,12 +66,12 @@ public final class MarinhaEmailTemplate {
         return sb.append(" – reserva ").append(d.reservaCodigo()).toString();
     }
 
-    /** Nome do PDF anexo exigido pela NORMAM-212 5.4.2: nome completo + CPF/passaporte. */
+    /**
+     * Nome do PDF anexo exigido pela NORMAM-212 5.4.2: nome completo + CPF/passaporte.
+     * A regra virou padrão do sistema — vive em {@link DocumentoNome}.
+     */
     public static String nomeArquivo(DadosOficio d) {
-        String base = (nz(d.locatarioNome(), "Locatario") + " " + nz(d.documento(), "")).trim();
-        // Sem separadores de caminho/caracteres proibidos em nome de arquivo; acentos ficam.
-        base = base.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "").replaceAll("\\s+", " ").trim();
-        return base + ".pdf";
+        return DocumentoNome.de(d.locatarioNome(), d.documento());
     }
 
     public static String corpoHtml(DadosOficio d) {

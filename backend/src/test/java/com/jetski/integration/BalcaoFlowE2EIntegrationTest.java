@@ -1,6 +1,7 @@
 package com.jetski.integration;
 
 import com.jetski.locacoes.domain.Cliente;
+import com.jetski.locacoes.domain.EnvioStatus;
 import com.jetski.locacoes.domain.ClienteClaimToken;
 import com.jetski.locacoes.domain.ReservaAceite;
 import com.jetski.locacoes.domain.ReservaHabilitacao;
@@ -107,6 +108,98 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
         when(userProvisioningService.provisionOrReuseCliente(
                 any(), anyString(), anyString(), any(), anyString()))
             .thenReturn(new UserProvisioningService.ClienteProvisionResult("kc-sub-e2e", false));
+    }
+
+    @Test
+    @DisplayName("Envio assíncrono: emitir devolve PENDENTE e o worker entrega depois do commit")
+    void emissaoComEnvioAssincrono() {
+        // Liga o modo assíncrono como o super admin faria pelo console. Sem cache no
+        // EmissaoEnvioConfigService, vale já na próxima emissão.
+        jdbc.update("""
+            INSERT INTO plataforma_config (chave, valor) VALUES ('emissao_envio', '{"assincrono":true}')
+            ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor
+            """);
+        try {
+            Cliente cliente = clienteService.criarPreConta(Cliente.builder()
+                .tenantId(TENANT_ID)
+                .nome("Ana Assíncrona")
+                .documento("123.456.789-09")
+                .email("ana.async@example.com")
+                .telefone("+5521977776666")
+                .rg("98.765.432-1").orgaoEmissor("SSP/RJ")
+                .nacionalidade("Brasileira").naturalidade("Niterói/RJ")
+                .build());
+            String pngDataUrl = "data:image/png;base64,"
+                + java.util.Base64.getEncoder().encodeToString(pngValido());
+            clienteAnexoService.salvar(cliente.getId(),
+                com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE, pngDataUrl);
+            clienteAnexoService.salvar(cliente.getId(),
+                com.jetski.locacoes.domain.ClienteAnexo.Tipo.SELFIE, pngDataUrl);
+
+            UUID reservaId = UUID.randomUUID();
+            jdbc.update("""
+                INSERT INTO reserva (id, tenant_id, modelo_id, cliente_id, data_inicio, data_fim_prevista)
+                VALUES (?, ?, ?, ?, now() + interval '2 days', now() + interval '2 days' + interval '2 hours')
+                """, reservaId, TENANT_ID, MODELO_ID, cliente.getId());
+            habilitacaoService.registrar(reservaId, ReservaHabilitacao.builder()
+                .via(ReservaHabilitacao.Via.EMA)
+                .videoaulaEm(java.time.Instant.now())
+                .videoaulaModo(ReservaHabilitacao.VideoaulaModo.PLAYER).videoaulaIdioma("pt")
+                .anexoSaude(true).anexoRegras(true).anexoResidencia(true).instrutorId(UUID.randomUUID())
+                .gruNumero("GRU-E2E-ASYNC").gruValor(new BigDecimal("23.13")).gruPago(true)
+                .build());
+            aceiteService.registrar(reservaId, ReservaAceite.Metodo.SIGNATURE_PAD,
+                pngValido(), "127.0.0.1", "JUnit");
+
+            EmissaoService.ResultadoEmissao emissao = emissaoService.emitir(reservaId);
+
+            // O ponto do trabalho: o request devolve sem ter falado com o SMTP.
+            assertThat(emissao.getMarinhaEnvioStatus()).isEqualTo(EnvioStatus.PENDENTE);
+            assertThat(emissao.getClienteEnvioStatus()).isEqualTo(EnvioStatus.PENDENTE);
+            assertThat(emissao.isEnviadoMarinha()).isFalse();
+
+            // O worker (AFTER_COMMIT, thread própria) entrega e grava o desfecho.
+            aguardarEnvioConcluido(emissao.getDocumentoId());
+            assertThat(jdbc.queryForObject(
+                "SELECT marinha_envio_status FROM documento_emitido WHERE id = ?",
+                String.class, emissao.getDocumentoId())).isEqualTo("ENVIADO");
+            assertThat(jdbc.queryForObject(
+                "SELECT cliente_envio_status FROM documento_emitido WHERE id = ?",
+                String.class, emissao.getDocumentoId())).isEqualTo("ENVIADO");
+            assertThat(jdbc.queryForObject(
+                "SELECT marinha_enviado_em FROM documento_emitido WHERE id = ?",
+                Instant.class, emissao.getDocumentoId())).isNotNull();
+
+            // Idempotência: um segundo POST (F5 do operador) não emite nem cobra de novo.
+            EmissaoService.ResultadoEmissao repetida = emissaoService.emitir(reservaId);
+            assertThat(repetida.isReaproveitado()).isTrue();
+            assertThat(repetida.getDocumentoId()).isEqualTo(emissao.getDocumentoId());
+            assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM documento_emitido WHERE reserva_id = ?", Integer.class, reservaId))
+                .isEqualTo(1);
+        } finally {
+            // A chave é global e o banco é compartilhado pela suíte: deixá-la ligada
+            // colocaria as outras classes no modo assíncrono sem querer.
+            jdbc.update("DELETE FROM plataforma_config WHERE chave = 'emissao_envio'");
+        }
+    }
+
+    /** Espera o worker assíncrono gravar o desfecho (sem Awaitility no projeto). */
+    private void aguardarEnvioConcluido(UUID documentoId) {
+        long limite = System.currentTimeMillis() + 15_000;
+        while (System.currentTimeMillis() < limite) {
+            String status = jdbc.queryForObject(
+                "SELECT marinha_envio_status FROM documento_emitido WHERE id = ?",
+                String.class, documentoId);
+            if (status != null && !"PENDENTE".equals(status)) return;
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        throw new AssertionError("Envio assíncrono não concluiu em 15s (documento " + documentoId + ")");
     }
 
     @Test

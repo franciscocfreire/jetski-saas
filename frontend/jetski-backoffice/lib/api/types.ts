@@ -545,6 +545,19 @@ export interface Aceite {
   aceitoEm: string
 }
 
+/**
+ * Estado do envio de um documento por destino (V065).
+ * PENDENTE = a caminho (o e-mail sai fora do request); BLOQUEADO = documentação
+ * incompleta; SEM_DESTINATARIO = falta o e-mail no cadastro.
+ */
+export type EnvioStatus =
+  | 'NAO_APLICAVEL'
+  | 'BLOQUEADO'
+  | 'SEM_DESTINATARIO'
+  | 'PENDENTE'
+  | 'ENVIADO'
+  | 'FALHOU'
+
 /** Resultado de POST /reservas/{id}/emitir-documentos. */
 export interface ResultadoEmissao {
   documentoId: string
@@ -555,8 +568,22 @@ export interface ResultadoEmissao {
   gruValor?: string
   enviadoMarinha: boolean
   enviadoCliente: boolean
+  marinhaEnvioStatus: EnvioStatus
+  clienteEnvioStatus: EnvioStatus
   docCompleta: boolean
   pendencias: string[]
+  /** Documento já existia: devolvemos o mesmo em vez de emitir (e cobrar) outro. */
+  reaproveitado: boolean
+}
+
+/** GET /documentos/{id}/envio — o que a tela consulta enquanto os e-mails saem. */
+export interface DocumentoEnvioStatus {
+  documentoId: string
+  marinha: { status: EnvioStatus; em?: string; erro?: string }
+  cliente: { status: EnvioStatus; em?: string; erro?: string }
+  /** Derivado no servidor: nenhum destino continua PENDENTE. Fim do polling. */
+  concluido: boolean
+  atualizadoEm?: string
 }
 
 /** Documento emitido (consulta por cliente). */

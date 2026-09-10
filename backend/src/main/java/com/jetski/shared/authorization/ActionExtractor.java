@@ -280,6 +280,7 @@ public class ActionExtractor {
             // Balcão / validação de pagamento (Fase 2)
             "recusar-pagamento", "emitir-documentos", "claim", "reenviar", "habilitacao", "aceite",
             "download",  // Download de documento emitido
+            "envio",     // Status do envio por e-mail do documento (polling da tela de emissão)
             // Folio (reserva/locação) / não comparecimento
             "registrar-pagamento", "no-show", "registrar-estorno", "extrato",
             // Emissão delegada (V048/V049): vínculo operadora×EAMA + painel do emissor

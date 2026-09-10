@@ -313,6 +313,18 @@ test_operador_can_create_pre_conta if {
     allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "cliente:create"}
 }
 
+test_operador_can_consultar_status_envio if {
+    allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "documento:envio"}
+}
+
+test_financeiro_can_consultar_status_envio if {
+    allow_rbac with input as {"user": {"role": "FINANCEIRO"}, "action": "documento:envio"}
+}
+
+test_mecanico_cannot_consultar_status_envio if {
+    not allow_rbac with input as {"user": {"role": "MECANICO"}, "action": "documento:envio"}
+}
+
 test_operador_can_emitir_documentos if {
     allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "reserva:emitir-documentos"}
 }

@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { Botao } from "@/components/Acao";
-import { salvarCapitania, salvarImagemConfig, salvarModulosDoPlano } from "@/lib/actions";
+import {
+  salvarCapitania,
+  salvarEmissaoEnvioConfig,
+  salvarImagemConfig,
+  salvarModulosDoPlano,
+} from "@/lib/actions";
 import type { ImagemPreset, ModuloCatalogo, PlanoInfo, PlatformCapitania } from "@/lib/types";
 import { BRL } from "@/lib/platform";
 
@@ -300,6 +305,61 @@ export function ImagemConfig({ tipos }: { tipos: Record<string, ImagemPreset> })
         </Botao>
         {erro && <span className="text-xs text-red-700">{erro}</span>}
         {ok && <span className="text-xs text-emerald-700">Salvo.</span>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Kill switch do envio assíncrono dos e-mails da emissão.
+ *
+ * Contexto: os dois envios custavam ~24 s dos ~25 s de uma emissão, dentro do
+ * request — o operador do balcão esperava com o cliente na frente. Desligar aqui
+ * volta ao comportamento antigo, sem redeploy, se o assíncrono der problema.
+ */
+export function EmissaoEnvio({ assincrono }: { assincrono: boolean }) {
+  const [estado, setEstado] = useState(assincrono);
+  const [erro, setErro] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
+  const [pendente, iniciar] = useTransition();
+
+  return (
+    <div>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={estado}
+          onChange={(e) => setEstado(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="font-medium">Enviar os e-mails fora do request</span>
+          <span className="block text-xs text-ink-500">
+            Ligado (recomendado): a emissão responde em ~1,5 s e os e-mails saem depois, com o
+            status acompanhado na tela do balcão. Desligado: o operador espera o SMTP terminar
+            (~25 s por emissão).
+          </span>
+        </span>
+      </label>
+
+      <div className="mt-4 flex items-center gap-2">
+        <Botao
+          variante="primaria"
+          disabled={pendente}
+          onClick={() => {
+            setErro(null);
+            setOk(false);
+            iniciar(async () => {
+              const r = await salvarEmissaoEnvioConfig(estado);
+              if (!r.ok) setErro(r.erro);
+              else setOk(true);
+            });
+          }}
+        >
+          {pendente ? "…" : "Salvar envio"}
+        </Botao>
+        {ok && <span className="text-xs text-emerald-700">Salvo.</span>}
+        {erro && <span className="text-xs text-red-700">{erro}</span>}
       </div>
     </div>
   );

@@ -28,9 +28,12 @@ public class SmtpSenderFactory {
         p.put("mail.smtp.auth", "true");
         p.put("mail.smtp.starttls.enable", String.valueOf(s.starttls()));
         p.put("mail.smtp.starttls.required", String.valueOf(s.starttls()));
-        p.put("mail.smtp.connectiontimeout", "5000");
-        p.put("mail.smtp.timeout", "8000");
-        p.put("mail.smtp.writetimeout", "8000");
+        // Mesmos valores do SMTP da plataforma: o servidor próprio da empresa costuma
+        // ser hospedagem compartilhada, tipicamente mais lenta que o Gmail. O timeout
+        // de leitura é o que estoura ao esperar o "250 OK" de um anexo de ~1 MB.
+        p.put("mail.smtp.connectiontimeout", "10000");
+        p.put("mail.smtp.timeout", "30000");
+        p.put("mail.smtp.writetimeout", "30000");
         return m;
     }
 

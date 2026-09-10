@@ -63,9 +63,14 @@ spring:
           starttls:
             enable: true
             required: true
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
+          # A falha que motivou isto foi read timeout esperando o "250 OK" depois do
+          # DATA: ~1 MB de PDF vira ~1,4 MB em base64, e o Gmail só responde depois de
+          # aceitar a mensagem inteira. 5 s era curto por uma ordem de grandeza — o
+          # envio que deu certo levou 11 s. Só é seguro afrouxar porque o envio saiu
+          # do request; 30 s limita o pior caso se o kill switch voltar ao síncrono.
+          connectiontimeout: ${PLATFORM_SMTP_CONNECT_TIMEOUT:10000}
+          timeout: ${PLATFORM_SMTP_READ_TIMEOUT:30000}
+          writetimeout: ${PLATFORM_SMTP_WRITE_TIMEOUT:30000}
 
 server:
   port: 8090

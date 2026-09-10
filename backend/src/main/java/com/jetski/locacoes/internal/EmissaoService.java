@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jetski.locacoes.domain.Cliente;
 import com.jetski.locacoes.domain.DocumentoEmitido;
+import com.jetski.locacoes.domain.EnvioStatus;
 import com.jetski.locacoes.domain.Reserva;
 import com.jetski.locacoes.domain.ReservaAceite;
 import com.jetski.locacoes.domain.ReservaHabilitacao;
@@ -13,10 +14,10 @@ import com.jetski.locacoes.internal.repository.ReservaAceiteRepository;
 import com.jetski.locacoes.internal.repository.ReservaHabilitacaoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
 import com.jetski.locacoes.event.DocumentoPreviewGeradoEvent;
+import com.jetski.locacoes.event.EnvioDocumentosSolicitadoEvent;
 import com.jetski.reservas.domain.event.DocumentosEmitidosEvent;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.NotFoundException;
-import com.jetski.shared.email.EmailService;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.shared.storage.StorageService;
 import com.jetski.tenant.TenantQueryService;
@@ -54,7 +55,6 @@ public class EmissaoService {
     private final ReservaAceiteRepository aceiteRepository;
     private final DocumentoEmitidoRepository documentoRepository;
     private final StorageService storageService;
-    private final EmailService emailService;
     private final TenantQueryService tenantQueryService;
     private final DocumentoPdfService documentoPdfService;
     private final ClienteAnexoService clienteAnexoService;
@@ -65,6 +65,9 @@ public class EmissaoService {
     private final ObjectMapper objectMapper;
     private final com.jetski.shared.assinatura.CarimboTempoService carimboTempoService;
     private final PadesSignatureService padesSignatureService;
+    private final DocumentoEnvioService documentoEnvioService;
+    private final EmissaoEnvioConfigService envioConfigService;
+    private final EmissaoLockService emissaoLockService;
 
     @Value
     @Builder
@@ -77,14 +80,43 @@ public class EmissaoService {
         String gruValor;
         boolean enviadoMarinha;
         boolean enviadoCliente;
+        /** Estado do envio por destino (V065) — é o que a tela acompanha por polling. */
+        EnvioStatus marinhaEnvioStatus;
+        EnvioStatus clienteEnvioStatus;
         boolean docCompleta;
         java.util.List<String> pendencias;
+        /**
+         * Devolvemos um documento que já existia em vez de emitir outro (idempotência).
+         * A tela mostra "já emitidos" e não anuncia uma segunda emissão que não houve.
+         */
+        boolean reaproveitado;
     }
 
     @Transactional
     public ResultadoEmissao emitir(UUID reservaId) {
+        return emitir(reservaId, false);
+    }
+
+    /**
+     * @param reemitir força uma emissão nova mesmo já havendo documento para a reserva
+     *                 — gera outro PDF e <b>debita outro crédito</b>. Sem isto, uma
+     *                 segunda chamada devolve o documento existente (idempotência).
+     */
+    @Transactional
+    public ResultadoEmissao emitir(UUID reservaId, boolean reemitir) {
         Reserva reserva = reservaRepository.findById(reservaId)
             .orElseThrow(() -> new NotFoundException("Reserva não encontrada: " + reservaId));
+
+        // Um F5 no meio dos 25 s da emissão antiga gerava um SEGUNDO documento e um
+        // SEGUNDO débito de crédito. O lock serializa cliques concorrentes; a checagem
+        // logo abaixo cobre o caso sequencial, que foi o do incidente.
+        emissaoLockService.lockReserva(reservaId);
+        java.util.List<DocumentoEmitido> jaEmitidos = documentoRepository
+            .findByTenantIdAndReservaIdOrderByEmitidoEmDesc(reserva.getTenantId(), reservaId);
+        if (!reemitir && !jaEmitidos.isEmpty()) {
+            return reaproveitar(reserva, jaEmitidos.get(0));
+        }
+        boolean reemissao = !jaEmitidos.isEmpty();
 
         ReservaHabilitacao hab = habilitacaoRepository.findByReservaId(reservaId)
             .orElseThrow(() -> new BusinessException("Habilitação não registrada para a reserva"));
@@ -160,10 +192,14 @@ public class EmissaoService {
         }
 
         // Canônico p/ download/consulta = visão do cliente (completa). Marinha à parte.
-        String key = String.format("%s/reserva/%s/documento.pdf", reserva.getTenantId(), reservaId);
+        // Reemissão usa key própria: a key fixa sobrescreveria o PDF da emissão
+        // anterior, deixando a linha antiga apontando para um arquivo cujo
+        // hash_sha256 já não confere — trilha e carimbo PAdES corrompidos.
+        String key = String.format("%s/reserva/%s/documento%s.pdf", reserva.getTenantId(), reservaId,
+            reemissao ? "-" + Instant.now().toEpochMilli() : "");
         storageService.putObject(key, pdfCliente.conteudo(), "application/pdf");
         if (pdfMarinha != null) {
-            storageService.putObject(keyMarinha(reserva.getTenantId(), reservaId),
+            storageService.putObject(keyMarinha(key),
                 pdfMarinha.conteudo(), "application/pdf");
         }
 
@@ -192,7 +228,7 @@ public class EmissaoService {
         // Espelho no tenant emissor (§3.5): a trilha da EAMA, na mesma transação.
         if (delegacao != null) {
             vinculoEmissaoService.registrarEspelho(delegacao, doc.getId(), pdfCliente.sha256(),
-                keyMarinha(reserva.getTenantId(), reservaId), tenant.getRazaoSocial(),
+                keyMarinha(key), tenant.getRazaoSocial(),
                 cliente.getNome(), cliente.getDocumento(), hab.getGruNumero(), doc.getEmitidoEm());
         }
 
@@ -215,20 +251,38 @@ public class EmissaoService {
         // (sobrevive a reset/exclusão da loja). Best-effort na mesma transação.
         customerHabilitacaoSyncService.sync(reservaId);
 
-        // E-mail à Marinha só quando aplicável (EMA) e a documentação está completa.
-        // Ofício no formato da NORMAM-212 5.4.2, assinado pelo emissor (a EAMA, na delegada).
-        boolean enviadoMarinha = marinhaAplicavel && docCompleta && enviarMarinha(marinhaEmail,
-            oficio(Emissor.of(tenant, delegacao), cliente, hab, reservaId, cfg, pdfMarinha.sha256(), false),
-            pdfMarinha.conteudo());
-        boolean enviadoCliente = enviar(clienteEmail,
-            "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente, hab), pdfCliente.conteudo());
+        // Estado inicial do envio (V065): o que já se sabe antes de tentar. É isto que
+        // o worker lê para decidir o que mandar — a linha do documento é a fila.
+        EnvioStatus marinhaInicial = !marinhaAplicavel ? EnvioStatus.NAO_APLICAVEL
+            : !docCompleta                            ? EnvioStatus.BLOQUEADO
+            : vazio(marinhaEmail)                     ? EnvioStatus.SEM_DESTINATARIO
+            :                                           EnvioStatus.PENDENTE;
+        EnvioStatus clienteInicial = vazio(clienteEmail)
+            ? EnvioStatus.SEM_DESTINATARIO : EnvioStatus.PENDENTE;
+        doc.setMarinhaEnvioStatus(marinhaInicial);
+        doc.setClienteEnvioStatus(clienteInicial);
+        doc.setEnvioAtualizadoEm(Instant.now());
         if (!docCompleta) {
             log.info("Marinha NÃO notificada (reserva {}): pendências {}", reservaId, pendencias);
         }
-        // Resultado do envio persiste no documento (V039) — é o que o módulo
-        // GRUs usa para responder "o e-mail à Marinha saiu?".
-        if (enviadoMarinha) doc.setMarinhaEnviadoEm(Instant.now());
-        if (enviadoCliente) doc.setClienteEnviadoEm(Instant.now());
+
+        // O SMTP custava ~24 s dos ~25 s da emissão, DENTRO desta transação. No modo
+        // assíncrono (default) o envio sai do request e a tela acompanha por status.
+        DocumentoEnvioService.ResultadoEnvio envio;
+        if (envioConfigService.assincrono()) {
+            envio = new DocumentoEnvioService.ResultadoEnvio(marinhaInicial, null, clienteInicial, null);
+            eventPublisher.publishEvent(new EnvioDocumentosSolicitadoEvent(
+                reserva.getTenantId(), doc.getId(), reservaId, TenantContext.getUsuarioId()));
+        } else {
+            envio = documentoEnvioService.despachar(documentoEnvioService.contextoDaEmissao(
+                doc.getId(), reserva, tenant, cliente, hab, cfg, delegacao,
+                pdfCliente.conteudo(), pdfCliente.sha256(),
+                pdfMarinha != null ? pdfMarinha.conteudo() : null,
+                marinhaInicial, clienteInicial));
+            documentoEnvioService.aplicar(doc, envio);
+        }
+        boolean enviadoMarinha = envio.enviadoMarinha();
+        boolean enviadoCliente = envio.enviadoCliente();
 
         clienteNotificacaoService.notificar(reserva.getTenantId(), reserva.getClienteId(),
             com.jetski.locacoes.domain.ClienteNotificacao.DOCUMENTOS_EMITIDOS,
@@ -236,17 +290,13 @@ public class EmissaoService {
             "A documentação da sua habilitação foi emitida pela loja e enviada por e-mail.",
             "/conta/reservas/" + reservaId + "/habilitacao");
 
-        // Notificação à EAMA emissora (best-effort): documento saiu em nome dela.
-        if (delegacao != null && delegacao.contatoEmail() != null && !delegacao.contatoEmail().isBlank()) {
-            enviar(delegacao.contatoEmail(),
-                "Documento emitido em seu nome — " + tenant.getRazaoSocial(),
-                corpoNotificacaoEmissor(tenant, cliente, hab, pdfCliente.sha256()),
-                pdfMarinha != null ? pdfMarinha.conteudo() : pdfCliente.conteudo());
-        }
+        // A notificação à EAMA emissora saiu daqui: agora faz parte do despacho
+        // (DocumentoEnvioService), para valer também no modo assíncrono. O endereço
+        // vem do emissor_snapshot — por isso ele passou a gravar contatoEmail.
 
         eventPublisher.publishEvent(DocumentosEmitidosEvent.of(
             reserva.getTenantId(), reservaId, doc.getId(),
-            destinosResumo(enviadoMarinha, enviadoCliente), TenantContext.getUsuarioId(),
+            destinosResumo(marinhaInicial, clienteInicial), TenantContext.getUsuarioId(),
             delegacao != null ? delegacao.emissorTenantId() : null));
 
         String downloadUrl = storageService.generatePresignedDownloadUrl(key, 15).getUrl();
@@ -262,8 +312,42 @@ public class EmissaoService {
             .gruValor(hab.getGruValor() != null ? hab.getGruValor().toPlainString() : null)
             .enviadoMarinha(enviadoMarinha)
             .enviadoCliente(enviadoCliente)
+            .marinhaEnvioStatus(doc.getMarinhaEnvioStatus())
+            .clienteEnvioStatus(doc.getClienteEnvioStatus())
             .docCompleta(docCompleta)
             .pendencias(pendencias)
+            .reaproveitado(false)
+            .build();
+    }
+
+    /**
+     * Devolve o documento que já existe para a reserva — sem gerar PDF, sem debitar
+     * crédito e sem reenviar e-mail. As pendências são recalculadas: podem ter mudado
+     * desde a emissão, e é informação útil para quem voltou à tela.
+     */
+    private ResultadoEmissao reaproveitar(Reserva reserva, DocumentoEmitido doc) {
+        ReservaHabilitacao hab = habilitacaoRepository.findByReservaId(reserva.getId()).orElse(null);
+        Tenant tenant = tenantQueryService.findById(reserva.getTenantId());
+        Cliente cliente = reserva.getClienteId() == null ? null
+            : clienteRepository.findById(reserva.getClienteId()).orElse(null);
+        java.util.List<String> pendencias = (hab != null && cliente != null && tenant != null)
+            ? pendenciasDocumentacao(reserva.getTenantId(), hab, cliente, configDocumento(tenant))
+            : java.util.List.of();
+        log.info("Emissão reaproveitada (idempotência): reserva={}, docId={}", reserva.getId(), doc.getId());
+        return ResultadoEmissao.builder()
+            .documentoId(doc.getId())
+            .s3Key(doc.getS3Key())
+            .hashSha256(doc.getHashSha256())
+            .downloadUrl(storageService.generatePresignedDownloadUrl(doc.getS3Key(), 15).getUrl())
+            .gruNumero(hab != null ? hab.getGruNumero() : null)
+            .gruValor(hab != null && hab.getGruValor() != null ? hab.getGruValor().toPlainString() : null)
+            .enviadoMarinha(doc.getMarinhaEnvioStatus() == EnvioStatus.ENVIADO)
+            .enviadoCliente(doc.getClienteEnvioStatus() == EnvioStatus.ENVIADO)
+            .marinhaEnvioStatus(doc.getMarinhaEnvioStatus())
+            .clienteEnvioStatus(doc.getClienteEnvioStatus())
+            .docCompleta(pendencias.isEmpty())
+            .pendencias(pendencias)
+            .reaproveitado(true)
             .build();
     }
 
@@ -387,12 +471,11 @@ public class EmissaoService {
     public enum Destino { MARINHA, CLIENTE }
 
     private DocumentoConfig configDocumento(Tenant tenant) {
-        DocumentoConfig c = tenant.getDocumentoConfig();
-        return (c != null ? c : DocumentoConfig.padrao()).comDefaults();
+        return DocumentoEnvioService.configDocumento(tenant);
     }
 
-    private String keyMarinha(UUID tenantId, UUID reservaId) {
-        return String.format("%s/reserva/%s/documento-marinha.pdf", tenantId, reservaId);
+    private String keyMarinha(String s3KeyCliente) {
+        return DocumentoEnvioService.keyMarinhaDe(s3KeyCliente);
     }
 
     /**
@@ -433,6 +516,19 @@ public class EmissaoService {
      * documentação ainda tem pendências — útil quando a GRU não foi paga e os
      * documentos definitivos ainda não podem ser emitidos.
      */
+    /** Prévia + nome do arquivo, para o link abrir com o nome do locatário. */
+    public record PreviaPdf(byte[] conteudo, String filename) {}
+
+    @Transactional(readOnly = true)
+    public PreviaPdf previewNomeado(UUID reservaId, Destino destino) {
+        Cliente cliente = reservaRepository.findById(reservaId)
+            .flatMap(r -> clienteRepository.findById(r.getClienteId()))
+            .orElseThrow(() -> new NotFoundException("Reserva não encontrada: " + reservaId));
+        String prefixo = destino == Destino.MARINHA ? "Prévia Marinha" : "Prévia";
+        return new PreviaPdf(preview(reservaId, destino),
+            DocumentoNome.de(prefixo, cliente.getNome(), cliente.getDocumento()));
+    }
+
     @Transactional(readOnly = true)
     public byte[] preview(UUID reservaId, Destino destino) {
         Reserva reserva = reservaRepository.findById(reservaId)
@@ -501,6 +597,9 @@ public class EmissaoService {
             m.put("responsavelNome", d.responsavelNome());
             m.put("telefone", d.telefone());
             m.put("emailOficial", d.emailOficial());
+            // V065: destino da notificação à EAMA. O worker reconstrói tudo do snapshot,
+            // então sem isto a emissora não seria avisada no modo assíncrono.
+            m.put("contatoEmail", d.contatoEmail());
             if (d.instrutorId() != null) {
                 Map<String, Object> i = new LinkedHashMap<>();
                 i.put("id", d.instrutorId());
@@ -514,21 +613,6 @@ public class EmissaoService {
             log.warn("Snapshot do emissor não serializado (segue sem): {}", e.getMessage());
             return null;
         }
-    }
-
-    private String corpoNotificacaoEmissor(Tenant operadora, Cliente c, ReservaHabilitacao hab, String hash) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<p>A operadora parceira <b>").append(safe(operadora.getRazaoSocial()))
-          .append("</b> emitiu documentação NORMAM-212 <b>em nome da sua EAMA</b>.</p>");
-        sb.append("<p>Condutor: <b>").append(safe(c.getNome())).append("</b> (CPF ")
-          .append(safe(c.getDocumento())).append(")</p>");
-        if (hab != null && hab.getGruNumero() != null && !hab.getGruNumero().isBlank()) {
-            sb.append("<p>GRU: <b>").append(safe(hab.getGruNumero())).append("</b></p>");
-        }
-        sb.append("<p>Hash SHA-256: <code>").append(safe(hash)).append("</code></p>");
-        sb.append("<p>O registro completo está no painel Emissões delegadas do seu backoffice, ")
-          .append("onde você pode reenviar o PDF à Capitania ou bloquear a parceria.</p>");
-        return sb.toString();
     }
 
     private DocumentoPdfService.DadosDocumento montarDados(Reserva reserva, Cliente cliente,
@@ -706,182 +790,18 @@ public class EmissaoService {
      */
     @Transactional
     public ResultadoReenvio reenviarEmail(UUID documentoId) {
-        DocumentoEmitido doc = documentoRepository.findById(documentoId)
-            .orElseThrow(() -> new NotFoundException("Documento não encontrado: " + documentoId));
-        Reserva reserva = reservaRepository.findById(doc.getReservaId())
-            .orElseThrow(() -> new NotFoundException("Reserva não encontrada: " + doc.getReservaId()));
-        Cliente cliente = clienteRepository.findById(reserva.getClienteId())
-            .orElseThrow(() -> new NotFoundException("Cliente não encontrado: " + reserva.getClienteId()));
-        Tenant tenant = tenantQueryService.findById(reserva.getTenantId());
-        if (tenant == null) {
-            throw new NotFoundException("Tenant não encontrado: " + reserva.getTenantId());
-        }
-
-        byte[] pdfCliente = storageService.getObject(doc.getS3Key());
-
-        // CHA não tem documentação à Marinha; EMA tem (PDF específico, ou o canônico
-        // como fallback para emissões anteriores a essa separação).
-        ReservaHabilitacao hab = habilitacaoRepository.findByReservaId(reserva.getId()).orElse(null);
-        boolean marinhaAplicavel = hab == null || hab.getVia() == ReservaHabilitacao.Via.EMA;
-        byte[] pdfMarinha = null;
-        if (marinhaAplicavel) {
-            try {
-                pdfMarinha = storageService.getObject(keyMarinha(reserva.getTenantId(), reserva.getId()));
-            } catch (Exception e) {
-                pdfMarinha = pdfCliente; // legado: emissão sem PDF da Marinha separado
-            }
-        }
-        // Delegada: o ofício e o destino são os da EAMA emissora, como registrados no
-        // snapshot da emissão (não depende do vínculo atual). Própria: o tenant.
-        Emissor emissor = Emissor.fromSnapshot(doc.getEmissorSnapshot(), tenant, objectMapper);
-        boolean enviadoMarinha = pdfMarinha != null && enviarMarinha(emissor.marinhaEmail(),
-            oficio(emissor, cliente, hab, reserva.getId(), configDocumento(tenant), doc.getHashSha256(), true),
-            pdfMarinha);
-        boolean enviadoCliente = enviar(cliente.getEmail(),
-            "Seus documentos — " + tenant.getRazaoSocial(), corpoCliente(cliente, hab), pdfCliente);
-        if (enviadoMarinha) doc.setMarinhaEnviadoEm(Instant.now());
-        if (enviadoCliente) doc.setClienteEnviadoEm(Instant.now());
-        documentoRepository.save(doc);
+        // Mesmo caminho da emissão e do worker — o reenvio força os dois destinos,
+        // ignorando o status gravado: o operador está afirmando que quer reenviar
+        // (ex.: completou as pendências que haviam BLOQUEADO a Marinha).
+        DocumentoEnvioService.EnvioContexto ctx = documentoEnvioService.carregar(documentoId, true);
+        DocumentoEnvioService.ResultadoEnvio r = documentoEnvioService.despachar(ctx);
+        documentoEnvioService.persistirStatus(documentoId, r);
         log.info("Reenvio de documento: docId={}, marinha={}, cliente={}",
-            documentoId, enviadoMarinha, enviadoCliente);
+            documentoId, r.marinha(), r.cliente());
         return ResultadoReenvio.builder()
-            .enviadoMarinha(enviadoMarinha)
-            .enviadoCliente(enviadoCliente)
+            .enviadoMarinha(r.enviadoMarinha())
+            .enviadoCliente(r.enviadoCliente())
             .build();
-    }
-
-    /**
-     * Quem assina o ofício à Capitania: o próprio tenant (emissão própria) ou a EAMA
-     * emissora (delegada) — na emissão pelo {@code DelegacaoContext}, no reenvio pelo
-     * {@code emissor_snapshot} do documento (campos ausentes caem no tenant).
-     */
-    record Emissor(String nome, String cnpj, String registro, String responsavel, String telefone,
-                   String emailOficial, String marinhaEmail) {
-
-        static Emissor of(Tenant t, VinculoEmissaoService.DelegacaoContext d) {
-            if (d != null) {
-                return new Emissor(d.razaoSocial(), d.cnpj(), d.eamaRegistro(), d.responsavelNome(),
-                    d.telefone(), d.emailOficial(), d.marinhaEmail());
-            }
-            return new Emissor(t.getRazaoSocial(), t.getCnpj(), t.getEamaRegistro(), t.getResponsavelNome(),
-                t.getTelefone(), t.getEmailOficial(), t.getMarinhaEmail());
-        }
-
-        @SuppressWarnings("unchecked")
-        static Emissor fromSnapshot(String snapshotJson, Tenant t, ObjectMapper om) {
-            Emissor proprio = of(t, null);
-            if (snapshotJson == null || snapshotJson.isBlank()) return proprio;
-            try {
-                Map<String, Object> m = om.readValue(snapshotJson, Map.class);
-                return new Emissor(
-                    str(m, "razaoSocial", proprio.nome()), str(m, "cnpj", proprio.cnpj()),
-                    str(m, "eamaRegistro", null), str(m, "responsavelNome", null),
-                    str(m, "telefone", null), str(m, "emailOficial", null),
-                    // snapshots antigos (antes da V064) não têm o e-mail: cai no tenant
-                    str(m, "marinhaEmail", proprio.marinhaEmail()));
-            } catch (Exception e) {
-                return proprio;
-            }
-        }
-
-        private static String str(Map<String, Object> m, String k, String fallback) {
-            Object v = m.get(k);
-            return v instanceof String s && !s.isBlank() ? s : fallback;
-        }
-    }
-
-    /** Monta o ofício (NORMAM-212 5.4.2) com a lista dos documentos realmente incluídos no PDF. */
-    private MarinhaEmailTemplate.DadosOficio oficio(Emissor e, Cliente c, ReservaHabilitacao hab,
-            UUID reservaId, DocumentoConfig cfg, String hash, boolean reenvio) {
-        return new MarinhaEmailTemplate.DadosOficio(
-            e.nome(), e.cnpj(), e.registro(), e.responsavel(), e.telefone(), e.emailOficial(),
-            c.getNome(), c.getDocumento(), Boolean.TRUE.equals(c.getEstrangeiro()),
-            hab != null ? hab.getGruNumero() : null, reservaId,
-            anexosOficio(cfg.marinha(), c, hab), hash, reenvio);
-    }
-
-    /** Itens do 5.4.2-a presentes no PDF da Marinha, conforme o recorte do tenant e o que o cliente entregou. */
-    private java.util.List<String> anexosOficio(DocumentoConfig.Destino d, Cliente c, ReservaHabilitacao hab) {
-        java.util.List<String> a = new java.util.ArrayList<>();
-        if (d.saudeOn()) a.add("Autodeclaração de Atestado de Saúde – Anexo 5-C");
-        if (d.instrutorOn()) {
-            a.add(Boolean.TRUE.equals(c.getEstrangeiro())
-                ? "Atestado de Demonstração – Anexo 5-B (5-B-1/5-B-2 e versões em inglês 5-B-3/5-B-4)"
-                : "Atestado de Demonstração – Anexo 5-B (5-B-1 e 5-B-2)");
-        }
-        if (d.residenciaOn() && hab != null && Boolean.TRUE.equals(hab.getAnexoResidencia())) {
-            a.add("Declaração de Residência – Anexo 1-C");
-        }
-        if (d.anexoComprovanteOn() && anexoPresente(c.getId(),
-                com.jetski.locacoes.domain.ClienteAnexo.Tipo.COMPROVANTE_RESIDENCIA)) {
-            a.add("Comprovante de residência");
-        }
-        if (d.anexoIdentidadeOn() && anexoPresente(c.getId(),
-                com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE)) {
-            a.add("Documento oficial de identificação, com fotografia");
-        }
-        if (d.anexoSelfieOn() && anexoPresente(c.getId(),
-                com.jetski.locacoes.domain.ClienteAnexo.Tipo.SELFIE)) {
-            a.add("Fotografia do locatário");
-        }
-        if (d.comprovanteGruOn() && hab != null && hab.getGruComprovanteS3Key() != null) {
-            a.add("Comprovante de pagamento da GRU");
-        }
-        return a;
-    }
-
-    /**
-     * E-mail à Capitania: anexo nomeado "Nome completo + CPF.pdf" e Reply-To no e-mail
-     * oficial do EAMA (NORMAM-212 5.4.2). Best-effort como {@link #enviar}.
-     */
-    private boolean enviarMarinha(String to, MarinhaEmailTemplate.DadosOficio oficio, byte[] pdf) {
-        if (to == null || to.isBlank()) {
-            return false;
-        }
-        String subject = MarinhaEmailTemplate.assunto(oficio);
-        try {
-            emailService.sendEmailComAnexo(to, subject, MarinhaEmailTemplate.corpoHtml(oficio),
-                MarinhaEmailTemplate.nomeArquivo(oficio), pdf, "application/pdf", oficio.emailOficial());
-            return true;
-        } catch (Exception e) {
-            log.warn("Falha ao enviar e-mail à Marinha (segue sem enviar): to={}, subject={}, erro={}",
-                to, subject, e.getMessage());
-            return false;
-        }
-    }
-
-    private boolean enviar(String to, String subject, String htmlBody, byte[] pdf) {
-        if (to == null || to.isBlank()) {
-            return false;
-        }
-        // Best-effort: o documento já foi gerado e salvo no storage. Uma falha de
-        // SMTP (ex.: credenciais ausentes) NÃO deve derrubar a emissão — apenas
-        // registra que o e-mail não foi entregue (o PDF fica disponível p/ download).
-        try {
-            emailService.sendEmailComAnexo(to, subject, htmlBody, "documentos.pdf", pdf, "application/pdf");
-            return true;
-        } catch (Exception e) {
-            log.warn("Falha ao enviar e-mail (segue sem enviar): to={}, subject={}, erro={}", to, subject, e.getMessage());
-            return false;
-        }
-    }
-
-
-    private String corpoCliente(Cliente c, ReservaHabilitacao hab) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<p>Olá ").append(safe(c.getNome())).append(",</p>");
-        sb.append("<p>Seguem em anexo seus documentos do passeio.</p>");
-        // GRU (habilitação temporária EMA): informa o número no corpo do e-mail.
-        if (hab != null && hab.getGruNumero() != null && !hab.getGruNumero().isBlank()) {
-            sb.append("<p>GRU (taxa CHA-MTA-E): <b>").append(safe(hab.getGruNumero())).append("</b>");
-            if (hab.getGruValor() != null) {
-                sb.append(" — Valor: R$ ").append(hab.getGruValor().toPlainString());
-            }
-            sb.append("</p>");
-        }
-        return sb.toString();
-        // O link de ativação da conta (claim, F2.7) é enviado separadamente,
-        // como passo próprio do balcão (POST /clientes/{id}/claim).
     }
 
     private String destinosJson(String marinha, String cliente) {
@@ -895,14 +815,20 @@ public class EmissaoService {
         }
     }
 
-    private String destinosResumo(boolean marinha, boolean cliente) {
+    /**
+     * Destinos que a emissão de fato endereça. Conta o que está a caminho (PENDENTE)
+     * ou já saiu — no modo assíncrono nada foi enviado ainda quando o evento é
+     * publicado, e a trilha não pode registrar "nenhum destino" por causa disso.
+     */
+    private String destinosResumo(EnvioStatus marinha, EnvioStatus cliente) {
         StringBuilder sb = new StringBuilder();
-        if (marinha) sb.append("marinha");
-        if (cliente) sb.append(sb.length() > 0 ? ",cliente" : "cliente");
+        if (enderecado(marinha)) sb.append("marinha");
+        if (enderecado(cliente)) sb.append(sb.length() > 0 ? ",cliente" : "cliente");
         return sb.toString();
     }
 
-    private static String safe(String v) {
-        return v == null ? "" : v;
+    private static boolean enderecado(EnvioStatus s) {
+        return s == EnvioStatus.PENDENTE || s == EnvioStatus.ENVIADO;
     }
+
 }

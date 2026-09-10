@@ -131,7 +131,7 @@ class ReservaFichaIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Download-link gera PDF acessível sem auth (uso único)")
+    @DisplayName("Download-link gera PDF acessível sem auth, multiuso e nomeado pelo locatário")
     void testDownloadLink() throws Exception {
         MvcResult res = mockMvc.perform(get(base() + "/ficha/download-link")
                 .header("X-Tenant-Id", TENANT_ACME.toString()).with(staff("GERENTE")))
@@ -142,12 +142,19 @@ class ReservaFichaIntegrationTest extends AbstractIntegrationTest {
         String url = com.jayway.jsonpath.JsonPath.read(res.getResponse().getContentAsString(), "$.url");
         String path = url.replaceFirst("^/api", "");
 
-        byte[] pdf = mockMvc.perform(get(path))
+        var resposta = mockMvc.perform(get(path))
             .andExpect(status().isOk())
-            .andReturn().getResponse().getContentAsByteArray();
+            .andReturn().getResponse();
+        byte[] pdf = resposta.getContentAsByteArray();
         assertThat(new String(pdf, 0, 5)).isEqualTo("%PDF-");
 
-        // uso único — segunda tentativa 404
-        mockMvc.perform(get(path)).andExpect(status().isNotFound());
+        // O arquivo se identifica: abria como "documento.pdf" e ninguém sabia de quem era.
+        String disposition = resposta.getHeader(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION);
+        assertThat(java.net.URLDecoder.decode(disposition, java.nio.charset.StandardCharsets.UTF_8))
+            .contains("Ficha ");
+
+        // Multiuso: era de uso único e um simples refresh na aba já dava 404 —
+        // o que também impedia compartilhar o link.
+        mockMvc.perform(get(path)).andExpect(status().isOk());
     }
 }
