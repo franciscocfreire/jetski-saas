@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Plus, GraduationCap, Edit, MoreHorizontal, Handshake } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
+import { usePermissions } from '@/lib/hooks/use-permissions'
 import { instrutoresService, emissaoDelegadaService } from '@/lib/api/services'
 import type { Instrutor, InstrutorCreateRequest } from '@/lib/api/types'
 import { Button } from '@/components/ui/button'
@@ -47,6 +48,11 @@ const VAZIO: InstrutorCreateRequest = {
 
 export default function InstrutoresPage() {
   const { currentTenant } = useTenantStore()
+  // O cadastro do instrutor alimenta o Anexo 5-B-1 que vai à Capitania, então
+  // escrever aqui é do GERENTE (rbac.rego). O OPERADOR enxerga a lista —
+  // e até aqui a tela oferecia Editar/Novo a ele, que tomava 403 no Salvar.
+  const { can } = usePermissions()
+  const podeEscrever = can('instrutor:update') || can('instrutor:create')
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Instrutor | null>(null)
@@ -119,9 +125,11 @@ export default function InstrutoresPage() {
             </p>
           </div>
         </div>
-        <Button onClick={novo}>
-          <Plus className="mr-2 h-4 w-4" /> Novo instrutor
-        </Button>
+        {podeEscrever && (
+          <Button onClick={novo}>
+            <Plus className="mr-2 h-4 w-4" /> Novo instrutor
+          </Button>
+        )}
       </div>
 
       <div className="rounded-md border">
@@ -164,21 +172,25 @@ export default function InstrutoresPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => editar(i)}>
-                          <Edit className="mr-2 h-4 w-4" /> Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toggleAtivo.mutate(i)}>
-                          {i.ativo ? 'Desativar' : 'Reativar'}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {podeEscrever ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => editar(i)}>
+                            <Edit className="mr-2 h-4 w-4" /> Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => toggleAtivo.mutate(i)}>
+                            {i.ativo ? 'Desativar' : 'Reativar'}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">somente leitura</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
