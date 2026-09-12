@@ -499,6 +499,7 @@
       "addReadTokenRoleOnCreate": false,
       "authenticateByDefault": false,
       "linkOnly": false,
+      "hideOnLogin": false,
       "firstBrokerLoginFlowAlias": "first broker login",
       "postBrokerLoginFlowAlias": "post-broker-2fa",
       "config": {

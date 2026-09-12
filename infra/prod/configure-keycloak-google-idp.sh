@@ -38,6 +38,13 @@ print(json.dumps({
     "addReadTokenRoleOnCreate": False,
     "authenticateByDefault": False,
     "linkOnly": False,
+    # OBRIGATÓRIO desde o KC 26.7: o campo é Boolean e o servidor faz unboxing
+    # direto (IdentityProviderModel.isHideOnLogin()). Omitir aqui gravava NULL e,
+    # depois do upgrade, QUALQUER login do realm morria com NPE + 400 ("Erro
+    # inesperado ao tratar o pedido de autenticação ao provedor de identidade") —
+    # inclusive o login por código, porque a tela monta a lista de provedores.
+    # Aconteceu em produção em 12/set/2026. False = provedor visível (o padrão).
+    "hideOnLogin": False,
     "firstBrokerLoginFlowAlias": "first broker login",
     "config": {
         "clientId": os.environ["GID"],
