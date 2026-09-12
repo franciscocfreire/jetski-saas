@@ -5,47 +5,38 @@ import { hasCredentials, SKIP_MESSAGE } from '../fixtures/auth-check';
 
 baseTest.describe('Autenticação', () => {
   baseTest.describe('Login', () => {
-    baseTest('deve exibir página de login corretamente', async ({ page }) => {
+    // O /login é trampolim: quem mostra credenciais é o Keycloak, em duas etapas
+    // (identifier-first). Estes testes falhavam desde a troca de tema porque
+    // esperavam a tela antiga (#username/#kc-login e o card do app, que hoje só
+    // aparece no caminho de erro).
+    baseTest('login leva à tela de credenciais do Keycloak', async ({ page }) => {
       const loginPage = new LoginPage(page);
       await loginPage.goto();
 
-      // Verifica elementos principais
-      await expect(loginPage.welcomeText).toBeVisible();
-      await expect(loginPage.loginButton).toBeVisible();
-      await expect(loginPage.signupLink).toBeVisible();
-    });
-
-    baseTest('deve redirecionar para Keycloak ao clicar em login', async ({ page }) => {
-      const loginPage = new LoginPage(page);
-      await loginPage.goto();
-      await loginPage.clickLogin();
-
-      // Verifica que foi redirecionado para Keycloak
       await expect(page).toHaveURL(/.*\/realms\/.*\/protocol\/openid-connect\/auth.*/);
-
-      // Verifica elementos do Keycloak
-      await expect(page.locator('#username')).toBeVisible();
-      await expect(page.locator('#password')).toBeVisible();
-      await expect(page.locator('#kc-login')).toBeVisible();
+      await expect(loginPage.identifierInput).toBeVisible();
+      await expect(loginPage.continuarButton).toBeVisible();
     });
 
-    baseTest('deve mostrar erro com credenciais inválidas', async ({ page }) => {
+    baseTest('a tela de credenciais oferece criar conta e provedor social', async ({ page }) => {
       const loginPage = new LoginPage(page);
       await loginPage.goto();
-      await loginPage.clickLogin();
 
-      // Aguarda Keycloak
-      await page.waitForURL(/.*\/realms\/.*/);
+      await expect(loginPage.criarContaLink).toBeVisible();
+      await expect(loginPage.socialProviders).toBeVisible();
+    });
 
-      // Tenta login com credenciais inválidas
-      await page.fill('#username', 'usuario-invalido@example.com');
-      await page.fill('#password', 'senha-errada');
-      await page.click('#kc-login');
+    baseTest('senha errada mostra erro na tela do Keycloak', async ({ page }) => {
+      const loginPage = new LoginPage(page);
+      await loginPage.goto();
 
-      // Verifica mensagem de erro do Keycloak
-      await expect(page.locator('.alert-error, #input-error, .kc-feedback-text')).toBeVisible({
-        timeout: 10000,
-      });
+      // Identificador desconhecido avança do mesmo jeito (anti-enumeração):
+      // a tela de senha aparece e o erro só surge ao submeter.
+      await loginPage.informarIdentificador('usuario-invalido@example.com');
+      await loginPage.passwordInput.fill('senha-errada');
+      await loginPage.entrarComSenhaButton.click();
+
+      await expect(loginPage.erroAlert).toBeVisible({ timeout: 15000 });
     });
   });
 
