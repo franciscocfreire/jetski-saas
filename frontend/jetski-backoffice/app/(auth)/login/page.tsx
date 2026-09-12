@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { signIn, useSession } from 'next-auth/react'
+import { signIn, signOut, useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
@@ -48,21 +48,40 @@ export default function LoginPage() {
 function LoginInner() {
   const params = useSearchParams()
   const router = useRouter()
-  const { status } = useSession()
+  const { status, data: session } = useSession()
+  // Sessão que existe mas já morreu no Keycloak (refresh vencido, ou a sessão
+  // SSO do navegador passou a ser de outra conta). O Auth.js segue devolvendo
+  // `user` com `error` — tratar isso como "autenticado" mandava a pessoa ao
+  // dashboard, onde toda API responde 401, o cliente força signOut e volta
+  // para cá: loop infinito de ~1 volta por segundo (HAR de 12/set/2026).
+  const sessaoMorta = !!session?.error
   const veioComErro = !!params.get('error')
   // Marca posta pelo /api/logout/finish: "esta pessoa acabou de sair".
   const veioDeLogout = !!params.get('logout')
   const [entrando, setEntrando] = useState(false)
 
-  function entrar() {
+  async function limparSessaoMorta() {
+    // O cookie velho ressuscitaria entre a ida e a volta do OIDC (o Auth.js
+    // re-emite a sessão a cada leitura), então some com ele antes de recomeçar.
+    if (!sessaoMorta) return
+    try {
+      await signOut({ redirect: false })
+    } catch {
+      // seguir mesmo assim: o novo fluxo OIDC sobrescreve a sessão
+    }
+  }
+
+  async function entrar() {
     if (entrando) return
     setEntrando(true)
+    await limparSessaoMorta()
     signIn('keycloak', { callbackUrl: '/dashboard' })
   }
 
-  function entrarComGoogle() {
+  async function entrarComGoogle() {
     if (entrando) return
     setEntrando(true)
+    await limparSessaoMorta()
     // kc_idp_hint: o Keycloak pula a própria tela e vai direto ao Google.
     signIn('keycloak', { callbackUrl: '/dashboard' }, { kc_idp_hint: 'google' })
   }
@@ -74,16 +93,19 @@ function LoginInner() {
   // acabou de sair era mandado de volta para dentro — o "sair que não sai".
   // Aqui a sessão residual é ignorada e o fluxo de login recomeça.
   useEffect(() => {
-    if (veioComErro || status === 'loading') return
+    if (veioComErro || sessaoMorta || status === 'loading') return
     if (status === 'authenticated' && !veioDeLogout) {
       router.replace('/dashboard')
       return
     }
     entrar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [veioComErro, veioDeLogout, status])
+  }, [veioComErro, veioDeLogout, sessaoMorta, status])
 
-  if (!veioComErro) {
+  // Sessão morta mostra o card manual (mesma tela do ?error=): auto-entrar aqui
+  // seria pior que o loop — com o SSO do navegador em outra conta, a pessoa
+  // entraria calada com a identidade errada.
+  if (!veioComErro && !sessaoMorta) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-auth-gradient text-muted-foreground">
         <Loader2 className="animate-spin" />

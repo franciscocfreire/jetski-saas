@@ -49,6 +49,22 @@ baseTest.describe('Autenticação', () => {
     });
   });
 
+  // Regressão do loop infinito (HAR de 12/set/2026): com a sessão morta no
+  // Keycloak, o app ia /login -> /dashboard -> 401 -> signOut -> /login, ~1 volta
+  // por segundo, para sempre. A guarda é o /login PARAR quando a chegada está
+  // marcada como falha de sessão, em vez de tentar entrar de novo.
+  baseTest('login marcado com erro não entra em loop', async ({ page }) => {
+    await page.goto('/login?error=SessionExpired');
+
+    // Mostra o card manual em vez de disparar novo fluxo OIDC...
+    await expect(page.getByText(/Bem-vindo de volta/i)).toBeVisible({ timeout: 20000 });
+
+    // ...e continua parado: nada de bater no Keycloak nem voltar ao dashboard.
+    await page.waitForTimeout(4000);
+    await expect(page).toHaveURL(/\/login/);
+    await expect(page).not.toHaveURL(/\/dashboard/);
+  });
+
   baseTest.describe('Proteção de Rotas', () => {
     baseTest('deve redirecionar para login quando não autenticado', async ({ page }) => {
       // Limpar estado de autenticação

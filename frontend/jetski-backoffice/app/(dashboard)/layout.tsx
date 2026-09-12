@@ -67,11 +67,16 @@ export default function DashboardLayout({
       router.push('/login')
     }
 
-    // Handle refresh token error - force re-login
+    // Sessão morta no Keycloak (refresh vencido, ou o SSO do navegador virou de
+    // outra conta): sai e MARCA o destino. `pages.signOut` sobrescreve o
+    // callbackUrl, então a navegação é manual — sem o ?error= o /login tenta
+    // entrar de novo e o app fica em loop (visto em produção, 12/set/2026).
     if (session?.error === 'RefreshAccessTokenError') {
       console.error('🔒 Refresh token error, signing out...')
       clearTenant()
-      signOut({ callbackUrl: '/login' })
+      signOut({ redirect: false }).finally(() => {
+        window.location.href = '/login?error=SessionExpired'
+      })
     }
   }, [status, session?.error, router, clearTenant])
 

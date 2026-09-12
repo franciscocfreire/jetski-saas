@@ -37,7 +37,16 @@ async function forceSignOut() {
   signingOut = true
   sessionStorage.removeItem('accessToken')
   sessionStorage.removeItem('tenantId')
-  await signOut({ callbackUrl: '/login?error=SessionExpired' })
+  // redirect:false + navegação manual: `pages.signOut` do Auth.js SOBRESCREVE o
+  // callbackUrl e joga em /login puro, sem o ?error=. Sem essa marca o /login
+  // (trampolim) tenta entrar de novo, toma 401 e cai aqui outra vez — o loop
+  // infinito visto em produção em 12/set/2026.
+  try {
+    await signOut({ redirect: false })
+  } catch {
+    // mesmo falhando, sai da tela: o /login com ?error= não auto-redireciona
+  }
+  window.location.href = '/login?error=SessionExpired'
 }
 
 /**
