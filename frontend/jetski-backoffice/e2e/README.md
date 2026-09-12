@@ -268,3 +268,41 @@ Se o login falhar, um screenshot é salvo em:
 ```
 e2e/.auth/login-error.png
 ```
+
+## Login por provedor externo (identity brokering)
+
+`e2e/tests/broker.spec.ts` cobre o caminho federado — `first broker login`,
+post-broker (2FA / dispositivo confiável), a sessão resultante e o logout
+federado — usando um **IdP OIDC de teste**, não o Google.
+
+Por que não o Google: ele bloqueia navegador automatizado, desafia IP de
+datacenter (todo runner de CI), exige conta sem 2FA e muda a própria tela de
+login sem aviso. Um teste assim falha sem regressão nossa e não distingue
+"nosso brokering quebrou" de "o Google desconfiou hoje". Automatizar login de
+conta Google também contraria os termos de uso deles.
+
+Preparar o ambiente (uma vez; o `reset-ambiente-dev.sh` já faz isso):
+
+```bash
+bash infra/keycloak-setup/add-idp-teste-dev.sh          # cria realm idp-teste + IdP
+ROLLBACK=1 bash infra/keycloak-setup/add-idp-teste-dev.sh  # remove
+```
+
+O script **recusa rodar** contra qualquer Keycloak que não seja local — um
+provedor com senha conhecida em repositório não pode existir em produção.
+
+Rodar:
+
+```bash
+TEST_USER_EMAIL=operador@acme.com TEST_USER_PASSWORD=operador123 \
+PLAYWRIGHT_BASE_URL=https://app.pegaojet.com.br \
+npx playwright test e2e/tests/broker.spec.ts
+```
+
+As credenciais acima são do seed do dev e servem só para o `global-setup` não
+criar um tenant novo a cada execução. Sem o IdP configurado, os testes são
+**pulados**, não quebram.
+
+O que continua sendo verificação **manual**: as peculiaridades do Google em si
+— formato do `id_token`, `email_verified`, tela de consentimento e o
+`kc_idp_hint` do botão "Entrar com Google".

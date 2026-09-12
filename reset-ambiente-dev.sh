@@ -1795,6 +1795,12 @@ echo -e "${GREEN}   OK - Client backoffice configurado!${NC}"
 # 11.0.1 Client de validação de senha (perfil self-service do staff)
 echo -e "${YELLOW}11.0.1 Configurando client password-check...${NC}"
 KEYCLOAK_URL="http://${KC_HOST}:${KC_PORT}" bash "$SCRIPT_DIR/infra/keycloak-setup/add-password-check-client-dev.sh" 2>/dev/null || true
+
+# IdP OIDC de TESTE (só dev): provedor externo determinístico para os testes de
+# identity brokering. O Google não serve como alvo automatizado — ele bloqueia
+# navegador controlado, desafia IP de datacenter e muda a tela sem aviso.
+# O script recusa rodar contra qualquer Keycloak que não seja local.
+KEYCLOAK_URL="http://${KC_HOST}:${KC_PORT}" bash "$SCRIPT_DIR/infra/keycloak-setup/add-idp-teste-dev.sh" 2>/dev/null || true
 echo -e "${GREEN}   OK - Client password-check configurado!${NC}"
 
 # 11.1 Configurar URLs do túnel no client backoffice (se fornecido)
