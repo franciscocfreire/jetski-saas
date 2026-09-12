@@ -81,7 +81,7 @@ if [ "${NO_BUILD:-0}" != "1" ]; then
   $COMPOSE build keycloak
 fi
 log "subindo infra base (postgres/redis/keycloak/opa/minio)..."
-$COMPOSE up -d postgres redis keycloak opa minio
+$COMPOSE up -d postgres redis keycloak opa minio mailpit
 
 log "aguardando postgres..."
 for i in $(seq 1 30); do
