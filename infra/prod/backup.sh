@@ -38,6 +38,22 @@ log() { echo "[backup $(date '+%F %T')] $*"; }
 
 mkdir -p "$BACKUP_DIR/postgres" "$BACKUP_DIR/minio"
 
+# ---------- 0. Trava de execução única --------------------------------------
+# Dois backups ao mesmo tempo põem dois `rclone sync` competindo pelo MESMO
+# destino: em 12/set/2026 um deles ficou 42 min pendurado enquanto a execução
+# sozinha levava 2 min. O cron diário e um disparo manual se cruzam fácil.
+#
+# O descritor 9 fica aberto pelo processo, então o lock morre junto com ele —
+# sem arquivo de PID para limpar depois de um kill. Sai com 0, e não 1, de
+# propósito: outro backup JÁ está fazendo o trabalho, não é falha que mereça
+# alarme no cron.
+LOCK_FILE="${BACKUP_LOCK_FILE:-$BACKUP_DIR/.backup.lock}"
+exec 9>>"$LOCK_FILE"
+if ! flock -n 9; then
+    log "outro backup já está em andamento ($LOCK_FILE) — saindo sem fazer nada"
+    exit 0
+fi
+
 # ---------- 1. Postgres (formato custom: comprimido, pg_restore seletivo) ----
 PG_OUT="$BACKUP_DIR/postgres/${BACKUP_DB}-${STAMP}.dump"
 log "pg_dump $BACKUP_DB -> $PG_OUT"

@@ -1,6 +1,7 @@
 package com.jetski.plataforma.internal;
 
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.exception.ConflictException;
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.shared.security.SessaoSuporte;
 import com.jetski.shared.security.SessaoSuporteValidator;
@@ -169,12 +170,62 @@ public class SessaoSuporteService implements SessaoSuporteValidator {
             """, sha256(token), sha256(codigo), quemResgata);
 
         if (afetadas == 0) {
-            throw new BusinessException(
-                "Código de suporte inválido, expirado, já utilizado ou de outro operador. "
-                + "Abra a sessão novamente pelo console.");
+            diagnosticarFalhaDoResgate(codigo, quemResgata);
         }
         log.info("[SUPORTE] Código resgatado — sessão ativa");
         return token;
+    }
+
+    /**
+     * Explica POR QUE o resgate não casou — a mensagem única ("inválido, expirado, já
+     * utilizado ou de outro operador") obrigava a pessoa a adivinhar entre quatro coisas
+     * bem diferentes.
+     *
+     * <p>O caso que aparece na prática: o navegador está logado no backoffice com OUTRA
+     * conta. {@code app.*} e {@code admin.*} compartilham o mesmo Keycloak e o navegador
+     * tem uma só sessão SSO, então é comum abrir a sessão no console com uma identidade e
+     * o backoffice estar com outra. Esse caso vira 409 para o frontend dizer qual conta
+     * está ali e oferecer a saída; os demais seguem 400.
+     *
+     * <p>Não revela QUEM abriu a sessão: quem tem o código só descobre que ele não é seu.
+     */
+    private void diagnosticarFalhaDoResgate(String codigo, UUID quemResgata) {
+        List<Map<String, Object>> linhas = jdbc.queryForList(
+            "SELECT operador_id,"
+            + "       codigo_usado_em IS NOT NULL AS usado,"
+            + "       codigo_expira_em <= now()   AS expirado,"
+            + "       encerrada_em IS NOT NULL    AS encerrada"
+            + "  FROM plataforma_sessao_suporte"
+            + " WHERE codigo_hash = ?", sha256(codigo));
+
+        if (!linhas.isEmpty()) {
+            Map<String, Object> l = linhas.get(0);
+            UUID dono = (UUID) l.get("operador_id");
+
+            if (dono != null && !dono.equals(quemResgata)) {
+                log.warn("[SUPORTE] Resgate recusado: codigo de outro operador "
+                    + "(quemResgata={}, dono={})", quemResgata, dono);
+                throw new ConflictException(
+                    "Esta sessão de suporte foi aberta por outro operador. Este navegador "
+                    + "está logado com outra conta — saia dela e abra a sessão novamente "
+                    + "pelo console.");
+            }
+            if (Boolean.TRUE.equals(l.get("usado"))) {
+                throw new BusinessException("Este código de suporte já foi usado. "
+                    + "Abra a sessão novamente pelo console.");
+            }
+            if (Boolean.TRUE.equals(l.get("expirado"))) {
+                throw new BusinessException("Este código de suporte expirou (vale poucos "
+                    + "minutos). Abra a sessão novamente pelo console.");
+            }
+            if (Boolean.TRUE.equals(l.get("encerrada"))) {
+                throw new BusinessException("Esta sessão de suporte já foi encerrada. "
+                    + "Abra uma nova pelo console.");
+            }
+        }
+
+        throw new BusinessException(
+            "Código de suporte inválido. Abra a sessão novamente pelo console.");
     }
 
     /**
