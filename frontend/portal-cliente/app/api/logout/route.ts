@@ -14,15 +14,18 @@ export async function GET() {
   const base = process.env.NEXTAUTH_URL || "http://localhost:3003";
   const destino = `${base}${withBase("/login")}`;
 
-  let target = destino;
+  let target = `${destino}?logout=1`;
   try {
     const session = await auth();
     const idToken = session?.idToken;
     const issuer = process.env.KEYCLOAK_ISSUER;
     if (idToken && issuer) {
+      // Volta no /finish (não direto no /login): lá os cookies são apagados de
+      // novo, já sem nenhuma leitura de sessão em voo.
+      const fim = `${base}${withBase("/api/logout/finish")}`;
       target =
         `${issuer}/protocol/openid-connect/logout` +
-        `?post_logout_redirect_uri=${encodeURIComponent(destino)}` +
+        `?post_logout_redirect_uri=${encodeURIComponent(fim)}` +
         `&id_token_hint=${encodeURIComponent(idToken)}`;
     }
   } catch {
@@ -32,16 +35,20 @@ export async function GET() {
   // Apaga a sessão do portal. Os cookies têm nome CUSTOM "[__Secure-]portal.*"
   // (lib/auth.ts) — o filtro antigo por "authjs"/"next-auth" nunca casava e o
   // cookie sobrevivia ao logout (o /login via a sessão viva e mandava de volta
-  // pro perfil = "Sair que não sai"). Deleção precisa do atributo Secure em
-  // https: browser REJEITA Set-Cookie de cookie __Secure-* sem ele.
+  // pro perfil = "Sair que não sai"). Dois gotchas já pagos em produção:
+  // deleção de __Secure-* precisa do atributo Secure (o browser rejeita sem
+  // ele), e os Set-Cookie vão na PRÓPRIA resposta — mutação via cookies() não
+  // acompanha um NextResponse.redirect criado à mão.
   const secure = (process.env.NEXTAUTH_URL ?? "").startsWith("https");
   const cookieStore = await cookies();
+  const res = NextResponse.redirect(target);
+
   for (const cookie of cookieStore.getAll()) {
     const nome = cookie.name;
     if (nome.includes("portal.") || nome.includes("authjs") || nome.includes("next-auth")) {
-      cookieStore.set(nome, "", { expires: new Date(0), path: "/", secure });
+      res.cookies.set(nome, "", { expires: new Date(0), path: "/", secure });
     }
   }
 
-  return NextResponse.redirect(target);
+  return res;
 }

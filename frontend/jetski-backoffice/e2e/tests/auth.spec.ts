@@ -88,8 +88,44 @@ authTest.describe('Autenticação - Sessão Autenticada', () => {
     // Navega para logout
     await authenticatedPage.goto('/logout');
 
-    // Verifica redirecionamento para login
-    await expect(authenticatedPage).toHaveURL(/.*\/login.*/, { timeout: 30000 });
+    // Destino do logout: /login (trampolim) OU já a tela do Keycloak, para onde
+    // o trampolim salta em seguida. Exigir só /login deixa o teste na mão do
+    // timing — a janela em /login dura milissegundos.
+    await expect(authenticatedPage).toHaveURL(
+      /\/login|\/realms\/[^/]+\/protocol\/openid-connect\/auth/,
+      { timeout: 30000 },
+    );
+  });
+
+  // Regressão do "sair que não sai" (HAR de 12/set/2026): chegar em /login não
+  // provava nada — o cookie ressuscitava logo depois e o trampolim devolvia a
+  // pessoa ao dashboard. Parar EM /login também não serve de asserção: o /login
+  // é trampolim e salta para o Keycloak em milissegundos (foi o que deixou a
+  // primeira versão deste teste flaky). O que vale é a sessão estar morta DE
+  // VERDADE e a pessoa não acabar dentro do app.
+  authTest('logout mata a sessão e não devolve ao dashboard', async ({ authenticatedPage }) => {
+    await authenticatedPage.goto('/logout');
+
+    // Saiu da página de saída — destino legítimo é /login ou a tela do Keycloak.
+    await authenticatedPage.waitForURL((url) => !url.pathname.startsWith('/logout'), {
+      timeout: 30000,
+    });
+
+    // A sessão do Auth.js precisa estar vazia (o endpoint devolve "null").
+    await expect
+      .poll(
+        async () => {
+          const r = await authenticatedPage.request.get('/api/auth/session');
+          const corpo = (await r.text()).trim();
+          return corpo === 'null' || corpo === '{}';
+        },
+        { timeout: 15000, message: 'sessão do NextAuth continuou viva após o logout' },
+      )
+      .toBe(true);
+
+    // E não pode haver bounce tardio para dentro do app.
+    await authenticatedPage.waitForTimeout(3000);
+    await expect(authenticatedPage).not.toHaveURL(/.*\/dashboard.*/);
   });
 
   authTest('deve exibir seletor de tenant no sidebar quando autenticado', async ({ authenticatedPage }) => {

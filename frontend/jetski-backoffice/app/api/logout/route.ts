@@ -34,13 +34,20 @@ export async function GET() {
       }
     }
 
-    // Clear all auth cookies. GOTCHA (mesmo bug corrigido no portal): a
-    // deleção de cookie __Secure-* PRECISA sair com o atributo Secure —
-    // cookieStore.delete() não o emite e o Chrome rejeita em silêncio, a
-    // sessão sobrevivia e o /login (trampolim) relogava direto no dashboard.
+    // Caminho de fallback (a página /logout hoje faz signOut() antes de vir
+    // para cá). GOTCHAS, os dois já pagos em produção:
+    //  - a deleção de cookie __Secure-* PRECISA sair com o atributo Secure,
+    //    senão o Chrome a rejeita em silêncio;
+    //  - os Set-Cookie vão na PRÓPRIA resposta (res.cookies), não via
+    //    cookies() do next/headers: ao devolver um NextResponse.redirect
+    //    criado à mão, mutação feita no cookieStore não acompanha a resposta.
     const secure = (process.env.NEXTAUTH_URL ?? '').startsWith('https')
     const cookieStore = await cookies()
     const allCookies = cookieStore.getAll()
+
+    // Redirect to Keycloak logout if available, otherwise to login
+    const redirectUrl = keycloakLogoutUrl || `${loginUrl}?logout=1`
+    const res = NextResponse.redirect(redirectUrl)
 
     for (const cookie of allCookies) {
       if (
@@ -48,13 +55,11 @@ export async function GET() {
         cookie.name.includes('next-auth') ||
         cookie.name.includes('session')
       ) {
-        cookieStore.set(cookie.name, '', { expires: new Date(0), path: '/', secure })
+        res.cookies.set(cookie.name, '', { expires: new Date(0), path: '/', secure })
       }
     }
 
-    // Redirect to Keycloak logout if available, otherwise to login
-    const redirectUrl = keycloakLogoutUrl || loginUrl
-    return NextResponse.redirect(redirectUrl)
+    return res
   } catch (error) {
     console.error('Erro durante logout:', error)
     // On error, just redirect to login
