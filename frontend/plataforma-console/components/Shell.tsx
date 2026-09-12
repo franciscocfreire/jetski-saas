@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { TamanhoFonte } from "./TamanhoFonte";
 import {
   Activity,
   Building2,
@@ -82,10 +83,13 @@ function Links({
   );
 }
 
-/** Identidade do operador + saída, no pé dos dois menus. */
+/** Identidade do operador, ajuste de leitura e saída — no pé dos dois menus. */
 function Rodape({ email, papeis }: { email?: string | null; papeis: string[] }) {
   return (
     <div className="border-t border-brand-800 px-5 py-4 text-xs text-brand-300">
+      <div className="mb-3">
+        <TamanhoFonte />
+      </div>
       <div className="truncate">{email ?? "—"}</div>
       {papeis.length > 0 && (
         <div className="mt-0.5 truncate text-[10px] text-brand-400">
@@ -194,9 +198,14 @@ export function Shell({
             <ShieldCheck className="h-5 w-5 shrink-0 text-brand-600" />
             <span className="truncate font-display text-base">Console da Plataforma</span>
           </div>
-          <a href="/api/logout" className="shrink-0 text-sm text-ink-500">
-            Sair
-          </a>
+          <div className="flex shrink-0 items-center gap-2">
+            {/* a um toque no celular: quem precisa de fonte maior não deveria
+                ter que abrir o menu antes de conseguir ler a tela */}
+            <TamanhoFonte variante="claro" compacto />
+            <a href="/api/logout" className="text-sm text-ink-500">
+              Sair
+            </a>
+          </div>
         </header>
         <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
       </div>

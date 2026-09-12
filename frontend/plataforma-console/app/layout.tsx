@@ -26,6 +26,22 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
+      <head>
+        {/*
+          Reaplica o tamanho de texto escolhido ANTES da primeira pintura. Sem
+          isto a página nasce no padrão e salta para o tamanho do operador —
+          um flash que, justamente para quem precisa de fonte maior, é pior que
+          não ter o recurso. Inline e síncrono de propósito.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var f=localStorage.getItem('mj-console-fonte');" +
+              "if(f&&[14,16,18,20].indexOf(+f)>-1)" +
+              "document.documentElement.style.fontSize=f+'px'}catch(e){}",
+          }}
+        />
+      </head>
       <body className={`${geistSans.variable} ${playfair.variable}`}>
         {children}
       </body>
