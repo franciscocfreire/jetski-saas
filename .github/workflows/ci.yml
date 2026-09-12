@@ -23,10 +23,10 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup JDK 21 (Temurin) + cache Maven
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -54,7 +54,7 @@ jobs:
 
       - name: Publicar relatórios de teste (mesmo em falha)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: surefire-reports
           path: backend/target/surefire-reports/
@@ -66,7 +66,7 @@ jobs:
     name: Políticas OPA — opa test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: opa test ./policies
         run: |
@@ -82,10 +82,10 @@ jobs:
       run:
         working-directory: frontend/jetski-backoffice
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node 20 + cache npm
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: npm
@@ -104,10 +104,10 @@ jobs:
       run:
         working-directory: infra/keycloak-theme
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node 20 + cache npm
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: npm
@@ -116,7 +116,7 @@ jobs:
       # Maven já vem no runner ubuntu-latest; o setup-java fixa o JDK (o
       # keycloakify empacota o JAR do tema via mvn)
       - name: Setup JDK 21 (Temurin)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'

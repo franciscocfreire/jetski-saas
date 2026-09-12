@@ -1,7 +1,12 @@
 services:
   # ============ REVERSE PROXY ============
   nginx:
-    image: nginx:alpine
+    # Tag PINADA (set/2026): `nginx:alpine` fazia dev e prod rodarem versões
+    # diferentes conforme quando cada um puxou a imagem (1.31.3 aqui × 1.31.2 na
+    # VM) e um `up --force-recreate` podia trocar a versão sem mudança no repo.
+    # Subir versão é PR consciente — foi o que o sumiço do minio/minio no Docker
+    # Hub ensinou: imagem móvel é dependência invisível.
+    image: nginx:1.31.3-alpine
     container_name: jetski-nginx
     ports:
       - "0.0.0.0:80:80"
@@ -193,7 +198,9 @@ services:
   # Mailpit: servidor SMTP local que captura todos os emails e mostra numa UI web.
   # SMTP em :1025 (o backend envia pra cá), UI em http://localhost:8025.
   mailpit:
-    image: axllent/mailpit:latest
+    # Tag PINADA (set/2026) — só dev, mas o CI depende dela para subir o stack:
+    # `latest` que some ou muda quebra o E2E sem nenhuma mudança no repo.
+    image: axllent/mailpit:v1.30.4
     container_name: jetski-mailpit
     ports:
       - "0.0.0.0:1025:1025"   # SMTP
