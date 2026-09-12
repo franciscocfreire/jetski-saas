@@ -33,6 +33,8 @@ function LoginInner() {
   const router = useRouter();
   const { status } = useSession();
   const veioComErro = !!params.get("error");
+  // Marca posta pelo /api/logout/finish: "esta pessoa acabou de sair".
+  const veioDeLogout = !!params.get("logout");
   const [entrando, setEntrando] = useState(false);
 
   function entrar() {
@@ -50,15 +52,19 @@ function LoginInner() {
   }
 
   // Fluxo normal (sem erro): já logado → perfil; deslogado → Keycloak direto.
+  //
+  // `?logout=1` (vem do /api/logout/finish) NUNCA volta ao perfil: se uma
+  // leitura atrasada de /api/auth/session tiver ressuscitado o cookie, quem
+  // acabou de sair era mandado de volta para dentro — o "sair que não sai".
   useEffect(() => {
     if (veioComErro || status === "loading") return;
-    if (status === "authenticated") {
+    if (status === "authenticated" && !veioDeLogout) {
       router.replace("/conta/perfil");
       return;
     }
     entrar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [veioComErro, status]);
+  }, [veioComErro, veioDeLogout, status]);
 
   if (!veioComErro) {
     return (
