@@ -92,6 +92,22 @@ export async function mudarPlano(tenantId: string, planoId: string) {
   );
 }
 
+/** Teto de usuários ativos da empresa; `maximo` null = voltar a seguir o plano. */
+export async function definirLimiteUsuarios(
+  tenantId: string,
+  maximo: number | null,
+  motivo: string,
+) {
+  return executar(
+    () =>
+      platformFetch(`/v1/platform/tenants/${tenantId}/limites/usuarios`, {
+        method: "PUT",
+        body: JSON.stringify({ maximo, motivo }),
+      }),
+    "/empresas",
+  );
+}
+
 // ===================== Zona de perigo =====================
 
 export async function exportarEmpresa(tenantId: string) {

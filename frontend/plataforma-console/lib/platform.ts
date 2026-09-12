@@ -5,6 +5,8 @@ import type {
   Seguranca2FAConsole,
   SaudePlataforma,
   FaturaPendente,
+  LimiteUsuarios,
+  MembroEmpresa,
   Operador,
   OperadorAtual,
   RegistroSuporte,
@@ -18,6 +20,7 @@ import type {
   PlatformEmissaoTenant,
   PlatformSaldoTenant,
   ResetNivel,
+  SolicitacaoCadastro,
   TenantExport,
   TenantSummary,
 } from "./types";
@@ -93,6 +96,18 @@ export const platform = {
 
   emissaoEnvioConfig: () =>
     platformFetch<EmissaoEnvioConfig>("/v1/platform/emissao/envio-config"),
+
+  /** Usuários (staff) da empresa, ativos e inativos — somente leitura. */
+  membros: (tenantId: string) =>
+    platformFetch<MembroEmpresa[]>(`/v1/platform/tenants/${tenantId}/membros`),
+
+  /** Quem pediu o cadastro (signup público), mais recente primeiro. Vazia = criada por usuário já cadastrado. */
+  solicitacoes: (tenantId: string) =>
+    platformFetch<SolicitacaoCadastro[]>(`/v1/platform/tenants/${tenantId}/solicitacoes`),
+
+  /** Limite de usuários ativos: do plano × personalizado × efetivo, e o uso atual. */
+  limiteUsuarios: (tenantId: string) =>
+    platformFetch<LimiteUsuarios>(`/v1/platform/tenants/${tenantId}/limites/usuarios`),
 
   // O endpoint de listagem devolve só as CHAVES (List<String> — o storage não
   // lista metadados); os campos ricos (bytes/tabelas/arquivos) existem apenas no

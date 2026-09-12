@@ -19,6 +19,10 @@ import java.util.UUID;
  * ativa = ilimitado (não bloquear operação por falha de cadastro — o gate de
  * status do tenant é quem barra empresa não-operacional).
  *
+ * <p>Personalização por empresa (V068): chave presente em
+ * {@code tenant.limites_override} vence a do plano, com ou sem assinatura. É
+ * como a plataforma dá a uma EAMA um teto diferente sem trocar o plano dela.
+ *
  * <p>Chaves em uso: {@code usuarios_max} (enforçado no convite/membro),
  * {@code frota_max} (criação de jetski), {@code locacoes_mes} (check-in).
  * {@code storage_gb} não é enforçado (medir custa caro; aviso fica p/ v3).
@@ -30,27 +34,13 @@ public class PlanoLimiteService {
 
     private final EntityManager entityManager;
 
+    /** Teto resolvido e de onde veio (a mensagem de bloqueio muda conforme a origem). */
+    private record Limite(Integer max, boolean personalizado) {}
+
     /** Limite da chave para o tenant; null = ilimitado (ausente, -1 ou sem assinatura). */
     @Transactional(readOnly = true)
     public Integer limite(UUID tenantId, String chave) {
-        try {
-            List<?> rows = entityManager.createNativeQuery(
-                    "SELECT (p.limites->>:chave)::int FROM assinatura a "
-                    + "JOIN plano p ON p.id = a.plano_id "
-                    + "WHERE a.tenant_id = :tid AND a.status = 'ativa' "
-                    + "ORDER BY a.created_at DESC LIMIT 1")
-                .setParameter("chave", chave)
-                .setParameter("tid", tenantId)
-                .getResultList();
-            if (rows.isEmpty() || rows.get(0) == null) {
-                return null;
-            }
-            Integer limite = ((Number) rows.get(0)).intValue();
-            return limite < 0 ? null : limite;
-        } catch (Exception e) {
-            log.warn("Falha ao ler limite '{}' do tenant {}: {}", chave, tenantId, e.getMessage());
-            return null; // nunca bloquear por falha de leitura
-        }
+        return resolver(tenantId, chave).max();
     }
 
     /**
@@ -60,13 +50,51 @@ public class PlanoLimiteService {
      */
     @Transactional(readOnly = true)
     public void verificar(UUID tenantId, String chave, long usoAtual, String recurso) {
-        Integer max = limite(tenantId, chave);
+        Limite limite = resolver(tenantId, chave);
+        Integer max = limite.max();
         if (max != null && usoAtual >= max) {
-            throw new BusinessException(String.format(
-                "Limite de %s do seu plano atingido (%d/%d). "
-                + "Faça upgrade do plano em Plano e Faturas para continuar.",
-                recurso, usoAtual, max));
+            // Teto personalizado não sobe com upgrade de plano: mandar a empresa para
+            // "Plano e Faturas" seria um beco sem saída.
+            throw new BusinessException(limite.personalizado()
+                ? String.format(
+                    "Limite de %s contratado para a sua empresa atingido (%d/%d). "
+                    + "Fale com o suporte Meu Jet para ampliar.",
+                    recurso, usoAtual, max)
+                : String.format(
+                    "Limite de %s do seu plano atingido (%d/%d). "
+                    + "Faça upgrade do plano em Plano e Faturas para continuar.",
+                    recurso, usoAtual, max));
         }
+    }
+
+    private Limite resolver(UUID tenantId, String chave) {
+        try {
+            List<?> rows = entityManager.createNativeQuery(
+                    "SELECT (t.limites_override->>:chave)::int, "
+                    + "(SELECT (p.limites->>:chave)::int FROM assinatura a "
+                    + "   JOIN plano p ON p.id = a.plano_id "
+                    + "  WHERE a.tenant_id = t.id AND a.status = 'ativa' "
+                    + "  ORDER BY a.created_at DESC LIMIT 1) "
+                    + "FROM tenant t WHERE t.id = :tid")
+                .setParameter("chave", chave)
+                .setParameter("tid", tenantId)
+                .getResultList();
+            if (rows.isEmpty()) {
+                return new Limite(null, false);
+            }
+            Object[] r = (Object[]) rows.get(0);
+            if (r[0] != null) {
+                return new Limite(ilimitadoSeNegativo((Number) r[0]), true);
+            }
+            return new Limite(ilimitadoSeNegativo((Number) r[1]), false);
+        } catch (Exception e) {
+            log.warn("Falha ao ler limite '{}' do tenant {}: {}", chave, tenantId, e.getMessage());
+            return new Limite(null, false); // nunca bloquear por falha de leitura
+        }
+    }
+
+    private static Integer ilimitadoSeNegativo(Number valor) {
+        return valor == null || valor.intValue() < 0 ? null : valor.intValue();
     }
 
     /**

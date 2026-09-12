@@ -18,6 +18,49 @@ export interface TenantSummary {
   eamaRegistro?: string | null;
 }
 
+/** Usuário (staff) de uma empresa — espelha PlatformMembroService.MembroEmpresa. */
+export interface MembroEmpresa {
+  usuarioId: string;
+  nome: string | null;
+  email: string;
+  telefone: string | null;
+  /** Papéis NA EMPRESA (ADMIN_TENANT, GERENTE, ...). */
+  papeis: string[];
+  /** Vínculo com a empresa ativo. */
+  ativo: boolean;
+  /** Conta global ativa — falso bloqueia a pessoa em todas as empresas. */
+  contaAtiva: boolean;
+  emailVerificado: boolean;
+  /** Quando o vínculo com a empresa foi criado (ISO). */
+  desde: string;
+}
+
+/** Pedido de cadastro da empresa (signup público) — espelha PlatformSignupService.SolicitacaoCadastro. */
+export interface SolicitacaoCadastro {
+  id: string;
+  nome: string;
+  /** Para onde o link de ativação foi. */
+  email: string;
+  /** Derivada: link vencido conta como expirado mesmo sem ninguém ter tentado ativar. */
+  situacao: "AGUARDANDO_ATIVACAO" | "LINK_EXPIRADO" | "ATIVADO";
+  pedidoEm: string;
+  expiraEm: string;
+  ativadoEm: string | null;
+}
+
+/** Limite de usuários ativos da empresa — espelha PlatformLimiteService.LimiteUsuarios. */
+export interface LimiteUsuarios {
+  /** Plano da assinatura ativa; null = sem assinatura. */
+  plano: string | null;
+  /** Teto do plano; null = ilimitado ou sem assinatura. */
+  doPlano: number | null;
+  /** Teto definido pela plataforma para esta empresa; null = segue o plano. */
+  personalizado: number | null;
+  /** O que vale de fato; null = ilimitado. */
+  efetivo: number | null;
+  ativos: number;
+}
+
 export interface PlanoInfo {
   id: string;
   nome: string;

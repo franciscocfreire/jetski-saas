@@ -15,16 +15,23 @@ import {
   Vazio,
 } from "@/components/ui";
 import { PlatformApiError } from "@/lib/api";
-import { AcoesStatus, AcoesEmissora, TrocarPlano, LancarCreditos } from "./acoes";
+import {
+  AcoesStatus,
+  AcoesEmissora,
+  TrocarPlano,
+  LancarCreditos,
+  LimiteDeUsuarios,
+} from "./acoes";
 import { ZonaDePerigo } from "./perigo";
 import { EntrarNaEmpresa } from "./suporte";
+import { UsuariosDaEmpresa } from "./usuarios";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Detalhe da empresa em seções (não em sub-rotas): a API de plataforma não tem
- * endpoint por empresa — tudo vem de listas globais que filtramos aqui. Uma
- * sub-rota por aba refaria as mesmas listas a cada troca.
+ * Detalhe da empresa em seções (não em sub-rotas): a maior parte vem de listas
+ * globais que filtramos aqui (exports e usuários são por empresa). Uma sub-rota
+ * por aba refaria as mesmas listas a cada troca.
  */
 export default async function Empresa({ params }: { params: Promise<{ id: string }> }) {
   const { session, me } = await operadorAtual();
@@ -32,15 +39,20 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
 
   let dados;
   try {
-    const [tenants, planos, saldos, faturas, emissoes, exports] = await Promise.all([
-      platform.tenants(),
-      platform.planos(),
-      platform.saldos(),
-      platform.faturasPendentes(),
-      platform.emissoes(competenciaAtual()),
-      platform.exports(id).catch(() => []),
-    ]);
-    dados = { tenants, planos, saldos, faturas, emissoes, exports };
+    const [tenants, planos, saldos, faturas, emissoes, exports, membros, solicitacoes, limite] =
+      await Promise.all([
+        platform.tenants(),
+        platform.planos(),
+        platform.saldos(),
+        platform.faturasPendentes(),
+        platform.emissoes(competenciaAtual()),
+        platform.exports(id).catch(() => []),
+        // null = falhou: a seção mostra o erro sem derrubar a página inteira
+        platform.membros(id).catch(() => null),
+        platform.solicitacoes(id).catch(() => null),
+        platform.limiteUsuarios(id).catch(() => null),
+      ]);
+    dados = { tenants, planos, saldos, faturas, emissoes, exports, membros, solicitacoes, limite };
   } catch (e) {
     const err = e as PlatformApiError;
     return (
@@ -123,7 +135,7 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
 
         <Card
           titulo="Plano e módulos"
-          descricao="Controle de oferta: módulos vêm do plano contratado."
+          descricao="Controle de oferta: módulos e limites vêm do plano contratado; o limite de usuários pode ser personalizado por empresa."
         >
           <TrocarPlano
             tenantId={empresa.id}
@@ -139,6 +151,16 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
                 <span className="text-sm text-ink-300">nenhum</span>
               ) : (
                 empresa.modulos.map((m) => <Badge key={m}>{m}</Badge>)
+              )}
+            </div>
+          </div>
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <div className="text-xs uppercase tracking-wide text-ink-300">Limite de usuários</div>
+            <div className="mt-2">
+              {dados.limite ? (
+                <LimiteDeUsuarios tenantId={empresa.id} limite={dados.limite} />
+              ) : (
+                <span className="text-sm text-red-700">Não foi possível carregar o limite.</span>
               )}
             </div>
           </div>
@@ -210,6 +232,10 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
             <Vazio>Sem emissões nesta competência.</Vazio>
           )}
         </Card>
+      </div>
+
+      <div className="mt-6">
+        <UsuariosDaEmpresa membros={dados.membros} solicitacoes={dados.solicitacoes} />
       </div>
 
       <div className="mt-6">
