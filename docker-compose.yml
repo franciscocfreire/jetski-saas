@@ -163,7 +163,13 @@ services:
 
   # ============ OBJECT STORAGE (S3) ============
   minio:
-    image: minio/minio:latest
+    # quay.io, não Docker Hub: em set/2026 o repositório minio/minio SUMIU do Hub
+    # ("pull access denied ... repository does not exist") e o E2E do CI parou de
+    # subir o stack. Dev e a VM de produção só seguiam de pé pelo cache local.
+    # Tag PINADA na mesma release que já roda nos dois (RELEASE.2025-09-07T16-13-09Z):
+    # é troca de registry, não upgrade — o MinIO removeu recursos da edição
+    # community em releases de 2025, então subir versão é decisão à parte.
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: jetski-minio
     command: server /data --console-address ":9001"
     ports:
