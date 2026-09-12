@@ -2,6 +2,7 @@ package com.jetski.plataforma;
 
 import com.jetski.integration.AbstractIntegrationTest;
 import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.exception.ConflictException;
 import com.jetski.shared.security.SessaoSuporte;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.plataforma.internal.SessaoSuporteService;
@@ -100,11 +101,11 @@ class SessaoSuporteIntegrationTest extends AbstractIntegrationTest {
 
         assertThatThrownBy(() -> service.resgatar(abertura.codigo()))
             .isInstanceOf(BusinessException.class)
-            .hasMessageContaining("já utilizado");
+            .hasMessageContaining("já foi usado");
     }
 
     @Test
-    @DisplayName("Código só vale para QUEM abriu — vazamento não vira acesso de outro")
+    @DisplayName("Código só vale para QUEM abriu — e o caso vira 409, não 400")
     void codigoAmarradoAoOperador() {
         var abertura = service.abrir(TENANT, "atendimento ao cliente da acme", true, "127.0.0.1", "t");
 
@@ -113,9 +114,14 @@ class SessaoSuporteIntegrationTest extends AbstractIntegrationTest {
             + "VALUES (?, 'f3-outro@teste.local', 'Outro', TRUE) ON CONFLICT (id) DO NOTHING", outro);
         try {
             TenantContext.setUsuarioId(outro);
+            // ConflictException (409), não BusinessException (400): é por esse status
+            // que a tela de handoff sabe mostrar "este navegador está logado como X"
+            // em vez da mensagem genérica. Quem tem o código descobre que ele não é
+            // seu, mas nunca DE QUEM é.
             assertThatThrownBy(() -> service.resgatar(abertura.codigo()))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("outro operador");
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("outro operador")
+                .hasMessageContaining("logado com outra conta");
 
             // e o dono ainda consegue usar — a tentativa alheia não queimou o código
             TenantContext.setUsuarioId(OPERADOR);
