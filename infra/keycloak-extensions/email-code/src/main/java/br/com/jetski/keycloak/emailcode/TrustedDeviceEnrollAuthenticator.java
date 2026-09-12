@@ -12,6 +12,10 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 /**
  * Após o 2FA passar, oferece "confiar neste navegador por 30 dias" (checkbox
  * opt-in). Marcado → gera token, seta o cookie {@link TrustedDevice#COOKIE}
@@ -83,9 +87,30 @@ public class TrustedDeviceEnrollAuthenticator implements Authenticator {
         UserModel user = context.getUser();
         long now = Time.currentTime();
 
+        // O Keycloak 26 recusa duas credenciais do mesmo tipo com o mesmo userLabel
+        // (JpaUserCredentialStore.validateDuplicateCredential → ModelDuplicateException).
+        // Um dispositivo VENCIDO rotulado "Chrome · Windows" bloqueava o recadastro para
+        // sempre: a exceção era engolida em action() e o login seguia sem cookie, então
+        // o 2FA voltava a cada login (visto em set/2026, 30 dias após o 1º cadastro).
+        // Vencido não serve para nada — some antes de cadastrar. O que sobra vigente com
+        // o mesmo rótulo (mesmo navegador/SO em outra máquina) NÃO é derrubado: o novo
+        // recebe um sufixo.
+        List<CredentialModel> todos = user.credentialManager()
+                .getStoredCredentialsByTypeStream(TrustedDevice.TYPE).toList();
+        Set<String> rotulosVigentes = new HashSet<>();
+        for (CredentialModel c : todos) {
+            if (TrustedDevice.expiresAt(c) <= now) {
+                user.credentialManager().removeStoredCredentialById(c.getId());
+                LOG.infof("MJ_TRUSTED_DEVICE_EXPIRED_REMOVED realm=%s user=%s label=%s",
+                        context.getRealm().getName(), user.getId(), c.getUserLabel());
+            } else if (c.getUserLabel() != null) {
+                rotulosVigentes.add(c.getUserLabel());
+            }
+        }
+
         String token = SecretGenerator.getInstance().randomBytesHex(TrustedDevice.TOKEN_BYTES);
         String ua = header(context, "User-Agent");
-        String label = rotuloDoUa(ua);
+        String label = rotuloUnico(rotulosVigentes, rotuloDoUa(ua));
 
         CredentialModel cm = TrustedDevice.novo(CodeChallenge.hash(token), label, now, ua);
         user.credentialManager().createStoredCredential(cm);
@@ -108,6 +133,19 @@ public class TrustedDeviceEnrollAuthenticator implements Authenticator {
     private String header(AuthenticationFlowContext context, String name) {
         var headers = context.getHttpRequest().getHttpHeaders().getRequestHeader(name);
         return headers == null || headers.isEmpty() ? "" : headers.get(0);
+    }
+
+    /** "Chrome · Windows (2)" quando o rótulo base já está em uso por um dispositivo vigente. */
+    static String rotuloUnico(Set<String> emUso, String base) {
+        if (!emUso.contains(base)) {
+            return base;
+        }
+        for (int n = 2; ; n++) {
+            String candidato = base + " (" + n + ")";
+            if (!emUso.contains(candidato)) {
+                return candidato;
+            }
+        }
     }
 
     /** "Chrome · Windows" a partir do User-Agent (heurística simples). */
