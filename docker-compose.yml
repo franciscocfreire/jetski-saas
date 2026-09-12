@@ -66,7 +66,7 @@ services:
 
   # ============ AUTH ============
   keycloak:
-    # Imagem custom = oficial 26.4 + tema de login "meujet" (Keycloakify) +
+    # Imagem custom = oficial 26.7.3 + tema de login "meujet" (Keycloakify) +
     # SPI de login por código de e-mail — ver infra/keycloak-theme/ e
     # infra/keycloak-extensions/. Contexto = ./infra para o Dockerfile enxergar
     # os dois diretórios. Rebuild em dev: ./rebuild.sh keycloak
@@ -96,6 +96,10 @@ services:
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
+      # Desde o KC 26.6 o `start-dev` escuta só em localhost (fora do WSL): dentro
+      # do container nem o nginx nem o backend alcançariam a porta 8080. O `start`
+      # de produção não tem esse default.
+      KC_HTTP_HOST: "0.0.0.0"
 
       # Substituição no import do realm (jetski-backoffice): resolve a URL pública
       # do túnel. Sem túnel, usa localhost. Mesmo mecanismo no prod (PUBLIC_URL=meujet).
