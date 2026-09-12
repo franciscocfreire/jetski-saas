@@ -165,6 +165,24 @@ test_financeiro_troca_plano if {
 	platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:tenants:plano", "POST")
 }
 
+# Limite de usuários por empresa é exceção comercial: mesma alçada de trocar plano.
+test_financeiro_define_limite_de_usuarios if {
+	platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:tenants:limites:usuarios", "PUT")
+}
+
+test_suporte_ve_mas_nao_define_limite_de_usuarios if {
+	platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:limites:usuarios", "GET")
+	not platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:limites:usuarios", "PUT")
+}
+
+test_leitura_nao_define_limite_de_usuarios if {
+	not platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:limites:usuarios", "PUT")
+}
+
+test_admin_tenant_nao_define_o_proprio_limite if {
+	not platform.allow with input as empresa("platform:tenants:limites:usuarios", "PUT")
+}
+
 test_financeiro_nao_aprova_empresa if {
 	not platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:tenants:approve", "POST")
 }
@@ -198,6 +216,28 @@ test_leitura_le_saldos_mas_nao_lanca if {
 test_leitura_nao_altera_preco if {
 	platform.allow with input as operador("PLATFORM_LEITURA", "platform:creditos:config", "GET")
 	not platform.allow with input as operador("PLATFORM_LEITURA", "platform:creditos:config", "PUT")
+}
+
+# Usuários da empresa no console: leitura de rotina (suporte precisa saber quem opera
+# a EAMA), mas a rota não aceita escrita — papéis continuam sendo decisão da empresa.
+test_leitura_ve_usuarios_da_empresa if {
+	platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:membros", "GET")
+	not platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:membros", "POST")
+}
+
+# Quem pediu o cadastro: mesma natureza (leitura para suporte), sem escrita.
+test_leitura_ve_quem_pediu_o_cadastro if {
+	platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:solicitacoes", "GET")
+	not platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:solicitacoes", "POST")
+	not platform.allow with input as empresa("platform:tenants:solicitacoes", "GET")
+}
+
+test_suporte_nao_altera_usuarios_da_empresa if {
+	not platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:membros", "PATCH")
+}
+
+test_admin_tenant_nao_ve_usuarios_pelo_console if {
+	not platform.allow with input as empresa("platform:tenants:membros", "GET")
 }
 
 test_leitura_nao_baixa_export if {

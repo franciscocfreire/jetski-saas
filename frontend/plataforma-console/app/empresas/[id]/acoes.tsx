@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Acao, AcaoComTexto, Botao } from "@/components/Acao";
 import {
   aprovarEmpresa,
+  definirLimiteUsuarios,
   desabilitarEmissora,
   habilitarEmissora,
   lancarCreditos,
@@ -11,7 +12,7 @@ import {
   reativarEmpresa,
   suspenderEmpresa,
 } from "@/lib/actions";
-import type { PlanoInfo } from "@/lib/types";
+import type { LimiteUsuarios, PlanoInfo } from "@/lib/types";
 import { BRL } from "@/lib/platform";
 
 /** Ações de status: só as que fazem sentido para o status atual aparecem. */
@@ -173,6 +174,98 @@ export function LancarCreditos({ tenantId }: { tenantId: string }) {
       </div>
       {erro && <p className="mt-1 text-xs text-red-700">{erro}</p>}
       {ok && <p className="mt-1 text-xs text-emerald-700">Lançamento registrado.</p>}
+    </div>
+  );
+}
+
+/**
+ * Teto de usuários ATIVOS da empresa. Sem personalização, vale o do plano. Baixar
+ * abaixo do uso não desativa ninguém: só bloqueia convites e reativações até caber.
+ */
+export function LimiteDeUsuarios({
+  tenantId,
+  limite,
+}: {
+  tenantId: string;
+  limite: LimiteUsuarios;
+}) {
+  const [maximo, setMaximo] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+  const [pendente, iniciar] = useTransition();
+
+  const qtd = Number(maximo);
+  const temMotivo = motivo.trim().length > 0;
+  const valido = maximo !== "" && Number.isInteger(qtd) && qtd >= 1 && temMotivo;
+  const personalizado = limite.personalizado !== null;
+  const acimaDoLimite = limite.efetivo !== null && limite.ativos > limite.efetivo;
+
+  function salvar(valor: number | null) {
+    setErro(null);
+    setOk(null);
+    iniciar(async () => {
+      const r = await definirLimiteUsuarios(tenantId, valor, motivo.trim());
+      if (!r.ok) setErro(r.erro);
+      else {
+        setMaximo("");
+        setMotivo("");
+        setOk(valor === null ? "Voltou a seguir o plano." : "Limite atualizado.");
+      }
+    });
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <span className="font-display text-2xl text-brand-800">
+          {limite.efetivo ?? "ilimitado"}
+        </span>
+        <span className="text-sm text-ink-500">
+          {personalizado
+            ? "personalizado para esta empresa"
+            : limite.plano
+              ? `do plano ${limite.plano}`
+              : "sem plano contratado"}
+        </span>
+      </div>
+      <p className="mt-0.5 text-xs text-ink-500">
+        {limite.ativos} ativo{limite.ativos === 1 ? "" : "s"} hoje
+        {personalizado && ` · o plano prevê ${limite.doPlano ?? "ilimitado"}`}
+      </p>
+      {acimaDoLimite && (
+        <p className="mt-2 text-xs text-amber-800">
+          Acima do limite: ninguém é desativado, mas novos convites e reativações ficam
+          bloqueados.
+        </p>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          type="number"
+          min={1}
+          step={1}
+          value={maximo}
+          onChange={(e) => setMaximo(e.target.value)}
+          placeholder="novo limite"
+          className="w-28 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+        />
+        <input
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+          placeholder="motivo (obrigatório, auditado)"
+          className="w-64 max-w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+        />
+        <Botao variante="primaria" disabled={!valido || pendente} onClick={() => salvar(qtd)}>
+          {pendente ? "…" : "Definir"}
+        </Botao>
+        {personalizado && (
+          <Botao disabled={!temMotivo || pendente} onClick={() => salvar(null)}>
+            Voltar ao plano
+          </Botao>
+        )}
+      </div>
+      {erro && <p className="mt-1 text-xs text-red-700">{erro}</p>}
+      {ok && <p className="mt-1 text-xs text-emerald-700">{ok}</p>}
     </div>
   );
 }

@@ -66,7 +66,7 @@ services:
 
   # ============ AUTH ============
   keycloak:
-    # Imagem custom = oficial 26.4 + tema de login "meujet" (Keycloakify) +
+    # Imagem custom = oficial 26.7.3 + tema de login "meujet" (Keycloakify) +
     # SPI de login por código de e-mail — ver infra/keycloak-theme/ e
     # infra/keycloak-extensions/. Contexto = ./infra para o Dockerfile enxergar
     # os dois diretórios. Rebuild em dev: ./rebuild.sh keycloak
@@ -96,6 +96,10 @@ services:
       KC_HOSTNAME_STRICT: "false"
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
+      # Desde o KC 26.6 o `start-dev` escuta só em localhost (fora do WSL): dentro
+      # do container nem o nginx nem o backend alcançariam a porta 8080. O `start`
+      # de produção não tem esse default.
+      KC_HTTP_HOST: "0.0.0.0"
 
       # Substituição no import do realm (jetski-backoffice): resolve a URL pública
       # do túnel. Sem túnel, usa localhost. Mesmo mecanismo no prod (PUBLIC_URL=meujet).
@@ -159,7 +163,13 @@ services:
 
   # ============ OBJECT STORAGE (S3) ============
   minio:
-    image: minio/minio:latest
+    # quay.io, não Docker Hub: em set/2026 o repositório minio/minio SUMIU do Hub
+    # ("pull access denied ... repository does not exist") e o E2E do CI parou de
+    # subir o stack. Dev e a VM de produção só seguiam de pé pelo cache local.
+    # Tag PINADA na mesma release que já roda nos dois (RELEASE.2025-09-07T16-13-09Z):
+    # é troca de registry, não upgrade — o MinIO removeu recursos da edição
+    # community em releases de 2025, então subir versão é decisão à parte.
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: jetski-minio
     command: server /data --console-address ":9001"
     ports:

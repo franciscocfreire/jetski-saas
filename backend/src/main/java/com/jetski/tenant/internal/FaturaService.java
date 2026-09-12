@@ -38,9 +38,12 @@ public class FaturaService {
     @Transactional(readOnly = true)
     @SuppressWarnings("unchecked")
     public Map<String, Object> planoAtual(UUID tenantId) {
+        // Limites personalizados da empresa (V068) sobrepõem os do plano: a página
+        // Plano precisa mostrar o mesmo teto que o convite aplica.
         List<Object[]> rows = entityManager.createNativeQuery("""
-                SELECT p.nome, p.preco_mensal, p.limites::text
+                SELECT p.nome, p.preco_mensal, (p.limites || t.limites_override)::text
                   FROM assinatura a JOIN plano p ON p.id = a.plano_id
+                  JOIN tenant t ON t.id = a.tenant_id
                  WHERE a.tenant_id = :tid AND a.status = 'ativa'
                  ORDER BY a.created_at DESC LIMIT 1
                 """)

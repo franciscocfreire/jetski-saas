@@ -845,6 +845,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_cliente_tenant_documento
     ON public.cliente (tenant_id, documento_tipo, documento)
  WHERE documento IS NOT NULL AND btrim(documento) <> '';
 
+-- V068: limites personalizados por empresa (chave presente vence plano.limites; '{}' = segue o plano)
+ALTER TABLE public.tenant
+    ADD COLUMN IF NOT EXISTS limites_override jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE public.tenant DROP CONSTRAINT IF EXISTS tenant_limites_override_objeto;
+ALTER TABLE public.tenant
+    ADD CONSTRAINT tenant_limites_override_objeto
+    CHECK (jsonb_typeof(limites_override) = 'object');
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 

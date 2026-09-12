@@ -26,7 +26,7 @@ COPY keycloak-theme/ .
 RUN npm run build-keycloak-theme
 
 # ---- stage 2: Keycloak + tema + SPI como providers ----
-FROM quay.io/keycloak/keycloak:26.4
+FROM quay.io/keycloak/keycloak:26.7.3
 # Nome do JAR fixado em vite.config.ts (keycloakVersionTargets) — mudou lá, mude aqui.
 COPY --from=theme-build /theme/dist_keycloak/meujet-theme.jar /opt/keycloak/providers/
 # SPI do login por código (versão do Keycloak pinada no pom.xml do módulo —

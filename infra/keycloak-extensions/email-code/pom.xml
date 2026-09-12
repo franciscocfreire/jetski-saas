@@ -17,8 +17,8 @@
 
     <properties>
         <!-- Acompanha a base image quay.io/keycloak/keycloak:26.4 (hoje resolve
-             para 26.4.7) — mudou a tag lá, mude a versão aqui. -->
-        <keycloak.version>26.4.7</keycloak.version>
+             para 26.7.3) — mudou a tag lá, mude a versão aqui. -->
+        <keycloak.version>26.7.3</keycloak.version>
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>

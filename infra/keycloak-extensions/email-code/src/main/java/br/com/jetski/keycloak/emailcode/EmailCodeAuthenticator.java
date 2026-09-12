@@ -418,11 +418,30 @@ public class EmailCodeAuthenticator implements Authenticator {
         concluirLogin(context, user);
     }
 
+    /**
+     * Categoria que o brute force do Keycloak >= 26.6 atribui a estas tentativas.
+     *
+     * <p>Desde a 26.6 {@code failedLogin/successfulLogin} recebem o conjunto de
+     * categorias da credencial e são NO-OP se ele não intersectar
+     * {@code {password, otp, recovery-authn-codes}} ({@code Collections.disjoint} em
+     * {@code DefaultBruteForceProtector}). Passar a nossa categoria ("email-code")
+     * desligaria a proteção em silêncio. O código por e-mail e a senha deste
+     * authenticator são o PRIMEIRO fator, logo contam como {@code password}
+     * (contador primário, bloqueio temporário/permanente como antes); {@code otp}
+     * alimentaria o novo bloqueio permanente por falhas de 2º fator.
+     *
+     * <p>Sem contagem dupla: o {@code AuthenticationProcessor.logFailure} também
+     * chama o protector, mas com {@code getReferenceCategory()} da factory
+     * ("email-code"), que cai no no-op acima.
+     */
+    private static final java.util.Set<String> CATEGORIA_BRUTE_FORCE =
+            java.util.Set.of(org.keycloak.models.credential.PasswordCredentialModel.TYPE);
+
     private void concluirLogin(AuthenticationFlowContext context, UserModel user) {
         AuthenticationSessionModel authSession = context.getAuthenticationSession();
         if (context.getRealm().isBruteForceProtected()) {
             context.getProtector().successfulLogin(context.getRealm(), user,
-                    context.getConnection(), context.getUriInfo());
+                    context.getConnection(), context.getUriInfo(), CATEGORIA_BRUTE_FORCE);
         }
         clearChallenge(authSession);
         authSession.removeAuthNote(NOTE_STATE);
@@ -439,7 +458,7 @@ public class EmailCodeAuthenticator implements Authenticator {
     private void registrarFalhaBruteForce(AuthenticationFlowContext context, UserModel user) {
         if (context.getRealm().isBruteForceProtected()) {
             context.getProtector().failedLogin(context.getRealm(), user,
-                    context.getConnection(), context.getUriInfo());
+                    context.getConnection(), context.getUriInfo(), CATEGORIA_BRUTE_FORCE);
         }
     }
 

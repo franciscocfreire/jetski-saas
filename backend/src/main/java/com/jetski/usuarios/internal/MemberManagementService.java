@@ -47,6 +47,7 @@ public class MemberManagementService {
     private final MembroRepository membroRepository;
     private final UsuarioRepository usuarioRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
 
     @PersistenceContext
     private final EntityManager entityManager;
@@ -289,16 +290,8 @@ public class MemberManagementService {
             throw new BusinessException("Membro já está ativo");
         }
 
-        // Check plan limit
-        Integer maxUsuarios = getPlanLimit(tenantId);
-        long currentActive = membroRepository.countByTenantIdAndAtivo(tenantId, true);
-
-        if (currentActive >= maxUsuarios) {
-            throw new BusinessException(
-                "Limite de usuários do plano atingido (" + maxUsuarios + "). " +
-                "Não é possível reativar este membro."
-            );
-        }
+        // Limite de usuários (plano ou personalizado pela plataforma)
+        assertPlanLimitNotReached(tenantId);
 
         // Reactivate member
         membro.setAtivo(true);
@@ -388,12 +381,10 @@ public class MemberManagementService {
     }
 
     private void assertPlanLimitNotReached(UUID tenantId) {
-        Integer maxUsuarios = getPlanLimit(tenantId);
+        // Mesma regra e mesma mensagem do convite: diz se o teto é do plano (upgrade
+        // resolve) ou personalizado pela plataforma (só o suporte amplia).
         long currentActive = membroRepository.countByTenantIdAndAtivo(tenantId, true);
-        if (currentActive >= maxUsuarios) {
-            throw new BusinessException(
-                "Limite de usuários do plano atingido (" + maxUsuarios + ").");
-        }
+        planoLimiteService.verificar(tenantId, "usuarios_max", currentActive, "usuários");
     }
 
     /** Upsert do tenant_access (espelha signup/convite); idempotente via UNIQUE(usuario_id, tenant_id). */
@@ -427,21 +418,12 @@ public class MemberManagementService {
      * Get plan user limit for tenant.
      */
     private Integer getPlanLimit(UUID tenantId) {
-        try {
-            return (Integer) entityManager.createNativeQuery(
-                """
-                SELECT (p.limites->>'usuarios_max')::int
-                FROM assinatura a
-                JOIN plano p ON a.plano_id = p.id
-                WHERE a.tenant_id = ?1 AND a.status = 'ativa'
-                """
-            )
-            .setParameter(1, tenantId)
-            .getSingleResult();
-        } catch (Exception e) {
-            log.warn("Failed to get plan limit for tenant {}: {}", tenantId, e.getMessage());
-            return 999; // Default fallback
-        }
+        // Resolvedor canônico (PlanoLimiteService): limite personalizado da empresa
+        // (console, V068) > limite do plano; null = ilimitado, exibido como 999. A
+        // consulta própria que existia aqui ignorava a personalização — o convite
+        // barraria num número e a reativação em outro.
+        Integer max = planoLimiteService.limite(tenantId, "usuarios_max");
+        return max != null ? max : 999;
     }
 
     /**
