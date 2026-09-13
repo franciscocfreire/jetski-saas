@@ -17,13 +17,18 @@ export default function TermosPage() {
     <article className="bg-white">
       <div className="mx-auto max-w-3xl px-6 py-16 text-[15px] leading-relaxed text-slate-700">
         <h1 className="text-3xl font-bold text-slate-900">Termos de Uso</h1>
-        <p className="mt-2 text-sm text-slate-500">Última atualização: 10 de julho de 2026</p>
+        <p className="mt-2 text-sm text-slate-500">Última atualização: 13 de setembro de 2026</p>
 
         <p className="mt-6">
           Estes Termos de Uso (&ldquo;Termos&rdquo;) regem o acesso e a utilização da plataforma{' '}
           <strong>Meu Jet</strong> (&ldquo;Plataforma&rdquo;), disponível em meujet.com.br, operada
-          por <strong>Fcf Tecnologia Ltda</strong>, inscrita no CNPJ sob o nº{' '}
-          <strong>93.365.124/0001-51</strong> (&ldquo;Meu Jet&rdquo;, &ldquo;nós&rdquo;). Ao criar uma conta ou
+          pelos seus fundadores em fase de pré-operação, antes da constituição de pessoa jurídica
+          própria (&ldquo;Meu Jet&rdquo;, &ldquo;nós&rdquo;). A razão social e o CNPJ serão informados
+          nesta página assim que constituídos; até lá, o canal oficial é{' '}
+          <a href="mailto:suporte@meujet.com.br" className="text-sky-700 underline">
+            suporte@meujet.com.br
+          </a>
+          . Ao criar uma conta ou
           utilizar a Plataforma, você declara ter lido, compreendido e aceito estes Termos e a{' '}
           <Link href="/privacidade" className="text-sky-700 underline">
             Política de Privacidade

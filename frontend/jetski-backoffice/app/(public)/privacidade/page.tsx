@@ -22,11 +22,12 @@ export default function PrivacidadePage() {
     <article className="bg-white">
       <div className="mx-auto max-w-3xl px-6 py-16 text-[15px] leading-relaxed text-slate-700">
         <h1 className="text-3xl font-bold text-slate-900">Política de Privacidade</h1>
-        <p className="mt-2 text-sm text-slate-500">Última atualização: 10 de julho de 2026</p>
+        <p className="mt-2 text-sm text-slate-500">Última atualização: 13 de setembro de 2026</p>
 
         <p className="mt-6">
-          Esta Política descreve como a plataforma <strong>Meu Jet</strong>, operada por{' '}
-          <strong>Fcf Tecnologia Ltda</strong> (CNPJ <strong>93.365.124/0001-51</strong>), trata dados
+          Esta Política descreve como a plataforma <strong>Meu Jet</strong> — operada pelos seus
+          fundadores em fase de pré-operação, antes da constituição de pessoa jurídica própria, cuja
+          razão social e CNPJ serão informados aqui assim que constituídos — trata dados
           pessoais, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 —
           &ldquo;LGPD&rdquo;). Ela vale para o site meujet.com.br, o painel das locadoras
           (backoffice) e o Portal do Cliente. Leia-a junto com os{' '}
@@ -182,7 +183,7 @@ export default function PrivacidadePage() {
 
         <H2>10. Encarregado e contato</H2>
         <p>
-          Encarregado pelo tratamento de dados (DPO): <strong>Fcf Tecnologia Ltda</strong> —{' '}
+          Encarregado pelo tratamento de dados (DPO): <strong>equipe Meu Jet</strong> —{' '}
           <a href="mailto:suporte@meujet.com.br" className="text-sky-700 underline">
             suporte@meujet.com.br
           </a>
