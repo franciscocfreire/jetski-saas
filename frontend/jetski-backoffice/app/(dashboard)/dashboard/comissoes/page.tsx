@@ -67,8 +67,8 @@ function CustomCheckbox({ checked, onChange, disabled }: { checked: boolean; onC
       type="button"
       onClick={onChange}
       disabled={disabled}
-      className={`h-4 w-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
-        checked ? 'bg-primary border-primary' : 'border-input hover:border-primary/50'
+      className={`h-[1.125rem] w-[1.125rem] rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+        checked ? 'bg-primary border-primary' : 'border-control bg-background hover:border-control-hover'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       {checked && <Check className="h-3 w-3 text-primary-foreground" />}
