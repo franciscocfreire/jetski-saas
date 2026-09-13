@@ -102,6 +102,49 @@ else
   echo ">> CONSOLE_PUBLIC_URL ausente no .env — client jetski-platform-console NÃO convergido"
 fi
 
+# Client de TESTE (jetski-test: público, ROPC, redirect/webOrigins "*") — vem do
+# infra/keycloak-realm.json porque dev e CI (Newman) precisam dele, mas o import
+# também o cria num realm NOVO de produção. Em prod ele NUNCA fica habilitado:
+# redirect "*" num client público com standard flow é primitiva de roubo de
+# authorization code. Idempotente: força enabled=false e zera redirect/webOrigins
+# e os fluxos a cada deploy (não apaga — o client some do realm.json só se dev/CI
+# deixarem de usá-lo). Backstop na API: JwtAuthorizedPartyValidator rejeita
+# azp=jetski-test fora de dev/test.
+disable_test_client() {
+  local CID="jetski-test" CLIENT UUID
+  CLIENT=$(curl -s "$KC/admin/realms/$REALM/clients?clientId=$CID" -H "Authorization: Bearer $TOKEN")
+  UUID=$(echo "$CLIENT" | python3 -c 'import sys,json;a=json.load(sys.stdin);print(a[0]["id"] if a else "")')
+  if [ -z "$UUID" ]; then
+    echo ">> client $CID não existe no realm — nada a desabilitar"
+    return
+  fi
+  echo "$CLIENT" | python3 -c '
+import sys, json
+d = json.load(sys.stdin)[0]
+d["enabled"] = False
+d["standardFlowEnabled"] = False
+d["directAccessGrantsEnabled"] = False
+d["implicitFlowEnabled"] = False
+d["redirectUris"] = []
+d["webOrigins"] = []
+json.dump(d, open("/tmp/kc_test_client.json", "w"))
+'
+  local HTTP
+  HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+    "$KC/admin/realms/$REALM/clients/$UUID" \
+    -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d @/tmp/kc_test_client.json)
+  rm -f /tmp/kc_test_client.json
+  echo ">> client $CID desabilitado (PUT http=$HTTP)"
+  # Confere o estado final (não confia só no status do PUT)
+  local ENABLED
+  ENABLED=$(curl -s "$KC/admin/realms/$REALM/clients/$UUID" -H "Authorization: Bearer $TOKEN" \
+    | python3 -c 'import sys,json;print(json.load(sys.stdin).get("enabled"))')
+  if [ "$ENABLED" != "False" ]; then
+    echo "ERRO: client $CID continua habilitado em produção (enabled=$ENABLED)" >&2
+    return 1
+  fi
+}
+
 # Frontend URL do realm: base pública dos links gerados (e-mails de verificação,
 # action-tokens) E do issuer efetivo (sobrepõe o KC_HOSTNAME). Sem isso,
 # e-mails disparados por chamadas internas do backend saem com
@@ -129,4 +172,7 @@ curl -s -o /dev/null -w ">> PUT realm http=%{http_code}\n" -X PUT \
   "$KC/admin/realms/$REALM" \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d @/tmp/kc_realm.json
 rm -f /tmp/kc_realm.json
+
+# Por último: se falhar (set -e), os passos acima já convergiram.
+disable_test_client
 echo ">> clients Keycloak configurados."

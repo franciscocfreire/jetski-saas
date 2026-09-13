@@ -66,6 +66,14 @@ public class SecurityConfig {
     @org.springframework.beans.factory.annotation.Value("${jetski.security.external-url:}")
     private String externalUrl;
 
+    /** Clients (azp) cujos tokens a API aceita — ver JwtAuthorizedPartyValidator. */
+    @org.springframework.beans.factory.annotation.Value("${jetski.security.jwt.allowed-clients:jetski-backoffice,jetski-customer-portal,jetski-platform-console,jetski-mobile,jetski-api}")
+    private String[] allowedClients;
+
+    /** Extras por perfil (dev/local/test: jetski-test). Vazio em prod. */
+    @org.springframework.beans.factory.annotation.Value("${jetski.security.jwt.additional-allowed-clients:}")
+    private String[] additionalAllowedClients;
+
     public SecurityConfig(
             JwtAuthenticationConverter jwtAuthenticationConverter,
             TenantAccessValidator tenantAccessValidator,
@@ -137,10 +145,25 @@ public class SecurityConfig {
             return issuerValidators.get(0).validate(jwt);
         };
 
-        // Combinar timestamp validation + multi-issuer validation
+        // Backstop de audiência (P0 da revisão técnica de ago/2026): sem ele, QUALQUER
+        // token assinado pelo realm (grafana, jetski-test, jetski-password-check...) valia
+        // na API inteira. Só clients da allowlist (azp) passam.
+        java.util.LinkedHashSet<String> clients = new java.util.LinkedHashSet<>(List.of(allowedClients));
+        clients.addAll(List.of(additionalAllowedClients));
+        JwtAuthorizedPartyValidator authorizedPartyValidator = new JwtAuthorizedPartyValidator(clients);
+        if (authorizedPartyValidator.clientsPermitidos().isEmpty()) {
+            throw new IllegalStateException(
+                "jetski.security.jwt.allowed-clients vazio: a API rejeitaria todo token. "
+                    + "Configure os clients legítimos (JETSKI_JWT_ALLOWED_CLIENTS).");
+        }
+        org.slf4j.LoggerFactory.getLogger(SecurityConfig.class)
+            .info("JWT: clients aceitos (azp) = {}", authorizedPartyValidator.clientsPermitidos());
+
+        // Combinar timestamp + multi-issuer + authorized party (azp)
         OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
             new JwtTimestampValidator(),
-            multiIssuerValidator
+            multiIssuerValidator,
+            authorizedPartyValidator
         );
 
         jwtDecoder.setJwtValidator(validator);
