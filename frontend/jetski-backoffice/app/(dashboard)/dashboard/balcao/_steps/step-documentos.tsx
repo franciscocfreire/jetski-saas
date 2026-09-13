@@ -294,7 +294,7 @@ export function StepDocumentos({
             </div>
           </div>
         </div>
-        <label className="flex items-center gap-2 pt-1 text-sm">
+        <label className="flex items-center gap-2 pt-1 text-sm font-semibold">
           <Checkbox
             checked={estrangeiro}
             // Passaporte já implica estrangeiro (o backend liga a flag na

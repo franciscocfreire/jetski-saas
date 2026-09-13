@@ -212,7 +212,7 @@ const NAV_GROUPS: NavGroup[] = [
 export function AppSidebar() {
   const pathname = usePathname()
   const { currentTenant, tenants, setCurrentTenant, accessType } = useTenantStore()
-  const { collapsed, toggleGroup } = useSidebarStore()
+  const { grupoAberto, toggleGroup } = useSidebarStore()
   const { data: session } = useSession()
   const { canAny, isLoading: permsLoading, isError: permsError } = usePermissions()
   const [novaEmpresaAberta, setNovaEmpresaAberta] = useState(false)
@@ -297,7 +297,7 @@ export function AppSidebar() {
     return (
       <Collapsible
         key={group.id}
-        open={!collapsed[group.id]}
+        open={grupoAberto(group.id, itensVisiveis.some(isItemActive))}
         onOpenChange={() => toggleGroup(group.id)}
         className="group/collapsible"
       >

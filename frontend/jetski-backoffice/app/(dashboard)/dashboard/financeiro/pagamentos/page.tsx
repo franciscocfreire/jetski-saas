@@ -254,8 +254,8 @@ function PagamentoDialog({
                   className="flex items-center gap-2 cursor-pointer hover:opacity-80"
                   onClick={handleToggleAll}
                 >
-                  <div className={`h-4 w-4 rounded border flex items-center justify-center ${
-                    selectAll ? 'bg-primary border-primary' : 'border-input'
+                  <div className={`h-[1.125rem] w-[1.125rem] rounded border-2 flex items-center justify-center ${
+                    selectAll ? 'bg-primary border-primary' : 'border-control bg-background'
                   }`}>
                     {selectAll && <Check className="h-3 w-3 text-primary-foreground" />}
                   </div>
@@ -292,8 +292,8 @@ function PagamentoDialog({
                       }`}
                       onClick={() => handleToggleItem(item.id)}
                     >
-                      <div className={`h-4 w-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                        selectedItems.has(item.id) ? 'bg-primary border-primary' : 'border-input'
+                      <div className={`h-[1.125rem] w-[1.125rem] rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                        selectedItems.has(item.id) ? 'bg-primary border-primary' : 'border-control bg-background'
                       }`}>
                         {selectedItems.has(item.id) && <Check className="h-3 w-3 text-primary-foreground" />}
                       </div>
