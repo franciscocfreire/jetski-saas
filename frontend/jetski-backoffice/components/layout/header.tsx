@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { useRentalNotifications } from '@/components/providers/rental-notification-provider'
 import { ThemeToggle } from '@/components/layout/theme-toggle'
+import { TamanhoFonte } from '@/components/layout/tamanho-fonte'
 import { cn } from '@/lib/utils'
 
 interface HeaderProps {
@@ -34,6 +35,8 @@ export function Header({ title }: HeaderProps) {
             className="w-64 pl-8"
           />
         </div>
+
+        <TamanhoFonte />
 
         <ThemeToggle />
 

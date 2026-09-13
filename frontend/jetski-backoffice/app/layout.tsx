@@ -41,6 +41,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        {/*
+          Reaplica o tamanho de texto escolhido ANTES da primeira pintura. Num
+          efeito do React a página apareceria no padrão e saltaria para o
+          escolhido a cada navegação — o salto incomoda mais que a letra pequena.
+          Inline e sem dependências de propósito: qualquer await aqui já é tarde.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var f=localStorage.getItem('mj-app-fonte');if(f&&[14,16,18,20].indexOf(+f)>-1)document.documentElement.style.fontSize=f+'px'}catch(e){}",
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} antialiased`}
       >
