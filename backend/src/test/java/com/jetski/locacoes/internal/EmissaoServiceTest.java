@@ -233,7 +233,8 @@ class EmissaoServiceTest {
             .contains("item 5.4.2").contains("GRU paga: <b>GRU-1</b>")
             .contains("Anexo 5-C").contains("Anexo 5-B").contains("Anexo 1-C")
             .contains("Documento oficial de identificação")
-            .contains("<b>Maria da Silva</b><br>EAMA Jet Save Turismo Náutico LTDA<br>CNPJ: 65.455.888/0001-00");
+            .contains("<b>Maria da Silva</b><br>EAMA Jet Save Turismo Náutico LTDA<br>CNPJ: 65.455.888/0001-00")
+            .doesNotContain("operado por"); // própria: sem operadora na assinatura
         verify(email).sendEmailComAnexo(eq("roberto@email.com"), anyString(), anyString(), anyString(), any(), anyString());
     }
 
@@ -405,7 +406,9 @@ class EmissaoServiceTest {
             anyString(), any(), eq("application/pdf"), eq("oficial@eamasantos.com.br"),
             eq(new EmailService.Remetente(emissora, "EAMA Santos LTDA")));
         assertThat(body.getValue()).contains("Ana Souza").contains("EAMA-SP-999")
-            .doesNotContain("Jet Save"); // o tenant da sessão (operadora) não aparece
+            // a operadora (tenant da sessão) aparece só na assinatura, como quem opera pela EAMA
+            .contains("CNPJ: 22.222.222/0001-22<br>operado por <b>Jet Save Turismo Náutico LTDA</b>")
+            .doesNotContain("O EAMA <b>Jet Save");
         // nunca a Capitania configurada pela operadora
         verify(email, org.mockito.Mockito.never()).sendEmailComAnexo(eq("capitania@example.com"),
             anyString(), anyString(), anyString(), any(), anyString(), nullable(String.class), any());

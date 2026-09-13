@@ -44,10 +44,25 @@ public final class MarinhaEmailTemplate {
             UUID reservaId,
             List<String> anexos,
             String hashSha256,
-            boolean reenvio
+            boolean reenvio,
+            /**
+             * Emissão delegada: a operadora afiliada que atendeu o locatário. Entra só na
+             * assinatura ("{EAMA emissora} operado por {operadora}"); o remetente, o
+             * credenciamento e o Reply-To continuam sendo os da EAMA. {@code null} = própria.
+             */
+            String operadoraNome
     ) {
         public DadosOficio {
             anexos = anexos == null ? List.of() : List.copyOf(anexos);
+        }
+
+        /** Emissão própria (sem operadora). */
+        public DadosOficio(String eamaNome, String cnpj, String eamaRegistro, String responsavelNome,
+                           String telefone, String emailOficial, String locatarioNome, String documento,
+                           DocumentoTipo documentoTipo, boolean estrangeiro, String gruNumero, UUID reservaId,
+                           List<String> anexos, String hashSha256, boolean reenvio) {
+            this(eamaNome, cnpj, eamaRegistro, responsavelNome, telefone, emailOficial, locatarioNome,
+                documento, documentoTipo, estrangeiro, gruNumero, reservaId, anexos, hashSha256, reenvio, null);
         }
 
         /** Código curto da reserva — o mesmo que o backoffice exibe ({@code #xxxxxxxx}). */
@@ -123,6 +138,8 @@ public final class MarinhaEmailTemplate {
         if (has(d.responsavelNome())) sb.append("<b>").append(esc(d.responsavelNome())).append("</b><br>");
         sb.append("EAMA ").append(eama);
         if (has(d.cnpj())) sb.append("<br>CNPJ: ").append(esc(d.cnpj()));
+        // Delegada: a operadora aparece só aqui, como quem opera em nome da EAMA.
+        if (has(d.operadoraNome())) sb.append("<br>operado por <b>").append(esc(d.operadoraNome())).append("</b>");
         if (has(d.telefone())) sb.append("<br>Telefone: ").append(esc(d.telefone()));
         if (has(d.emailOficial())) sb.append("<br>E-mail: ").append(esc(d.emailOficial()));
         sb.append("</p>");

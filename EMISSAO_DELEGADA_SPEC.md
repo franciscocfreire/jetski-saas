@@ -152,6 +152,10 @@ Igual à emissão própria, exceto:
   síncrona, worker e reenvio pela operadora). O que o `emissor_snapshot` não tiver (anteriores
   à V064/V065) cai no cadastro **atual da EAMA** (`TenantQueryService.findOutroTenantById`),
   nunca no tenant da operadora; sem snapshot legível e sem EAMA → `SEM_DESTINATARIO`.
+  A operadora aparece **só na assinatura** do ofício, como "{EAMA emissora} operado por
+  {operadora}" (`DadosOficio.operadoraNome`; no reenvio pelo painel da EAMA vem do
+  `operadora_nome` do espelho) — sem contatos, CNPJ ou credenciamento dela. A via do cliente
+  e a notificação à EAMA continuam em nome da operadora.
 - **Crédito**: debitado **da operadora** — `CreditoService` intocado (débito no tenant que
   dispara, mesma transação, mesmo advisory lock).
 - Pós-emissão: grava `emissor_tenant_id` + `emissor_snapshot` no `documento_emitido`,
@@ -246,7 +250,9 @@ gate/identidade trocados pelo vínculo.
   menção à operadora. A relação entre as empresas fica registrada **dentro** da plataforma
   (termo, snapshot, espelho, audit) — em caso de disputa, a trilha prova quem fez o quê. ✔
   Estendido ao **e-mail** em 13/set/2026: o "From" do ofício também é da EAMA (antes saía
-  pelo SMTP do tenant da sessão, i.e. da operadora) — ver §4.2.
+  pelo SMTP do tenant da sessão, i.e. da operadora). Única exceção, decidida na mesma data:
+  a **assinatura** do ofício identifica quem operou — "{EAMA emissora} operado por
+  {operadora}" — só o nome, sem contatos dela. Ver §4.2.
 - **K. Módulos (V046)**: separar em `EMISSAO_PROPRIA` × `EMISSAO_DELEGADA` (módulo =
   portão **comercial** do plano; `emissora_habilitada` = portão **cadastral** validado pelo
   superadmin). Emissão própria exige **os dois** portões. Viabiliza planos por perfil e o

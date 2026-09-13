@@ -349,7 +349,9 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
             org.mockito.ArgumentMatchers.eq(new EmailService.Remetente(emissora, "EAMA Santos LTDA")));
         assertThat(body.getValue())
             .contains("Ana Souza").contains("EAMA-SP-999").contains("EAMA Santos LTDA")
-            .doesNotContain("Operadora Praia").doesNotContain("operadora.com");
+            // a operadora só na assinatura, como quem opera pela EAMA; contatos dela não entram
+            .contains("operado por <b>Operadora Praia LTDA</b>")
+            .doesNotContain("O EAMA <b>Operadora").doesNotContain("operadora.com");
         org.mockito.Mockito.verify(emailService, org.mockito.Mockito.never()).sendEmailComAnexo(
             org.mockito.ArgumentMatchers.eq("capitania-da-operadora@example.com"), anyString(), anyString(),
             anyString(), any(), anyString(), org.mockito.ArgumentMatchers.nullable(String.class), any());

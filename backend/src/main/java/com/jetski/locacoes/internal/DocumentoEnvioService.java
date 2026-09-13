@@ -162,7 +162,8 @@ public class DocumentoEnvioService {
             emissor.marinhaEmail(), emissor.remetenteTenantId(), cliente.getEmail(),
             // A EAMA emissora só é avisada da emissão original; um reenvio não a notifica.
             reenvio ? null : emissor.contatoEmail(),
-            oficio(emissor, cliente, hab, reserva.getId(), configDocumento(tenant), hashMarinha, reenvio),
+            oficio(emissor, doc.getEmissorTenantId() != null ? tenant : null, cliente, hab,
+                reserva.getId(), configDocumento(tenant), hashMarinha, reenvio),
             "Seus documentos — " + tenant.getRazaoSocial(),
             corpoCliente(cliente, hab),
             DocumentoNome.de(cliente.getNome(), cliente.getDocumento()),
@@ -189,7 +190,7 @@ public class DocumentoEnvioService {
         return new EnvioContexto(
             documentoId, reserva.getTenantId(), reserva.getId(),
             emissor.marinhaEmail(), emissor.remetenteTenantId(), cliente.getEmail(), emissor.contatoEmail(),
-            oficio(emissor, cliente, hab, reserva.getId(), cfg, hashMarinha, false),
+            oficio(emissor, delegacao != null ? tenant : null, cliente, hab, reserva.getId(), cfg, hashMarinha, false),
             "Seus documentos — " + tenant.getRazaoSocial(),
             corpoCliente(cliente, hab),
             DocumentoNome.de(cliente.getNome(), cliente.getDocumento()),
@@ -366,14 +367,20 @@ public class DocumentoEnvioService {
         }
     }
 
-    /** Monta o ofício (NORMAM-212 5.4.2) com a lista dos documentos realmente incluídos no PDF. */
-    MarinhaEmailTemplate.DadosOficio oficio(Emissor e, Cliente c, ReservaHabilitacao hab,
+    /**
+     * Monta o ofício (NORMAM-212 5.4.2) com a lista dos documentos realmente incluídos no PDF.
+     *
+     * @param operadora tenant do documento, informado só na delegada: entra na assinatura
+     *                  como "operado por"; {@code null} na emissão própria
+     */
+    MarinhaEmailTemplate.DadosOficio oficio(Emissor e, Tenant operadora, Cliente c, ReservaHabilitacao hab,
             UUID reservaId, DocumentoConfig cfg, String hash, boolean reenvio) {
         return new MarinhaEmailTemplate.DadosOficio(
             e.nome(), e.cnpj(), e.registro(), e.responsavel(), e.telefone(), e.emailOficial(),
             c.getNome(), c.getDocumento(), c.getDocumentoTipo(), Boolean.TRUE.equals(c.getEstrangeiro()),
             hab != null ? hab.getGruNumero() : null, reservaId,
-            anexosOficio(cfg.marinha(), c, hab), hash, reenvio);
+            anexosOficio(cfg.marinha(), c, hab), hash, reenvio,
+            operadora != null ? operadora.getRazaoSocial() : null);
     }
 
     /** Itens do 5.4.2-a presentes no PDF da Marinha, conforme o recorte do tenant e o que o cliente entregou. */

@@ -131,7 +131,9 @@ public class EmissaoDelegadaService {
                 "Atestado de Demonstração – Anexo 5-B",
                 "Declaração de Residência – Anexo 1-C (ou comprovante de residência)",
                 "Documento oficial de identificação, com fotografia"),
-            e.getDocumentoHash(), true);
+            e.getDocumentoHash(), true,
+            // assinatura: "{EAMA} operado por {operadora}" — o espelho guarda o nome dela
+            e.getOperadoraNome());
     }
 
     static UUID reservaIdDaChave(String s3Key) {
