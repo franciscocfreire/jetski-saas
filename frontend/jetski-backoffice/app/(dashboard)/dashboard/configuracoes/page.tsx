@@ -21,11 +21,12 @@ import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail, FileText, ShieldCheck, Palette, Gauge, Store } from 'lucide-react'
+import { Loader2, Settings, Percent, Gift, Save, AlertCircle, Building2, Mail, FileText, ShieldCheck, Palette, Gauge, Store, Eye } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Logo } from '@/components/logo'
 import { PlanoUsoTab } from '@/components/configuracoes/plano-uso-tab'
 import { PermissoesTab } from '@/components/configuracoes/permissoes-tab'
+import { OficioMarinhaPreviewDialog } from '@/components/configuracoes/oficio-marinha-preview-dialog'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useVideoaulaObrigatoria, USER_TENANTS_QUERY_KEY } from '@/lib/hooks/use-videoaula-obrigatoria'
 import { userTenantsService } from '@/lib/api/services/user-tenants'
@@ -81,6 +82,7 @@ function ConfiguracoesConteudo() {
   const [responsavelNome, setResponsavelNome] = useState('')
   const [telefone, setTelefone] = useState('')
   const [emailOficial, setEmailOficial] = useState('')
+  const [previewOficioAberto, setPreviewOficioAberto] = useState(false)
   const [pixChave, setPixChave] = useState('')
   // SMTP por tenant
   const [smtpHost, setSmtpHost] = useState('')
@@ -531,13 +533,25 @@ function ConfiguracoesConteudo() {
 
               {/* Ofício à Capitania (NORMAM-212 item 5.4.2 / Anexo 5-A) */}
               <div className="space-y-3 rounded-lg border p-4">
-                <div>
-                  <h4 className="text-sm font-medium">Ofício à Capitania (CHA-MTA-E)</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Assinatura do e-mail de solicitação de emissão enviado à Capitania (NORMAM-212/DPC,
-                    item 5.4.2). Use os dados declarados no Anexo 5-A do credenciamento do EAMA.
-                    Campos em branco são omitidos da assinatura.
-                  </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h4 className="text-sm font-medium">Ofício à Capitania (CHA-MTA-E)</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Assinatura do e-mail de solicitação de emissão enviado à Capitania (NORMAM-212/DPC,
+                      item 5.4.2). Use os dados declarados no Anexo 5-A do credenciamento do EAMA.
+                      Campos em branco são omitidos da assinatura.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => setPreviewOficioAberto(true)}
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    Pré-visualizar e-mail
+                  </Button>
                 </div>
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
@@ -575,6 +589,11 @@ function ConfiguracoesConteudo() {
                   <em> responder-para</em> = e-mail oficial.
                 </p>
               </div>
+              <OficioMarinhaPreviewDialog
+                open={previewOficioAberto}
+                onOpenChange={setPreviewOficioAberto}
+                dados={{ razaoSocial, marinhaEmail, emailRemetente, responsavelNome, telefone, emailOficial }}
+              />
             </CardContent>
           </Card>
 

@@ -40,6 +40,12 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   `"Nome completo CPF.pdf"` (passaporte p/ estrangeiro), `Reply-To` = e-mail oficial. Texto único
   para emissão, reenvio pela loja (agora respeita a delegação via `emissor_snapshot`) e reenvio
   pela EAMA emissora.
+- **Pré-visualização do ofício** (set/2026): botão "Pré-visualizar e-mail" no bloco *Ofício à
+  Capitania* (Configurações › Empresa) abre o e-mail como a Capitania recebe — envelope
+  (De/Para/Responder-para/Assunto/Anexo), corpo do `MarinhaEmailTemplate` com locatário fictício
+  e pendências (sem e-mail da Marinha = bloqueia; sem SMTP próprio, assinatura incompleta,
+  remetente ≠ e-mail oficial). Usa os valores digitados antes de salvar
+  (`POST /config/oficio-marinha/preview`, `OficioMarinhaPreviewService`, sem envio/persistência).
 - **Robô GRU** (HTTP em Java, validado no site real): geração PIX/boleto, verificação de
   pagamento, comprovante — com fallback manual (ver `GRU_HTTP_CONTRACT.md`).
 - Assinatura eletrônica de termos: fases A (auditoria + carimbo RFC 3161), B (OTP e-mail/

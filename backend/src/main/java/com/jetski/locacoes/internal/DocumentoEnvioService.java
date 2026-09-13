@@ -369,29 +369,45 @@ public class DocumentoEnvioService {
 
     /** Itens do 5.4.2-a presentes no PDF da Marinha, conforme o recorte do tenant e o que o cliente entregou. */
     private List<String> anexosOficio(DocumentoConfig.Destino d, Cliente c, ReservaHabilitacao hab) {
+        return rotulosAnexosOficio(d,
+            Boolean.TRUE.equals(c.getEstrangeiro()),
+            hab != null && Boolean.TRUE.equals(hab.getAnexoResidencia()),
+            hab != null && hab.getGruComprovanteS3Key() != null,
+            tipo -> anexoPresente(c.getId(), tipo));
+    }
+
+    /**
+     * Rótulos dos documentos do 5.4.2-a como aparecem no ofício. O recorte do tenant
+     * ({@code d}) diz o que PODE ir; os demais parâmetros dizem o que o locatário
+     * de fato entregou. A pré-visualização nas configurações chama com tudo
+     * "entregue" para mostrar a lista completa que o tenant parametrizou.
+     */
+    static List<String> rotulosAnexosOficio(DocumentoConfig.Destino d, boolean estrangeiro,
+            boolean residenciaEntregue, boolean comprovanteGruEntregue,
+            java.util.function.Predicate<com.jetski.locacoes.domain.ClienteAnexo.Tipo> anexoEntregue) {
         List<String> a = new java.util.ArrayList<>();
         if (d.saudeOn()) a.add("Autodeclaração de Atestado de Saúde – Anexo 5-C");
         if (d.instrutorOn()) {
-            a.add(Boolean.TRUE.equals(c.getEstrangeiro())
+            a.add(estrangeiro
                 ? "Atestado de Demonstração – Anexo 5-B (5-B-1/5-B-2 e versões em inglês 5-B-3/5-B-4)"
                 : "Atestado de Demonstração – Anexo 5-B (5-B-1 e 5-B-2)");
         }
-        if (d.residenciaOn() && hab != null && Boolean.TRUE.equals(hab.getAnexoResidencia())) {
+        if (d.residenciaOn() && residenciaEntregue) {
             a.add("Declaração de Residência – Anexo 1-C");
         }
-        if (d.anexoComprovanteOn() && anexoPresente(c.getId(),
-                com.jetski.locacoes.domain.ClienteAnexo.Tipo.COMPROVANTE_RESIDENCIA)) {
+        if (d.anexoComprovanteOn()
+                && anexoEntregue.test(com.jetski.locacoes.domain.ClienteAnexo.Tipo.COMPROVANTE_RESIDENCIA)) {
             a.add("Comprovante de residência");
         }
-        if (d.anexoIdentidadeOn() && anexoPresente(c.getId(),
-                com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE)) {
+        if (d.anexoIdentidadeOn()
+                && anexoEntregue.test(com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE)) {
             a.add("Documento oficial de identificação, com fotografia");
         }
-        if (d.anexoSelfieOn() && anexoPresente(c.getId(),
-                com.jetski.locacoes.domain.ClienteAnexo.Tipo.SELFIE)) {
+        if (d.anexoSelfieOn()
+                && anexoEntregue.test(com.jetski.locacoes.domain.ClienteAnexo.Tipo.SELFIE)) {
             a.add("Fotografia do locatário");
         }
-        if (d.comprovanteGruOn() && hab != null && hab.getGruComprovanteS3Key() != null) {
+        if (d.comprovanteGruOn() && comprovanteGruEntregue) {
             a.add("Comprovante de pagamento da GRU");
         }
         return a;

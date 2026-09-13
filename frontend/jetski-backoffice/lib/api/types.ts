@@ -1554,6 +1554,37 @@ export interface TenantGeralConfigRequest {
   smtpStarttls?: boolean
 }
 
+/** Valores digitados na tela (mesmo sem salvar) para pré-visualizar o ofício à Capitania. */
+export interface OficioMarinhaPreviewRequest {
+  razaoSocial?: string
+  marinhaEmail?: string
+  emailRemetente?: string
+  responsavelNome?: string
+  telefone?: string
+  emailOficial?: string
+}
+
+/** Pendência apontada pela pré-visualização: ERRO = o envio não aconteceria. */
+export interface OficioMarinhaAviso {
+  nivel: 'ERRO' | 'AVISO' | 'INFO'
+  campo: string
+  mensagem: string
+}
+
+/** Como o e-mail à Capitania vai sair (locatário fictício). Espelha o template da emissão. */
+export interface OficioMarinhaPreview {
+  de: string
+  deOrigem: 'SMTP_PROPRIO' | 'PLATAFORMA'
+  para: string | null
+  responderPara: string | null
+  assunto: string
+  nomeAnexo: string
+  corpoHtml: string
+  anexos: string[]
+  avisos: OficioMarinhaAviso[]
+  bloqueado: boolean
+}
+
 /** Seções do documento que podem ir (ou não) a um destino na emissão. */
 export interface DocumentoConfigDestino {
   residencia: boolean
