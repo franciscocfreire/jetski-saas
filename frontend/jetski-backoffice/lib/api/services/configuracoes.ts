@@ -5,6 +5,8 @@ import type {
   ComissaoConfig,
   ComissaoConfigRequest,
   DocumentoConfig,
+  OficioMarinhaPreview,
+  OficioMarinhaPreviewRequest,
   TenantGeralConfig,
   TenantGeralConfigRequest,
 } from '../types'
@@ -44,6 +46,18 @@ export const configuracoesService = {
 
   async updateTenantConfig(request: TenantGeralConfigRequest): Promise<TenantGeralConfig> {
     const { data } = await apiClient.put<TenantGeralConfig>(`${getBasePath()}/geral`, request)
+    return data
+  },
+
+  /**
+   * Pré-visualização do e-mail (ofício) à Capitania com os valores digitados na tela.
+   * Não envia nem grava nada — só monta o envelope, o corpo e as pendências.
+   */
+  async previewOficioMarinha(request: OficioMarinhaPreviewRequest): Promise<OficioMarinhaPreview> {
+    const { data } = await apiClient.post<OficioMarinhaPreview>(
+      `${getBasePath()}/oficio-marinha/preview`,
+      request
+    )
     return data
   },
 
