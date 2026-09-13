@@ -192,6 +192,9 @@ groups:
       # ------------------------------------------------------------------
       # Dependências internas (telegraf net_response): uma instância de
       # alerta por serviço caído (labels server/port no e-mail).
+      # Série estável por serviço desde set/2026 (telegraf.conf exclui a tag
+      # `result` e o campo `result_type`): antes, a série de falha ficava exposta
+      # 3 min depois da volta e este alerta contava esse resto como queda.
       - uid: dependencia-down
         title: Dependência interna fora do ar
         condition: C
