@@ -26,7 +26,7 @@ O único caminho de entrada é o Cloudflare Tunnel.
 | `docker-compose.yml` | base (dev) |
 | `docker-compose.prod.yml` | override de produção (segredos, cloudflared, flyway, limites) |
 | `.env.prod.example` | modelo de segredos → copie para `.env` no servidor |
-| `deploy.sh` | deploy não-destrutivo (pull → migrate → verifica RLS → build → up) |
+| `deploy.sh` | deploy não-destrutivo (pull → build → infra → migrate → verifica RLS → up das apps → config Keycloak) |
 | `infra/prod/01-init-roles.sql` | cria role `jetski_app` (NOSUPERUSER/NOBYPASSRLS) + grants |
 | `infra/prod/02-verify-rls.sql` | guarda: falha se tabela com `tenant_id` estiver sem RLS |
 | `infra/prod/server-bootstrap.sh` | one-time: instala Docker + clona repo |
@@ -75,10 +75,11 @@ cd ~/jetski
 ./deploy.sh
 ```
 
-`deploy.sh` sobe a infra, cria o role, aplica as migrations pendentes (V001–V044+),
-verifica RLS, builda backend/frontend (ARM nativo), sobe nginx + cloudflared, e **configura o
-client Keycloak** `jetski-backoffice` (confidencial + secret + PKCE + redirects do `PUBLIC_URL`,
-via `infra/prod/configure-keycloak-client.sh`, idempotente). Ao final faz smoke check em
+`deploy.sh` builda as imagens primeiro (Keycloak com cache; backend/frontends `--no-cache`,
+ARM nativo), depois sobe a infra, cria o role, aplica as migrations pendentes, verifica RLS,
+recria as apps, sobe nginx + cloudflared e **configura o client Keycloak** `jetski-backoffice`
+(confidencial + secret + PKCE + redirects do `PUBLIC_URL`, via
+`infra/prod/configure-keycloak-client.sh`, idempotente). Ao final faz smoke check em
 `http://127.0.0.1:8090/api/actuator/health`.
 
 Acesse: site em **https://www.meujet.com.br**; backoffice (login) em **https://app.meujet.com.br**.
@@ -141,6 +142,11 @@ $C start minio
 
 ### Gotchas (aprendidos no dev)
 - **Cache de build**: `deploy.sh` usa `build --no-cache` no backend + `--force-recreate` (cache reaproveitava imagem velha).
+- **Keycloak não é recriado à toa** (desde set/2026): o `deploy.sh` exporta `BUILDX_NO_DEFAULT_ATTESTATIONS=1`.
+  No image store do containerd, o atestado de proveniência mudava o id da imagem a cada build,
+  mesmo 100% em cache, e o Compose v5.1.4 recriava o Keycloak em todo deploy (SSO ~3,5 min fora).
+  O log do deploy diz "Keycloak mantido" ou "Keycloak (re)criado"; no segundo caso ele espera o realm.
+  Mudança real de tema/SPI ou de config do Keycloak/Postgres continua recriando — avisar antes.
 - **OPA** carrega `/policies` sem `--watch` → `deploy.sh` faz `restart opa` após pull.
 - **Storage** persiste em volumes (`minio_data`, `storage_data`) → sobrevive a recreate.
 - **Migrations** rodam pelo container `flyway` (superuser); o backend roda com `jetski_app` (RLS).
