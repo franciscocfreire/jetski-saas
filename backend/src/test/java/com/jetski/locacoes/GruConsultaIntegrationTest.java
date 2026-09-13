@@ -182,12 +182,14 @@ class GruConsultaIntegrationTest extends AbstractIntegrationTest {
             "SELECT marinha_enviado_em FROM documento_emitido WHERE id = ?", docId);
         assertThat(row.get("marinha_enviado_em")).isNotNull();
 
-        // Ofício NORMAM-212 5.4.2 (7 args: Reply-To): nº da GRU no corpo, reserva no fim do assunto
+        // Ofício NORMAM-212 5.4.2 (8 args: Reply-To + remetente = quem emite): nº da GRU no
+        // corpo, reserva no fim do assunto
         org.mockito.ArgumentCaptor<String> subjects = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<String> bodies = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.Mockito.verify(emailService, org.mockito.Mockito.atLeastOnce())
             .sendEmailComAnexo(anyString(), subjects.capture(), bodies.capture(), anyString(), any(),
-                anyString(), org.mockito.ArgumentMatchers.nullable(String.class));
+                anyString(), org.mockito.ArgumentMatchers.nullable(String.class),
+                org.mockito.ArgumentMatchers.argThat(r -> r != null && TENANT_ACME.equals(r.tenantId())));
         assertThat(subjects.getAllValues()).anyMatch(s ->
             s.startsWith("Solicitação de Emissão de CHA-MTA-E") && s.contains("(reenvio) – reserva #"));
         assertThat(bodies.getAllValues()).anyMatch(b -> b.contains("GRU paga: <b>608931002438533333</b>"));
@@ -196,7 +198,7 @@ class GruConsultaIntegrationTest extends AbstractIntegrationTest {
         jdbc.update("UPDATE documento_emitido SET marinha_enviado_em = NULL WHERE id = ?", docId);
         doThrow(new RuntimeException("smtp fora")).when(emailService)
             .sendEmailComAnexo(anyString(), anyString(), anyString(), anyString(), any(), anyString(),
-                org.mockito.ArgumentMatchers.nullable(String.class));
+                org.mockito.ArgumentMatchers.nullable(String.class), any());
         mockMvc.perform(post("/v1/tenants/{t}/documentos/{id}/reenviar", TENANT_ACME, docId)
                 .header("X-Tenant-Id", TENANT_ACME.toString()).with(staff()))
             .andExpect(status().isOk())

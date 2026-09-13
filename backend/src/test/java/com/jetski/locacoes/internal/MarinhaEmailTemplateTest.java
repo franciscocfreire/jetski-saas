@@ -97,4 +97,23 @@ class MarinhaEmailTemplateTest {
             .doesNotContain("credenciamento nº").doesNotContain("GRU paga").doesNotContain("[")
             .doesNotContain("SHA-256");
     }
+
+    @Test
+    @DisplayName("delegada: a operadora entra só na assinatura, como \"operado por\"; credenciamento e cabeçalho seguem da EAMA")
+    void assinaturaDelegadaOperadoPor() {
+        var d = new MarinhaEmailTemplate.DadosOficio("EAMA Santos LTDA", "22.222.222/0001-22", "EAMA-SP-999",
+            "Ana Souza", null, "oficial@eamasantos.com.br",
+            "Maria Delegada", "123.456.789-09", DocumentoTipo.CPF, false, "GRU-1", RESERVA,
+            List.of("Anexo 5-C"), null, false, "Operadora <Praia> LTDA");
+        String html = MarinhaEmailTemplate.corpoHtml(d);
+        assertThat(html)
+            .contains("O EAMA <b>EAMA Santos LTDA</b>, devidamente credenciado (credenciamento nº EAMA-SP-999)")
+            .contains("<b>Ana Souza</b><br>EAMA EAMA Santos LTDA<br>CNPJ: 22.222.222/0001-22"
+                + "<br>operado por <b>Operadora &lt;Praia&gt; LTDA</b><br>E-mail: oficial@eamasantos.com.br");
+        // o construtor de 15 argumentos (própria) continua valendo e não escreve "operado por"
+        var propria = new MarinhaEmailTemplate.DadosOficio("EAMA X", null, null, null, null, null,
+            "Ana", "1", DocumentoTipo.CPF, false, null, RESERVA, List.of(), null, false);
+        assertThat(propria.operadoraNome()).isNull();
+        assertThat(MarinhaEmailTemplate.corpoHtml(propria)).doesNotContain("operado por");
+    }
 }

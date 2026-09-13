@@ -81,12 +81,13 @@ public class EmissaoDelegadaService {
         } catch (Exception ex) {
             throw new BusinessException("PDF desta emissão não pôde ser lido do storage");
         }
-        // Ofício no formato da NORMAM-212 5.4.2, assinado pela EAMA (este tenant).
+        // Ofício no formato da NORMAM-212 5.4.2, assinado E remetido pela EAMA (este tenant).
         MarinhaEmailTemplate.DadosOficio oficio = oficio(tenantId, e);
         try {
             emailService.sendEmailComAnexo(destino,
                 MarinhaEmailTemplate.assunto(oficio), MarinhaEmailTemplate.corpoHtml(oficio),
-                MarinhaEmailTemplate.nomeArquivo(oficio), pdf, "application/pdf", oficio.emailOficial());
+                MarinhaEmailTemplate.nomeArquivo(oficio), pdf, "application/pdf", oficio.emailOficial(),
+                new EmailService.Remetente(tenantId, oficio.eamaNome()));
         } catch (Exception ex) {
             throw new BusinessException("Falha ao enviar o e-mail: " + ex.getMessage());
         }
@@ -130,7 +131,9 @@ public class EmissaoDelegadaService {
                 "Atestado de Demonstração – Anexo 5-B",
                 "Declaração de Residência – Anexo 1-C (ou comprovante de residência)",
                 "Documento oficial de identificação, com fotografia"),
-            e.getDocumentoHash(), true);
+            e.getDocumentoHash(), true,
+            // assinatura: "{EAMA} operado por {operadora}" — o espelho guarda o nome dela
+            e.getOperadoraNome());
     }
 
     static UUID reservaIdDaChave(String s3Key) {

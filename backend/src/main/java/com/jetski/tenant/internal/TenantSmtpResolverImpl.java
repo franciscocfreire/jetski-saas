@@ -5,15 +5,19 @@ import com.jetski.shared.security.SecretCipher;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.tenant.domain.Tenant;
 import com.jetski.tenant.internal.repository.TenantRepository;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Resolve o SMTP da empresa (tenant) atual a partir do {@link TenantContext}.
- * Só devolve config quando host + usuário + senha estão preenchidos.
+ * Resolve o SMTP da empresa (tenant) atual a partir do {@link TenantContext}, ou de um
+ * tenant explícito ({@link #forTenant}). Só devolve config quando host + usuário + senha
+ * estão preenchidos.
  */
 @Component
 @RequiredArgsConstructor
@@ -21,6 +25,7 @@ public class TenantSmtpResolverImpl implements TenantSmtpResolver {
 
     private final TenantRepository tenantRepository;
     private final SecretCipher secretCipher;
+    private final EntityManager entityManager;
 
     @Override
     public Optional<SmtpSettings> forCurrentTenant() {
@@ -28,7 +33,29 @@ public class TenantSmtpResolverImpl implements TenantSmtpResolver {
         if (tenantId == null) {
             return Optional.empty();
         }
-        Tenant t = tenantRepository.findById(tenantId).orElse(null);
+        return montar(tenantRepository.findById(tenantId).orElse(null));
+    }
+
+    /**
+     * Transação PRÓPRIA de propósito: a RLS de {@code tenant} (V042) só deixa ler a
+     * linha do tenant da sessão, então a leitura de outro tenant precisa de
+     * {@code set_config('app.tenant_id', alvo, true)} — local à transação, para não
+     * vazar para o chamador. {@code REQUIRES_NEW} garante uma transação (o despacho
+     * de e-mail roda sem transação no worker) e que o ajuste morre no commit.
+     */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public Optional<SmtpSettings> forTenant(UUID tenantId) {
+        if (tenantId == null) {
+            return Optional.empty();
+        }
+        entityManager.createNativeQuery("SELECT set_config('app.tenant_id', ?1, true)")
+            .setParameter(1, tenantId.toString())
+            .getSingleResult();
+        return montar(tenantRepository.findById(tenantId).orElse(null));
+    }
+
+    private Optional<SmtpSettings> montar(Tenant t) {
         if (t == null || isBlank(t.getSmtpHost()) || isBlank(t.getSmtpUsername())
                 || isBlank(t.getSmtpPassword())) {
             return Optional.empty();

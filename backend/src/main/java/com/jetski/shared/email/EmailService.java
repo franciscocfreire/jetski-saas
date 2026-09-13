@@ -70,10 +70,33 @@ public interface EmailService {
     /**
      * Idem, com {@code Reply-To} opcional (ex.: o e-mail oficial do EAMA no ofício à
      * Capitania — NORMAM-212 item 5.4.2 — quando o "from" é o SMTP da plataforma).
+     * O remetente é o tenant da sessão ({@link TenantSmtpResolver#forCurrentTenant()}).
+     */
+    default void sendEmailComAnexo(String to, String subject, String htmlBody,
+                                   String attachmentName, byte[] attachment, String attachmentContentType,
+                                   String replyTo) {
+        sendEmailComAnexo(to, subject, htmlBody, attachmentName, attachment, attachmentContentType, replyTo, null);
+    }
+
+    /**
+     * Identidade de remetente explícita, quando o e-mail deve sair em nome de um tenant
+     * que NÃO é o da sessão. Caso de uso: o ofício à Capitania na emissão delegada — a
+     * operadora dispara, mas o e-mail é da EAMA emissora (EMISSAO_DELEGADA_SPEC §8.J:
+     * sem menção à operadora). Resolve o SMTP próprio de {@code tenantId}; sem SMTP
+     * próprio, usa o global com {@code nome} como nome de exibição do "From".
+     *
+     * @param tenantId tenant cujo SMTP/identidade assina o e-mail
+     * @param nome     nome de exibição quando cai no SMTP global (ex.: razão social)
+     */
+    record Remetente(java.util.UUID tenantId, String nome) {}
+
+    /**
+     * Idem, com remetente explícito. {@code remetente == null} equivale ao método de
+     * 7 argumentos (remetente = tenant da sessão).
      */
     void sendEmailComAnexo(String to, String subject, String htmlBody,
                            String attachmentName, byte[] attachment, String attachmentContentType,
-                           String replyTo);
+                           String replyTo, Remetente remetente);
 
     /**
      * Notifica um super admin de plataforma sobre uma nova empresa aguardando aprovação.

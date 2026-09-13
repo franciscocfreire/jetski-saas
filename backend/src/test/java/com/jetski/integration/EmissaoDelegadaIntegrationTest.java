@@ -56,6 +56,7 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
     @Autowired private AceiteService aceiteService;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private org.springframework.cache.CacheManager cacheManager;
+    @Autowired private com.jetski.shared.email.TenantSmtpResolver smtpResolver;
 
     @MockBean private UserProvisioningService userProvisioningService;
     @MockBean private EmailService emailService;
@@ -282,6 +283,11 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
         assertThat(reenviada.getReenviadoEm()).isNotNull();
         assertThat(reenviada.getReenviadoPara()).isEqualTo("capitania-sp@example.com");
         assertThat(saldoOperadora()).isEqualTo(19); // reenvio não debita
+        // o ofício sai remetido pela EAMA (SMTP/"From" dela), não pelo "Meu Jet" genérico
+        org.mockito.Mockito.verify(emailService).sendEmailComAnexo(
+            org.mockito.ArgumentMatchers.eq("capitania-sp@example.com"), anyString(), anyString(),
+            anyString(), any(), anyString(), org.mockito.ArgumentMatchers.nullable(String.class),
+            org.mockito.ArgumentMatchers.eq(new EmailService.Remetente(emissora, "EAMA Santos LTDA")));
 
         // kill switch: bloqueia novas emissões, libera volta
         VinculoEmissao v = vinculoService.listar(emissora).get(0);
@@ -307,6 +313,77 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
         vinculoService.liberar(emissora, v.getId());
         TenantContext.setTenantId(operadora);
         assertThat(emissaoService.emitir(reserva2).getDocumentoId()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("ofício delegado: destino, assinatura e REMETENTE sempre da EAMA — mesmo no reenvio pela operadora e com snapshot antigo")
+    void oficioDelegadoSemprePelaEama() {
+        seedCreditos(0, 20);
+        vinculoAtivo();
+        // A operadora tem Capitania, e-mail oficial e SMTP próprios: nada disso pode vazar no ofício.
+        jdbc.update("UPDATE tenant SET marinha_email = 'capitania-da-operadora@example.com', "
+            + "email_oficial = 'oficial@operadora.com', smtp_host = 'smtp.operadora', "
+            + "smtp_username = 'op', smtp_password = 'x', smtp_from = 'contato@operadora.com' WHERE id = ?", operadora);
+        // A EAMA como está HOJE (responsável/e-mail oficial/SMTP): é daqui que sai o que o snapshot não tem.
+        jdbc.update("UPDATE tenant SET responsavel_nome = 'Ana Souza', email_oficial = 'oficial@eamasantos.com.br', "
+            + "smtp_host = 'smtp.eama', smtp_username = 'eama', smtp_password = 'segredo', "
+            + "smtp_from = 'oficios@eamasantos.com.br' WHERE id = ?", emissora);
+
+        UUID docId = emitirDelegada("Carlos Delegado", "111.444.777-35", "GRU-DELEG-010", "3 day");
+
+        // Snapshot anterior à V064 (só identidade): sem marinhaEmail, responsável ou e-mail oficial.
+        jdbc.update("UPDATE documento_emitido SET emissor_snapshot = "
+            + "'{\"razaoSocial\":\"EAMA Santos LTDA\",\"cnpj\":\"22.222.222/0001-22\"}'::jsonb WHERE id = ?", docId);
+        org.mockito.Mockito.clearInvocations(emailService);
+
+        // Reenvio disparado pela OPERADORA (contexto dela): o ofício continua 100% da EAMA.
+        assertThat(TenantContext.getTenantId()).isEqualTo(operadora);
+        EmissaoService.ResultadoReenvio r = emissaoService.reenviarEmail(docId);
+        assertThat(r.isEnviadoMarinha()).isTrue();
+
+        org.mockito.ArgumentCaptor<String> body = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(emailService).sendEmailComAnexo(
+            org.mockito.ArgumentMatchers.eq("capitania-sp@example.com"), anyString(), body.capture(),
+            anyString(), any(), anyString(),
+            org.mockito.ArgumentMatchers.eq("oficial@eamasantos.com.br"),
+            org.mockito.ArgumentMatchers.eq(new EmailService.Remetente(emissora, "EAMA Santos LTDA")));
+        assertThat(body.getValue())
+            .contains("Ana Souza").contains("EAMA-SP-999").contains("EAMA Santos LTDA")
+            // a operadora só na assinatura, como quem opera pela EAMA; contatos dela não entram
+            .contains("operado por <b>Operadora Praia LTDA</b>")
+            .doesNotContain("O EAMA <b>Operadora").doesNotContain("operadora.com");
+        org.mockito.Mockito.verify(emailService, org.mockito.Mockito.never()).sendEmailComAnexo(
+            org.mockito.ArgumentMatchers.eq("capitania-da-operadora@example.com"), anyString(), anyString(),
+            anyString(), any(), anyString(), org.mockito.ArgumentMatchers.nullable(String.class), any());
+
+        // SMTP: a partir do contexto da operadora, o resolver entrega o servidor da EAMA...
+        var smtpEama = smtpResolver.forTenant(emissora).orElseThrow();
+        assertThat(smtpEama.host()).isEqualTo("smtp.eama");
+        assertThat(smtpEama.from()).isEqualTo("oficios@eamasantos.com.br");
+        assertThat(smtpEama.fromName()).isEqualTo("EAMA Santos LTDA");
+        // ...sem contaminar o contexto do chamador (o da sessão continua sendo o da operadora).
+        assertThat(TenantContext.getTenantId()).isEqualTo(operadora);
+        assertThat(smtpResolver.forCurrentTenant().orElseThrow().host()).isEqualTo("smtp.operadora");
+    }
+
+    /** Cadastro → habilitação EMA com instrutor da EAMA → aceite → emissão delegada; devolve o documento. */
+    private UUID emitirDelegada(String nome, String cpf, String gru, String offset) {
+        Cliente cliente = clienteService.criarPreConta(Cliente.builder()
+            .tenantId(operadora).nome(nome).documento(cpf)
+            .telefone("+5513988887777").rg("9.876.543-2").orgaoEmissor("SSP/SP")
+            .nacionalidade("Brasileira").naturalidade("Santos/SP").build());
+        UUID reservaId = UUID.randomUUID();
+        jdbc.update("INSERT INTO reserva (id, tenant_id, modelo_id, cliente_id, data_inicio, data_fim_prevista) "
+            + "VALUES (?, ?, ?, ?, now() + interval '" + offset + "', now() + interval '" + offset + "' + interval '2 hours')",
+            reservaId, operadora, modeloId, cliente.getId());
+        habilitacaoService.registrar(reservaId, ReservaHabilitacao.builder()
+            .via(ReservaHabilitacao.Via.EMA)
+            .anexoSaude(true).anexoRegras(true).anexoResidencia(true).instrutorId(instrutorId)
+            .gruNumero(gru).gruValor(new BigDecimal("23.13")).gruPago(true)
+            .build());
+        aceiteService.registrar(reservaId, ReservaAceite.Metodo.SIGNATURE_PAD,
+            pngValido(), "127.0.0.1", "JUnit");
+        return emissaoService.emitir(reservaId).getDocumentoId();
     }
 
     @Test

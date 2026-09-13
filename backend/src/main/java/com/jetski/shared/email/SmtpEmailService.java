@@ -80,9 +80,9 @@ public class SmtpEmailService implements EmailService {
     @Override
     public void sendEmailComAnexo(String to, String subject, String htmlBody,
                                   String attachmentName, byte[] attachment, String attachmentContentType,
-                                  String replyTo) {
+                                  String replyTo, Remetente remetente) {
         try {
-            dispatch(to, subject, htmlBody, attachmentName, attachment, attachmentContentType, replyTo);
+            dispatch(to, subject, htmlBody, attachmentName, attachment, attachmentContentType, replyTo, remetente);
             log.info("Email com anexo enviado: to={}, subject={}, anexo={} ({} bytes)",
                 to, subject, attachmentName, attachment == null ? 0 : attachment.length);
         } catch (Exception e) {
@@ -94,7 +94,7 @@ public class SmtpEmailService implements EmailService {
     @Override
     public void sendEmail(String to, String subject, String htmlBody) {
         try {
-            dispatch(to, subject, htmlBody, null, null, null, null);
+            dispatch(to, subject, htmlBody, null, null, null, null, null);
             log.info("Email sent successfully: to={}, subject={}", to, subject);
         } catch (Exception e) {
             // Best-effort: uma falha de email NÃO deve interromper o fluxo de negócio
@@ -106,18 +106,25 @@ public class SmtpEmailService implements EmailService {
 
     /**
      * Envia usando o SMTP próprio do tenant (se configurado) — "from" real da empresa —
-     * ou o SMTP global da plataforma como fallback.
+     * ou o SMTP global da plataforma como fallback. Com {@code remetente} explícito, o
+     * tenant é o dele (e não o da sessão) e, no fallback global, o nome de exibição
+     * do "From" é o dele — o ofício à Capitania sai sempre em nome de quem emite.
      */
     private void dispatch(String to, String subject, String html,
-                          String attName, byte[] att, String attType, String replyTo) throws Exception {
-        var perTenant = tenantSmtpResolver.forCurrentTenant();
+                          String attName, byte[] att, String attType, String replyTo,
+                          Remetente remetente) throws Exception {
+        var perTenant = remetente != null
+            ? tenantSmtpResolver.forTenant(remetente.tenantId())
+            : tenantSmtpResolver.forCurrentTenant();
+        String nomeGlobal = remetente != null && remetente.nome() != null && !remetente.nome().isBlank()
+            ? remetente.nome() : fromName;
         if (perTenant.isPresent()) {
             var s = perTenant.get();
-            String nome = (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : fromName;
+            String nome = (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : nomeGlobal;
             senderFactory.send(senderFactory.build(s), s.from(), nome, to, subject, html, attName, att, attType, replyTo);
             log.debug("E-mail enviado pelo SMTP do tenant (from={})", s.from());
         } else {
-            senderFactory.send(mailSender, fromEmail, fromName, to, subject, html, attName, att, attType, replyTo);
+            senderFactory.send(mailSender, fromEmail, nomeGlobal, to, subject, html, attName, att, attType, replyTo);
         }
     }
 
