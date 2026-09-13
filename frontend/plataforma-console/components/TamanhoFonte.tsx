@@ -16,7 +16,7 @@ import { Minus, Plus, Type } from "lucide-react";
  * saltaria para o escolhido — pior que não ter o recurso.
  */
 export const CHAVE_FONTE = "mj-console-fonte";
-const NIVEIS = [14, 16, 18, 20] as const;
+const NIVEIS = [14, 16, 18, 20, 22, 24] as const;
 const PADRAO = 16;
 
 export function TamanhoFonte({

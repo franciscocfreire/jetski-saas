@@ -27,7 +27,7 @@ import {
  * precisa tocar em + várias vezes seguidas vendo a página mudar atrás.
  */
 export const CHAVE_FONTE = 'mj-app-fonte'
-const NIVEIS = [14, 16, 18, 20] as const
+const NIVEIS = [14, 16, 18, 20, 22, 24] as const
 const PADRAO = 16
 
 export function TamanhoFonte() {

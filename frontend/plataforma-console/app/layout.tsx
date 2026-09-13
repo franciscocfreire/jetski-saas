@@ -37,7 +37,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html:
               "try{var f=localStorage.getItem('mj-console-fonte');" +
-              "if(f&&[14,16,18,20].indexOf(+f)>-1)" +
+              "if(f&&[14,16,18,20,22,24].indexOf(+f)>-1)" +
               "document.documentElement.style.fontSize=f+'px'}catch(e){}",
           }}
         />
