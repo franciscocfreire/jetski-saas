@@ -171,15 +171,19 @@ export function StepEmissao({
     status,
     rotulo,
     semDestinatario,
+    testId,
   }: {
     icone: React.ReactNode
     status: EnvioStatus | undefined
     rotulo: string
     semDestinatario: string
+    /** Âncora estável para o e2e; o estado vai em data-status. */
+    testId: string
   }) {
+    const ancora = { 'data-testid': testId, 'data-status': status ?? '' }
     if (status === 'PENDENTE') {
       return (
-        <p className="flex items-center gap-2 text-muted-foreground">
+        <p {...ancora} className="flex items-center gap-2 text-muted-foreground">
           <Loader2 size={15} className="animate-spin" />
           {envioParou ? `${rotulo}: ainda enviando — confira no módulo GRUs` : `Enviando ${rotulo.toLowerCase()}…`}
         </p>
@@ -187,20 +191,21 @@ export function StepEmissao({
     }
     if (status === 'ENVIADO') {
       return (
-        <p className="flex items-center gap-2">
+        <p {...ancora} className="flex items-center gap-2">
           <span className="text-emerald-600">{icone}</span> ✓ {rotulo}
         </p>
       )
     }
     if (status === 'SEM_DESTINATARIO') {
       return (
-        <p className="flex items-center gap-2 text-muted-foreground">{icone} {semDestinatario}</p>
+        <p {...ancora} className="flex items-center gap-2 text-muted-foreground">{icone} {semDestinatario}</p>
       )
     }
     return (
-      <div className="flex flex-wrap items-center gap-2 text-amber-700 dark:text-amber-500">
+      <div {...ancora} className="flex flex-wrap items-center gap-2 text-amber-700 dark:text-amber-500">
         <XCircle size={15} /> {rotulo}: falhou no envio
         <Button
+          data-testid={`${testId}-reenviar`}
           type="button"
           size="sm"
           variant="outline"
@@ -233,7 +238,12 @@ export function StepEmissao({
   if (resultado) {
     return (
       <div className="space-y-5">
-        <div className="flex items-center gap-2 text-emerald-600">
+        <div
+          className="flex items-center gap-2 text-emerald-600"
+          data-testid="balcao-emissao-resultado"
+          data-documento-id={resultado.documentoId}
+          data-reaproveitado={resultado.reaproveitado ? 'true' : 'false'}
+        >
           <CheckCircle2 className="h-6 w-6" />
           <span className="text-lg font-semibold">
             {resultado.reaproveitado ? 'Documentos já emitidos' : 'Documentos emitidos'}
@@ -265,13 +275,17 @@ export function StepEmissao({
             </p>
           ) : resultado.docCompleta ? (
             <LinhaEnvio
+              testId="balcao-emissao-envio-marinha"
               icone={<Anchor size={15} />}
               status={marinhaStatus}
               rotulo="Enviado à Marinha"
               semDestinatario="Não enviado à Marinha (sem e-mail configurado)"
             />
           ) : (
-            <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-800 dark:bg-amber-950/30">
+            <div
+              data-testid="balcao-emissao-marinha-pendente"
+              className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-800 dark:bg-amber-950/30"
+            >
               <p className="flex items-center gap-2 font-medium">
                 <Anchor size={15} /> Marinha não notificada — documentação incompleta
               </p>
@@ -286,6 +300,7 @@ export function StepEmissao({
             </div>
           )}
           <LinhaEnvio
+            testId="balcao-emissao-envio-cliente"
             icone={<Mail size={15} />}
             status={clienteStatus}
             rotulo="E-mail ao cliente"
@@ -452,7 +467,12 @@ export function StepEmissao({
               </SelectTrigger>
               <SelectContent>
                 {(instrutores ?? []).map((i) => (
-                  <SelectItem key={i.id} value={i.id}>
+                  <SelectItem
+                    key={i.id}
+                    value={i.id}
+                    data-testid="balcao-emissao-instrutor-opcao"
+                    data-instrutor-id={i.id}
+                  >
                     {i.nome}
                     {i.cha ? ` — CHA ${i.cha}` : ''}
                   </SelectItem>
