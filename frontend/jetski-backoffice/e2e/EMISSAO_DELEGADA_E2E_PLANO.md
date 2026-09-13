@@ -191,6 +191,19 @@ vínculo (400).
 
 ## 8. Fases de entrega
 
+> **Andamento (13/set/2026):** spike ✅ e fase 2 ✅ na branch `feat/e2e-emissao-delegada`.
+> Decisões D1–D4 aprovadas como recomendadas. A smoke `e2e/delegada/preparo.spec.ts` passa
+> no dev (3 testes, ~14 s): cria o par por API, faz os dois logins, confere as âncoras da
+> página Emissão delegada e lê o Mailpit, e exclui as empresas no fim.
+>
+> Rodar: `PLAYWRIGHT_BASE_URL=https://app.pegaojet.com.br npm run test:e2e:delegada`
+> (`E2E_MANTER_EMPRESAS=1` mantém as empresas para inspeção).
+>
+> Armadilha do dev: `rebuild.sh <serviço>` rodado de um worktree **recria** Postgres,
+> Keycloak, OPA e nginx (o compose vê os bind mounts em outro caminho). O Keycloak leva
+> ~25 s para voltar; os helpers esperam e repetem em erro de rede. Não rode a suíte durante
+> um rebuild.
+
 1. **Spike:** riscos da §6, sem código de teste.
 2. **Base:** `data-testid`, helpers (Mailpit, login, API), guarda de ambiente e plano dedicado.
 3. **Jornada feliz:** blocos A, C, D e E. Cobre R1 a R10 e R12.
