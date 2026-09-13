@@ -1,6 +1,7 @@
 # Plano — E2E Playwright da emissão delegada (EAMA emissora × operadora)
 
-> Status: **plano** (13/set/2026). Nada implementado ainda.
+> Status: **plano revisado** (13/set/2026, 2ª versão — endpoints, ordem do preparo, token de
+> plataforma e kill switch conferidos no código). Nada implementado ainda.
 > Regra de negócio: `EMISSAO_DELEGADA_SPEC.md` §4.2 e decisão J. Correção do remetente e
 > da assinatura do ofício: PR #9 — **este teste falha sem ele**, e é justamente isso que
 > ele deve garantir.
@@ -48,19 +49,20 @@ exercida de verdade aqui.
 
 | Passo | Como | Credencial |
 |---|---|---|
-| 1. Criar EAMA e operadora | `POST /v1/signup/tenant` → `GET /v1/test/last-email` → `POST /v1/signup/magic-activate` (padrão do `global-setup.ts`) | pública |
-| 2. Aprovar as duas | `POST /v1/platform/tenants/{id}/approve` (o signup nasce `PENDENTE_APROVACAO`) | plataforma |
+| 1. Criar EAMA e operadora | `POST /v1/signup/tenant` → `GET /v1/test/last-email` → `POST /v1/signup/magic-activate` (padrão do `global-setup.ts`). A resposta traz a **senha temporária** do admin; o primeiro login exige trocá-la (`#password-new`/`#password-confirm`), e o `performTraditionalLogin` já trata isso | pública |
+| 2. Aprovar as duas | `POST /v1/platform/tenants/{id}/approve` (o signup nasce `PENDENTE_APROVACAO`). **É a aprovação que cria a assinatura Trial**, cujo plano tem `modulos = NULL` (= todos os módulos, inclusive `EMISSAO_PROPRIA`). Por isso o passo 6 tem que vir depois deste | plataforma |
 | 3. Mesma capitania (CPSP) nas duas; `eama_registro` na EAMA | `PUT /v1/tenants/{t}/config/emissora` | admin de cada empresa |
 | 4. Habilitar a EAMA | `POST /v1/platform/tenants/{id}/habilitar-emissora` | plataforma |
 | 5. Config geral das duas | `PUT /v1/tenants/{t}/config/geral`: `marinha_email`, `email_oficial`, `responsavel_nome`, `telefone`, `email_remetente` e SMTP (`mailpit`, 1025, usuário/senha fictícios, starttls off, `smtp_from` distinto). A operadora recebe **também** um `marinha_email` próprio, para provar que ele nunca é usado | admin de cada empresa |
-| 6. Plano "só delegada" na operadora | Plano dedicado `E2E Só delegada` com `["EMISSAO_DELEGADA"]` → `POST /v1/platform/tenants/{id}/plano`. Ver decisão D2 | plataforma |
-| 7. Créditos da operadora | `POST /v1/platform/creditos/{tenantId}` | plataforma |
+| 6. Plano "só delegada" na operadora | Plano dedicado `E2E Só delegada` com `["EMISSAO_DELEGADA"]` → `POST /v1/platform/tenants/{id}/plano` com `{planoId}` (id numérico; `GET /v1/platform/planos` lista). Sem isso a Trial dá `EMISSAO_PROPRIA` à operadora e a emissão cai no portão duplo da V050 (própria sem `emissora_habilitada` → 400), nunca na delegação. Ver decisão D2 | plataforma |
+| 7. Créditos da operadora | `POST /v1/platform/creditos/{tenantId}` com `{quantidade, motivo}` (motivo obrigatório) | plataforma |
 | 8. Instrutores | Um na EAMA e um na operadora (este não pode aparecer no dropdown, R2): `POST /v1/tenants/{t}/instrutores` | admin de cada empresa |
 | 9. Modelo na operadora | `POST` de modelo (fábrica de `fixtures/test-data.ts`) | admin da operadora |
 
 **Tokens:**
-- **Admin de cada empresa:** lido de `/api/auth/session` do contexto já logado (padrão de `fixtures/auth.ts`).
-- **Plataforma:** ROPC no client `jetski-test` com o operador de plataforma de dev (`PLATFORM_ADMIN_EMAILS`, hoje `admin@acme.com`). O ROPC não passa pelo 2FA do navegador. Esse client é **só dev/CI** (revisão técnica ago/2026, P0).
+- **Admin de cada empresa:** lido de `/api/auth/session` do contexto já logado (padrão de `fixtures/auth.ts`). Os admins criados pelo signup não têm 2FA, então o login é só senha.
+- **Plataforma:** ROPC no client público `jetski-test` (direct grant habilitado, é o que o Newman usa; **só dev/CI**, revisão técnica ago/2026 P0) com um **operador de plataforma dedicado ao e2e, sem 2FA**. Não usar o `admin@acme.com`: em dev ele tem TOTP cadastrado à mão, e o realm não tem fluxo de direct grant próprio, então vale o padrão do Keycloak, cujo passo "Conditional OTP" exige o código para quem tem TOTP e o ROPC falha com `invalid_grant`. O backend não valida `azp`, então o token do `jetski-test` serve para `/v1/platform/**`; o poder vem de `usuario_global_roles`.
+  Como criar o operador: usuário no Keycloak (mesma chamada de admin API que o `setup-keycloak-dev.sh` já faz) + e-mail dele em `PLATFORM_ADMIN_EMAILS`, que o `PlatformAdminSeeder` promove no boot **desde que o `usuario` já exista** (nasce no primeiro login). Ou seja: criar no Keycloak, logar uma vez, reiniciar o backend. Alternativa sem reinício: conceder pela tela `/operadores` do console com um admin já existente.
 
 ## 4. Jornada
 
@@ -104,9 +106,14 @@ exercida de verdade aqui.
     inalterado.
 
 **F. Kill switch**
-13. EAMA clica "Bloquear emissão". A operadora prepara uma segunda reserva (passo C por API,
-    para ser rápido) e tenta emitir: 400 "suspensa pelo parceiro" (R11).
-14. EAMA clica "Liberar". A emissão da segunda reserva passa.
+13. EAMA clica "Bloquear emissão". A operadora tenta **reemitir a mesma reserva** por API,
+    `POST /v1/tenants/{t}/reservas/{id}/emitir-documentos?reemitir=true`: 400 "suspensa pelo
+    parceiro" (R11). Sem `reemitir=true` a idempotência devolveria o documento existente
+    antes de checar o vínculo. Não vale a pena uma segunda reserva: o aceite por API exige
+    assinatura em base64 e repetir o balcão dobra o tempo do teste.
+14. EAMA clica "Liberar". A mesma chamada agora emite um documento novo (key versionada),
+    debita mais 1 crédito e dispara os e-mails de novo. Conferir o saldo e o segundo ofício
+    no Mailpit, que também cobre o caminho de reemissão.
 
 **G. Encerramento**
 15. Revogar o vínculo (`window.confirm`) e seguir a decisão D3 para as empresas criadas.
@@ -123,12 +130,14 @@ vínculo (400).
 2. **`data-testid` no passo de emissão:** linhas de status "Enviado à Marinha" e "E-mail ao
    cliente" e o botão "Reenviar".
 3. **Helper do Mailpit** (`e2e/helpers/mailpit.ts`): busca com polling por destinatário e
-   assunto (`/api/v1/search`), lê From, Reply-To, HTML e anexos (`/api/v1/message/{id}`),
-   extrai o código de login. Filtra pelos endereços únicos do run, **sem limpar a caixa**,
-   que é compartilhada.
-4. **Helper de login por contexto** (`e2e/helpers/login.ts`): identifier-first
-   (`#identifier` → `#mj-send-code`), código lido do Mailpit, `storageState` por usuário.
-   O `wizard.mjs` já tem essa lógica e serve de base.
+   assunto (`/api/v1/search?query=to:… subject:…`, ordenar pela chave `Date`, não `Created`),
+   lê From, Reply-To, HTML e anexos (`/api/v1/message/{id}`). Filtra pelos endereços únicos
+   do run, **sem limpar a caixa**, que é compartilhada com o `wizard.mjs` e com quem usa o dev.
+4. **Helper de login por contexto** (`e2e/helpers/login.ts`): extrair o
+   `performTraditionalLogin` do `global-setup.ts` para receber uma `page` e devolver o
+   `storageState`. Ele já faz o identifier-first (`#identifier` → `#mj-send-code` → `#password`
+   → `#mj-login-password`) e a troca de senha obrigatória do primeiro login. O código por
+   e-mail (lido do Mailpit, como no `wizard.mjs`) fica só como fallback.
 5. **Helper de API** (`e2e/helpers/api.ts`): chamadas com o token do admin e `X-Tenant-Id`,
    mais o token de plataforma por ROPC.
 6. **Plano dedicado** (decisão D2).
@@ -141,7 +150,7 @@ vínculo (400).
 | Risco | Como validar | Saída se falhar |
 |---|---|---|
 | JavaMail com `mail.smtp.auth=true` contra Mailpit sem autenticação | Configurar SMTP de um tenant de dev para `mailpit:1025` e emitir | `MP_SMTP_AUTH_ACCEPT_ANY=1` e `MP_SMTP_AUTH_ALLOW_INSECURE=1` no serviço `mailpit` do compose |
-| ROPC do `jetski-test` para o operador de plataforma após o upgrade do Keycloak 26.7 (houve 400) | `curl` do token | Operador de plataforma de teste sem 2FA, logado pelo console |
+| ROPC do `jetski-test` com o operador dedicado (o `PlatformAdminSeeder` só promove quem já tem `usuario`) | `curl` do token e `GET /v1/platform/tenants` com ele | Conceder o papel pela tela `/operadores` do console, uma vez, no dev |
 | Não existe endpoint para criar plano | — | Decisão D2 |
 | Recarregar o passo de habilitação reflete a GRU paga pela API | Teste manual no dev | `balcao-hab-prosseguir-sem-gru` e depois a API |
 | Envio assíncrono passa de 60 s com dois SMTPs | Medir no spike | Assert pelo Mailpit com timeout próprio, sem depender da tela |
@@ -157,8 +166,10 @@ vínculo (400).
   endpoint de plataforma para criar plano, é feature nova.
   **Não** usar `PUT /planos/{id}/modulos` num plano existente: ele muda todas as empresas
   daquele plano.
-- **D3. Empresas criadas por execução.** Recomendo excluir no fim pela plataforma
-  (`POST /v1/platform/tenants/{id}/excluir`). A alternativa é deixar acumular com prefixo
+- **D3. Empresas criadas por execução.** Recomendo excluir no fim pela plataforma:
+  `POST /v1/platform/tenants/{id}/excluir` com `{modo: "IMEDIATO", confirmacaoSlug}` (o modo
+  `CARENCIA` só suspende e expurga em D+30; o export de arquivamento roda antes do expurgo nos
+  dois modos, então cada execução deixa um zip). A alternativa é deixar acumular com prefixo
   `e2e-` e limpar com o `reset-ambiente-dev.sh`.
 - **D4. Habilitar emissora pela UI do console.** O plano faz por API. Se também for regra a
   garantir, vale um teste curto e separado no `plataforma-console`.
