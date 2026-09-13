@@ -12,8 +12,12 @@ interface SidebarState {
    * a ver tudo fechado.
    */
   collapsed: Record<string, boolean>
-  /** Um grupo está aberto apenas se foi explicitamente aberto. */
-  grupoAberto: (groupId: string) => boolean
+  /**
+   * Sem escolha registrada, quem manda é a página atual: o grupo que contém a
+   * rota aberta se expande sozinho e os outros ficam fechados. Uma escolha
+   * explícita (clique no título) vence a automação, nos dois sentidos.
+   */
+  grupoAberto: (groupId: string, contemPaginaAtual: boolean) => boolean
   toggleGroup: (groupId: string) => void
 }
 
@@ -21,7 +25,10 @@ export const useSidebarStore = create<SidebarState>()(
   persist(
     (set, get) => ({
       collapsed: {},
-      grupoAberto: (groupId) => get().collapsed[groupId] === false,
+      grupoAberto: (groupId, contemPaginaAtual) => {
+        const escolha = get().collapsed[groupId]
+        return escolha === undefined ? contemPaginaAtual : escolha === false
+      },
       toggleGroup: (groupId) =>
         set((state) => ({
           // `?? true` fecha o buraco do primeiro clique: sem ele, o grupo nasce
@@ -32,6 +39,12 @@ export const useSidebarStore = create<SidebarState>()(
     }),
     {
       name: 'sidebar-groups-storage',
+      // O mapa gravado antes desta versão foi produzido com a regra antiga
+      // ("ausente = aberto"). Mantê-lo deixaria grupos marcados como fechados
+      // por um clique de outra época impedindo a abertura automática. Zerar uma
+      // única vez é mais previsível que adivinhar a intenção de cada entrada.
+      version: 1,
+      migrate: () => ({ collapsed: {} }),
     }
   )
 )

@@ -297,7 +297,7 @@ export function AppSidebar() {
     return (
       <Collapsible
         key={group.id}
-        open={grupoAberto(group.id)}
+        open={grupoAberto(group.id, itensVisiveis.some(isItemActive))}
         onOpenChange={() => toggleGroup(group.id)}
         className="group/collapsible"
       >
