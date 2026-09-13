@@ -72,6 +72,13 @@ reverter o commit do `deploy.sh`.
 
 ## 3. Ajuste B — alerta que enxerga a queda do SSO
 
+> **Implementado (13/set/2026)** na branch `feat/alerta-sso`, validado com containers
+> descartáveis (telegraf `--test` e exportando, Grafana 10.1.5 com o provisionamento).
+> Diferença para o desenho abaixo: além de `tagexclude = ["result", "status_code"]`, foi
+> preciso `fieldexclude = ["result_type"]` — o campo texto vira label no
+> `prometheus_client` e criaria uma série nova a cada falha, segurando o alerta aceso por
+> 3 min depois da volta. Aplicar em prod é manual (ver descrição do PR).
+
 ### Mudanças
 
 1. **Duas sondas HTTP no telegraf** (`inputs.http_response`, a cada 30 s; o telegraf já está na

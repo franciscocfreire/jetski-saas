@@ -227,6 +227,53 @@ groups:
                 - evaluator: { type: gt, params: [0] }
 
       # ------------------------------------------------------------------
+      # SSO por HTTP (telegraf http_response, sondas a cada 15s). Complementa a
+      # regra TCP acima, que só vê porta aberta e precisa de 3 min: a queda de
+      # ~3 min do Keycloak no deploy de 13/set/2026 passou sem alerta.
+      # Uma instância por sonda (label "sonda"): sso-interno = health/ready do
+      # Keycloak; sso-publico = sso.<domínio> pela Cloudflare. Só a pública
+      # falhando = túnel/nginx/Cloudflare; as duas = Keycloak.
+      # Plano: PLANO_SSO_DEPLOY.md (ajuste B).
+      - uid: sso-indisponivel
+        title: SSO indisponível
+        condition: C
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: >-
+            Sonda HTTP do SSO falhando há 1 minuto (ver label "sonda":
+            sso-interno = Keycloak não está pronto; sso-publico = login público
+            fora). Login, cadastro e renovação de sessão falham nos três sites.
+            Valor = motivo (3 conexão, 4 timeout, 5 DNS, 6 HTTP != 200). Ver
+            `docker compose ps keycloak` e `docker compose logs keycloak`; houve
+            deploy agora? (o deploy.sh recria o Keycloak).
+        isPaused: false
+        # NoData = a sonda sumiu (telegraf parado ou config quebrada): tratar
+        # como alerta, senão uma queda do telegraf esconderia uma queda do SSO.
+        noDataState: Alerting
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: Prometheus
+            model:
+              expr: max by (sonda) (http_response_result_code{sonda=~"sso-.*"})
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+
+      # ------------------------------------------------------------------
       # Cloudflare Tunnel: sem conexões HA = site fora do ar para o público
       # (mesmo com tudo saudável internamente).
       - uid: tunnel-down

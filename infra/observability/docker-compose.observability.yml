@@ -99,6 +99,10 @@ services:
     # docker.sock (gid do grupo docker varia por host) — invocamos direto
     user: root
     entrypoint: ["telegraf"]
+    environment:
+      # Sonda pública do SSO (alerta "SSO indisponível"). Prod define no .env
+      # (https://sso.meujet.com.br); o default é o SSO do túnel de dev.
+      SSO_PUBLIC_URL: ${SSO_PUBLIC_URL:-https://sso.pegaojet.com.br}
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
