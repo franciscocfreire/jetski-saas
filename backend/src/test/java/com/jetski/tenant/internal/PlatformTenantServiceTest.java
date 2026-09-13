@@ -129,6 +129,9 @@ class PlatformTenantServiceTest {
         Query query = mock(Query.class);
         when(entityManager.createNativeQuery(anyString())).thenReturn(query);
         when(query.setParameter(anyInt(), any())).thenReturn(query);
+        // V069: o INSERT da assinatura fixa o tenant da linha (set_config local) e devolve o anterior
+        when(query.setParameter(anyString(), any())).thenReturn(query);
+        when(query.getSingleResult()).thenReturn("");
         when(query.executeUpdate()).thenReturn(1);
 
         TenantStatusResult result = service.approve(t.getId());

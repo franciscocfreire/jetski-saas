@@ -203,6 +203,13 @@ public class PlatformTenantService {
     }
 
     private void createTrialSubscription(UUID tenantId) {
+        // RLS (V069): assinatura exige o tenant da LINHA no contexto (WITH CHECK). A rota
+        // de plataforma não tem tenant na sessão — fixa o alvo só na transação e devolve
+        // o valor anterior depois (mesmo padrão do PlatformFaturaService.setTenant).
+        String anterior = (String) entityManager.createNativeQuery(
+                "SELECT coalesce(current_setting('app.tenant_id', true), '')")
+            .getSingleResult();
+        definirTenantDaTransacao(tenantId.toString());
         entityManager.createNativeQuery(
             """
             INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, dt_fim, status)
@@ -213,7 +220,15 @@ public class PlatformTenantService {
         .setParameter(1, tenantId)
         .setParameter(2, LocalDate.now().plusDays(TRIAL_DAYS))
         .executeUpdate();
+        definirTenantDaTransacao(anterior);
         log.info("Trial subscription created for tenant: {}", tenantId);
+    }
+
+    /** {@code set_config(..., true)}: vale só até o fim da transação corrente. */
+    private void definirTenantDaTransacao(String tenantId) {
+        entityManager.createNativeQuery("SELECT set_config('app.tenant_id', :tid, true)")
+            .setParameter("tid", tenantId)
+            .getSingleResult();
     }
 
     private UUID actor() {

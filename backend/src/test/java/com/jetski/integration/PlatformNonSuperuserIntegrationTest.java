@@ -1,7 +1,10 @@
 package com.jetski.integration;
 
 import com.jetski.shared.security.TenantContext;
+import com.jetski.signup.api.dto.CreateTenantRequest;
+import com.jetski.signup.internal.TenantSignupService;
 import com.jetski.tenant.internal.PlatformFaturaService;
+import com.jetski.tenant.internal.PlatformTenantService;
 import com.jetski.tenant.internal.TenantImportService;
 import com.jetski.tenant.internal.TenantResetService;
 import com.jetski.tenant.internal.TenantResetService.Nivel;
@@ -53,6 +56,8 @@ class PlatformNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
     @Autowired private TenantResetService resetService;
     @Autowired private TenantImportService importService;
     @Autowired private PlatformFaturaService faturaService;
+    @Autowired private PlatformTenantService platformTenantService;
+    @Autowired private TenantSignupService tenantSignupService;
     @Autowired private JdbcTemplate jdbc; // conecta como app_test
 
     // ------------------------------------------------------------------
@@ -176,5 +181,65 @@ class PlatformNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
         assertThat(countSuper("SELECT count(*) FROM cliente WHERE tenant_id = '" + TENANT + "'"))
             .isEqualTo(1);
         assertThat(aguardarAuditoria("TENANT_IMPORT", 10)).isPositive();
+    }
+
+    /**
+     * V069 fechou o INSERT {@code WITH CHECK (true)} de assinatura: a aprovação (rota de
+     * plataforma, sem tenant na sessão) precisa fixar o tenant da linha na transação.
+     */
+    @Test
+    @DisplayName("V069: aprovar empresa cria a assinatura Trial sob RLS (sem tenant na sessão)")
+    void aprovarCriaTrialSobRls() throws Exception {
+        UUID pendente = UUID.randomUUID();
+        try (Connection c = superConnection(); Statement st = c.createStatement()) {
+            st.execute("INSERT INTO tenant (id, slug, razao_social, status) VALUES ('" + pendente
+                + "', 'v069-aprova-" + pendente.toString().substring(0, 8)
+                + "', 'V069 Aprovação Ltda', 'PENDENTE_APROVACAO')");
+        }
+        try {
+            platformTenantService.approve(pendente);
+
+            assertThat(countSuper("SELECT count(*) FROM assinatura WHERE tenant_id = '" + pendente
+                + "' AND status = 'ativa' AND dt_fim IS NOT NULL")).isEqualTo(1);
+        } finally {
+            removerTenant(pendente);
+        }
+    }
+
+    /**
+     * V069 fechou o INSERT {@code WITH CHECK (true)} de fuel_policy: o cadastro de empresa
+     * (pessoa autenticada sem empresa corrente = sem tenant na sessão) fixa o tenant novo
+     * só para a política padrão de combustível.
+     */
+    @Test
+    @DisplayName("V069: cadastrar empresa cria a fuel_policy padrão sob RLS (sem tenant na sessão)")
+    void cadastrarEmpresaCriaFuelPolicySobRls() throws Exception {
+        TenantContext.clear(); // estado da rota /v1/tenants/create: pessoa sem empresa corrente
+        String slug = "v069-cadastro-" + UUID.randomUUID().toString().substring(0, 8);
+
+        var resp = tenantSignupService.createTenantForExistingUser(
+            new CreateTenantRequest("V069 Cadastro Ltda", slug, null),
+            UUID.fromString("a4000000-0000-0000-0000-00000000ad01"));
+
+        try {
+            assertThat(countSuper("SELECT count(*) FROM fuel_policy WHERE tenant_id = '"
+                + resp.tenantId() + "' AND tipo = 'INCLUSO'")).isEqualTo(1);
+            assertThat(countSuper("SELECT count(*) FROM membro WHERE tenant_id = '"
+                + resp.tenantId() + "'")).isEqualTo(1);
+        } finally {
+            removerTenant(resp.tenantId());
+        }
+    }
+
+    private void removerTenant(UUID tenantId) throws SQLException {
+        try (Connection c = superConnection(); Statement st = c.createStatement()) {
+            for (String t : new String[]{"fuel_policy", "assinatura", "membro", "tenant_access", "auditoria"}) {
+                st.execute("DELETE FROM " + t + " WHERE tenant_id = '" + tenantId + "'");
+            }
+            st.execute("DELETE FROM tenant WHERE id = '" + tenantId + "'");
+        } catch (SQLException e) {
+            // FK de alguma trilha assíncrona tardia: o tenant fica, com slug único — não
+            // interfere nos demais testes.
+        }
     }
 }
