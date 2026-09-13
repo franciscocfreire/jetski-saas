@@ -148,6 +148,7 @@ export default function EmissaoDelegadaPage() {
             <Label htmlFor="slug-parceiro">Identificador (slug) da empresa</Label>
             <Input
               id="slug-parceiro"
+              data-testid="delegada-convite-slug"
               placeholder="ex.: eama-santos"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
@@ -157,16 +158,21 @@ export default function EmissaoDelegadaPage() {
           <div className="space-y-1">
             <Label>Meu papel na parceria</Label>
             <Select value={papel} onValueChange={(v) => setPapel(v as 'OPERADORA' | 'EMISSORA')}>
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="w-64" data-testid="delegada-convite-papel">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="OPERADORA">Sou a operadora (convido a EAMA)</SelectItem>
-                <SelectItem value="EMISSORA">Sou a EAMA emissora (convido a operadora)</SelectItem>
+                <SelectItem value="OPERADORA" data-testid="delegada-convite-papel-operadora">
+                  Sou a operadora (convido a EAMA)
+                </SelectItem>
+                <SelectItem value="EMISSORA" data-testid="delegada-convite-papel-emissora">
+                  Sou a EAMA emissora (convido a operadora)
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
           <Button
+            data-testid="delegada-convite-enviar"
             onClick={() => convidar.mutate()}
             disabled={!slug.trim() || convidar.isPending}
           >
@@ -190,6 +196,11 @@ export default function EmissaoDelegadaPage() {
           {(vinculos ?? []).map((v) => (
             <div
               key={v.id}
+              data-testid="delegada-parceria"
+              data-vinculo-id={v.id}
+              data-status={v.status}
+              data-papel={v.papel}
+              data-parceiro={v.parceiroNome ?? ''}
               className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"
             >
               <div className="space-y-1">
@@ -198,7 +209,7 @@ export default function EmissaoDelegadaPage() {
                   <Badge variant="outline">
                     {v.papel === 'OPERADORA' ? 'parceiro é a EAMA' : 'parceiro é a operadora'}
                   </Badge>
-                  <Badge className={STATUS_BADGE[v.status].className}>
+                  <Badge data-testid="delegada-parceria-status" className={STATUS_BADGE[v.status].className}>
                     {STATUS_BADGE[v.status].label}
                   </Badge>
                 </div>
@@ -211,12 +222,12 @@ export default function EmissaoDelegadaPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {v.status === 'CONVIDADO' && v.aguardandoMeuAceite && (
-                  <Button size="sm" onClick={() => setAceitando(v)}>
+                  <Button size="sm" data-testid="delegada-parceria-aceitar" onClick={() => setAceitando(v)}>
                     <ShieldCheck className="mr-1 h-4 w-4" /> Ver termo e aceitar
                   </Button>
                 )}
                 {v.status === 'CONVIDADO' && !v.aguardandoMeuAceite && (
-                  <span className="text-xs text-muted-foreground self-center">
+                  <span data-testid="delegada-parceria-aguardando" className="text-xs text-muted-foreground self-center">
                     Aguardando aceite do parceiro
                   </span>
                 )}
@@ -224,6 +235,7 @@ export default function EmissaoDelegadaPage() {
                   <Button
                     size="sm"
                     variant="destructive"
+                    data-testid="delegada-parceria-bloquear"
                     onClick={() => bloquear.mutate(v.id)}
                     disabled={bloquear.isPending}
                   >
@@ -231,13 +243,14 @@ export default function EmissaoDelegadaPage() {
                   </Button>
                 )}
                 {v.papel === 'EMISSORA' && (v.status === 'ATIVO' || v.status === 'BLOQUEADO') && (
-                  <Button size="sm" variant="outline" onClick={() => setDesignando(v)}>
+                  <Button size="sm" variant="outline" data-testid="delegada-parceria-designar" onClick={() => setDesignando(v)}>
                     <GraduationCap className="mr-1 h-4 w-4" /> Instrutores designados
                   </Button>
                 )}
                 {v.status === 'BLOQUEADO' && v.papel === 'EMISSORA' && (
                   <Button
                     size="sm"
+                    data-testid="delegada-parceria-liberar"
                     onClick={() => liberar.mutate(v.id)}
                     disabled={liberar.isPending}
                   >
@@ -248,6 +261,7 @@ export default function EmissaoDelegadaPage() {
                   <Button
                     size="sm"
                     variant="outline"
+                    data-testid="delegada-parceria-revogar"
                     onClick={() => {
                       if (window.confirm('Revogar a parceria? A ação é definitiva e não devolve bônus estornado.')) {
                         revogar.mutate(v.id)
@@ -282,7 +296,11 @@ export default function EmissaoDelegadaPage() {
             {aceitando?.termoTexto ?? termo ?? 'Carregando termo…'}
           </div>
           <label className="flex items-start gap-2 text-sm">
-            <Checkbox checked={termoOk} onCheckedChange={(c) => setTermoOk(c === true)} />
+            <Checkbox
+              data-testid="delegada-termo-aceito"
+              checked={termoOk}
+              onCheckedChange={(c) => setTermoOk(c === true)}
+            />
             <span>
               Li e aceito o termo de responsabilidade. Entendo que, se minha empresa for a
               operadora, os créditos de <b>bônus</b> serão zerados na ativação.
@@ -293,6 +311,7 @@ export default function EmissaoDelegadaPage() {
               Cancelar
             </Button>
             <Button
+              data-testid="delegada-termo-confirmar"
               disabled={!termoOk || aceitar.isPending}
               onClick={() => aceitando && aceitar.mutate(aceitando.id)}
             >
@@ -352,7 +371,9 @@ function PerfilEmissao() {
         <CardTitle className="flex flex-wrap items-center gap-2 text-base">
           Perfil de emissão
           {perfil?.emissoraHabilitada ? (
-            <Badge className="bg-emerald-100 text-emerald-900">EAMA emissora habilitada</Badge>
+            <Badge data-testid="delegada-perfil-habilitada" className="bg-emerald-100 text-emerald-900">
+              EAMA emissora habilitada
+            </Badge>
           ) : (
             <Badge variant="outline">Não habilitada como emissora</Badge>
           )}
@@ -368,7 +389,7 @@ function PerfilEmissao() {
         <div className="space-y-1">
           <Label>Capitania</Label>
           <Select value={capitaniaSel} onValueChange={(v) => setCapitaniaId(v)}>
-            <SelectTrigger className="w-80">
+            <SelectTrigger className="w-80" data-testid="delegada-perfil-capitania">
               <SelectValue placeholder="Selecione a capitania da sua área" />
             </SelectTrigger>
             <SelectContent>
@@ -384,6 +405,7 @@ function PerfilEmissao() {
           <Label htmlFor="eama-registro">Registro EAMA (se emissora)</Label>
           <Input
             id="eama-registro"
+            data-testid="delegada-perfil-registro"
             placeholder="nº de inscrição na Capitania"
             value={registroVal}
             onChange={(e) => setRegistro(e.target.value)}
@@ -400,7 +422,11 @@ function PerfilEmissao() {
             className="w-44"
           />
         </div>
-        <Button onClick={() => salvar.mutate()} disabled={salvar.isPending || !capitaniaSel}>
+        <Button
+          data-testid="delegada-perfil-salvar"
+          onClick={() => salvar.mutate()}
+          disabled={salvar.isPending || !capitaniaSel}
+        >
           {salvar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Salvar perfil
         </Button>
@@ -466,7 +492,12 @@ function DialogDesignacao({ vinculo, onClose }: { vinculo: VinculoEmissao; onClo
           )}
           {(meusInstrutores ?? []).map((i) => (
             <label key={i.id} className="flex items-center gap-2 text-sm">
-              <Checkbox checked={selecao.has(i.id)} onCheckedChange={() => alternar(i.id)} />
+              <Checkbox
+                data-testid="delegada-designacao-instrutor"
+                data-instrutor-id={i.id}
+                checked={selecao.has(i.id)}
+                onCheckedChange={() => alternar(i.id)}
+              />
               <span>{i.nome}{i.cha ? ` — CHA ${i.cha}` : ''}</span>
             </label>
           ))}
@@ -475,7 +506,7 @@ function DialogDesignacao({ vinculo, onClose }: { vinculo: VinculoEmissao; onClo
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
-          <Button onClick={() => salvar.mutate()} disabled={salvar.isPending}>
+          <Button data-testid="delegada-designacao-salvar" onClick={() => salvar.mutate()} disabled={salvar.isPending}>
             {salvar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Salvar designação
           </Button>
@@ -523,7 +554,7 @@ function PainelEmissor() {
   }
 
   return (
-    <Card>
+    <Card data-testid="delegada-painel">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Anchor className="h-4 w-4" /> Emissões em meu nome
@@ -538,7 +569,13 @@ function PainelEmissor() {
         {(contagens ?? []).length > 0 && (
           <div className="flex flex-wrap gap-2">
             {(contagens ?? []).map((c) => (
-              <Badge key={`${c.operadoraTenantId}-${c.mes}`} variant="outline">
+              <Badge
+                key={`${c.operadoraTenantId}-${c.mes}`}
+                variant="outline"
+                data-testid="delegada-painel-contagem"
+                data-operadora-id={c.operadoraTenantId}
+                data-total={c.total}
+              >
                 {c.mes} · {c.operadoraNome ?? 'operadora'}: <b className="ml-1">{c.total}</b>
               </Badge>
             ))}
@@ -564,7 +601,7 @@ function PainelEmissor() {
               </TableHeader>
               <TableBody>
                 {(emissoes ?? []).map((e) => (
-                  <TableRow key={e.id}>
+                  <TableRow key={e.id} data-testid="delegada-painel-emissao" data-emissao-id={e.id}>
                     <TableCell>{dataBr(e.emitidoEm)}</TableCell>
                     <TableCell>{e.operadoraNome ?? '—'}</TableCell>
                     <TableCell>
@@ -586,12 +623,13 @@ function PainelEmissor() {
                       )}
                     </TableCell>
                     <TableCell className="space-x-1 text-right">
-                      <Button size="sm" variant="outline" onClick={() => baixar(e.id)}>
+                      <Button size="sm" variant="outline" data-testid="delegada-painel-pdf" onClick={() => baixar(e.id)}>
                         <FileDown className="mr-1 h-4 w-4" /> PDF
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
+                        data-testid="delegada-painel-reenviar"
                         onClick={() => pedirReenvio(e)}
                         disabled={reenviar.isPending}
                       >
