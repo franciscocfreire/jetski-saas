@@ -74,15 +74,12 @@ export function TamanhoFonte({
       </button>
 
       {!compacto && (
-        <button
-          type="button"
-          onClick={() => aplicar(PADRAO)}
-          aria-label={`Tamanho do texto em ${percentual}% — voltar ao padrão`}
-          title="Voltar ao padrão"
-          className={`min-w-[3.25rem] rounded px-1 py-0.5 text-[10px] tabular-nums transition ${botao}`}
+        <span
+          className={`min-w-[3.25rem] px-1 text-center text-[10px] tabular-nums ${rotulo}`}
+          aria-live="polite"
         >
           {percentual}%
-        </button>
+        </span>
       )}
 
       <button
@@ -94,6 +91,18 @@ export function TamanhoFonte({
       >
         <Plus className="h-3.5 w-3.5" />
       </button>
+
+      {!compacto && (
+        <button
+          type="button"
+          onClick={() => aplicar(PADRAO)}
+          disabled={px === PADRAO}
+          aria-label="Redefinir o tamanho do texto para o padrão"
+          className={`ml-1 rounded px-1.5 py-0.5 text-[10px] transition disabled:cursor-not-allowed ${botao}`}
+        >
+          Redefinir
+        </button>
+      )}
     </div>
   );
 }

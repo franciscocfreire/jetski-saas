@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Minus, Plus, Type } from 'lucide-react'
+import { Minus, Plus, RotateCcw, Type } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -83,15 +83,12 @@ export function TamanhoFonte() {
             <Minus className="h-4 w-4" />
           </Button>
 
-          <button
-            type="button"
-            onClick={() => aplicar(PADRAO)}
-            title="Voltar ao padrão"
-            aria-label={`Tamanho do texto em ${percentual}% — voltar ao padrão`}
-            className="min-w-[4rem] rounded px-2 py-1 text-sm tabular-nums text-foreground transition hover:bg-accent"
+          <span
+            className="min-w-[4rem] text-center text-sm tabular-nums text-foreground"
+            aria-live="polite"
           >
             {percentual}%
-          </button>
+          </span>
 
           <Button
             variant="outline"
@@ -104,8 +101,18 @@ export function TamanhoFonte() {
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
-          Vale para este aparelho. Toque na porcentagem para voltar ao padrão.
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-2 w-full"
+          onClick={() => aplicar(PADRAO)}
+          disabled={px === PADRAO}
+        >
+          <RotateCcw className="mr-2 h-4 w-4" /> Redefinir
+        </Button>
+
+        <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+          Vale só para este aparelho.
         </p>
       </DropdownMenuContent>
     </DropdownMenu>
