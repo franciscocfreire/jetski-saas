@@ -162,6 +162,14 @@ export async function empresa(tenantId: string, token: () => Promise<string>) {
       }),
     saldo: async () => (await chamar<{ saldo: number }>('get', 'creditos/saldo', 'saldo')).saldo,
     listarVinculos: () => chamar<Vinculo[]>('get', 'vinculos-emissao', 'listar vínculos'),
+    /** Convite pela API com resposta crua: o teste negativo precisa do 400 e da mensagem. */
+    convidarCru: async (parceiroSlug: string, papel: 'OPERADORA' | 'EMISSORA') => {
+      const ctx = await contexto({ Authorization: `Bearer ${await token()}`, 'X-Tenant-Id': tenantId });
+      const res = await ctx.post(`v1/tenants/${tenantId}/vinculos-emissao`, { data: { parceiroSlug, papel } });
+      const corpo = await res.text();
+      await ctx.dispose();
+      return { status: res.status(), corpo: corpo ? JSON.parse(corpo) : null };
+    },
     /** Resposta crua: os testes de bloqueio precisam do status 400 e da mensagem. */
     emitirCru: async (reservaId: string, reemitir = false) => {
       const ctx = await contexto({ Authorization: `Bearer ${await token()}`, 'X-Tenant-Id': tenantId });

@@ -36,6 +36,10 @@ export default defineConfig({
 
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL,
+    // Sem estes limites uma ação sobre um elemento que sumiu (ex.: diálogo fechado) só
+    // falha no timeout do TESTE (5 min) e sem dizer o que esperava.
+    actionTimeout: 30 * 1000,
+    navigationTimeout: 60 * 1000,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

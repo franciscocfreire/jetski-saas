@@ -199,6 +199,22 @@ vínculo (400).
 > Rodar: `PLAYWRIGHT_BASE_URL=https://app.pegaojet.com.br npm run test:e2e:delegada`
 > (`E2E_MANTER_EMPRESAS=1` mantém as empresas para inspeção).
 >
+> **Fase 3 ✅ (13/set/2026):** `e2e/delegada/jornada.spec.ts` passa no dev — 8 testes,
+> ~40 s depois do preparo (negativo de capitanias, A vínculo, B designação, C balcão,
+> D e-mails, E painel/reenvio, F kill switch, G revogação). Cobre R1–R12.
+> Requer o backend do dev com os PRs #9 e #12 (rebuild a partir da main) e a V069 aplicada.
+>
+> Rodar só a jornada: `PLAYWRIGHT_BASE_URL=https://app.pegaojet.com.br npm run test:e2e:delegada -- jornada`
+>
+> Armadilhas encontradas na fase 3:
+> - **Checkbox dentro de Dialog do Radix: nunca `click({ force: true })`.** O conteúdo entra
+>   animado (200 ms); o `force` clica no meio da animação, fora do diálogo, e o Radix fecha.
+>   Sem `actionTimeout` a próxima ação esperava 5 min por um elemento que não existia mais.
+> - **GRU paga pela API + recarga**, nunca `?reserva=<id>`: a retomada pula Documentos e o
+>   ofício fica BLOQUEADO por pendências (identidade, selfie, naturalidade, residência).
+> - Todas as pendências da Marinha são obrigatórias por padrão; o balcão precisa passar por
+>   Documentos, Orientações (videoaula pelo fallback, com o YouTube bloqueado) e Termos.
+>
 > Armadilha do dev: `rebuild.sh <serviço>` rodado de um worktree **recria** Postgres,
 > Keycloak, OPA e nginx (o compose vê os bind mounts em outro caminho). O Keycloak leva
 > ~25 s para voltar; os helpers esperam e repetem em erro de rede. Não rode a suíte durante
