@@ -4,13 +4,17 @@
 #
 # Fluxo (idempotente):
 #   1. git pull (a menos que NO_PULL=1)
-#   2. sobe infra base (postgres, redis, keycloak, opa, minio)
-#   3. cria/atualiza role jetski_app (01-init-roles.sql)
-#   4. aplica migrations Flyway como superuser (one-shot container)
-#   5. concede grants + verifica RLS (02-verify-rls.sql) — aborta se faltar RLS
-#   6. (re)build das imagens app (backend/frontend) e up --force-recreate
-#   7. recarrega OPA (policies sem --watch) e sobe cloudflared
-#   8. smoke check de saúde
+#   2. build das imagens (keycloak com cache; apps --no-cache) ANTES de tocar
+#      em qualquer container — o build pesado não disputa CPU com serviço subindo
+#   3. sobe infra base (postgres, redis, keycloak, opa, minio); o Keycloak só é
+#      recriado se a imagem ou a config dele mudou (e aí o deploy espera o realm)
+#   4. cria/atualiza role jetski_app (01-init-roles.sql)
+#   5. aplica migrations Flyway como superuser (one-shot container)
+#   6. concede grants + verifica RLS (02-verify-rls.sql) — aborta se faltar RLS
+#   7. up --force-recreate das apps (backend/frontend/portal/console) + limpeza
+#   8. recarrega OPA (policies sem --watch), recria nginx e sobe cloudflared
+#   9. converge a config do Keycloak (clients, SMTP, sessões, 2FA…)
+#  10. smoke check de saúde + timer de backup
 #
 # Uso:
 #   ./deploy.sh                 # deploy completo
@@ -32,6 +36,33 @@ die()  { echo -e "${RED}[deploy] ERRO:${NC} $*" >&2; exit 1; }
 
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 PSQL="$COMPOSE exec -T postgres psql -v ON_ERROR_STOP=1 -U jetski -d jetski_prod"
+
+# As imagens construídas aqui só rodam neste servidor (nada vai para registry), então
+# atestados de proveniência/SBOM não têm uso — e, no containerd image store, o
+# atestado muda o digest da imagem a CADA build, mesmo com todas as camadas em cache.
+# O compose via "imagem nova" e recriava o Keycloak em todo deploy: SSO ~3,5 min fora
+# duas vezes em 13/set/2026 (PLANO_SSO_DEPLOY.md, ajuste A). Sem atestado, build sem
+# mudança devolve o mesmo id e o `up -d` mantém o container.
+export BUILDX_NO_DEFAULT_ATTESTATIONS=1
+
+KC_CONTAINER=jetski-keycloak
+KC_IMAGE=jetski-keycloak:latest
+
+# Ids para saber o que o build/up realmente fizeram com o Keycloak ("" = não existe).
+kc_imagem_id()    { docker image inspect --format '{{.Id}}' "$KC_IMAGE" 2>/dev/null || true; }
+kc_container_id() { docker inspect --format '{{.Id}}' "$KC_CONTAINER" 2>/dev/null || true; }
+
+# Espera o realm responder. $1 = tentativas (3 s cada). Retorna 1 se não respondeu.
+aguardar_keycloak() {
+  local tentativas="${1:-40}" i
+  for i in $(seq 1 "$tentativas"); do
+    if curl -sf http://127.0.0.1:8080/realms/jetski-saas/.well-known/openid-configuration >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 3
+  done
+  return 1
+}
 
 [ -f .env ] || die ".env não encontrado. Copie de .env.prod.example e preencha."
 set -a; . ./.env; set +a
@@ -70,18 +101,48 @@ if [ "${NO_PULL:-0}" != "1" ]; then
   git pull --ff-only
 fi
 
-# 2. Infra base
-# Keycloak agora é imagem custom (tema de login meujet — infra/keycloak-theme).
-# Build COM cache: as camadas só invalidam quando o tema muda; deploy sem
-# mudança de tema = no-op de segundos e o container não é recriado (sessões
-# SSO preservadas). Diferente de backend/frontend, não há risco de cache stale
-# (o COPY invalida por checksum de conteúdo).
+# 2. Build das imagens — antes de tocar em qualquer container.
+# Antes os builds --no-cache (Maven + três Next.js) rodavam logo DEPOIS de subir a
+# infra e disputavam CPU com o Keycloak recém-recriado, que levou ~3,5 min para
+# responder (sobe em ~11 s com a VM ociosa). Construir primeiro deixa a VM livre
+# quando os containers sobem, e a janela entre derrubar e subir cada um fica mínima.
 if [ "${NO_BUILD:-0}" != "1" ]; then
-  log "build da imagem keycloak (tema de login meujet)..."
+  # Keycloak: build COM cache — as camadas só invalidam quando tema/SPI mudam (o COPY
+  # invalida por checksum). Sem mudança, o id da imagem não muda (ver
+  # BUILDX_NO_DEFAULT_ATTESTATIONS acima) e o container não é recriado.
+  kc_img_antes="$(kc_imagem_id)"
+  log "build da imagem keycloak (tema de login meujet + SPI)..."
   $COMPOSE build keycloak
+  if [ -n "$kc_img_antes" ] && [ "$kc_img_antes" = "$(kc_imagem_id)" ]; then
+    log "imagem do Keycloak inalterada (tema/SPI sem mudança)"
+  else
+    warn "imagem do Keycloak mudou (tema/SPI/base) — o container será recriado"
+  fi
+
+  log "build backend + frontends (--no-cache p/ evitar reaproveitar imagem velha)..."
+  $COMPOSE build --no-cache backend
+  $COMPOSE build --no-cache frontend
+  $COMPOSE build --no-cache portal
+  $COMPOSE build --no-cache console
 fi
+
+# 3. Infra base
+# O compose só recria um serviço cuja imagem OU config mudou (ex.: env no
+# docker-compose.prod.yml, ou o Postgres com pg_hba novo). Por isso NÃO usamos
+# --no-recreate no Keycloak: uma mudança real de config precisa ser aplicada.
+kc_ctr_antes="$(kc_container_id)"
 log "subindo infra base (postgres/redis/keycloak/opa/minio)..."
 $COMPOSE up -d postgres redis keycloak opa minio mailpit
+if [ "$(kc_container_id)" = "$kc_ctr_antes" ] && [ -n "$kc_ctr_antes" ]; then
+  log "Keycloak mantido (mesma imagem e config) — SSO não foi interrompido"
+else
+  warn "Keycloak (re)criado neste deploy — SSO fora até o realm responder; aguardando..."
+  if aguardar_keycloak 60; then
+    log "Keycloak respondendo"
+  else
+    warn "Keycloak não respondeu em ~3 min — o deploy segue (verifique: $COMPOSE logs keycloak)"
+  fi
+fi
 
 log "aguardando postgres..."
 for i in $(seq 1 30); do
@@ -90,43 +151,37 @@ for i in $(seq 1 30); do
   [ "$i" = "30" ] && die "postgres não respondeu a tempo"
 done
 
-# 3. Role de aplicação (idempotente)
+# 4. Role de aplicação (idempotente)
 log "criando/atualizando role jetski_app..."
 $PSQL -v app_pwd="$JETSKI_APP_DB_PASSWORD" -f /dev/stdin < infra/prod/01-init-roles.sql
 
-# 4. Migrations (superuser, one-shot)
+# 5. Migrations (superuser, one-shot)
 log "aplicando migrations Flyway..."
 $COMPOSE run --rm flyway || die "migrations falharam"
 
-# 5. Grants pós-migration + verificação de RLS (aborta se faltar)
+# 6. Grants pós-migration + verificação de RLS (aborta se faltar)
 log "re-concedendo grants ao jetski_app..."
 $PSQL -c "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO jetski_app;" \
       -c "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO jetski_app;"
 log "verificando RLS em tabelas multi-tenant..."
 $PSQL -f /dev/stdin < infra/prod/02-verify-rls.sql || die "verificação de RLS falhou — deploy abortado"
 
-# 6. Build + recreate das apps
-if [ "${NO_BUILD:-0}" != "1" ]; then
-  log "build backend + frontends (--no-cache p/ evitar reaproveitar imagem velha)..."
-  $COMPOSE build --no-cache backend
-  $COMPOSE build --no-cache frontend
-  $COMPOSE build --no-cache portal
-  $COMPOSE build --no-cache console
-fi
+# 7. Recreate das apps (imagens já construídas no passo 2)
 log "recriando backend, frontend, portal e console..."
 $COMPOSE up -d --force-recreate --no-deps backend frontend portal console
 
-# 6.5 Limpeza pós-build: como os builds acima são --no-cache, o build cache do
+# 7.5 Limpeza pós-build: como os builds do passo 2 são --no-cache, o build cache do
 # BuildKit nunca é reaproveitado e só acumula (já chegou a 155GB e quase encheu
 # o disco). Mantém 10GB dos mais recentes por segurança; remove também imagens
 # dangling (as versões antigas de backend/frontend/portal/console que ficaram sem tag).
+# Fica DEPOIS do recreate: as imagens novas precisam estar em uso antes do prune.
 if [ "${NO_BUILD:-0}" != "1" ]; then
   log "limpando build cache antigo e imagens dangling..."
   docker builder prune -af --keep-storage 10GB >/dev/null 2>&1 || warn "builder prune falhou (ignorado)"
   docker image prune -f >/dev/null 2>&1 || warn "image prune falhou (ignorado)"
 fi
 
-# 7. OPA (recarrega policies — não tem --watch) e ingress
+# 8. OPA (recarrega policies — não tem --watch) e ingress
 log "recarregando OPA e subindo nginx/cloudflared..."
 $COMPOSE restart opa
 # nginx SEMPRE recriado: o bind mount de arquivo único prende o inode — após
@@ -135,20 +190,13 @@ $COMPOSE restart opa
 $COMPOSE up -d --force-recreate --no-deps nginx
 $COMPOSE up -d cloudflared
 
-# 7.5 Keycloak: converge o client jetski-backoffice (público + PKCE S256) +
+# 9. Keycloak: converge o client jetski-backoffice (público + PKCE S256) +
 # redirects de produção, idempotente. Num realm NOVO o realm.json já nasce certo
 # (substituição de env var no import); este passo é a única forma de ajustar o
 # client num realm EXISTENTE sem zerar o realm (--import-realm não re-importa).
 # Não-fatal: a config persiste no banco do Keycloak.
 log "aguardando realm Keycloak e configurando client jetski-backoffice..."
-kc_ready=0
-for i in $(seq 1 40); do
-  if curl -sf http://127.0.0.1:8080/realms/jetski-saas/.well-known/openid-configuration >/dev/null 2>&1; then
-    kc_ready=1; break
-  fi
-  sleep 3
-done
-if [ "$kc_ready" = "1" ]; then
+if aguardar_keycloak 40; then
   bash infra/prod/configure-keycloak-client.sh || warn "config do client Keycloak falhou (verifique manualmente)"
   bash infra/prod/configure-keycloak-smtp.sh || warn "config de SMTP do Keycloak falhou (verifique manualmente)"
   bash infra/prod/configure-keycloak-sessions.sh || warn "config de sessões SSO do Keycloak falhou (verifique manualmente)"
@@ -163,7 +211,7 @@ else
   warn "Keycloak realm não respondeu — pulei a config do client/SMTP (rode os scripts em infra/prod/ depois)"
 fi
 
-# 8. Smoke (aguarda o boot do Spring — pode levar ~30-60s)
+# 10. Smoke (aguarda o boot do Spring — pode levar ~30-60s)
 log "smoke check (aguardando backend subir)..."
 code=000
 for i in $(seq 1 30); do
@@ -173,7 +221,7 @@ for i in $(seq 1 30); do
 done
 [ "$code" = "200" ] && log "backend healthy (200)" || warn "backend health=$code após ~90s (verifique: $COMPOSE logs backend)"
 
-# 9. Backup diário via systemd timer (padrão desta VM — não há cron instalado).
+# 11. Backup diário via systemd timer (padrão desta VM — não há cron instalado).
 #    Off-site: BACKUP_RCLONE_REMOTE no .env + rclone configurado — ver DEPLOY.md.
 mkdir -p "$HOME/backups/meujet"
 if [ ! -f /etc/systemd/system/meujet-backup.timer ]; then
