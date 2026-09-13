@@ -18,8 +18,9 @@ import type { JWT } from "next-auth/jwt";
 declare module "next-auth" {
   interface Session {
     accessToken: string;
-    /** id_token p/ logout federado no Keycloak (id_token_hint). */
-    idToken?: string;
+    // SEM idToken/refreshToken: este objeto é servido ao browser por
+    // /api/auth/session. O id_token do logout federado é lido no servidor
+    // (lib/id-token.ts). P0 da revisão técnica de ago/2026.
     error?: string;
   }
 }
@@ -77,13 +78,16 @@ const secure = (process.env.NEXTAUTH_URL ?? "").startsWith("https");
 const cookiePrefix = secure ? "__Secure-" : "";
 const cookieDefaults = { httpOnly: true, sameSite: "lax" as const, path: "/", secure };
 
+/** Cookie de sessão — fonte única para o getToken server-side (lib/id-token.ts). */
+export const SESSION_COOKIE = { secure, name: `${cookiePrefix}console.session-token` };
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   useSecureCookies: secure,
   // O console tem host próprio (admin.*), mas nomes de cookie próprios evitam
   // qualquer colisão com backoffice/portal se um dia dividirem domínio-pai.
   cookies: {
-    sessionToken: { name: `${cookiePrefix}console.session-token`, options: cookieDefaults },
+    sessionToken: { name: SESSION_COOKIE.name, options: cookieDefaults },
     callbackUrl: { name: `${cookiePrefix}console.callback-url`, options: { ...cookieDefaults, httpOnly: false } },
     csrfToken: { name: `${cookiePrefix}console.csrf-token`, options: cookieDefaults },
     pkceCodeVerifier: { name: `${cookiePrefix}console.pkce.code_verifier`, options: { ...cookieDefaults, maxAge: 1800 } },
@@ -130,7 +134,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return {
         ...session,
         accessToken: token.accessToken as string,
-        idToken: token.idToken as string | undefined,
         error: token.error as string | undefined,
       };
     },

@@ -298,7 +298,7 @@ export default function PerfilPage() {
 
       <div className="mt-6 text-center">
         <button
-          onClick={() => sairDaConta(session?.idToken)}
+          onClick={() => sairDaConta()}
           className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
         >
           <LogOut size={12} /> Sair da conta

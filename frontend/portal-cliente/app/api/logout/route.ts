@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { idTokenDaSessao } from "@/lib/id-token";
 import { withBase } from "@/lib/base";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -16,8 +16,8 @@ export async function GET() {
 
   let target = `${destino}?logout=1`;
   try {
-    const session = await auth();
-    const idToken = session?.idToken;
+    // do JWT no servidor — o idToken não é mais exposto no objeto de sessão
+    const idToken = await idTokenDaSessao();
     const issuer = process.env.KEYCLOAK_ISSUER;
     if (idToken && issuer) {
       // Volta no /finish (não direto no /login): lá os cookies são apagados de

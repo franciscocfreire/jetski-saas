@@ -12,8 +12,9 @@ import type { JWT } from "next-auth/jwt";
 declare module "next-auth" {
   interface Session {
     accessToken: string;
-    /** id_token p/ o logout federado no Keycloak (id_token_hint). */
-    idToken?: string;
+    // SEM idToken/refreshToken: este objeto é servido ao browser por
+    // /api/auth/session. O id_token do logout federado é lido no servidor
+    // (lib/id-token.ts). P0 da revisão técnica de ago/2026.
     emailVerified?: boolean;
     /** Papéis do realm — usados p/ mostrar o acesso staff no Perfil. */
     roles?: string[];
@@ -79,6 +80,9 @@ const cookiePrefix = secure ? "__Secure-" : "";
 // Opções padrão de cookie (mesmas do NextAuth) — só os NOMES mudam.
 const cookieDefaults = { httpOnly: true, sameSite: "lax" as const, path: "/", secure };
 
+/** Cookie de sessão — fonte única para o getToken server-side (lib/id-token.ts). */
+export const SESSION_COOKIE = { secure, name: `${cookiePrefix}portal.session-token` };
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   // O app vive sob /portal (basePath do Next) — sem isto o client do NextAuth
@@ -90,7 +94,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   // Portal e backoffice dividem o MESMO host: nomes de cookie próprios para as
   // sessões não se sobrescreverem (authjs.session-token é o default de ambos).
   cookies: {
-    sessionToken: { name: `${cookiePrefix}portal.session-token`, options: cookieDefaults },
+    sessionToken: { name: SESSION_COOKIE.name, options: cookieDefaults },
     callbackUrl: { name: `${cookiePrefix}portal.callback-url`, options: { ...cookieDefaults, httpOnly: false } },
     csrfToken: { name: `${cookiePrefix}portal.csrf-token`, options: cookieDefaults },
     pkceCodeVerifier: { name: `${cookiePrefix}portal.pkce.code_verifier`, options: { ...cookieDefaults, maxAge: 1800 } },
@@ -152,7 +156,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return {
         ...session,
         accessToken: token.accessToken as string,
-        idToken: token.idToken as string | undefined,
         emailVerified: token.emailVerified as boolean | undefined,
         roles,
         error: token.error as string | undefined,
