@@ -51,7 +51,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var f=localStorage.getItem('mj-app-fonte');if(f&&[14,16,18,20,22,24].indexOf(+f)>-1)document.documentElement.style.fontSize=f+'px'}catch(e){}",
+              "try{var f=localStorage.getItem('mj-app-fonte');if(f&&[14,16,18,20,22,24,28,32].indexOf(+f)>-1)document.documentElement.style.fontSize=f+'px'}catch(e){}",
           }}
         />
       </head>

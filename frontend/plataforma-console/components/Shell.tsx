@@ -136,7 +136,7 @@ export function Shell({
   return (
     <div className="flex min-h-screen">
       {/* Menu fixo: só a partir de md */}
-      <aside className="hidden w-64 shrink-0 flex-col bg-brand-900 text-brand-100 md:flex">
+      <aside className="hidden w-64 max-w-[40vw] shrink-0 flex-col bg-brand-900 text-brand-100 md:flex">
         <div className="flex items-center gap-2 px-5 py-6">
           <ShieldCheck className="h-6 w-6 text-gold-500" />
           <div>

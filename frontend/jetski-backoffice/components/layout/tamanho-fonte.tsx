@@ -27,7 +27,7 @@ import {
  * precisa tocar em + várias vezes seguidas vendo a página mudar atrás.
  */
 export const CHAVE_FONTE = 'mj-app-fonte'
-const NIVEIS = [14, 16, 18, 20, 22, 24] as const
+const NIVEIS = [14, 16, 18, 20, 22, 24, 28, 32] as const
 const PADRAO = 16
 
 export function TamanhoFonte() {
@@ -69,7 +69,7 @@ export function TamanhoFonte() {
           <Type className="h-5 w-5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 p-3">
+      <DropdownMenuContent align="end" className="w-56 max-w-[calc(100vw-2rem)] p-3">
         <p className="mb-2 text-xs font-medium text-muted-foreground">Tamanho do texto</p>
         <div className="flex items-center justify-between gap-2">
           <Button

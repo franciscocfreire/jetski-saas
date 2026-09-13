@@ -27,8 +27,12 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "16rem"
-const SIDEBAR_WIDTH_MOBILE = "18rem"
+// Mesma trava da versão mobile: a 200% os 16rem viram 512px e a barra comeria
+// metade de uma janela estreita. Abaixo de ~640px de janela nada muda.
+const SIDEBAR_WIDTH = "min(16rem, 40vw)"
+// min(): a largura acompanha o tamanho de texto escolhido, mas nunca passa da
+// tela — a 200% os 18rem viram 576px e a gaveta sairia pela direita no celular.
+const SIDEBAR_WIDTH_MOBILE = "min(18rem, 88vw)"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
