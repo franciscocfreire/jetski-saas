@@ -34,14 +34,20 @@ export async function esperarHabilitado(loc: Locator, ms = 20_000): Promise<void
 
 /**
  * Marca um checkbox conferindo o estado. Os checkboxes ficam dentro de <label>: um clique
- * pode disparar no controle E no rótulo, dois toggles que se anulam sem erro na tela.
+ * pode disparar no controle E no rótulo, dois toggles que se anulam sem erro na tela —
+ * por isso o estado é conferido depois de cada clique.
+ *
+ * SEM `force`: dentro de um Dialog do Radix o conteúdo entra animado (slide + zoom, 200 ms)
+ * e o `force` pula a espera por elemento estável. O clique saía nas coordenadas do meio da
+ * animação, caía FORA do diálogo, o Radix fechava o diálogo e o checkbox sumia — a próxima
+ * tentativa esperava para sempre um elemento que não existia mais.
  */
 export async function marcar(loc: Locator): Promise<void> {
-  await loc.waitFor({ timeout: 20_000 });
+  await loc.waitFor({ state: 'visible', timeout: 20_000 });
   for (let i = 0; i < 4; i++) {
-    if ((await loc.getAttribute('data-state').catch(() => null)) === 'checked') return;
-    if ((await loc.getAttribute('aria-checked').catch(() => null)) === 'true') return;
-    await loc.click({ force: true });
+    if ((await loc.getAttribute('data-state', { timeout: 5_000 })) === 'checked') return;
+    if ((await loc.getAttribute('aria-checked', { timeout: 5_000 })) === 'true') return;
+    await loc.click({ timeout: 15_000 });
     await loc.page().waitForTimeout(350);
   }
   throw new Error('checkbox continuou desmarcado após 4 tentativas');
