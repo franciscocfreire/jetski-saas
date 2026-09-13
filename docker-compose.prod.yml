@@ -23,6 +23,17 @@ services:
       POSTGRES_USER: jetski
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: jetski_prod
+      # O base (dev) usa trust. Em prod NADA de trust por TCP: vale para um volume
+      # novo (initdb) e, no volume existente, o hba_file abaixo manda.
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C.UTF-8 --auth-host=scram-sha-256"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    # pg_hba próprio de produção (SCRAM em toda conexão TCP; socket só via docker
+    # exec). Sobrepõe o pg_hba.conf do volume, que nasceu com "host all all all
+    # trust". Pré-requisito verificado: os roles jetski e jetski_app têm senha
+    # SCRAM igual à do .env (ver infra/prod/pg_hba.conf e DEPLOY.md).
+    command: postgres -c listen_addresses='*' -c hba_file=/etc/postgresql/pg_hba.conf
+    volumes:
+      - ./infra/prod/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     mem_limit: 1g
     # Serviços de estado precisam voltar sozinhos após crash/reboot da VM —
     # sem isto o backend reinicia mas o banco/login ficam caídos.
