@@ -70,6 +70,8 @@ public class DocumentoEnvioService {
         UUID tenantId,
         UUID reservaId,
         String marinhaEmail,
+        /** Quem remete o ofício à Capitania: a EAMA emissora (delegada) ou o próprio tenant. */
+        UUID remetenteTenantId,
         String clienteEmail,
         String emissorContatoEmail,
         MarinhaEmailTemplate.DadosOficio oficio,
@@ -138,9 +140,13 @@ public class DocumentoEnvioService {
             }
         }
 
-        // Delegada: o ofício e o destino são os da EAMA emissora como registrados na
-        // emissão. Própria: o tenant.
-        Emissor emissor = Emissor.fromSnapshot(doc.getEmissorSnapshot(), tenant, objectMapper);
+        // Delegada: ofício, destino E remetente são os da EAMA emissora — como registrada
+        // na emissão (snapshot) e, no que o snapshot não tiver, como ela está hoje. Nunca
+        // o tenant da operadora (EMISSAO_DELEGADA_SPEC §8.J). Própria: o tenant.
+        Tenant emissorTenant = doc.getEmissorTenantId() != null
+            ? tenantQueryService.findOutroTenantById(doc.getEmissorTenantId()) : null;
+        Emissor emissor = Emissor.fromSnapshot(doc.getEmissorSnapshot(), doc.getEmissorTenantId(),
+            emissorTenant, reserva.getTenantId(), tenant, objectMapper);
 
         EnvioStatus marinhaInicial = reenvio
             ? (pdfMarinha != null ? EnvioStatus.PENDENTE : EnvioStatus.NAO_APLICAVEL)
@@ -153,7 +159,7 @@ public class DocumentoEnvioService {
 
         return new EnvioContexto(
             doc.getId(), reserva.getTenantId(), reserva.getId(),
-            emissor.marinhaEmail(), cliente.getEmail(),
+            emissor.marinhaEmail(), emissor.remetenteTenantId(), cliente.getEmail(),
             // A EAMA emissora só é avisada da emissão original; um reenvio não a notifica.
             reenvio ? null : emissor.contatoEmail(),
             oficio(emissor, cliente, hab, reserva.getId(), configDocumento(tenant), hashMarinha, reenvio),
@@ -177,12 +183,12 @@ public class DocumentoEnvioService {
             VinculoEmissaoService.DelegacaoContext delegacao,
             byte[] pdfCliente, String hashCliente, byte[] pdfMarinha,
             EnvioStatus marinhaInicial, EnvioStatus clienteInicial) {
-        Emissor emissor = Emissor.of(tenant, delegacao);
+        Emissor emissor = Emissor.of(reserva.getTenantId(), tenant, delegacao);
         // O hash no ofício descreve o PDF ANEXADO (a via da Marinha), não o canônico.
         String hashMarinha = pdfMarinha != null ? sha256Hex(pdfMarinha) : hashCliente;
         return new EnvioContexto(
             documentoId, reserva.getTenantId(), reserva.getId(),
-            emissor.marinhaEmail(), cliente.getEmail(), emissor.contatoEmail(),
+            emissor.marinhaEmail(), emissor.remetenteTenantId(), cliente.getEmail(), emissor.contatoEmail(),
             oficio(emissor, cliente, hab, reserva.getId(), cfg, hashMarinha, false),
             "Seus documentos — " + tenant.getRazaoSocial(),
             corpoCliente(cliente, hab),
@@ -216,10 +222,13 @@ public class DocumentoEnvioService {
             } else {
                 String subject = MarinhaEmailTemplate.assunto(ctx.oficio());
                 try {
+                    // O ofício sai em nome de quem emite: SMTP/"From" do emissor (a EAMA na
+                    // delegada), nunca do tenant da sessão — que ali é a operadora.
                     emailService.sendEmailComAnexo(ctx.marinhaEmail(), subject,
                         MarinhaEmailTemplate.corpoHtml(ctx.oficio()),
                         MarinhaEmailTemplate.nomeArquivo(ctx.oficio()),
-                        ctx.pdfMarinha(), "application/pdf", ctx.oficio().emailOficial());
+                        ctx.pdfMarinha(), "application/pdf", ctx.oficio().emailOficial(),
+                        new EmailService.Remetente(ctx.remetenteTenantId(), ctx.oficio().eamaNome()));
                     marinha = EnvioStatus.ENVIADO;
                 } catch (Exception e) {
                     log.warn("Falha ao enviar e-mail à Marinha (segue sem enviar): to={}, subject={}, erro={}",
@@ -457,38 +466,71 @@ public class DocumentoEnvioService {
     }
 
     /**
-     * Quem assina o ofício à Capitania: o próprio tenant (emissão própria) ou a EAMA
-     * emissora (delegada) — na emissão pelo {@code DelegacaoContext}, no reenvio/worker
-     * pelo {@code emissor_snapshot} do documento (campos ausentes caem no tenant).
+     * Quem assina E remete o ofício à Capitania: o próprio tenant (emissão própria) ou a
+     * EAMA emissora (delegada) — na emissão pelo {@code DelegacaoContext}, no reenvio/worker
+     * pelo {@code emissor_snapshot} do documento.
+     *
+     * <p>Regra da delegada: <b>tudo</b> do ofício vem da EAMA. O snapshot manda (a EAMA
+     * como era na emissão); o que ele não tiver (snapshots anteriores à V064/V065) cai no
+     * cadastro <b>atual da EAMA</b>, nunca no tenant da operadora. Se nem o snapshot nem
+     * a EAMA existirem mais, o destino fica vazio e o envio vira
+     * {@link EnvioStatus#SEM_DESTINATARIO} — antes que sair assinado pela operadora.
      */
-    record Emissor(String nome, String cnpj, String registro, String responsavel, String telefone,
-                   String emailOficial, String marinhaEmail, String contatoEmail) {
+    record Emissor(UUID remetenteTenantId, String nome, String cnpj, String registro, String responsavel,
+                   String telefone, String emailOficial, String marinhaEmail, String contatoEmail) {
 
-        static Emissor of(Tenant t, VinculoEmissaoService.DelegacaoContext d) {
+        static Emissor of(UUID tenantId, Tenant t, VinculoEmissaoService.DelegacaoContext d) {
             if (d != null) {
-                return new Emissor(d.razaoSocial(), d.cnpj(), d.eamaRegistro(), d.responsavelNome(),
-                    d.telefone(), d.emailOficial(), d.marinhaEmail(), d.contatoEmail());
+                return new Emissor(d.emissorTenantId(), d.razaoSocial(), d.cnpj(), d.eamaRegistro(),
+                    d.responsavelNome(), d.telefone(), d.emailOficial(), d.marinhaEmail(), d.contatoEmail());
             }
-            return new Emissor(t.getRazaoSocial(), t.getCnpj(), t.getEamaRegistro(), t.getResponsavelNome(),
-                t.getTelefone(), t.getEmailOficial(), t.getMarinhaEmail(), null);
+            return proprio(tenantId, t);
         }
 
+        /** Emissão própria: o tenant assina e remete; não há quem notificar. */
+        static Emissor proprio(UUID tenantId, Tenant t) {
+            return new Emissor(tenantId, t.getRazaoSocial(), t.getCnpj(), t.getEamaRegistro(),
+                t.getResponsavelNome(), t.getTelefone(), t.getEmailOficial(), t.getMarinhaEmail(), null);
+        }
+
+        /** Base da delegada: a EAMA como está hoje ({@code null} = já não existe → tudo vazio). */
+        static Emissor daEmissora(UUID emissorTenantId, Tenant e) {
+            if (e == null) {
+                return new Emissor(emissorTenantId, null, null, null, null, null, null, null, null);
+            }
+            return new Emissor(emissorTenantId, e.getRazaoSocial(), e.getCnpj(), e.getEamaRegistro(),
+                e.getResponsavelNome(), e.getTelefone(), e.getEmailOficial(), e.getMarinhaEmail(),
+                e.getEmailRemetente());
+        }
+
+        /**
+         * @param emissorTenantId {@code documento_emitido.emissor_tenant_id} ({@code null} = própria)
+         * @param emissorTenant   a EAMA lida agora ({@code null} se não existe mais); ignorado na própria
+         * @param tenantId        tenant do documento (a operadora, na delegada)
+         * @param t               esse tenant, já carregado
+         */
         @SuppressWarnings("unchecked")
-        static Emissor fromSnapshot(String snapshotJson, Tenant t, ObjectMapper om) {
-            Emissor proprio = of(t, null);
-            if (snapshotJson == null || snapshotJson.isBlank()) return proprio;
+        static Emissor fromSnapshot(String snapshotJson, UUID emissorTenantId, Tenant emissorTenant,
+                                    UUID tenantId, Tenant t, ObjectMapper om) {
+            if (emissorTenantId == null) {
+                return proprio(tenantId, t);
+            }
+            Emissor base = daEmissora(emissorTenantId, emissorTenant);
+            if (snapshotJson == null || snapshotJson.isBlank()) return base;
             try {
                 Map<String, Object> m = om.readValue(snapshotJson, Map.class);
-                return new Emissor(
-                    str(m, "razaoSocial", proprio.nome()), str(m, "cnpj", proprio.cnpj()),
-                    str(m, "eamaRegistro", null), str(m, "responsavelNome", null),
-                    str(m, "telefone", null), str(m, "emailOficial", null),
-                    // snapshots antigos (antes da V064) não têm o e-mail: cai no tenant
-                    str(m, "marinhaEmail", proprio.marinhaEmail()),
-                    // snapshots anteriores à V065 não têm o contato: a EAMA não é notificada
-                    str(m, "contatoEmail", null));
+                return new Emissor(emissorTenantId,
+                    str(m, "razaoSocial", base.nome()), str(m, "cnpj", base.cnpj()),
+                    str(m, "eamaRegistro", base.registro()), str(m, "responsavelNome", base.responsavel()),
+                    str(m, "telefone", base.telefone()), str(m, "emailOficial", base.emailOficial()),
+                    // snapshots antigos (antes da V064) não têm o e-mail: cai na EAMA atual
+                    str(m, "marinhaEmail", base.marinhaEmail()),
+                    // snapshots anteriores à V065 não têm o contato: idem
+                    str(m, "contatoEmail", base.contatoEmail()));
             } catch (Exception e) {
-                return proprio;
+                log.warn("emissor_snapshot ilegível (emissor {}): ofício segue com o cadastro atual da EAMA — {}",
+                    emissorTenantId, e.getMessage());
+                return base;
             }
         }
 

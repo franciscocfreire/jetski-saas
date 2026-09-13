@@ -145,6 +145,13 @@ Igual à emissão própria, exceto:
   projeto; exposição mínima à operadora: **id + nome apenas**, CPF/RG/CHA entram no PDF
   pelo lado do serviço). Operadora **não tem** CRUD de instrutores.
 - **E-mail à Capitania** = `marinha_email` **do emissor** (operadora não vê nem edita).
+  **Tudo** do ofício é da EAMA (13/set/2026): destino, assinatura (NORMAM-212 5.4.2),
+  Reply-To (`email_oficial`) **e o remetente SMTP** — `EmailService.Remetente(emissorTenantId)`
+  resolve o SMTP próprio da EAMA (`TenantSmtpResolver.forTenant`, janela RLS própria) ou, sem
+  SMTP próprio, o global com a razão social dela no "From". Vale nos três caminhos (emissão
+  síncrona, worker e reenvio pela operadora). O que o `emissor_snapshot` não tiver (anteriores
+  à V064/V065) cai no cadastro **atual da EAMA** (`TenantQueryService.findOutroTenantById`),
+  nunca no tenant da operadora; sem snapshot legível e sem EAMA → `SEM_DESTINATARIO`.
 - **Crédito**: debitado **da operadora** — `CreditoService` intocado (débito no tenant que
   dispara, mesma transação, mesmo advisory lock).
 - Pós-emissão: grava `emissor_tenant_id` + `emissor_snapshot` no `documento_emitido`,
@@ -238,6 +245,8 @@ gate/identidade trocados pelo vínculo.
 - **J. Operadora invisível no PDF**: o documento à Capitania sai 100% em nome da EAMA, sem
   menção à operadora. A relação entre as empresas fica registrada **dentro** da plataforma
   (termo, snapshot, espelho, audit) — em caso de disputa, a trilha prova quem fez o quê. ✔
+  Estendido ao **e-mail** em 13/set/2026: o "From" do ofício também é da EAMA (antes saía
+  pelo SMTP do tenant da sessão, i.e. da operadora) — ver §4.2.
 - **K. Módulos (V046)**: separar em `EMISSAO_PROPRIA` × `EMISSAO_DELEGADA` (módulo =
   portão **comercial** do plano; `emissora_habilitada` = portão **cadastral** validado pelo
   superadmin). Emissão própria exige **os dois** portões. Viabiliza planos por perfil e o

@@ -222,7 +222,9 @@ class EmissaoServiceTest {
         org.mockito.ArgumentCaptor<String> body = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.ArgumentCaptor<String> anexo = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(email).sendEmailComAnexo(eq("capitania@example.com"), subject.capture(), body.capture(),
-            anexo.capture(), any(), eq("application/pdf"), eq("eama@jetsave.com.br"));
+            anexo.capture(), any(), eq("application/pdf"), eq("eama@jetsave.com.br"),
+            // remetente explícito = quem emite (própria: o tenant), nunca o "Meu Jet" global
+            eq(new EmailService.Remetente(tenant, "Jet Save Turismo Náutico LTDA")));
         assertThat(subject.getValue())
             .startsWith("Solicitação de Emissão de CHA-MTA-E – Roberto Lima – CPF 987.654.321-00 – reserva #")
             .endsWith("reserva #" + reservaId.toString().substring(0, 8));
@@ -334,5 +336,101 @@ class EmissaoServiceTest {
 
         verify(creditoService).verificarSaldoDisponivel(tenant);
         verify(creditoService).debitarEmissaoDocumento(eq(tenant), any(), eq(reservaId));
+    }
+
+    // ------------------------------------------------------------------
+    // Ofício à Capitania na emissão delegada: TUDO da EAMA, nada da operadora
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("Delegada: o snapshot manda; o que falta cai na EAMA ATUAL, nunca na operadora (§8.J)")
+    void emissorDelegadoNuncaCaiNaOperadora() {
+        UUID emissora = UUID.randomUUID();
+        Tenant operadora = Tenant.builder().razaoSocial("Operadora Praia LTDA")
+            .marinhaEmail("capitania-da-operadora@example.com").emailOficial("oficial@operadora.com").build();
+        Tenant eama = Tenant.builder().razaoSocial("EAMA Atual LTDA").cnpj("22.222.222/0001-22")
+            .eamaRegistro("EAMA-SP-999").responsavelNome("Ana Souza").telefone("(13) 99999-0000")
+            .emailOficial("oficial@eama.com").marinhaEmail("capitania-sp@example.com")
+            .emailRemetente("contato@eama.com").build();
+        ObjectMapper om = new ObjectMapper();
+
+        // snapshot anterior à V064: só razão social/CNPJ
+        var e = DocumentoEnvioService.Emissor.fromSnapshot(
+            "{\"razaoSocial\":\"EAMA Como Era LTDA\",\"cnpj\":\"22.222.222/0001-22\"}",
+            emissora, eama, tenant, operadora, om);
+        assertThat(e.remetenteTenantId()).isEqualTo(emissora);
+        assertThat(e.nome()).isEqualTo("EAMA Como Era LTDA");               // snapshot manda
+        assertThat(e.marinhaEmail()).isEqualTo("capitania-sp@example.com"); // EAMA atual, não a operadora
+        assertThat(e.registro()).isEqualTo("EAMA-SP-999");
+        assertThat(e.responsavel()).isEqualTo("Ana Souza");
+        assertThat(e.emailOficial()).isEqualTo("oficial@eama.com");
+        assertThat(e.contatoEmail()).isEqualTo("contato@eama.com");
+
+        // snapshot ilegível e EAMA que já não existe: nada da operadora — destino vazio
+        var vazio = DocumentoEnvioService.Emissor.fromSnapshot("{ilegível", emissora, null, tenant, operadora, om);
+        assertThat(vazio.remetenteTenantId()).isEqualTo(emissora);
+        assertThat(vazio.marinhaEmail()).isNull();
+        assertThat(vazio.nome()).isNull();
+        assertThat(vazio.emailOficial()).isNull();
+
+        // emissão própria: o tenant assina e remete
+        var proprio = DocumentoEnvioService.Emissor.fromSnapshot(null, null, null, tenant, operadora, om);
+        assertThat(proprio.remetenteTenantId()).isEqualTo(tenant);
+        assertThat(proprio.marinhaEmail()).isEqualTo("capitania-da-operadora@example.com");
+        assertThat(proprio.contatoEmail()).isNull();
+    }
+
+    @Test
+    @DisplayName("Reenvio pela operadora de documento delegado: ofício vai para a Capitania da EAMA e sai em nome dela")
+    void reenvioDelegadoRemetePelaEama() {
+        UUID emissora = UUID.randomUUID();
+        UUID docId = UUID.randomUUID();
+        when(docRepo.findById(docId)).thenReturn(Optional.of(DocumentoEmitido.builder()
+            .id(docId).tenantId(tenant).reservaId(reservaId)
+            .s3Key("t/reserva/r/documento.pdf").hashSha256("abc123hash")
+            .emissorTenantId(emissora)
+            // snapshot anterior à V064: sem marinhaEmail/responsável/e-mail oficial
+            .emissorSnapshot("{\"razaoSocial\":\"EAMA Santos LTDA\",\"cnpj\":\"22.222.222/0001-22\"}")
+            .build()));
+        when(tenantQuery.findOutroTenantById(emissora)).thenReturn(Tenant.builder()
+            .razaoSocial("EAMA Santos LTDA").eamaRegistro("EAMA-SP-999")
+            .marinhaEmail("capitania-sp@example.com").responsavelNome("Ana Souza")
+            .emailOficial("oficial@eamasantos.com.br").build());
+
+        EmissaoService.ResultadoReenvio r = service.reenviarEmail(docId);
+
+        assertThat(r.isEnviadoMarinha()).isTrue();
+        org.mockito.ArgumentCaptor<String> body = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(email).sendEmailComAnexo(eq("capitania-sp@example.com"), anyString(), body.capture(),
+            anyString(), any(), eq("application/pdf"), eq("oficial@eamasantos.com.br"),
+            eq(new EmailService.Remetente(emissora, "EAMA Santos LTDA")));
+        assertThat(body.getValue()).contains("Ana Souza").contains("EAMA-SP-999")
+            .doesNotContain("Jet Save"); // o tenant da sessão (operadora) não aparece
+        // nunca a Capitania configurada pela operadora
+        verify(email, org.mockito.Mockito.never()).sendEmailComAnexo(eq("capitania@example.com"),
+            anyString(), anyString(), anyString(), any(), anyString(), nullable(String.class), any());
+    }
+
+    @Test
+    @DisplayName("Reenvio delegado sem snapshot legível e sem EAMA: SEM_DESTINATARIO — nada sai pela operadora")
+    void reenvioDelegadoSemEamaNaoCaiNaOperadora() {
+        UUID docId = UUID.randomUUID();
+        DocumentoEmitido doc = DocumentoEmitido.builder()
+            .id(docId).tenantId(tenant).reservaId(reservaId)
+            .s3Key("t/reserva/r/documento.pdf").hashSha256("abc123hash")
+            .emissorTenantId(UUID.randomUUID()).emissorSnapshot("{ilegível")
+            .build();
+        when(docRepo.findById(docId)).thenReturn(Optional.of(doc));
+        // tenantQuery.findOutroTenantById → null (mock): a EAMA já não existe
+
+        EmissaoService.ResultadoReenvio r = service.reenviarEmail(docId);
+
+        assertThat(r.isEnviadoMarinha()).isFalse();
+        assertThat(doc.getMarinhaEnvioStatus()).isEqualTo(com.jetski.locacoes.domain.EnvioStatus.SEM_DESTINATARIO);
+        verify(email, org.mockito.Mockito.never()).sendEmailComAnexo(eq("capitania@example.com"),
+            anyString(), anyString(), anyString(), any(), anyString(), nullable(String.class), any());
+        // a via do cliente continua saindo normalmente (em nome da operadora)
+        verify(email).sendEmailComAnexo(eq("roberto@email.com"), anyString(), anyString(), anyString(),
+            any(), anyString());
     }
 }
