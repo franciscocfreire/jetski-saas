@@ -147,6 +147,21 @@ vínculo (400).
 
 ## 6. Riscos a validar primeiro (spike)
 
+> **Resultado do spike (13/set/2026):**
+> - JavaMail com `mail.smtp.auth=true`, usuário/senha fictícios e starttls off **envia ao
+>   Mailpit sem nenhuma configuração extra**; From e Reply-To chegam intactos.
+> - `admin@acme.com` **não serve**: tem senha, WebAuthn e OTP, e o ROPC falha.
+> - Operador dedicado `e2e.plataforma@meujet.test` criado no Keycloak dev e ligado por SQL
+>   (`usuario` + `usuario_identity_provider` + `usuario_global_roles`). O ROPC no `jetski-test`
+>   sai com `iss=https://sso.pegaojet.com.br/...` e as rotas de plataforma respondem 200
+>   pelo nginx local e pelo Cloudflare. O token expira em poucos minutos: pedir um novo por uso.
+> - Plano: não há endpoint de criação; `plano.nome` é único → `INSERT … ON CONFLICT (nome)`.
+> - GRU paga pela API: retomar o balcão com `?reserva=<id>` recarrega a habilitação do
+>   servidor e marca a GRU como paga. Na primeira passagem, o id da reserva sai da resposta
+>   do `POST` de reserva (a URL não o traz).
+> - Cloudflare devolve 403 (1010) a clientes HTTP sem User-Agent; com o UA do Playwright passa.
+> - Tempo do envio assíncrono com dois SMTPs: medido na fase 3, na primeira emissão real.
+
 | Risco | Como validar | Saída se falhar |
 |---|---|---|
 | JavaMail com `mail.smtp.auth=true` contra Mailpit sem autenticação | Configurar SMTP de um tenant de dev para `mailpit:1025` e emitir | `MP_SMTP_AUTH_ACCEPT_ANY=1` e `MP_SMTP_AUTH_ALLOW_INSECURE=1` no serviço `mailpit` do compose |
