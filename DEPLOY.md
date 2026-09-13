@@ -144,3 +144,30 @@ $C start minio
 - **OPA** carrega `/policies` sem `--watch` → `deploy.sh` faz `restart opa` após pull.
 - **Storage** persiste em volumes (`minio_data`, `storage_data`) → sobrevive a recreate.
 - **Migrations** rodam pelo container `flyway` (superuser); o backend roda com `jetski_app` (RLS).
+
+### Autenticação do Postgres (sem `trust` por TCP)
+
+Até set/2026 o volume de prod tinha `host all all all trust` (herdado do compose base):
+qualquer container da `jetski-network` ou processo da VM logava como superuser sem
+senha. Agora o `docker-compose.prod.yml` sobe o Postgres com
+`-c hba_file=/etc/postgresql/pg_hba.conf` (arquivo `infra/prod/pg_hba.conf`):
+**SCRAM em toda conexão TCP**; socket unix dentro do container continua `trust`
+(só alcançável via `docker compose exec`, usado por `deploy.sh`/`backup.sh`).
+
+- **Pré-requisito**: os roles precisam ter senha SCRAM igual à do `.env` —
+  `jetski` = `POSTGRES_PASSWORD` (backend não; Keycloak e Flyway sim) e
+  `jetski_app` = `JETSKI_APP_DB_PASSWORD` (o `deploy.sh` regrava a cada deploy via
+  `01-init-roles.sql`). Verificado em prod em 13/set/2026 (os dois batem).
+  Conferir sem imprimir segredo:
+  ```bash
+  $C exec -T postgres psql -U jetski -d jetski_prod -Atc \
+    "select rolname, rolpassword like 'SCRAM-SHA-256\$%' from pg_authid where rolcanlogin"
+  ```
+  Se `jetski` não bater: `$C exec -T postgres psql -U jetski -d jetski_prod -c "ALTER ROLE jetski PASSWORD '<POSTGRES_PASSWORD do .env>'"` (via socket, antes do deploy).
+- **No deploy que liga isso** o `up -d postgres` recria o container (restart de
+  segundos do banco); backend/Keycloak reconectam pelo pool.
+- **Validar depois**: sem senha precisa FALHAR —
+  `$C exec -T -e PGPASSWORD= postgres psql -h 127.0.0.1 -U jetski -d jetski_prod -w -c 'select 1'`
+  → `fe_sendauth: no password supplied`.
+- **Rollback**: remover `command`/`volumes` do serviço `postgres` no
+  `docker-compose.prod.yml` e `$C up -d postgres` (volta ao pg_hba do volume).

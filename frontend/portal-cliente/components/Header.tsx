@@ -65,7 +65,7 @@ export function Header() {
               >
                 <CalendarCheck size={16} /> {nome?.split(" ")[0] ?? "Minha conta"}
               </Link>
-              <Button variant="ghost" size="sm" onClick={() => sairDaConta(session?.idToken)}>
+              <Button variant="ghost" size="sm" onClick={() => sairDaConta()}>
                 Sair
               </Button>
             </div>

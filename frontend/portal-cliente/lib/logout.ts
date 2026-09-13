@@ -14,7 +14,7 @@ import { withBase } from "@/lib/base";
  *    resposta atrasada ressuscita a sessão depois da deleção do servidor;
  * 3. só então navega para o Keycloak, que devolve em /api/logout/finish.
  */
-export async function sairDaConta(_idToken?: string) {
+export async function sairDaConta() {
   let destino = withBase("/api/logout");
 
   try {

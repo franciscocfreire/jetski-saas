@@ -1163,61 +1163,35 @@ END $$;
 EOSQL
 echo -e "${GREEN}   OK - Schema da tabela convite corrigido!${NC}"
 
-# 7.3 Corrigir politicas RLS para permitir signup (INSERT sem tenant_id)
-echo -e "${YELLOW}7.3 Corrigindo politicas RLS para signup...${NC}"
+# 7.3 V069: RLS de assinatura e fuel_policy no padrao do projeto (idempotente).
+# ANTES este bloco recriava INSERT WITH CHECK (true) e SELECT com COALESCE (le tudo
+# sem contexto) — P0 da revisao tecnica de ago/2026. O signup e a aprovacao de
+# empresa agora fixam o tenant da linha na transacao (set_config local).
+echo -e "${YELLOW}7.3 Politicas RLS de assinatura/fuel_policy (V069)...${NC}"
 docker compose exec -T postgres psql -U ${PG_USER} -d ${PG_DB} << 'EOSQL' > /dev/null 2>&1
--- Remover política ALL e criar políticas específicas para assinatura
-DROP POLICY IF EXISTS tenant_isolation_assinatura ON assinatura;
 DROP POLICY IF EXISTS assinatura_tenant_select ON assinatura;
+DROP POLICY IF EXISTS assinatura_tenant_insert ON assinatura;
 DROP POLICY IF EXISTS assinatura_tenant_update ON assinatura;
 DROP POLICY IF EXISTS assinatura_tenant_delete ON assinatura;
-DROP POLICY IF EXISTS assinatura_tenant_insert ON assinatura;
+DROP POLICY IF EXISTS tenant_isolation_assinatura ON assinatura;
+CREATE POLICY tenant_isolation_assinatura ON assinatura
+  USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+  WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+ALTER TABLE assinatura ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assinatura FORCE ROW LEVEL SECURITY;
 
--- Política para SELECT (permite ver todas quando não há tenant, ou filtrado por tenant)
-CREATE POLICY assinatura_tenant_select ON assinatura
-  FOR SELECT
-  USING (tenant_id = COALESCE(current_setting('app.tenant_id', true)::uuid, tenant_id));
-
--- Política para UPDATE/DELETE (restrito por tenant)
-CREATE POLICY assinatura_tenant_update ON assinatura
-  FOR UPDATE
-  USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
-
-CREATE POLICY assinatura_tenant_delete ON assinatura
-  FOR DELETE
-  USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
-
--- Política para INSERT (permite sempre - signup cria assinatura sem tenant na sessão)
-CREATE POLICY assinatura_tenant_insert ON assinatura
-  FOR INSERT
-  WITH CHECK (true);
-
--- =====================================================
--- Corrigir políticas RLS para fuel_policy (signup também cria isso)
--- =====================================================
-DROP POLICY IF EXISTS tenant_isolation_fuel_policy ON fuel_policy;
 DROP POLICY IF EXISTS fuel_policy_tenant_select ON fuel_policy;
+DROP POLICY IF EXISTS fuel_policy_tenant_insert ON fuel_policy;
 DROP POLICY IF EXISTS fuel_policy_tenant_update ON fuel_policy;
 DROP POLICY IF EXISTS fuel_policy_tenant_delete ON fuel_policy;
-DROP POLICY IF EXISTS fuel_policy_tenant_insert ON fuel_policy;
-
-CREATE POLICY fuel_policy_tenant_select ON fuel_policy
-  FOR SELECT
-  USING (tenant_id = COALESCE(current_setting('app.tenant_id', true)::uuid, tenant_id));
-
-CREATE POLICY fuel_policy_tenant_update ON fuel_policy
-  FOR UPDATE
-  USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
-
-CREATE POLICY fuel_policy_tenant_delete ON fuel_policy
-  FOR DELETE
-  USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
-
-CREATE POLICY fuel_policy_tenant_insert ON fuel_policy
-  FOR INSERT
-  WITH CHECK (true);
+DROP POLICY IF EXISTS tenant_isolation_fuel_policy ON fuel_policy;
+CREATE POLICY tenant_isolation_fuel_policy ON fuel_policy
+  USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+  WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+ALTER TABLE fuel_policy ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fuel_policy FORCE ROW LEVEL SECURITY;
 EOSQL
-echo -e "${GREEN}   OK - Politicas RLS corrigidas!${NC}"
+echo -e "${GREEN}   OK - Politicas RLS de assinatura/fuel_policy aplicadas!${NC}"
 
 # 7.4 Corrigir politicas RLS para marketplace publico (leitura sem tenant)
 echo -e "${YELLOW}7.4 Corrigindo politicas RLS para marketplace publico...${NC}"

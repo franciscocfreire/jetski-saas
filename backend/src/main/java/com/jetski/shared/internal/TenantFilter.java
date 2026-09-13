@@ -13,6 +13,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import com.jetski.shared.security.AuthTestEndpoints;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.access.AccessDeniedException;
@@ -402,7 +403,10 @@ public class TenantFilter extends OncePerRequestFilter {
                normalizedPath.startsWith("/swagger-ui") ||
                normalizedPath.equals("/health") ||
                normalizedPath.equals("/") ||
-               normalizedPath.startsWith("/v1/auth-test/public") ||  // Test endpoint
+               // Scaffolding de teste (AuthTestController): só em local/test/dev.
+               // getEnvironment() vem do GenericFilterBean (EnvironmentAware).
+               (normalizedPath.equals(AuthTestEndpoints.PUBLIC_PATH)
+                   && AuthTestEndpoints.habilitado(getEnvironment())) ||
                normalizedPath.equals("/v1/user/tenants") ||  // User tenants list (no tenant needed)
                // Perfil self-service (escopo = próprio sub do JWT, sem tenant).
                // equals + "/" evita colidir com futuros /v1/user/me* (ex.: /v1/user/metrics)

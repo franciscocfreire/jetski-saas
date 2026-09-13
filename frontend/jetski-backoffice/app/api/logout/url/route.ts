@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth'
+import { idTokenDaSessao } from '@/lib/id-token'
 import { NextResponse } from 'next/server'
 
 /**
@@ -16,8 +16,8 @@ export async function GET() {
   const destino = `${baseUrl}/api/logout/finish`
 
   try {
-    const session = await auth()
-    const idToken = (session as { idToken?: string } | null)?.idToken
+    // do JWT no servidor — o idToken não é mais exposto no objeto de sessão
+    const idToken = await idTokenDaSessao()
     const issuer = process.env.KEYCLOAK_ISSUER
 
     if (idToken && issuer) {

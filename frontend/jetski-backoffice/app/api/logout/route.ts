@@ -1,11 +1,7 @@
 import { auth } from '@/lib/auth'
+import { idTokenDaSessao } from '@/lib/id-token'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-
-interface SessionWithIdToken {
-  accessToken?: string
-  idToken?: string
-}
 
 export async function GET() {
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001'
@@ -18,8 +14,8 @@ export async function GET() {
     let keycloakLogoutUrl: string | null = null
 
     if (session?.accessToken) {
-      const sessionWithIdToken = session as SessionWithIdToken
-      const idToken = sessionWithIdToken.idToken
+      // do JWT no servidor — o idToken não é mais exposto no objeto de sessão
+      const idToken = await idTokenDaSessao()
 
       if (idToken && process.env.KEYCLOAK_ISSUER) {
         // Volta no /api/logout/finish (não direto no /login): a página /logout

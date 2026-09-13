@@ -6,6 +6,7 @@ import com.jetski.shared.authorization.OPAAuthorizationService;
 import com.jetski.shared.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -31,11 +32,16 @@ import java.util.stream.Collectors;
  * Todos os endpoints (exceto /public) passam por ABACAuthorizationInterceptor
  * que consulta OPA para decisão de autorização.
  *
- * TODO: Remover este controller em produção (apenas para testes de segurança)
+ * <p><b>Só em dev/teste</b> ({@code @Profile}, mesmo padrão do TestEmailController):
+ * os endpoints /opa/* devolvem decisões do OPA para papéis/tenants arbitrários —
+ * sondagem da matriz de autorização que não pode existir em produção. As
+ * whitelists de segurança do /public também são condicionadas ao perfil
+ * ({@link AuthTestEndpoints}).
  *
  * @author Jetski Team
  */
 @Slf4j
+@Profile({"local", "test", "dev"})
 @RestController
 @RequestMapping("/v1/auth-test")
 @RequiredArgsConstructor

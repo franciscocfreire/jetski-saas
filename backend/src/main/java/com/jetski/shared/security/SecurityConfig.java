@@ -7,6 +7,7 @@ import com.jetski.shared.observability.BusinessMetrics;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -19,6 +20,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -53,6 +55,7 @@ public class SecurityConfig {
     private final SessaoSuporteValidator sessaoSuporteValidator;
     private final FilterChainExceptionFilter filterChainExceptionFilter;
     private final BusinessMetrics businessMetrics;
+    private final Environment environment;
 
     @org.springframework.beans.factory.annotation.Value("${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}")
     private String jwkSetUri;
@@ -63,17 +66,27 @@ public class SecurityConfig {
     @org.springframework.beans.factory.annotation.Value("${jetski.security.external-url:}")
     private String externalUrl;
 
+    /** Clients (azp) cujos tokens a API aceita — ver JwtAuthorizedPartyValidator. */
+    @org.springframework.beans.factory.annotation.Value("${jetski.security.jwt.allowed-clients:jetski-backoffice,jetski-customer-portal,jetski-platform-console,jetski-mobile,jetski-api}")
+    private String[] allowedClients;
+
+    /** Extras por perfil (dev/local/test: jetski-test). Vazio em prod. */
+    @org.springframework.beans.factory.annotation.Value("${jetski.security.jwt.additional-allowed-clients:}")
+    private String[] additionalAllowedClients;
+
     public SecurityConfig(
             JwtAuthenticationConverter jwtAuthenticationConverter,
             TenantAccessValidator tenantAccessValidator,
             SessaoSuporteValidator sessaoSuporteValidator,
             FilterChainExceptionFilter filterChainExceptionFilter,
-            BusinessMetrics businessMetrics) {
+            BusinessMetrics businessMetrics,
+            Environment environment) {
         this.jwtAuthenticationConverter = jwtAuthenticationConverter;
         this.tenantAccessValidator = tenantAccessValidator;
         this.sessaoSuporteValidator = sessaoSuporteValidator;
         this.filterChainExceptionFilter = filterChainExceptionFilter;
         this.businessMetrics = businessMetrics;
+        this.environment = environment;
     }
 
     /**
@@ -132,10 +145,25 @@ public class SecurityConfig {
             return issuerValidators.get(0).validate(jwt);
         };
 
-        // Combinar timestamp validation + multi-issuer validation
+        // Backstop de audiência (P0 da revisão técnica de ago/2026): sem ele, QUALQUER
+        // token assinado pelo realm (grafana, jetski-test, jetski-password-check...) valia
+        // na API inteira. Só clients da allowlist (azp) passam.
+        java.util.LinkedHashSet<String> clients = new java.util.LinkedHashSet<>(List.of(allowedClients));
+        clients.addAll(List.of(additionalAllowedClients));
+        JwtAuthorizedPartyValidator authorizedPartyValidator = new JwtAuthorizedPartyValidator(clients);
+        if (authorizedPartyValidator.clientsPermitidos().isEmpty()) {
+            throw new IllegalStateException(
+                "jetski.security.jwt.allowed-clients vazio: a API rejeitaria todo token. "
+                    + "Configure os clients legítimos (JETSKI_JWT_ALLOWED_CLIENTS).");
+        }
+        org.slf4j.LoggerFactory.getLogger(SecurityConfig.class)
+            .info("JWT: clients aceitos (azp) = {}", authorizedPartyValidator.clientsPermitidos());
+
+        // Combinar timestamp + multi-issuer + authorized party (azp)
         OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
             new JwtTimestampValidator(),
-            multiIssuerValidator
+            multiIssuerValidator,
+            authorizedPartyValidator
         );
 
         jwtDecoder.setJwtValidator(validator);
@@ -151,26 +179,31 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain publicFilterChain(HttpSecurity http) throws Exception {
+        // Matcher apenas para endpoints públicos (usando Ant matchers explícitos)
+        // Ant matchers não dependem de MVC handler registration (ao contrário de MVC matchers)
+        List<RequestMatcher> publicos = new java.util.ArrayList<>(List.of(
+            new AntPathRequestMatcher("/actuator/health"),
+            new AntPathRequestMatcher("/actuator/info"),
+            new AntPathRequestMatcher("/actuator/prometheus"),  // Prometheus metrics
+            new AntPathRequestMatcher("/actuator/metrics/**"),  // Micrometer metrics
+            new AntPathRequestMatcher("/swagger-ui.html"),
+            new AntPathRequestMatcher("/swagger-ui/**"),
+            new AntPathRequestMatcher("/v3/api-docs/**"),
+            new AntPathRequestMatcher("/v1/auth/complete-activation"),  // Account activation (Option 2: temp password flow)
+            new AntPathRequestMatcher("/v1/auth/magic-activate"),       // Account activation (Magic link JWT - one-click UX)
+            new AntPathRequestMatcher("/v1/storage/local/**"),          // Local storage endpoints (simulated presigned URLs)
+            new AntPathRequestMatcher("/v1/signup/**"),                 // Self-service tenant signup (public)
+            new AntPathRequestMatcher("/v1/public/**"),                 // Public marketplace API (no auth)
+            new AntPathRequestMatcher("/v1/pdf/**"),                    // Abertura de PDF por token de uso único
+            new AntPathRequestMatcher("/v1/test/**")                    // E2E test utilities (local/test profile only)
+        ));
+        // Scaffolding de teste (AuthTestController): controller e whitelist só em local/test/dev
+        if (AuthTestEndpoints.habilitado(environment)) {
+            publicos.add(new AntPathRequestMatcher(AuthTestEndpoints.PUBLIC_PATH));
+        }
+
         http
-            // Matcher apenas para endpoints públicos (usando Ant matchers explícitos)
-            // Ant matchers não dependem de MVC handler registration (ao contrário de MVC matchers)
-            .securityMatcher(new OrRequestMatcher(
-                new AntPathRequestMatcher("/actuator/health"),
-                new AntPathRequestMatcher("/actuator/info"),
-                new AntPathRequestMatcher("/actuator/prometheus"),  // Prometheus metrics
-                new AntPathRequestMatcher("/actuator/metrics/**"),  // Micrometer metrics
-                new AntPathRequestMatcher("/swagger-ui.html"),
-                new AntPathRequestMatcher("/swagger-ui/**"),
-                new AntPathRequestMatcher("/v3/api-docs/**"),
-                new AntPathRequestMatcher("/v1/auth-test/public"),
-                new AntPathRequestMatcher("/v1/auth/complete-activation"),  // Account activation (Option 2: temp password flow)
-                new AntPathRequestMatcher("/v1/auth/magic-activate"),       // Account activation (Magic link JWT - one-click UX)
-                new AntPathRequestMatcher("/v1/storage/local/**"),          // Local storage endpoints (simulated presigned URLs)
-                new AntPathRequestMatcher("/v1/signup/**"),                 // Self-service tenant signup (public)
-                new AntPathRequestMatcher("/v1/public/**"),                 // Public marketplace API (no auth)
-                new AntPathRequestMatcher("/v1/pdf/**"),                    // Abertura de PDF por token de uso único
-                new AntPathRequestMatcher("/v1/test/**")                    // E2E test utilities (local/test profile only)
-            ))
+            .securityMatcher(new OrRequestMatcher(publicos))
 
             // Exception filter FIRST to catch all downstream exceptions
             .addFilterBefore(filterChainExceptionFilter, UsernamePasswordAuthenticationFilter.class)

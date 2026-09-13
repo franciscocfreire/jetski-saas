@@ -3,10 +3,12 @@ import Keycloak from "next-auth/providers/keycloak"
 import type { JWT } from "next-auth/jwt"
 
 declare module "next-auth" {
+  // SEM refreshToken/idToken: este objeto é servido ao browser por
+  // GET /api/auth/session. Os dois ficam só no JWT criptografado do cookie
+  // httpOnly (callback jwt) — o idToken do logout é lido no servidor
+  // (lib/id-token.ts). P0 da revisão técnica de ago/2026.
   interface Session {
     accessToken: string
-    refreshToken: string
-    idToken?: string
     tenantId?: string
     error?: string
   }
@@ -28,6 +30,15 @@ declare module "next-auth/jwt" {
 // When NEXTAUTH_E2E_TESTING is set, cookies won't have the __Secure- prefix
 // which allows Playwright to properly handle them across page navigations
 const isE2ETesting = process.env.NEXTAUTH_E2E_TESTING === 'true'
+
+/**
+ * Cookie de sessão do Auth.js (nome default, com prefixo __Secure- quando
+ * useSecureCookies). Fonte única para o getToken server-side (lib/id-token.ts).
+ */
+export const SESSION_COOKIE = {
+  secure: !isE2ETesting,
+  name: `${!isE2ETesting ? "__Secure-" : ""}authjs.session-token`,
+}
 
 /**
  * Refresh the access token using the refresh token
@@ -101,7 +112,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true, // Required for ngrok/reverse proxy
   // In E2E mode, use non-secure cookies to work around Playwright limitations
   // See: https://github.com/nextauthjs/next-auth/issues/8914
-  useSecureCookies: !isE2ETesting,
+  useSecureCookies: SESSION_COOKIE.secure,
   providers: [
     Keycloak({
       clientId: process.env.KEYCLOAK_CLIENT_ID!,
@@ -170,8 +181,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return {
         ...session,
         accessToken: token.accessToken as string,
-        refreshToken: token.refreshToken as string,
-        idToken: token.idToken as string | undefined,
         tenantId: token.tenantId as string | undefined,
         error: token.error as string | undefined,
       }

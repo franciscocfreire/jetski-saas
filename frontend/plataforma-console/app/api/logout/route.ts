@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { idTokenDaSessao } from "@/lib/id-token";
 
 /**
  * Logout FEDERADO server-side (mesmo padrão do backoffice e do portal).
@@ -27,8 +27,8 @@ export async function GET() {
 
   let target = destino;
   try {
-    const session = await auth();
-    const idToken = session?.idToken;
+    // do JWT no servidor — o idToken não é mais exposto no objeto de sessão
+    const idToken = await idTokenDaSessao();
     const issuer = process.env.KEYCLOAK_ISSUER;
     if (idToken && issuer) {
       target =

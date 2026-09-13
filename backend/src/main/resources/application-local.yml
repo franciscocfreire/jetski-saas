@@ -116,6 +116,9 @@ jetski:
     allowed-origins:
       - http://localhost:3000
       - http://localhost:3001
+    jwt:
+      # Client de teste (ROPC) usado por curl/Postman
+      additional-allowed-clients: jetski-test
   frontend:
     url: http://localhost:3000
   email:

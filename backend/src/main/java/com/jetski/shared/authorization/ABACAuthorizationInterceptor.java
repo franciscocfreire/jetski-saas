@@ -267,8 +267,9 @@ public class ABACAuthorizationInterceptor implements HandlerInterceptor {
      * Verifica se endpoint é público (não requer ABAC).
      */
     private boolean isPublicEndpoint(String action) {
-        return action.startsWith("auth-test:public") ||
-               action.startsWith("actuator:") ||
+        // (auth-test:public saiu daqui: o endpoint de teste só existe em local/test/dev
+        //  e, nesses perfis, é excluído do interceptor no WebMvcConfig)
+        return action.startsWith("actuator:") ||
                action.startsWith("health:") ||
                action.startsWith("metrics:") ||
                action.equals("user:list") ||   // Listar tenants não requer tenant específico

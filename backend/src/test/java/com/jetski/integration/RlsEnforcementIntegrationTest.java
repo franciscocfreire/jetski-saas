@@ -278,6 +278,99 @@ class RlsEnforcementIntegrationTest extends AbstractIntegrationTest {
         return acoes;
     }
 
+    /**
+     * V069 (P0 da revisão técnica de ago/2026): {@code assinatura} e {@code fuel_policy}
+     * tinham INSERT {@code WITH CHECK (true)} (escrita cross-tenant livre), SELECT com
+     * COALESCE (tudo legível sem contexto) e cast sem NULLIF (22P02 com GUC '').
+     */
+    @Test
+    @DisplayName("V069: assinatura/fuel_policy — escrita cross-tenant bloqueada, sem contexto nada, GUC '' sem 22P02")
+    void assinaturaEFuelPolicyNoPadraoTenantIsolation() throws SQLException {
+        jdbc.execute("GRANT SELECT, INSERT, UPDATE ON public.assinatura TO rls_tester");
+        jdbc.execute("GRANT SELECT, INSERT ON public.fuel_policy TO rls_tester");
+        // sem USAGE nas sequences o INSERT morre antes da RLS (permission denied)
+        jdbc.execute("GRANT USAGE ON SEQUENCE public.assinatura_id_seq, public.fuel_policy_id_seq TO rls_tester");
+        Integer planoId = jdbc.queryForObject("SELECT id FROM plano ORDER BY id LIMIT 1", Integer.class);
+        jdbc.update("""
+            INSERT INTO fuel_policy (tenant_id, nome, tipo, aplicavel_a, comissionavel, ativo, prioridade)
+            VALUES (?, 'RLS-V069-A', 'INCLUSO', 'GLOBAL', false, true, 0), (?, 'RLS-V069-B', 'INCLUSO', 'GLOBAL', false, true, 0)
+            """, TENANT_A, TENANT_B);
+
+        try (Connection c = openAsRole()) {
+            // 1. Escrita cross-tenant: com o tenant A fixado, linha do B é rejeitada
+            setTenant(c, TENANT_A.toString());
+            assertThatThrownBy(() -> executar(c,
+                "INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, status) VALUES ('"
+                    + TENANT_B + "', " + planoId + ", 'mensal', CURRENT_DATE, 'expirada')"))
+                .isInstanceOf(SQLException.class)
+                .hasMessageContaining("row-level security");
+            rollbackMantendoRole(c);
+
+            setTenant(c, TENANT_A.toString());
+            assertThatThrownBy(() -> executar(c,
+                "INSERT INTO fuel_policy (tenant_id, nome, tipo, aplicavel_a, comissionavel, ativo, prioridade) "
+                    + "VALUES ('" + TENANT_B + "', 'intrusa', 'INCLUSO', 'GLOBAL', false, true, 0)"))
+                .isInstanceOf(SQLException.class)
+                .hasMessageContaining("row-level security");
+            rollbackMantendoRole(c);
+
+            // 2. No próprio tenant, a escrita passa
+            setTenant(c, TENANT_A.toString());
+            assertThat(executar(c,
+                "INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, status) VALUES ('"
+                    + TENANT_A + "', " + planoId + ", 'mensal', CURRENT_DATE, 'expirada')")).isEqualTo(1);
+            // ...e o SELECT só enxerga o próprio tenant
+            assertThat(fuelPoliciesVisiveis(c)).containsExactly("RLS-V069-A");
+            rollbackMantendoRole(c);
+
+            // 3. Sem contexto (GUC nunca setado): nenhuma linha — antes o COALESCE abria tudo
+            assertThat(fuelPoliciesVisiveis(c)).isEmpty();
+            rollbackMantendoRole(c);
+
+            // 4. GUC '' (RESET em conexão reusada): sem 22P02, só zero linhas
+            setTenant(c, "");
+            assertThat(fuelPoliciesVisiveis(c)).isEmpty();
+            assertThat(contar(c, "SELECT count(*) FROM assinatura")).isZero();
+            c.rollback();
+        } finally {
+            jdbc.update("DELETE FROM fuel_policy WHERE nome IN ('RLS-V069-A', 'RLS-V069-B')");
+        }
+    }
+
+    /**
+     * O rollback desfaz também o {@code SET LOCAL ROLE} — sem reassumir o role, o resto
+     * do teste rodaria como superuser (RLS bypassada) e passaria em falso.
+     */
+    private void rollbackMantendoRole(Connection c) throws SQLException {
+        c.rollback();
+        try (Statement st = c.createStatement()) {
+            st.execute("SET LOCAL ROLE " + ROLE);
+        }
+    }
+
+    private int executar(Connection c, String sql) throws SQLException {
+        try (Statement st = c.createStatement()) {
+            return st.executeUpdate(sql);
+        }
+    }
+
+    private long contar(Connection c, String sql) throws SQLException {
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(sql)) {
+            rs.next();
+            return rs.getLong(1);
+        }
+    }
+
+    private List<String> fuelPoliciesVisiveis(Connection c) throws SQLException {
+        List<String> nomes = new ArrayList<>();
+        try (Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                 "SELECT nome FROM fuel_policy WHERE nome LIKE 'RLS-V069-%' ORDER BY nome")) {
+            while (rs.next()) nomes.add(rs.getString(1));
+        }
+        return nomes;
+    }
+
     @Test
     @DisplayName("Controle: o superuser do container realmente bypassa RLS (todos os tenants)")
     void superuserBypassaRls() throws SQLException {

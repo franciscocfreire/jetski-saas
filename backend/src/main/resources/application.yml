@@ -133,6 +133,13 @@ jetski:
       - http://localhost:3003
       - http://localhost
       - https://539d02e90662.ngrok-free.app
+    jwt:
+      # Clients do Keycloak cujos access tokens a API aceita (claim azp; sem azp,
+      # algum aud). Qualquer outro client do realm (grafana, jetski-password-check,
+      # jetski-test...) é rejeitado com 401 — JwtAuthorizedPartyValidator.
+      allowed-clients: ${JETSKI_JWT_ALLOWED_CLIENTS:jetski-backoffice,jetski-customer-portal,jetski-platform-console,jetski-mobile,jetski-api}
+      # Extras por perfil (dev/local/test: jetski-test p/ curl/Postman/Newman). Vazio em prod.
+      additional-allowed-clients: ${JETSKI_JWT_ADDITIONAL_ALLOWED_CLIENTS:}
   frontend:
     url: http://localhost:3000
   emissao:

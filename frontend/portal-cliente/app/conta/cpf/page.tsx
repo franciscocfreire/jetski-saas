@@ -155,7 +155,7 @@ function CpfInner() {
   // Pós-merge: sessão atual pertence à conta descartada — logout federado
   useEffect(() => {
     if (etapa !== "sucesso") return;
-    const t = setTimeout(() => sairDaConta(session?.idToken), 3000);
+    const t = setTimeout(() => sairDaConta(), 3000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [etapa]);
@@ -310,7 +310,7 @@ function CpfInner() {
             Por segurança, saia e entre novamente com o Google — você verá todo
             o seu histórico.
           </p>
-          <Button className="mt-4 w-full" size="lg" onClick={() => sairDaConta(session?.idToken)}>
+          <Button className="mt-4 w-full" size="lg" onClick={() => sairDaConta()}>
             Entrar novamente
           </Button>
         </Card>

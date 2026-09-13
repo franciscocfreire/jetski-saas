@@ -462,6 +462,14 @@ public class TenantSignupService {
      * @param tenantId the tenant ID
      */
     private void createDefaultFuelPolicy(UUID tenantId) {
+        // RLS (V069): fuel_policy exige o tenant da LINHA no contexto (WITH CHECK) — e o
+        // signup roda sem tenant na sessão (anônimo, ou pessoa ainda sem empresa). Fixa
+        // o tenant novo só na transação e devolve o valor anterior logo depois, para não
+        // mudar o escopo RLS do resto do fluxo.
+        String anterior = (String) entityManager.createNativeQuery(
+                "SELECT coalesce(current_setting('app.tenant_id', true), '')")
+            .getSingleResult();
+        definirTenantDaTransacao(tenantId.toString());
         entityManager.createNativeQuery(
             """
             INSERT INTO fuel_policy (
@@ -477,5 +485,13 @@ public class TenantSignupService {
         )
         .setParameter(1, tenantId)
         .executeUpdate();
+        definirTenantDaTransacao(anterior);
+    }
+
+    /** {@code set_config(..., true)}: vale só até o fim da transação corrente. */
+    private void definirTenantDaTransacao(String tenantId) {
+        entityManager.createNativeQuery("SELECT set_config('app.tenant_id', :tid, true)")
+            .setParameter("tid", tenantId)
+            .getSingleResult();
     }
 }

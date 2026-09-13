@@ -119,6 +119,9 @@ jetski:
       - http://localhost:3001
     # External URL for ngrok or other tunneling services (JWT issuer validation)
     external-url: ${JETSKI_EXTERNAL_URL:}
+    jwt:
+      # Client de teste (ROPC) usado por curl/Postman e pelo e2e Newman do CI
+      additional-allowed-clients: jetski-test
   opa:
     base-url: ${JETSKI_OPA_BASE_URL:http://localhost:8181}
   email:

@@ -75,6 +75,8 @@ jetski:
   security:
     allowed-origins:
       - http://localhost:3000
+    jwt:
+      additional-allowed-clients: jetski-test
   frontend:
     url: http://localhost:3000
   email:

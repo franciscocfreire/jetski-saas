@@ -53,6 +53,20 @@ tenant certo). Isso é defesa em profundidade intencional, com hierarquia:
 > grosso (barato, mas global). Nenhuma decisão de negócio pode depender
 > SÓ do `@PreAuthorize`.**
 
+## Antes de tudo: para QUAL client o token foi emitido (azp)
+
+O `JwtDecoder` (`SecurityConfig`) valida issuer, validade **e o `azp`**
+(`JwtAuthorizedPartyValidator`): só tokens emitidos para os clients da
+allowlist `jetski.security.jwt.allowed-clients` entram na API —
+`jetski-backoffice`, `jetski-customer-portal`, `jetski-platform-console`,
+`jetski-mobile`, `jetski-api`. Tokens de outros clients do mesmo realm
+(`grafana`, `jetski-password-check`, `jetski-test`...) tomam **401**.
+`jetski-test` (ROPC, curl/Postman/Newman) só é aceito nos perfis
+`dev`/`local`/`test` (`additional-allowed-clients`) e fica **desabilitado**
+no Keycloak de produção (`infra/prod/configure-keycloak-client.sh`, a cada
+deploy). **Client novo que chama a API = incluir na allowlist** (ou via
+`JETSKI_JWT_ALLOWED_CLIENTS`), senão 401 em tudo.
+
 ## Como criar uma regra nova (checklist)
 
 - [ ] Ação nomeada no `ActionExtractor` (`dominio:acao`; escopo customer
