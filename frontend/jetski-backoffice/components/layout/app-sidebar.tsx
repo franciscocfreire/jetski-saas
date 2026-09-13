@@ -66,6 +66,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Logo } from '@/components/logo'
 import { useTenantStore } from '@/lib/store/tenant-store'
+import type { TenantSummary } from '@/lib/api/types'
 import { useSidebarStore } from '@/lib/store/sidebar-store'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useQuery } from '@tanstack/react-query'
@@ -220,6 +221,17 @@ export function AppSidebar() {
   // Papel sintético que o layout injeta ao entrar por sessão de suporte (não é papel
   // de membro — nada no backend o consulta).
   const emSessaoDeSuporte = currentTenant?.roles?.includes('SUPORTE') ?? false
+
+  // Troca de empresa = navegação completa. O store e o sessionStorage gravam na
+  // hora, mas o cache do TanStack Query (branding, permissões, configurações,
+  // listas) continuaria servindo a empresa anterior até cada query expirar — e a
+  // URL atual pode apontar para um registro que só existe na empresa de antes.
+  // Recarregar na raiz zera tudo, igual à saída da sessão de suporte.
+  const trocarEmpresa = (tenant: TenantSummary) => {
+    if (tenant.id === currentTenant?.id) return
+    setCurrentTenant(tenant)
+    window.location.href = '/dashboard'
+  }
 
   // Logo white-label do tenant (mesma query do TenantThemeProvider — deduplicada)
   const { data: branding } = useQuery({
@@ -378,7 +390,7 @@ export function AppSidebar() {
                 {tenants.map((tenant) => (
                   <DropdownMenuItem
                     key={tenant.id}
-                    onClick={() => setCurrentTenant(tenant)}
+                    onClick={() => trocarEmpresa(tenant)}
                     className="cursor-pointer"
                   >
                     <Building2 className="mr-2 size-4" />
