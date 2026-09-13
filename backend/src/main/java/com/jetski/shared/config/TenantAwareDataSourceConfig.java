@@ -74,7 +74,17 @@ public class TenantAwareDataSourceConfig {
             return connection;
         }
 
-        private void setTenantContext(Connection connection) {
+        /**
+         * Fixa (ou limpa) os GUCs de RLS na conexão recém-obtida do pool.
+         *
+         * <p><b>Fail-closed</b>: se qualquer statement falhar, a conexão NÃO é entregue.
+         * O GUC é de sessão ({@code is_local = false}) e o Hikari reusa conexões — uma
+         * falha aqui deixaria na conexão o {@code app.tenant_id} da requisição ANTERIOR,
+         * e a requisição corrente leria/escreveria sob a RLS de outro tenant. Por isso a
+         * conexão é despejada do pool (não volta para ser reusada) e a falha sobe como
+         * {@link SQLException} — melhor um 500 do que um vazamento cross-tenant.
+         */
+        private void setTenantContext(Connection connection) throws SQLException {
             UUID tenantId = TenantContext.getTenantId();
             boolean unrestricted = TenantContext.isUnrestricted();
             log.debug("TenantAwareDataSource.setTenantContext called, tenantId={}", tenantId);
@@ -100,8 +110,33 @@ public class TenantAwareDataSourceConfig {
                 statement.execute(String.format(
                     "SELECT set_config('app.unrestricted', '%s', false)",
                     unrestricted ? "true" : ""));
-            } catch (SQLException e) {
-                log.warn("Failed to set/reset RLS tenant context: {}", e.getMessage());
+            } catch (SQLException | RuntimeException e) {
+                log.error("Falha ao fixar o contexto RLS da conexão (tenantId={}, unrestricted={}) — "
+                    + "conexão descartada, requisição falha fechada: {}", tenantId, unrestricted, e.getMessage());
+                descartar(connection);
+                throw new SQLException(
+                    "Falha ao estabelecer o contexto RLS (app.tenant_id) na conexão — conexão descartada",
+                    e instanceof SQLException sql ? sql.getSQLState() : null, e);
+            }
+        }
+
+        /**
+         * Tira a conexão de circulação: no Hikari, {@code evictConnection} fecha a conexão
+         * física e a remove do pool (um simples {@code close()} a devolveria para reuso,
+         * com o GUC obsoleto). Para outros DataSources, fecha.
+         */
+        private void descartar(Connection connection) {
+            try {
+                if (obtainTargetDataSource() instanceof HikariDataSource hikari) {
+                    hikari.evictConnection(connection);
+                }
+            } catch (RuntimeException ex) {
+                log.warn("Falha ao despejar conexão do pool: {}", ex.getMessage());
+            }
+            try {
+                connection.close();
+            } catch (SQLException | RuntimeException ex) {
+                log.warn("Falha ao fechar conexão descartada: {}", ex.getMessage());
             }
         }
     }
