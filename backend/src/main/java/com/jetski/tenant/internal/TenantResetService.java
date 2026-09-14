@@ -86,7 +86,9 @@ public class TenantResetService {
     /** Cadastro de frota — apagado nos níveis FROTA e TOTAL. */
     static final List<String> TABELAS_FROTA = List.of(
         "modelo_midia", "fuel_policy", "jetski",
-        "politica_comissao", "item_opcional", "instrutor", "modelo");
+        "politica_comissao", "item_opcional",
+        // Links de assinatura do instrutor (V071): só existem junto do instrutor (FK CASCADE)
+        "instrutor_assinatura_link", "instrutor", "modelo");
 
     /** Nível TOTAL (além do especial membro/tenant_access). */
     static final List<String> TABELAS_TOTAL = List.of(

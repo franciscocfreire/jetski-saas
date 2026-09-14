@@ -299,6 +299,8 @@ public class ActionExtractor {
             "instrutores-parceiro", "contagens", "instrutores-designados",
             // Papel exclusivo + instrutores da operadora aprovados pela EAMA (V070)
             "modo", "instrutores-operadora", "solicitar-aprovacao", "decisao",
+            // Link único para o instrutor assinar remotamente (V071)
+            "link-assinatura",
             // Perfil self-service do staff (/v1/user/me[/senha|/avatar]) —
             // ações user:me/user:senha/user:avatar puladas no ABACAuthorizationInterceptor
             "me", "senha", "avatar",

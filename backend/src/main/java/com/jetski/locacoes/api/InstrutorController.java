@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 public class InstrutorController {
 
     private final InstrutorService service;
+    private final com.jetski.locacoes.internal.InstrutorAssinaturaLinkService linkService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
@@ -87,6 +88,20 @@ public class InstrutorController {
     public ResponseEntity<InstrutorResponse> reactivate(@PathVariable UUID tenantId, @PathVariable UUID id) {
         validateTenant(tenantId);
         return ResponseEntity.ok(toResponse(service.definirAtivo(id, true)));
+    }
+
+    /**
+     * Gera um link único (uso único, 7 dias) para o instrutor assinar remotamente.
+     * Um link novo invalida o anterior. Ação OPA {@code instrutor:link-assinatura}.
+     */
+    @PostMapping("/{id}/link-assinatura")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Gerar link para o instrutor assinar")
+    public ResponseEntity<com.jetski.locacoes.internal.InstrutorAssinaturaLinkService.LinkGerado> gerarLinkAssinatura(
+        @PathVariable UUID tenantId, @PathVariable UUID id
+    ) {
+        validateTenant(tenantId);
+        return ResponseEntity.ok(linkService.gerar(id));
     }
 
     private void validateTenant(UUID tenantId) {

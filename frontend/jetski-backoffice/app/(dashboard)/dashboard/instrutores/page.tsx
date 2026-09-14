@@ -3,7 +3,17 @@
 import { useState, type ReactNode } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { Plus, GraduationCap, Edit, MoreHorizontal, Handshake, Send } from 'lucide-react'
+import {
+  Plus,
+  GraduationCap,
+  Edit,
+  MoreHorizontal,
+  Handshake,
+  Send,
+  Link2,
+  Copy,
+  MessageCircle,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { usePermissions } from '@/lib/hooks/use-permissions'
@@ -28,6 +38,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -64,6 +75,7 @@ export default function InstrutoresPage() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Instrutor | null>(null)
   const [form, setForm] = useState<InstrutorCreateRequest>(VAZIO)
+  const [linkPara, setLinkPara] = useState<Instrutor | null>(null)
 
   const { data: instrutores, isLoading } = useQuery({
     queryKey: ['instrutores', currentTenant?.id],
@@ -184,6 +196,17 @@ export default function InstrutoresPage() {
     </Dialog>
   )
 
+  const dialogoLink = (
+    <LinkAssinaturaDialog
+      // key: trocar de instrutor zera o link gerado para o anterior.
+      key={linkPara?.id ?? 'nenhum'}
+      instrutor={linkPara}
+      empresa={currentTenant?.razaoSocial ?? 'empresa'}
+      emissaoDelegada={emissaoDelegada}
+      onClose={() => setLinkPara(null)}
+    />
+  )
+
   if (emissaoDelegada) {
     return (
       <InstrutoresDelegadaView
@@ -196,7 +219,13 @@ export default function InstrutoresPage() {
         onNovo={novo}
         onEditar={editar}
         onAlternarAtivo={(i) => toggleAtivo.mutate(i)}
-        dialogo={dialogo}
+        onLinkAssinatura={setLinkPara}
+        dialogo={
+          <>
+            {dialogo}
+            {dialogoLink}
+          </>
+        }
       />
     )
   }
@@ -271,6 +300,9 @@ export default function InstrutoresPage() {
                           <DropdownMenuItem onClick={() => editar(i)}>
                             <Edit className="mr-2 h-4 w-4" /> Editar
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setLinkPara(i)}>
+                            <Link2 className="mr-2 h-4 w-4" /> Link para assinar
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => toggleAtivo.mutate(i)}>
                             {i.ativo ? 'Desativar' : 'Reativar'}
                           </DropdownMenuItem>
@@ -288,7 +320,129 @@ export default function InstrutoresPage() {
       </div>
 
       {dialogo}
+      {dialogoLink}
     </div>
+  )
+}
+
+/**
+ * Link público para o instrutor assinar à distância (sem login). O link é gerado
+ * só no clique — abrir o diálogo não pode invalidar um link que já foi enviado.
+ */
+function LinkAssinaturaDialog({
+  instrutor,
+  empresa,
+  emissaoDelegada,
+  onClose,
+}: {
+  instrutor: Instrutor | null
+  empresa: string
+  emissaoDelegada: boolean
+  onClose: () => void
+}) {
+  const [link, setLink] = useState<{ url: string; expiraEm: string } | null>(null)
+
+  const gerar = useMutation({
+    mutationFn: () => instrutoresService.gerarLinkAssinatura(instrutor!.id),
+    onSuccess: (data) => {
+      setLink(data)
+      toast.success('Link de assinatura gerado.')
+    },
+    onError: (e) => toast.error(mensagemDeErro(e, 'Não foi possível gerar o link.')),
+  })
+
+  const validade = link
+    ? new Date(link.expiraEm).toLocaleString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        dateStyle: 'short',
+        timeStyle: 'short',
+      })
+    : ''
+
+  async function copiar() {
+    if (!link) return
+    try {
+      await navigator.clipboard.writeText(link.url)
+      toast.success('Link copiado.')
+    } catch {
+      toast.error('Não foi possível copiar. Selecione o link e copie manualmente.')
+    }
+  }
+
+  const whatsappHref = link
+    ? `https://wa.me/?text=${encodeURIComponent(
+        `Olá ${instrutor?.nome ?? ''}, assine aqui para o Atestado de Demonstração da ${empresa}: ${link.url} (válido até ${validade})`
+      )}`
+    : '#'
+
+  return (
+    <Dialog open={!!instrutor} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Link para assinar</DialogTitle>
+          <DialogDescription>
+            Envie a {instrutor?.nome} um link para assinar pelo celular, sem precisar de login.
+            A assinatura vai para o cadastro e para o Atestado de Demonstração (Anexo 5-B-1).
+          </DialogDescription>
+        </DialogHeader>
+
+        {instrutor?.temAssinatura && (
+          <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">
+            Este instrutor já tem assinatura cadastrada. A nova assinatura substituirá a atual
+            {emissaoDelegada && ' e o cadastro volta para a aprovação da EAMA parceira'}.
+          </p>
+        )}
+
+        {link ? (
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Link</Label>
+              <Input
+                readOnly
+                value={link.url}
+                onFocus={(e) => e.currentTarget.select()}
+                data-testid="instrutor-link-assinatura-url"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">Válido até {validade}.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={copiar}>
+                <Copy className="mr-2 h-4 w-4" /> Copiar
+              </Button>
+              <Button asChild className="bg-green-600 text-white hover:bg-green-700">
+                <a href={whatsappHref} target="_blank" rel="noopener noreferrer">
+                  <MessageCircle className="mr-2 h-4 w-4" /> Enviar pelo WhatsApp
+                </a>
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        <p className="text-xs text-muted-foreground">
+          O link é de uso único e vale por 7 dias. Gerar um novo link invalida o anterior.
+        </p>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Fechar
+          </Button>
+          <Button
+            variant={link ? 'secondary' : 'default'}
+            disabled={!instrutor || gerar.isPending}
+            onClick={() => gerar.mutate()}
+            data-testid="instrutor-link-assinatura-gerar"
+          >
+            <Link2 className="mr-2 h-4 w-4" />
+            {gerar.isPending ? 'Gerando…' : link ? 'Gerar novo link' : 'Gerar link'}
+          </Button>
+        </DialogFooter>
+        {link && (
+          <p className="-mt-2 text-right text-xs text-amber-700">
+            Atenção: gerar um novo link faz o link acima deixar de valer.
+          </p>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -307,6 +461,7 @@ function InstrutoresDelegadaView({
   onNovo,
   onEditar,
   onAlternarAtivo,
+  onLinkAssinatura,
   dialogo,
 }: {
   proprios?: Instrutor[]
@@ -318,6 +473,7 @@ function InstrutoresDelegadaView({
   onNovo: () => void
   onEditar: (i: Instrutor) => void
   onAlternarAtivo: (i: Instrutor) => void
+  onLinkAssinatura: (i: Instrutor) => void
   dialogo: ReactNode
 }) {
   const queryClient = useQueryClient()
@@ -513,6 +669,9 @@ function InstrutoresDelegadaView({
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => onEditar(i)}>
                                 <Edit className="mr-2 h-4 w-4" /> Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onLinkAssinatura(i)}>
+                                <Link2 className="mr-2 h-4 w-4" /> Link para assinar
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => onAlternarAtivo(i)}>
                                 {i.ativo ? 'Desativar' : 'Reativar'}
