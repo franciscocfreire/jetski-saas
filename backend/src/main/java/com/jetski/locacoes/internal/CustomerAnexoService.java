@@ -29,7 +29,7 @@ public class CustomerAnexoService {
     @Transactional(readOnly = true)
     public List<String> listar(String sub, UUID tenantId) {
         var v = customerAccountService.exigirVinculo(sub, tenantId);
-        return clienteAnexoService.listar(v.getClienteId()).stream()
+        return clienteAnexoService.listar(tenantId, v.getClienteId()).stream()
             .map(a -> a.getTipo().name())
             .toList();
     }
@@ -41,7 +41,7 @@ public class CustomerAnexoService {
         clienteAnexoService.salvar(v.getClienteId(), t, conteudoBase64, "PORTAL", sub);
         log.info("Anexo {} atualizado pelo cliente no perfil: cliente={}, tenant={}",
             t, v.getClienteId(), tenantId);
-        return clienteAnexoService.listar(v.getClienteId()).stream()
+        return clienteAnexoService.listar(tenantId, v.getClienteId()).stream()
             .map(a -> a.getTipo().name())
             .toList();
     }
@@ -50,7 +50,7 @@ public class CustomerAnexoService {
     public ClienteAnexoService.AnexoImagem ler(String sub, UUID tenantId, String tipo) {
         ClienteAnexo.Tipo t = ClienteAnexoService.parseTipoPortal(tipo);
         var v = customerAccountService.exigirVinculo(sub, tenantId);
-        ClienteAnexo anexo = clienteAnexoService.buscar(v.getClienteId(), t)
+        ClienteAnexo anexo = clienteAnexoService.buscar(tenantId, v.getClienteId(), t)
             .orElseThrow(() -> new NotFoundException("Documento ainda não anexado"));
         return new ClienteAnexoService.AnexoImagem(
             clienteAnexoService.lerImagem(anexo), anexo.getContentType());

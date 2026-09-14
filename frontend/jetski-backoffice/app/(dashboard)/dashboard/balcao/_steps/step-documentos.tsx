@@ -179,7 +179,10 @@ export function StepDocumentos({
       qc.invalidateQueries({ queryKey: ['cliente-anexos', c.id] })
       onDone({ endereco, temComprovanteResidencia: temComprovante, cliente })
     },
-    onError: () => toast.error('Falha ao salvar os dados do cliente.'),
+    onError: (e) => {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ? `Falha ao salvar os dados do cliente: ${msg}` : 'Falha ao salvar os dados do cliente.')
+    },
   })
 
   function avancar() {

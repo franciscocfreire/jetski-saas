@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { Store, RotateCcw, Loader2 } from 'lucide-react'
@@ -14,6 +14,8 @@ import {
   habilitacaoService,
   aceiteService,
 } from '@/lib/api/services'
+import { getTenantId } from '@/lib/api/client'
+import { useTenantStore } from '@/lib/store/tenant-store'
 import { useVideoaulaObrigatoria } from '@/lib/hooks/use-videoaula-obrigatoria'
 import {
   isStepKey,
@@ -43,6 +45,8 @@ const VAZIO: Atendimento = {
 // Persistência do progresso do wizard (sobrevive a F5 / recarregamento da aba —
 // ex.: iOS recarrega a página ao voltar do boleto). Por aba (sessionStorage).
 // v3: navegação por CHAVE + passo "Orientações" (V063) — não hidratar v1/v2.
+// O rascunho carrega o tenant em que nasceu: cliente/reserva são da empresa, e
+// retomá-lo em outra (usuário com várias empresas) só gera 400/404 cross-tenant.
 const STORAGE_KEY = 'balcao:wizard:v3'
 
 export default function BalcaoPage() {
@@ -135,8 +139,17 @@ function BalcaoWizard() {
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY)
       if (raw) {
-        const s = JSON.parse(raw) as { at?: Atendimento; stepKey?: unknown; maxOrdem?: number }
-        if (s.at?.cliente) {
+        const s = JSON.parse(raw) as {
+          at?: Atendimento
+          stepKey?: unknown
+          maxOrdem?: number
+          tenantId?: string | null
+        }
+        if (s.at?.cliente && s.tenantId !== getTenantId()) {
+          // rascunho de outra empresa (ou sem tenant, formato antigo) → descarta
+          sessionStorage.removeItem(STORAGE_KEY)
+          toast.info('O atendimento em andamento era de outra empresa e foi descartado.')
+        } else if (s.at?.cliente) {
           setAt(s.at)
           const k: StepKey = isStepKey(s.stepKey) ? s.stepKey : 'cliente'
           setStepKey(k)
@@ -154,7 +167,12 @@ function BalcaoWizard() {
   useEffect(() => {
     if (!hidratado) return
     try {
-      if (at.cliente) sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ at, stepKey, maxOrdem }))
+      if (at.cliente) {
+        sessionStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ at, stepKey, maxOrdem, tenantId: getTenantId() })
+        )
+      }
       else sessionStorage.removeItem(STORAGE_KEY)
     } catch {
       /* ignora falhas de storage */
@@ -243,6 +261,21 @@ function BalcaoWizard() {
     }
     if (reservaId) router.replace('/dashboard/balcao')
   }
+
+  // Troca de empresa com o balcão aberto: o atendimento pertence à empresa
+  // anterior — zera em vez de continuar chamando a API da nova com IDs alheios.
+  const tenantAtualId = useTenantStore((s) => s.currentTenant?.id)
+  const tenantAnteriorId = useRef(tenantAtualId)
+  useEffect(() => {
+    const anterior = tenantAnteriorId.current
+    tenantAnteriorId.current = tenantAtualId
+    if (!anterior || !tenantAtualId || anterior === tenantAtualId) return
+    if (at.cliente || reservaId) {
+      reset()
+      toast.info('Você trocou de empresa: o atendimento em andamento foi descartado.')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantAtualId])
 
   if (resuming) {
     return (

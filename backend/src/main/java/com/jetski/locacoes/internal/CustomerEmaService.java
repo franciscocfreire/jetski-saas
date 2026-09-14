@@ -129,7 +129,7 @@ public class CustomerEmaService {
     @Transactional(readOnly = true)
     public List<String> anexos(String sub, UUID reservaId) {
         Cliente c = clienteDaReserva(sub, reservaId);
-        return clienteAnexoService.listar(c.getId()).stream()
+        return clienteAnexoService.listar(c.getTenantId(), c.getId()).stream()
             .map(a -> a.getTipo().name())
             .toList();
     }
@@ -148,7 +148,7 @@ public class CustomerEmaService {
     public ClienteAnexoService.AnexoImagem lerAnexo(String sub, UUID reservaId, String tipo) {
         ClienteAnexo.Tipo t = ClienteAnexoService.parseTipoPortal(tipo);
         Cliente c = clienteDaReserva(sub, reservaId);
-        ClienteAnexo anexo = clienteAnexoService.buscar(c.getId(), t)
+        ClienteAnexo anexo = clienteAnexoService.buscar(c.getTenantId(), c.getId(), t)
             .orElseThrow(() -> new com.jetski.shared.exception.NotFoundException(
                 "Documento ainda não anexado"));
         return new ClienteAnexoService.AnexoImagem(
@@ -243,7 +243,7 @@ public class CustomerEmaService {
             .orElseThrow(() -> new BusinessException("Cliente não encontrado"));
         Optional<ReservaHabilitacao> hab = habilitacaoService.getByReserva(l.reserva().getId());
 
-        List<String> anexos = clienteAnexoService.listar(c.getId()).stream()
+        List<String> anexos = clienteAnexoService.listar(c.getTenantId(), c.getId()).stream()
             .map(a -> a.getTipo().name())
             .toList();
 

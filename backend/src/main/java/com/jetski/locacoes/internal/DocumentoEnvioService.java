@@ -389,7 +389,7 @@ public class DocumentoEnvioService {
             Boolean.TRUE.equals(c.getEstrangeiro()),
             hab != null && Boolean.TRUE.equals(hab.getAnexoResidencia()),
             hab != null && hab.getGruComprovanteS3Key() != null,
-            tipo -> anexoPresente(c.getId(), tipo));
+            tipo -> anexoPresente(c, tipo));
     }
 
     /**
@@ -461,11 +461,11 @@ public class DocumentoEnvioService {
         return sb.toString();
     }
 
-    private boolean anexoPresente(UUID clienteId, com.jetski.locacoes.domain.ClienteAnexo.Tipo tipo) {
+    private boolean anexoPresente(Cliente c, com.jetski.locacoes.domain.ClienteAnexo.Tipo tipo) {
         try {
-            return clienteAnexoService.buscar(clienteId, tipo).isPresent();
+            return clienteAnexoService.buscar(c.getTenantId(), c.getId(), tipo).isPresent();
         } catch (Exception e) {
-            log.warn("Falha ao checar anexo {} do cliente {}: {}", tipo, clienteId, e.getMessage());
+            log.warn("Falha ao checar anexo {} do cliente {}: {}", tipo, c.getId(), e.getMessage());
             return false;
         }
     }

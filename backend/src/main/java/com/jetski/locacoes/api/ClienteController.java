@@ -55,6 +55,11 @@ public class ClienteController {
         validateTenantContext(tenantId);
         com.jetski.locacoes.domain.ClienteAnexo.Tipo t =
             com.jetski.locacoes.domain.ClienteAnexo.Tipo.valueOf(tipo.toUpperCase());
+        // Posse explícita (não só RLS): o anexo nasce com o tenant do path, então um
+        // cliente de outra empresa geraria linha/objeto órfão neste tenant.
+        if (!tenantId.equals(clienteService.findById(id).getTenantId())) {
+            throw new com.jetski.shared.exception.NotFoundException("Cliente não encontrado");
+        }
         var a = anexoService.salvar(id, t, req.conteudoBase64());
         return ResponseEntity.ok(new com.jetski.locacoes.api.dto.AnexoResumo(
             a.getTipo().name(), a.getContentType(), a.getUpdatedAt()));
@@ -70,7 +75,7 @@ public class ClienteController {
     ) {
         validateTenantContext(tenantId);
         var t = com.jetski.locacoes.domain.ClienteAnexo.Tipo.valueOf(tipo.toUpperCase());
-        var anexo = anexoService.buscar(id, t)
+        var anexo = anexoService.buscar(tenantId, id, t)
             .orElseThrow(() -> new com.jetski.shared.exception.NotFoundException("Anexo não encontrado"));
         byte[] bytes = anexoService.lerImagem(anexo);
         String ct = anexo.getContentType() != null ? anexo.getContentType() : "image/jpeg";
@@ -89,7 +94,7 @@ public class ClienteController {
     ) {
         validateTenantContext(tenantId);
         var t = com.jetski.locacoes.domain.ClienteAnexo.Tipo.valueOf(tipo.toUpperCase());
-        anexoService.deletar(id, t);
+        anexoService.deletar(tenantId, id, t);
         return ResponseEntity.noContent().build();
     }
 
@@ -101,7 +106,7 @@ public class ClienteController {
         @PathVariable UUID id
     ) {
         validateTenantContext(tenantId);
-        var lista = anexoService.listar(id).stream()
+        var lista = anexoService.listar(tenantId, id).stream()
             .map(a -> new com.jetski.locacoes.api.dto.AnexoResumo(
                 a.getTipo().name(), a.getContentType(), a.getUpdatedAt()))
             .toList();

@@ -168,9 +168,9 @@ public class EmissaoService {
         // PDFs por destino: a Marinha pode receber um recorte diferente do cliente
         // (ex.: sem o Termo de Responsabilidade), conforme a parametrização do tenant.
         DocumentoPdfService.DocumentoPdf pdfCliente =
-            gerarParaDestino(dados, assinatura, cliente.getId(), hab, cfg.cliente(), null);
+            gerarParaDestino(dados, assinatura, cliente, hab, cfg.cliente(), null);
         DocumentoPdfService.DocumentoPdf pdfMarinha = marinhaAplicavel
-            ? gerarParaDestino(dados, assinatura, cliente.getId(), hab, cfg.marinha(), null)
+            ? gerarParaDestino(dados, assinatura, cliente, hab, cfg.marinha(), null)
             : null;
 
         // Reforço jurídico (Fase A): trilha de auditoria + carimbo de tempo por documento.
@@ -364,9 +364,9 @@ public class EmissaoService {
             p.add(hab.getVia() == ReservaHabilitacao.Via.CHA ? "CHA não informada" : "GRU não paga");
         }
         if (hab.getVia() == ReservaHabilitacao.Via.EMA) {
-            if (obr.identidadeReq() && !anexoPresente(cliente.getId(),
+            if (obr.identidadeReq() && !anexoPresente(cliente,
                     com.jetski.locacoes.domain.ClienteAnexo.Tipo.IDENTIDADE)) p.add("Documento de identidade (RG/CNH)");
-            if (obr.selfieReq() && !anexoPresente(cliente.getId(),
+            if (obr.selfieReq() && !anexoPresente(cliente,
                     com.jetski.locacoes.domain.ClienteAnexo.Tipo.SELFIE)) p.add("Selfie/foto do cliente");
             if (obr.saudeReq() && !Boolean.TRUE.equals(hab.getAnexoSaude())) p.add("Autodeclaração de saúde (5-C)");
             if (obr.regrasReq() && !Boolean.TRUE.equals(hab.getAnexoRegras())) p.add("Anexo de regras");
@@ -454,11 +454,11 @@ public class EmissaoService {
     }
 
     /** Há anexo do tipo informado para o cliente? */
-    private boolean anexoPresente(UUID clienteId, com.jetski.locacoes.domain.ClienteAnexo.Tipo tipo) {
+    private boolean anexoPresente(Cliente cliente, com.jetski.locacoes.domain.ClienteAnexo.Tipo tipo) {
         try {
-            return clienteAnexoService.buscar(clienteId, tipo).isPresent();
+            return clienteAnexoService.buscar(cliente.getTenantId(), cliente.getId(), tipo).isPresent();
         } catch (Exception e) {
-            log.warn("Falha ao checar anexo {} do cliente {}: {}", tipo, clienteId, e.getMessage());
+            log.warn("Falha ao checar anexo {} do cliente {}: {}", tipo, cliente.getId(), e.getMessage());
             return false;
         }
     }
@@ -483,7 +483,7 @@ public class EmissaoService {
      * (1-C/5-C/5-B/Termo internos + anexos do cliente + comprovante da GRU).
      */
     private DocumentoPdfService.DocumentoPdf gerarParaDestino(
-            DocumentoPdfService.DadosDocumento dados, byte[] assinatura, UUID clienteId,
+            DocumentoPdfService.DadosDocumento dados, byte[] assinatura, Cliente cliente,
             ReservaHabilitacao hab, DocumentoConfig.Destino cfg, String marcaDagua) {
         java.util.Set<DocumentoPdfService.Secao> secoes =
             java.util.EnumSet.noneOf(DocumentoPdfService.Secao.class);
@@ -492,7 +492,7 @@ public class EmissaoService {
         if (cfg.instrutorOn()) secoes.add(DocumentoPdfService.Secao.INSTRUTOR);
         if (cfg.termoOn()) secoes.add(DocumentoPdfService.Secao.TERMO);
 
-        java.util.List<DocumentoPdfService.AnexoImagem> anexos = anexosDoCliente(clienteId, cfg);
+        java.util.List<DocumentoPdfService.AnexoImagem> anexos = anexosDoCliente(cliente, cfg);
 
         DocumentoPdfService.DocumentoPdf pdf =
             documentoPdfService.gerarDocumentoConsolidado(dados, assinatura, anexos, secoes, marcaDagua);
@@ -557,7 +557,7 @@ public class EmissaoService {
         String marcaDagua = !pendenciasDocumentacao(reserva.getTenantId(), hab, cliente, cfg).isEmpty()
             ? DocumentoPdfService.MARCA_RASCUNHO
             : DocumentoPdfService.MARCA_PREVIA;
-        byte[] pdf = gerarParaDestino(dados, assinatura, cliente.getId(), hab, destinoCfg, marcaDagua).conteudo();
+        byte[] pdf = gerarParaDestino(dados, assinatura, cliente, hab, destinoCfg, marcaDagua).conteudo();
 
         // Metering: prévias contam como sinal antifraude (não cobrável)
         eventPublisher.publishEvent(new DocumentoPreviewGeradoEvent(
@@ -692,8 +692,8 @@ public class EmissaoService {
      * de CHA acompanha o de identidade (ambos documentos pessoais do condutor).
      */
     private java.util.List<DocumentoPdfService.AnexoImagem> anexosDoCliente(
-            UUID clienteId, DocumentoConfig.Destino cfg) {
-        var lista = new java.util.ArrayList<>(clienteAnexoService.listar(clienteId));
+            Cliente cliente, DocumentoConfig.Destino cfg) {
+        var lista = new java.util.ArrayList<>(clienteAnexoService.listar(cliente.getTenantId(), cliente.getId()));
         lista.sort(java.util.Comparator.comparingInt(a -> a.getTipo().ordinal()));
         var out = new java.util.ArrayList<DocumentoPdfService.AnexoImagem>();
         for (com.jetski.locacoes.domain.ClienteAnexo a : lista) {
@@ -704,7 +704,7 @@ public class EmissaoService {
                 out.add(new DocumentoPdfService.AnexoImagem(
                     tituloAnexo(a.getTipo()), clienteAnexoService.lerImagem(a)));
             } catch (Exception e) {
-                log.warn("Anexo {} do cliente {} ilegível: {}", a.getTipo(), clienteId, e.getMessage());
+                log.warn("Anexo {} do cliente {} ilegível: {}", a.getTipo(), cliente.getId(), e.getMessage());
             }
         }
         return out;
