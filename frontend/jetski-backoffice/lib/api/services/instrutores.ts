@@ -33,4 +33,15 @@ export const instrutoresService = {
     const { data } = await apiClient.post<Instrutor>(`${getBasePath()}/${id}/reativar`)
     return data
   },
+
+  /**
+   * Gera o link público (uso único, 7 dias) para o instrutor assinar à distância.
+   * Gerar de novo invalida o link anterior daquele instrutor.
+   */
+  async gerarLinkAssinatura(id: string): Promise<{ url: string; expiraEm: string }> {
+    const { data } = await apiClient.post<{ url: string; expiraEm: string }>(
+      `${getBasePath()}/${id}/link-assinatura`
+    )
+    return data
+  },
 }
