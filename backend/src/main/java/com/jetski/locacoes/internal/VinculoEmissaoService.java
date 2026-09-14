@@ -384,10 +384,14 @@ public class VinculoEmissaoService {
         if (v == null || v.getStatus() != VinculoEmissao.Status.ATIVO) {
             throw new BusinessException("Não há parceria de emissão ativa com uma EAMA");
         }
+        // Colunas: [0] id, [1] nome, [2] origem, [3] rg, [4] orgao_emissor, [5] cpf, [6] cha,
+        // [7] data_emissao, [8] assinatura_s3_key. Os dados cadastrais já vão impressos no
+        // Anexo 5-B-1 que a operadora emite — exibi-los na tela não expõe nada novo.
         List<Object[]> daEama = comTenant(v.getTenantEmissorId(), () -> {
             @SuppressWarnings("unchecked")
             List<Object[]> rows = entityManager.createNativeQuery(
-                    "SELECT i.id, i.nome, CAST('EAMA' AS varchar) FROM instrutor i "
+                    "SELECT i.id, i.nome, CAST('EAMA' AS varchar), " + COLUNAS_DETALHE_INSTRUTOR
+                    + " FROM instrutor i "
                     + "WHERE i.tenant_id = :emissorId AND i.ativo = true"
                     + COND_DESIGNADO + " ORDER BY i.nome")
                 .setParameter("emissorId", v.getTenantEmissorId())
@@ -398,7 +402,8 @@ public class VinculoEmissaoService {
         List<Object[]> aprovados = comTenant(operadoraTenantId, () -> {
             @SuppressWarnings("unchecked")
             List<Object[]> rows = entityManager.createNativeQuery(
-                    "SELECT i.id, i.nome, CAST('OPERADORA' AS varchar) FROM instrutor i "
+                    "SELECT i.id, i.nome, CAST('OPERADORA' AS varchar), " + COLUNAS_DETALHE_INSTRUTOR
+                    + " FROM instrutor i "
                     + "JOIN vinculo_instrutor_operadora a ON a.instrutor_id = i.id "
                     + "WHERE a.vinculo_id = :vinculoId AND a.status = 'APROVADO' "
                     + "AND i.tenant_id = :operadoraId AND i.ativo = true ORDER BY i.nome")
@@ -410,6 +415,25 @@ public class VinculoEmissaoService {
         List<Object[]> todos = new ArrayList<>(daEama);
         todos.addAll(aprovados);
         return todos;
+    }
+
+    private static final String COLUNAS_DETALHE_INSTRUTOR =
+        "i.rg, i.orgao_emissor, i.cpf, i.cha, i.data_emissao, i.assinatura_s3_key";
+
+    /**
+     * Link temporário (15 min) de uma assinatura de instrutor no storage — a tela da
+     * operadora mostra a assinatura dos instrutores disponíveis. Nulo sem key ou em falha.
+     */
+    public String assinaturaUrlTemporaria(String assinaturaS3Key) {
+        if (assinaturaS3Key == null) {
+            return null;
+        }
+        try {
+            return storageService.generatePresignedDownloadUrl(assinaturaS3Key, 15).getUrl();
+        } catch (Exception e) {
+            log.warn("Falha ao gerar link temporário de assinatura de instrutor: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**

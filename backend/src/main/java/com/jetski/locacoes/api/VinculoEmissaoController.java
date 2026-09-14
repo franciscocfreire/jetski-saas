@@ -139,8 +139,23 @@ public class VinculoEmissaoController {
     @Operation(summary = "Instrutores para a emissão delegada (da EAMA ou da operadora aprovados pela EAMA)")
     public List<Map<String, Object>> instrutoresParceiro(@PathVariable UUID tenantId) {
         return service.instrutoresDoParceiro(tenantId).stream()
-            .map(r -> Map.<String, Object>of("id", r[0], "nome", r[1],
-                "origem", r.length > 2 && r[2] != null ? r[2] : "EAMA"))
+            .map(r -> {
+                // LinkedHashMap: os dados cadastrais podem ser nulos (Map.of não aceita)
+                Map<String, Object> m = new java.util.LinkedHashMap<>();
+                m.put("id", r[0]);
+                m.put("nome", r[1]);
+                m.put("origem", r.length > 2 && r[2] != null ? r[2] : "EAMA");
+                if (r.length > 8) {
+                    m.put("rg", r[3]);
+                    m.put("orgaoEmissor", r[4]);
+                    m.put("cpf", r[5]);
+                    m.put("cha", r[6]);
+                    m.put("dataEmissao", r[7] == null ? null : r[7].toString());
+                    m.put("temAssinatura", r[8] != null);
+                    m.put("assinaturaUrl", service.assinaturaUrlTemporaria((String) r[8]));
+                }
+                return m;
+            })
             .toList();
     }
 

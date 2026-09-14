@@ -21,6 +21,7 @@ import { useModoEmissao } from '@/lib/hooks/use-modo-emissao'
 import { instrutoresService, emissaoDelegadaService } from '@/lib/api/services'
 import type { Instrutor, InstrutorCreateRequest } from '@/lib/api/types'
 import { AprovacaoInstrutorBadge } from '@/components/emissao/aprovacao-instrutor-badge'
+import { InstrutorParceiroCard } from '@/components/emissao/instrutor-parceiro-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -595,23 +596,7 @@ function InstrutoresDelegadaView({
         ) : (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {(parceiros ?? []).map((p) => (
-              <div
-                key={p.id}
-                data-testid="instrutores-disponivel"
-                data-instrutor-id={p.id}
-                data-origem={p.origem ?? 'EAMA'}
-                className="flex items-center gap-3 rounded-lg border p-3"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <GraduationCap className="h-4 w-4 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{p.nome}</p>
-                  <Badge variant="outline" className="mt-0.5 text-[10px]">
-                    {p.origem === 'OPERADORA' ? 'Seu instrutor — aprovado pela EAMA' : `Instrutor de ${eama}`}
-                  </Badge>
-                </div>
-              </div>
+              <InstrutorParceiroCard key={p.id} instrutor={p} eama={eama} />
             ))}
           </div>
         )}
