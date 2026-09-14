@@ -122,6 +122,7 @@ public class InstrutorController {
             .rg(i.getRg()).orgaoEmissor(i.getOrgaoEmissor()).cpf(i.getCpf()).cha(i.getCha())
             .dataEmissao(i.getDataEmissao())
             .temAssinatura(i.getAssinaturaS3Key() != null)
+            .assinaturaUrl(service.assinaturaUrl(i))
             .ativo(i.getAtivo()).createdAt(i.getCreatedAt()).updatedAt(i.getUpdatedAt())
             .build();
     }

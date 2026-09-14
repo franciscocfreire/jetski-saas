@@ -175,6 +175,29 @@ class InstrutorAssinaturaLinkIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("GET do instrutor traz o link da assinatura cadastrada (nulo antes de assinar)")
+    void exibeAssinaturaCadastrada() throws Exception {
+        mockMvc.perform(get("/v1/tenants/{t}/instrutores/{i}", TENANT, INSTRUTOR)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(MembroDeTeste.comPapel(jdbc, TENANT, "GERENTE")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.temAssinatura").value(false))
+            .andExpect(jsonPath("$.assinaturaUrl").doesNotExist());
+
+        String token = gerarToken();
+        mockMvc.perform(post("/v1/public/instrutor-assinatura/{t}", token)
+                .contentType(MediaType.APPLICATION_JSON).content(assinar(token)))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/v1/tenants/{t}/instrutores/{i}", TENANT, INSTRUTOR)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(MembroDeTeste.comPapel(jdbc, TENANT, "GERENTE")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.temAssinatura").value(true))
+            .andExpect(jsonPath("$.assinaturaUrl").isNotEmpty());
+    }
+
+    @Test
     @DisplayName("OPERADOR não gera link (403)")
     void operadorNaoGera() throws Exception {
         mockMvc.perform(post("/v1/tenants/{t}/instrutores/{i}/link-assinatura", TENANT, INSTRUTOR)

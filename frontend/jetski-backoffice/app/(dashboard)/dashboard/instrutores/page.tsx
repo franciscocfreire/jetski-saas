@@ -75,6 +75,13 @@ export default function InstrutoresPage() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Instrutor | null>(null)
   const [form, setForm] = useState<InstrutorCreateRequest>(VAZIO)
+  // Falha ao carregar a assinatura atual, por URL: a de um instrutor não esconde a de outro,
+  // e um link novo (lista recarregada) tenta de novo sem reset manual.
+  const [urlAssinaturaFalhou, setUrlAssinaturaFalhou] = useState<string | null>(null)
+  const assinaturaAtualFalhou =
+    !!editing?.assinaturaUrl && urlAssinaturaFalhou === editing.assinaturaUrl
+  const setAssinaturaAtualFalhou = (falhou: boolean) =>
+    setUrlAssinaturaFalhou(falhou ? editing?.assinaturaUrl ?? null : null)
   const [linkPara, setLinkPara] = useState<Instrutor | null>(null)
 
   const { data: instrutores, isLoading } = useQuery({
@@ -177,9 +184,33 @@ export default function InstrutoresPage() {
           </div>
         </div>
 
+        {editing?.temAssinatura && (
+          <div>
+            <Label className="mb-1 block text-xs">Assinatura atual</Label>
+            <div className="flex h-28 items-center justify-center rounded-md border bg-white p-2">
+              {editing.assinaturaUrl && !assinaturaAtualFalhou ? (
+                // eslint-disable-next-line @next/next/no-img-element -- URL pré-assinada do storage (15 min), fora do otimizador do Next
+                <img
+                  src={editing.assinaturaUrl}
+                  alt={`Assinatura de ${editing.nome}`}
+                  className="max-h-full max-w-full object-contain"
+                  data-testid="instrutor-assinatura-atual"
+                  onError={() => setAssinaturaAtualFalhou(true)}
+                />
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Não foi possível carregar a imagem agora. Feche e abra o cadastro de novo.
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         <div>
           <Label className="mb-1 block text-xs">
-            Assinatura do instrutor {editing?.temAssinatura && '(já cadastrada — assine para substituir)'}
+            {editing?.temAssinatura
+              ? 'Nova assinatura (opcional — assine abaixo só se quiser substituir a atual)'
+              : 'Assinatura do instrutor'}
           </Label>
           <SignaturePad onChange={(dataUrl) => setForm((s) => ({ ...s, assinaturaBase64: dataUrl ?? undefined }))} />
         </div>
