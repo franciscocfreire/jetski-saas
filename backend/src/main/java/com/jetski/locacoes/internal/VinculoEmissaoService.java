@@ -427,13 +427,24 @@ public class VinculoEmissaoService {
                 .orElseThrow(() -> new BusinessException(
                     "Instrutor inválido na designação (precisa ser instrutor ATIVO da sua EAMA): " + id));
         }
-        designacaoRepository.deleteByVinculoId(vinculoId);
+        // Diferença, não "apaga tudo e regrava": o Hibernate executa os INSERTs antes dos
+        // DELETEs no flush, então regravar um par já designado violava
+        // ux_vinculo_emissao_instrutor (salvar a mesma designação de novo dava 500).
+        var atuais = designacaoRepository.findByVinculoId(vinculoId);
+        var removidos = atuais.stream().filter(d -> !ids.contains(d.getInstrutorId())).toList();
+        designacaoRepository.deleteAll(removidos);
+        var jaDesignados = atuais.stream()
+            .map(com.jetski.locacoes.domain.VinculoEmissaoInstrutor::getInstrutorId)
+            .collect(java.util.stream.Collectors.toSet());
         for (UUID id : ids) {
-            designacaoRepository.save(com.jetski.locacoes.domain.VinculoEmissaoInstrutor.builder()
-                .vinculoId(vinculoId)
-                .instrutorId(id)
-                .build());
+            if (!jaDesignados.contains(id)) {
+                designacaoRepository.save(com.jetski.locacoes.domain.VinculoEmissaoInstrutor.builder()
+                    .vinculoId(vinculoId)
+                    .instrutorId(id)
+                    .build());
+            }
         }
+        designacaoRepository.flush();
         log.info("Designação de instrutores da parceria {} atualizada pela EAMA {}: {} instrutor(es) "
             + "(vazio = nenhum instrutor da EAMA)", vinculoId, tenantId, ids.size());
         return listarDesignados(tenantId, vinculoId);

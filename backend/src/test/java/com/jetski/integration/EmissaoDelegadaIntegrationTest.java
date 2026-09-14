@@ -426,6 +426,14 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
         var designados = vinculoService.designarInstrutores(
             emissora, v.getId(), java.util.List.of(instrutorId));
         assertThat(designados).hasSize(1);
+        // salvar a MESMA designação de novo não pode violar o unique (regressão: 500 no dev)
+        assertThat(vinculoService.designarInstrutores(emissora, v.getId(), java.util.List.of(instrutorId)))
+            .hasSize(1);
+        // trocar o conjunto mantém o que ficou e remove o que saiu
+        assertThat(vinculoService.designarInstrutores(emissora, v.getId(), java.util.List.of(instrutorId, instrutor2)))
+            .hasSize(2);
+        assertThat(vinculoService.designarInstrutores(emissora, v.getId(), java.util.List.of(instrutorId)))
+            .hasSize(1);
         // instrutor de outro tenant/inativo é recusado na designação
         assertThatThrownBy(() -> vinculoService.designarInstrutores(
                 emissora, v.getId(), java.util.List.of(UUID.randomUUID())))
