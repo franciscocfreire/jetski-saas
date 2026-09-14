@@ -119,6 +119,48 @@ export interface ConfigGeral {
   smtpStarttls?: boolean;
 }
 
+export interface ModeloApi {
+  id: string;
+  nome: string;
+  fabricante?: string | null;
+  potenciaHp?: number | null;
+  capacidadePessoas?: number | null;
+  precoBaseHora: number;
+  taxaHoraExtra?: number | null;
+  toleranciaMin?: number | null;
+  caucao?: number | null;
+  ativo?: boolean;
+}
+
+export interface JetskiApi {
+  id: string;
+  modeloId: string;
+  serie: string;
+  ano?: number | null;
+  horimetroAtual?: number | null;
+  status?: string;
+  ativo?: boolean;
+}
+
+export interface InstrutorApi {
+  id: string;
+  nome: string;
+  rg?: string | null;
+  orgaoEmissor?: string | null;
+  cpf?: string | null;
+  cha?: string | null;
+  dataEmissao?: string | null;
+  temAssinatura?: boolean;
+  ativo?: boolean;
+}
+
+/** Listagens podem vir como array puro ou paginadas ({ content: [...] }). */
+function lista<T>(corpo: unknown): T[] {
+  if (Array.isArray(corpo)) return corpo as T[];
+  const c = (corpo as { content?: T[] } | null)?.content;
+  return Array.isArray(c) ? c : [];
+}
+
 export interface Vinculo {
   id: string;
   papel: 'OPERADORA' | 'EMISSORA';
@@ -161,6 +203,12 @@ export async function empresa(tenantId: string, token: () => Promise<string>) {
         incluiCombustivel: true,
       }),
     saldo: async () => (await chamar<{ saldo: number }>('get', 'creditos/saldo', 'saldo')).saldo,
+    listarModelos: async () => lista<ModeloApi>(await chamar('get', 'modelos', 'listar modelos')),
+    listarJetskis: async () => lista<JetskiApi>(await chamar('get', 'jetskis', 'listar jetskis')),
+    criarJetski: (modeloId: string, serie: string, ano = 2024) =>
+      chamar<JetskiApi>('post', 'jetskis', `criar jetski ${serie}`, { modeloId, serie, ano, horimetroAtual: 0 }),
+    listarInstrutores: async () =>
+      lista<InstrutorApi>(await chamar('get', 'instrutores?includeInactive=true', 'listar instrutores')),
     listarVinculos: () => chamar<Vinculo[]>('get', 'vinculos-emissao', 'listar vínculos'),
     /** Convite pela API com resposta crua: o teste negativo precisa do 400 e da mensagem. */
     convidarCru: async (parceiroSlug: string, papel: 'OPERADORA' | 'EMISSORA') => {
