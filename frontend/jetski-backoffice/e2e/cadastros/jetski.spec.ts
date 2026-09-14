@@ -24,7 +24,8 @@ test.describe.serial('cadastros · jetski', () => {
     await p.goto('/dashboard/jetskis');
     await p.getByRole('button', { name: 'Novo Jetski' }).click();
     const dialog = p.getByRole('dialog');
-    await expect(dialog.getByText('Novo Jetski')).toBeVisible();
+    // Título pelo papel: getByText casaria também a descrição "Cadastre um novo jetski na frota".
+    await expect(dialog.getByRole('heading', { name: 'Novo Jetski' })).toBeVisible();
     return dialog;
   }
 

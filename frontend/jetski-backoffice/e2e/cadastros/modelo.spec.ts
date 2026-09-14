@@ -58,7 +58,8 @@ test.describe.serial('cadastros · modelo', () => {
     await page.goto('/dashboard/modelos');
     await page.getByRole('button', { name: 'Novo Modelo' }).click();
     const dialog = page.getByRole('dialog');
-    await expect(dialog.getByText('Novo Modelo')).toBeVisible();
+    // Título pelo papel: getByText casaria também a descrição "Cadastre um novo modelo de jetski".
+    await expect(dialog.getByRole('heading', { name: 'Novo Modelo' })).toBeVisible();
 
     await dialog.locator('#nome').fill(nome);
     await dialog.locator('#fabricante').fill('Sea-Doo');
