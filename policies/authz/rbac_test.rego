@@ -438,3 +438,31 @@ test_mecanico_can_list_jetskis if {
         "action": "jetski:list"
     }
 }
+
+# ==================== Emissão delegada: papel exclusivo + instrutores (V070) ====================
+# Todo staff que emite precisa do modo (própria × delegada) no balcão; decidir sobre
+# instrutor da operadora é da gestão da EAMA.
+
+test_operador_can_read_modo_emissao if {
+    allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "vinculo-emissao:modo"}
+}
+
+test_gerente_can_read_modo_emissao if {
+    allow_rbac with input as {"user": {"role": "GERENTE"}, "action": "vinculo-emissao:modo"}
+}
+
+test_gerente_can_request_instrutor_approval if {
+    allow_rbac with input as {"user": {"role": "GERENTE"}, "action": "vinculo-emissao:solicitar-aprovacao"}
+}
+
+test_gerente_can_decide_instrutor_da_operadora if {
+    allow_rbac with input as {"user": {"role": "GERENTE"}, "action": "vinculo-emissao:decisao"}
+}
+
+test_operador_cannot_decide_instrutor_da_operadora if {
+    not allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "vinculo-emissao:decisao"}
+}
+
+test_operador_cannot_list_instrutores_da_operadora if {
+    not allow_rbac with input as {"user": {"role": "OPERADOR"}, "action": "vinculo-emissao:instrutores-operadora"}
+}

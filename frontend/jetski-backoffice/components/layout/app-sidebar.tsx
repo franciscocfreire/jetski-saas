@@ -126,8 +126,8 @@ const NAV_GROUPS: NavGroup[] = [
         title: 'Instrutores',
         href: '/dashboard/instrutores',
         icon: GraduationCap,
-        // Emissão própria: CRUD normal. Delegada: a página vira visão informativa
-        // (instrutores da EAMA em destaque; os próprios aparecem desativados).
+        // Emissão própria: CRUD normal. Delegada: instrutores da EAMA disponíveis +
+        // os próprios com o status da aprovação da EAMA (V070).
         modulo: ['EMISSAO_PROPRIA', 'EMISSAO_DELEGADA'],
         permissao: 'instrutor:list',
       },

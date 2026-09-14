@@ -203,7 +203,8 @@ public class DevEmailService implements EmailService {
         String body = String.format("%s%n%n[ANEXO] %s (%s, %d bytes)%s%s",
             htmlBody, attachmentName, attachmentContentType, size,
             replyTo != null ? String.format("%n[REPLY-TO] %s", replyTo) : "",
-            remetente != null ? String.format("%n[REMETENTE] %s (tenant %s)", remetente.nome(), remetente.tenantId()) : "");
+            remetente != null ? String.format("%n[REMETENTE] %s (tenant %s)%s", remetente.nome(), remetente.tenantId(),
+                remetente.copia() != null ? String.format("%n[CC] %s", remetente.copia()) : "") : "");
         logAndSaveEmail(to, subject, body);
         // Mailpit recebe o HTML COM o anexo (p/ inspeção/download em dev).
         maybeSendViaSmtp(to, subject, htmlBody, attachmentName, attachment, attachmentContentType, replyTo, remetente);
@@ -267,12 +268,13 @@ public class DevEmailService implements EmailService {
             : java.util.Optional.<TenantSmtpResolver.SmtpSettings>empty();
         String nomeGlobal = remetente != null && remetente.nome() != null && !remetente.nome().isBlank()
             ? remetente.nome() : fromName;
+        String cc = remetente != null ? remetente.copia() : null;
         if (perTenant.isPresent()) {
             var s = perTenant.get();
             try {
                 String nome = (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : nomeGlobal;
                 senderFactory.send(senderFactory.build(s), s.from(), nome, to, subject, htmlBody,
-                    attachmentName, comAnexo ? attachment : null, attachmentContentType, replyTo);
+                    attachmentName, comAnexo ? attachment : null, attachmentContentType, replyTo, cc);
                 log.info("📨 Email enviado pelo SMTP do tenant: to={}, from={}", to, s.from());
             } catch (Exception e) {
                 log.warn("Falha (ignorada) ao enviar pelo SMTP do tenant: to={}, error={}", to, e.getMessage());
@@ -289,6 +291,9 @@ public class DevEmailService implements EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, comAnexo, "UTF-8");
             helper.setFrom(fromEmail, nomeGlobal);
             helper.setTo(to);
+            if (cc != null && !cc.isBlank() && !cc.equalsIgnoreCase(to)) {
+                helper.setCc(cc);
+            }
             if (replyTo != null && !replyTo.isBlank()) {
                 helper.setReplyTo(replyTo);
             }

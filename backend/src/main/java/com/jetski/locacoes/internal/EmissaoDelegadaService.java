@@ -84,10 +84,11 @@ public class EmissaoDelegadaService {
         // Ofício no formato da NORMAM-212 5.4.2, assinado E remetido pela EAMA (este tenant).
         MarinhaEmailTemplate.DadosOficio oficio = oficio(tenantId, e);
         try {
+            // Cópia para a operadora que atendeu: ela acompanha o que sai em nome da parceria.
             emailService.sendEmailComAnexo(destino,
                 MarinhaEmailTemplate.assunto(oficio), MarinhaEmailTemplate.corpoHtml(oficio),
                 MarinhaEmailTemplate.nomeArquivo(oficio), pdf, "application/pdf", oficio.emailOficial(),
-                new EmailService.Remetente(tenantId, oficio.eamaNome()));
+                new EmailService.Remetente(tenantId, oficio.eamaNome(), emailDaOperadora(e.getOperadoraTenantId())));
         } catch (Exception ex) {
             throw new BusinessException("Falha ao enviar o e-mail: " + ex.getMessage());
         }
@@ -101,6 +102,17 @@ public class EmissaoDelegadaService {
     private EmissaoDelegada require(UUID tenantId, UUID id) {
         return repository.findByIdAndTenantId(id, tenantId)
             .orElseThrow(() -> new NotFoundException("Emissão delegada não encontrada: " + id));
+    }
+
+    /** E-mail da operadora para a cópia do ofício; best-effort (sem cópia se não houver). */
+    private String emailDaOperadora(UUID operadoraTenantId) {
+        if (operadoraTenantId == null) return null;
+        try {
+            return DocumentoEnvioService.emailDaEmpresa(tenantQueryService.findOutroTenantById(operadoraTenantId));
+        } catch (Exception ex) {
+            log.warn("E-mail da operadora {} indisponível para a cópia do ofício: {}", operadoraTenantId, ex.getMessage());
+            return null;
+        }
     }
 
     private String marinhaEmailDoEmissor(UUID tenantId) {

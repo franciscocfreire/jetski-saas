@@ -140,7 +140,9 @@ public final class MarinhaEmailTemplate {
         if (has(d.cnpj())) sb.append("<br>CNPJ: ").append(esc(d.cnpj()));
         // Delegada: a operadora aparece só aqui, como quem opera em nome da EAMA.
         if (has(d.operadoraNome())) sb.append("<br>operado por <b>").append(esc(d.operadoraNome())).append("</b>");
-        if (has(d.telefone())) sb.append("<br>Telefone: ").append(esc(d.telefone()));
+        if (has(d.telefone())) {
+            sb.append("<br>Telefone: ").append(esc(com.jetski.locacoes.domain.Telefones.formatar(d.telefone())));
+        }
         if (has(d.emailOficial())) sb.append("<br>E-mail: ").append(esc(d.emailOficial()));
         sb.append("</p>");
         sb.append("<p style=\"font-size:12px;color:#666\">Referência interna: reserva ")

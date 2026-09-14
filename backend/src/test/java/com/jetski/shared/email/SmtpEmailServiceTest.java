@@ -71,8 +71,11 @@ class SmtpEmailServiceTest {
 
         service.sendEmailComAnexo("capitania@example.com", "Ofício", "<p>ofício</p>", "doc.pdf",
             "%PDF".getBytes(StandardCharsets.US_ASCII), "application/pdf", "oficial@eama.com",
-            new EmailService.Remetente(eama, "EAMA Santos LTDA"));
+            new EmailService.Remetente(eama, "EAMA Santos LTDA", "oficial@operadora.com"));
 
+        // cópia (Cc) visível para a operadora delegada
+        assertThat(realMessage.getRecipients(jakarta.mail.Message.RecipientType.CC)[0].toString())
+            .isEqualTo("oficial@operadora.com");
         // o tenant da sessão (a operadora, na delegada) não entra na resolução
         verify(smtpResolver).forTenant(eama);
         verify(smtpResolver, org.mockito.Mockito.never()).forCurrentTenant();
@@ -108,7 +111,8 @@ class SmtpEmailServiceTest {
             org.mockito.ArgumentMatchers.eq("Ofício"), org.mockito.ArgumentMatchers.anyString(),
             org.mockito.ArgumentMatchers.eq("doc.pdf"), org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.eq("application/pdf"),
-            org.mockito.ArgumentMatchers.eq("oficial@eama.com"));
+            org.mockito.ArgumentMatchers.eq("oficial@eama.com"),
+            org.mockito.ArgumentMatchers.isNull());
         verify(smtpResolver, org.mockito.Mockito.never()).forCurrentTenant();
     }
 }

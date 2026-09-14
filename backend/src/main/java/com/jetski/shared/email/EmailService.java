@@ -87,8 +87,14 @@ public interface EmailService {
      *
      * @param tenantId tenant cujo SMTP/identidade assina o e-mail
      * @param nome     nome de exibição quando cai no SMTP global (ex.: razão social)
+     * @param copia    endereço em cópia (Cc) visível, opcional — ex.: a operadora
+     *                 delegada acompanha o ofício que a EAMA remete em nome da parceria
      */
-    record Remetente(java.util.UUID tenantId, String nome) {}
+    record Remetente(java.util.UUID tenantId, String nome, String copia) {
+        public Remetente(java.util.UUID tenantId, String nome) {
+            this(tenantId, nome, null);
+        }
+    }
 
     /**
      * Idem, com remetente explícito. {@code remetente == null} equivale ao método de

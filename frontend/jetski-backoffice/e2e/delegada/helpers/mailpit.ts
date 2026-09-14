@@ -15,6 +15,7 @@ export interface MensagemResumo {
   ID: string;
   From: Endereco;
   To: Endereco[];
+  Cc?: Endereco[];
   ReplyTo?: Endereco[];
   Subject: string;
   Date?: string;

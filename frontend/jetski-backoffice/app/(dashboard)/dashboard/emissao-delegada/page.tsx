@@ -6,6 +6,9 @@ import { Anchor, FileDown, GraduationCap, Handshake, Loader2, Lock, LockOpen, Ma
 import { toast } from 'sonner'
 import { emissaoDelegadaService, instrutoresService } from '@/lib/api/services'
 import type { EmissaoDelegada, VinculoEmissao } from '@/lib/api/services/emissao-delegada'
+import { useModoEmissao } from '@/lib/hooks/use-modo-emissao'
+import { AprovacaoInstrutorBadge } from '@/components/emissao/aprovacao-instrutor-badge'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -69,6 +72,14 @@ export default function EmissaoDelegadaPage() {
   })
 
   const souEmissora = (vinculos ?? []).some((v) => v.papel === 'EMISSORA' && v.status !== 'REVOGADO')
+  // Papel exclusivo (§8.M): uma empresa é emissora OU delegada. Com parceria viva como
+  // operadora não há convite a fazer; quem já é emissora só convida como emissora.
+  const { info: modo } = useModoEmissao()
+  const souOperadoraViva = (vinculos ?? []).some((v) => v.papel === 'OPERADORA' && v.status !== 'REVOGADO')
+  const souOperadoraEmVigor = (vinculos ?? []).some(
+    (v) => v.papel === 'OPERADORA' && (v.status === 'ATIVO' || v.status === 'BLOQUEADO'))
+  const papelConvite: 'OPERADORA' | 'EMISSORA' = souEmissora ? 'EMISSORA' : papel
+  const [instrutoresDe, setInstrutoresDe] = useState<VinculoEmissao | null>(null)
 
   const invalidar = () => {
     qc.invalidateQueries({ queryKey: ['vinculos-emissao'] })
@@ -76,7 +87,7 @@ export default function EmissaoDelegadaPage() {
   }
 
   const convidar = useMutation({
-    mutationFn: () => emissaoDelegadaService.convidar(slug.trim(), papel),
+    mutationFn: () => emissaoDelegadaService.convidar(slug.trim(), papelConvite),
     onSuccess: () => {
       toast.success('Convite enviado — aguarde o aceite da empresa parceira.')
       setSlug('')
@@ -132,55 +143,77 @@ export default function EmissaoDelegadaPage() {
         </p>
       </div>
 
-      <PerfilEmissao />
+      <PerfilEmissao operadoraDe={souOperadoraEmVigor ? (modo?.emissoraNome ?? 'EAMA parceira') : null} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Convidar empresa parceira</CardTitle>
-          <CardDescription>
-            O convite exige aceite do outro lado (com termo de responsabilidade). Ao ativar a
-            parceria, os créditos de <b>bônus</b> da operadora são zerados (anti-fraude);
-            créditos comprados são preservados.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="slug-parceiro">Identificador (slug) da empresa</Label>
-            <Input
-              id="slug-parceiro"
-              data-testid="delegada-convite-slug"
-              placeholder="ex.: eama-santos"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              className="w-56"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Meu papel na parceria</Label>
-            <Select value={papel} onValueChange={(v) => setPapel(v as 'OPERADORA' | 'EMISSORA')}>
-              <SelectTrigger className="w-64" data-testid="delegada-convite-papel">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="OPERADORA" data-testid="delegada-convite-papel-operadora">
-                  Sou a operadora (convido a EAMA)
-                </SelectItem>
-                <SelectItem value="EMISSORA" data-testid="delegada-convite-papel-emissora">
-                  Sou a EAMA emissora (convido a operadora)
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            data-testid="delegada-convite-enviar"
-            onClick={() => convidar.mutate()}
-            disabled={!slug.trim() || convidar.isPending}
-          >
-            {convidar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Convidar
-          </Button>
-        </CardContent>
-      </Card>
+      {souOperadoraViva ? (
+        <Card data-testid="delegada-convite-bloqueado">
+          <CardHeader>
+            <CardTitle className="text-base">Convidar empresa parceira</CardTitle>
+            <CardDescription>
+              Sua empresa já é operadora (delegada) de uma parceria. Uma empresa é EAMA
+              emissora <b>ou</b> delegada: para trocar de EAMA ou voltar a emitir em nome
+              próprio, revogue a parceria atual.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Convidar empresa parceira</CardTitle>
+            <CardDescription>
+              O convite exige aceite do outro lado (com termo de responsabilidade). Ao ativar a
+              parceria, os créditos de <b>bônus</b> da operadora são zerados (anti-fraude);
+              créditos comprados são preservados, e a operadora deixa de ser emissora.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="slug-parceiro">Identificador (slug) da empresa</Label>
+              <Input
+                id="slug-parceiro"
+                data-testid="delegada-convite-slug"
+                placeholder="ex.: eama-santos"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                className="w-56"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Meu papel na parceria</Label>
+              <Select value={papelConvite} onValueChange={(v) => setPapel(v as 'OPERADORA' | 'EMISSORA')}>
+                <SelectTrigger className="w-64" data-testid="delegada-convite-papel">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    value="OPERADORA"
+                    data-testid="delegada-convite-papel-operadora"
+                    disabled={souEmissora}
+                  >
+                    Sou a operadora (convido a EAMA)
+                  </SelectItem>
+                  <SelectItem value="EMISSORA" data-testid="delegada-convite-papel-emissora">
+                    Sou a EAMA emissora (convido a operadora)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {souEmissora && (
+                <p className="text-xs text-muted-foreground">
+                  Sua empresa é EAMA emissora: só convida operadoras.
+                </p>
+              )}
+            </div>
+            <Button
+              data-testid="delegada-convite-enviar"
+              onClick={() => convidar.mutate()}
+              disabled={!slug.trim() || convidar.isPending}
+            >
+              {convidar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Convidar
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -247,6 +280,23 @@ export default function EmissaoDelegadaPage() {
                     <GraduationCap className="mr-1 h-4 w-4" /> Instrutores designados
                   </Button>
                 )}
+                {v.papel === 'EMISSORA' && (v.status === 'ATIVO' || v.status === 'BLOQUEADO') && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    data-testid="delegada-parceria-instrutores-operadora"
+                    onClick={() => setInstrutoresDe(v)}
+                  >
+                    <ShieldCheck className="mr-1 h-4 w-4" /> Instrutores da operadora
+                  </Button>
+                )}
+                {v.papel === 'OPERADORA' && (v.status === 'ATIVO' || v.status === 'BLOQUEADO') && (
+                  <Button asChild size="sm" variant="outline">
+                    <Link href="/dashboard/instrutores" data-testid="delegada-parceria-meus-instrutores">
+                      <GraduationCap className="mr-1 h-4 w-4" /> Meus instrutores
+                    </Link>
+                  </Button>
+                )}
                 {v.status === 'BLOQUEADO' && v.papel === 'EMISSORA' && (
                   <Button
                     size="sm"
@@ -282,6 +332,10 @@ export default function EmissaoDelegadaPage() {
 
       {designando && (
         <DialogDesignacao vinculo={designando} onClose={() => setDesignando(null)} />
+      )}
+
+      {instrutoresDe && (
+        <DialogInstrutoresOperadora vinculo={instrutoresDe} onClose={() => setInstrutoresDe(null)} />
       )}
 
       <Dialog open={!!aceitando} onOpenChange={(open) => !open && setAceitando(null)}>
@@ -325,7 +379,11 @@ export default function EmissaoDelegadaPage() {
   )
 }
 
-function PerfilEmissao() {
+/**
+ * Perfil de emissão. {@code operadoraDe} = nome da EAMA quando a empresa é operadora de
+ * parceria em vigor: aí ela não é emissora (§8.M) e só a capitania importa.
+ */
+function PerfilEmissao({ operadoraDe }: { operadoraDe: string | null }) {
   const qc = useQueryClient()
   const [capitaniaId, setCapitaniaId] = useState<string | null>(null)
   const [registro, setRegistro] = useState<string | null>(null)
@@ -370,7 +428,11 @@ function PerfilEmissao() {
       <CardHeader>
         <CardTitle className="flex flex-wrap items-center gap-2 text-base">
           Perfil de emissão
-          {perfil?.emissoraHabilitada ? (
+          {operadoraDe ? (
+            <Badge data-testid="delegada-perfil-operadora" className="bg-sky-100 text-sky-900">
+              Operadora delegada de {operadoraDe}
+            </Badge>
+          ) : perfil?.emissoraHabilitada ? (
             <Badge data-testid="delegada-perfil-habilitada" className="bg-emerald-100 text-emerald-900">
               EAMA emissora habilitada
             </Badge>
@@ -379,10 +441,20 @@ function PerfilEmissao() {
           )}
         </CardTitle>
         <CardDescription>
-          A capitania é obrigatória para qualquer parceria (os dois lados precisam ser da
-          mesma). O registro EAMA é só para quem emite: após preencher, o Meu Jet valida e
-          habilita sua empresa como emissora — alterar capitania/registro depois derruba a
-          habilitação.
+          {operadoraDe ? (
+            <>
+              Sua empresa emite em nome de <b>{operadoraDe}</b> e, enquanto a parceria existir,
+              não é EAMA emissora — uma empresa é emissora <b>ou</b> delegada. Aqui só a
+              capitania importa (os dois lados precisam ser da mesma).
+            </>
+          ) : (
+            <>
+              A capitania é obrigatória para qualquer parceria (os dois lados precisam ser da
+              mesma). O registro EAMA é só para quem emite: após preencher, o Meu Jet valida e
+              habilita sua empresa como emissora — alterar capitania/registro depois derruba a
+              habilitação. Aceitar ser operadora de uma parceria também remove a habilitação.
+            </>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap items-end gap-3">
@@ -401,27 +473,31 @@ function PerfilEmissao() {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="eama-registro">Registro EAMA (se emissora)</Label>
-          <Input
-            id="eama-registro"
-            data-testid="delegada-perfil-registro"
-            placeholder="nº de inscrição na Capitania"
-            value={registroVal}
-            onChange={(e) => setRegistro(e.target.value)}
-            className="w-56"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="eama-validade">Validade do registro</Label>
-          <Input
-            id="eama-validade"
-            type="date"
-            value={validadeVal}
-            onChange={(e) => setValidade(e.target.value)}
-            className="w-44"
-          />
-        </div>
+        {!operadoraDe && (
+          <>
+            <div className="space-y-1">
+              <Label htmlFor="eama-registro">Registro EAMA (se emissora)</Label>
+              <Input
+                id="eama-registro"
+                data-testid="delegada-perfil-registro"
+                placeholder="nº de inscrição na Capitania"
+                value={registroVal}
+                onChange={(e) => setRegistro(e.target.value)}
+                className="w-56"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="eama-validade">Validade do registro</Label>
+              <Input
+                id="eama-validade"
+                type="date"
+                value={validadeVal}
+                onChange={(e) => setValidade(e.target.value)}
+                className="w-44"
+              />
+            </div>
+          </>
+        )}
         <Button
           data-testid="delegada-perfil-salvar"
           onClick={() => salvar.mutate()}
@@ -467,7 +543,7 @@ function DialogDesignacao({ vinculo, onClose }: { vinculo: VinculoEmissao; onClo
     onSuccess: (res) => {
       toast.success(
         res.length === 0
-          ? 'Sem designação — a operadora vê todos os instrutores ativos.'
+          ? 'Nenhum instrutor designado — a operadora fica só com os instrutores próprios que você aprovou.'
           : `${res.length} instrutor(es) designado(s) para a parceria.`)
       qc.invalidateQueries({ queryKey: ['instrutores-designados', vinculo.id] })
       onClose()
@@ -483,7 +559,8 @@ function DialogDesignacao({ vinculo, onClose }: { vinculo: VinculoEmissao; onClo
           <DialogDescription>
             Escolha quais instrutores da sua EAMA atendem {vinculo.parceiroNome ?? 'a operadora'}.
             A operadora só enxerga (e só emite com) os designados. <b>Nenhum selecionado</b> ={' '}
-            todos os instrutores ativos ficam disponíveis.
+            nenhum instrutor da sua EAMA: a operadora fica só com os instrutores próprios que
+            você aprovar.
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-64 space-y-2 overflow-y-auto">
@@ -509,6 +586,141 @@ function DialogDesignacao({ vinculo, onClose }: { vinculo: VinculoEmissao; onClo
           <Button data-testid="delegada-designacao-salvar" onClick={() => salvar.mutate()} disabled={salvar.isPending}>
             {salvar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Salvar designação
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * EAMA avalia os instrutores que a operadora submeteu (V070). Pela NORMAM-212 a EAMA
+ * responde pelo instrutor: sem aprovação ele não assina emissões em nome dela, e ela
+ * pode remover a aprovação a qualquer momento.
+ */
+function DialogInstrutoresOperadora({ vinculo, onClose }: { vinculo: VinculoEmissao; onClose: () => void }) {
+  const qc = useQueryClient()
+  const { data: pedidos, isLoading } = useQuery({
+    queryKey: ['instrutores-operadora', vinculo.id],
+    queryFn: () => emissaoDelegadaService.instrutoresOperadora(vinculo.id),
+  })
+
+  type Decisao = 'APROVAR' | 'REJEITAR' | 'REMOVER'
+  const decidir = useMutation({
+    mutationFn: ({ instrutorId, decisao, motivo }: { instrutorId: string; decisao: Decisao; motivo?: string }) =>
+      emissaoDelegadaService.decidirInstrutor(vinculo.id, instrutorId, decisao, motivo),
+    onSuccess: (_r, vars) => {
+      toast.success(
+        vars.decisao === 'APROVAR'
+          ? 'Instrutor aprovado — já pode assinar emissões em seu nome.'
+          : vars.decisao === 'REJEITAR'
+            ? 'Pedido rejeitado.'
+            : 'Instrutor removido — não assina mais emissões em seu nome.')
+      qc.invalidateQueries({ queryKey: ['instrutores-operadora', vinculo.id] })
+    },
+    onError: (e) => toast.error(errMsg(e)),
+  })
+
+  const comMotivo = (instrutorId: string, decisao: Decisao) => {
+    const motivo = window.prompt(
+      decisao === 'REJEITAR' ? 'Motivo da rejeição (opcional):' : 'Motivo da remoção (opcional):', '')
+    if (motivo === null) return
+    decidir.mutate({ instrutorId, decisao, motivo: motivo.trim() || undefined })
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Instrutores da operadora</DialogTitle>
+          <DialogDescription>
+            Pela NORMAM-212 o instrutor responde em nome da sua EAMA. Os instrutores cadastrados
+            por {vinculo.parceiroNome ?? 'a operadora'} só assinam emissões em seu nome depois
+            da sua aprovação — e você pode removê-los a qualquer momento.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60vh] space-y-3 overflow-y-auto">
+          {isLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}
+          {!isLoading && (pedidos ?? []).length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              A operadora ainda não enviou instrutores para a sua aprovação.
+            </p>
+          )}
+          {(pedidos ?? []).map((p) => (
+            <div
+              key={p.instrutorId}
+              data-testid="delegada-instrutor-operadora"
+              data-instrutor-id={p.instrutorId}
+              data-status={p.status}
+              className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3"
+            >
+              <div className="min-w-0 space-y-1 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{p.nome}</span>
+                  <AprovacaoInstrutorBadge status={p.status} />
+                  {!p.ativo && <Badge variant="outline">Inativo na operadora</Badge>}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  CPF {p.cpf || '—'} · RG {p.rg || '—'}
+                  {p.orgaoEmissor ? ` (${p.orgaoEmissor})` : ''} · CHA {p.cha || '—'}
+                  {p.dataEmissao ? ` · identidade emitida em ${p.dataEmissao.split('-').reverse().join('/')}` : ''}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Enviado em {dataBr(p.solicitadoEm)}
+                  {p.decididoEm ? ` · decidido em ${dataBr(p.decididoEm)}` : ''}
+                </p>
+                {p.motivo && <p className="text-xs">Motivo: {p.motivo}</p>}
+                {p.assinaturaUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={p.assinaturaUrl}
+                    alt={`Assinatura de ${p.nome}`}
+                    className="mt-1 h-12 rounded border bg-white"
+                  />
+                ) : (
+                  <p className="text-xs text-amber-700">Sem assinatura cadastrada</p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {p.status === 'PENDENTE' && (
+                  <>
+                    <Button
+                      size="sm"
+                      data-testid="delegada-instrutor-operadora-aprovar"
+                      onClick={() => decidir.mutate({ instrutorId: p.instrutorId, decisao: 'APROVAR' })}
+                      disabled={decidir.isPending || !p.ativo}
+                    >
+                      <ShieldCheck className="mr-1 h-4 w-4" /> Aprovar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid="delegada-instrutor-operadora-rejeitar"
+                      onClick={() => comMotivo(p.instrutorId, 'REJEITAR')}
+                      disabled={decidir.isPending}
+                    >
+                      <XCircle className="mr-1 h-4 w-4" /> Rejeitar
+                    </Button>
+                  </>
+                )}
+                {p.status === 'APROVADO' && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    data-testid="delegada-instrutor-operadora-remover"
+                    onClick={() => comMotivo(p.instrutorId, 'REMOVER')}
+                    disabled={decidir.isPending}
+                  >
+                    <XCircle className="mr-1 h-4 w-4" /> Remover
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Fechar
           </Button>
         </DialogFooter>
       </DialogContent>

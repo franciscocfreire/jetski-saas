@@ -13,9 +13,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
-/** CRUD de instrutores (EAMA) — Anexo 5-B-1. */
+/**
+ * CRUD de instrutores (EAMA) — Anexo 5-B-1.
+ *
+ * <p>Emissão delegada (V070, EMISSAO_DELEGADA_SPEC §8.N): na operadora de uma
+ * parceria em vigor, instrutor novo vai direto para a aprovação da EAMA, e
+ * alterar os dados de um instrutor já submetido devolve o pedido a PENDENTE.
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -23,6 +30,7 @@ public class InstrutorService {
 
     private final InstrutorRepository repository;
     private final StorageService storageService;
+    private final VinculoEmissaoService vinculoEmissaoService;
 
     @Transactional(readOnly = true)
     public List<Instrutor> listar(boolean includeInactive) {
@@ -49,22 +57,53 @@ public class InstrutorService {
         }
         log.info("Instrutor criado: id={}, nome={}, assinatura={}",
             saved.getId(), saved.getNome(), saved.getAssinaturaS3Key() != null);
+        // Operadora de parceria em vigor: o instrutor só assina emissão delegada
+        // depois de aprovado pela EAMA (NORMAM-212) — o pedido sai junto com o cadastro.
+        if (vinculoEmissaoService.emissaoDelegadaEmVigor(saved.getTenantId())) {
+            vinculoEmissaoService.solicitarAprovacaoInstrutor(saved.getTenantId(), saved.getId());
+        }
         return saved;
     }
 
     @Transactional
     public Instrutor atualizar(UUID id, Instrutor updates, String assinaturaBase64) {
         Instrutor existing = buscar(id);
-        if (updates.getNome() != null && !updates.getNome().isBlank()) existing.setNome(updates.getNome());
-        if (updates.getRg() != null) existing.setRg(updates.getRg());
-        if (updates.getOrgaoEmissor() != null) existing.setOrgaoEmissor(updates.getOrgaoEmissor());
-        if (updates.getCpf() != null) existing.setCpf(updates.getCpf());
-        if (updates.getCha() != null) existing.setCha(updates.getCha());
-        if (updates.getDataEmissao() != null) existing.setDataEmissao(updates.getDataEmissao());
+        boolean mudou = false;
+        if (updates.getNome() != null && !updates.getNome().isBlank()
+                && !updates.getNome().equals(existing.getNome())) {
+            existing.setNome(updates.getNome());
+            mudou = true;
+        }
+        if (updates.getRg() != null && !updates.getRg().equals(existing.getRg())) {
+            existing.setRg(updates.getRg());
+            mudou = true;
+        }
+        if (updates.getOrgaoEmissor() != null && !updates.getOrgaoEmissor().equals(existing.getOrgaoEmissor())) {
+            existing.setOrgaoEmissor(updates.getOrgaoEmissor());
+            mudou = true;
+        }
+        if (updates.getCpf() != null && !updates.getCpf().equals(existing.getCpf())) {
+            existing.setCpf(updates.getCpf());
+            mudou = true;
+        }
+        if (updates.getCha() != null && !updates.getCha().equals(existing.getCha())) {
+            existing.setCha(updates.getCha());
+            mudou = true;
+        }
+        if (updates.getDataEmissao() != null && !Objects.equals(updates.getDataEmissao(), existing.getDataEmissao())) {
+            existing.setDataEmissao(updates.getDataEmissao());
+            mudou = true;
+        }
         if (assinaturaBase64 != null && !assinaturaBase64.isBlank()) {
             existing.setAssinaturaS3Key(arquivarAssinatura(existing.getId(), assinaturaBase64));
+            mudou = true;
         }
-        return repository.save(existing);
+        Instrutor saved = repository.save(existing);
+        if (mudou) {
+            // A EAMA aprovou os dados que viu: mudou algo, ela revisa de novo.
+            vinculoEmissaoService.reenviarParaAprovacaoSeAlterado(saved.getTenantId(), saved.getId(), saved.getNome());
+        }
+        return saved;
     }
 
     private String arquivarAssinatura(UUID instrutorId, String base64) {

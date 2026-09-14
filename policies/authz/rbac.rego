@@ -76,7 +76,9 @@ role_permissions := {
         "gru:list",   # Módulo GRUs (ciclo Marinha)
         "gru:view",
         # Emissão delegada (V048): staff que emite escolhe o instrutor da EAMA parceira
-        "vinculo-emissao:instrutores-parceiro"
+        "vinculo-emissao:instrutores-parceiro",
+        # Modo de emissão (própria × delegada, §8.M): o balcão decide qual lista de instrutores mostrar
+        "vinculo-emissao:modo"
     ],
 
     "GERENTE": [
@@ -97,6 +99,11 @@ role_permissions := {
         "vinculo-emissao:termo",
         "vinculo-emissao:instrutores-parceiro",
         "vinculo-emissao:instrutores-designados",  # EAMA designa quem atende cada operadora (V049)
+        "vinculo-emissao:modo",
+        # Instrutores da operadora aprovados pela EAMA (V070): a operadora pede, a EAMA decide
+        "vinculo-emissao:instrutores-operadora",
+        "vinculo-emissao:solicitar-aprovacao",
+        "vinculo-emissao:decisao",
         "emissao-delegada:*",
         "item-opcional:*",  # Itens opcionais (coletes, equipamentos, etc)
 

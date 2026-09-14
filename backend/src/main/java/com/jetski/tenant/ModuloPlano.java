@@ -27,9 +27,9 @@ public enum ModuloPlano {
         List.of("^(documentos|grus|instrutores)(/|$)",
                 "^reservas/[^/]+/(habilitacao/gru|emitir-documentos)")),
 
-    // "instrutores" também é coberto pela delegada: a operadora LISTA (visão
-    // informativa — os da EAMA + os próprios desativados); a emissão delegada
-    // só aceita instrutor da EAMA de qualquer forma (resolverParaEmissao).
+    // "instrutores" também é coberto pela delegada: a operadora cadastra instrutores
+    // próprios, que só assinam emissão delegada depois de aprovados pela EAMA da
+    // parceria (V070); os da EAMA vêm pela designação (resolverParaEmissao).
     EMISSAO_DELEGADA(
         "Emissão à Marinha — delegada",
         "GRU automática e documentação NORMAM-212 emitida em nome de uma EAMA parceira (instrutores da emissora)",

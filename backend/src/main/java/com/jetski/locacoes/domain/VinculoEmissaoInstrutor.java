@@ -8,9 +8,9 @@ import java.util.UUID;
 
 /**
  * Entity: instrutor da EAMA designado para atender uma parceria de emissão
- * delegada (V049). Semântica opt-in: sem linhas para o vínculo, a operadora
- * vê TODOS os instrutores ativos da EAMA; com linhas, só os designados —
- * na listagem e na emissão.
+ * delegada (V049). Designação obrigatória (§8.L, revista em 13/set/2026): a
+ * operadora só vê e só emite com os instrutores da EAMA designados; sem linhas
+ * para o vínculo, nenhum instrutor da EAMA — só os próprios aprovados (V070).
  *
  * Sem tenant_id próprio: visibilidade herda do vínculo (RLS via subquery,
  * visível aos dois lados).

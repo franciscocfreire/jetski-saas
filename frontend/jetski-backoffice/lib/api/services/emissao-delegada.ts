@@ -20,6 +20,41 @@ export interface VinculoEmissao {
 export interface InstrutorParceiro {
   id: string
   nome: string
+  /** EAMA = instrutor da emissora; OPERADORA = instrutor próprio aprovado pela EAMA (V070). */
+  origem?: 'EAMA' | 'OPERADORA'
+}
+
+/** Como a empresa emite hoje (§8.M): a parceria em vigor como operadora manda, não o plano. */
+export type ModoEmissao = 'PROPRIA' | 'DELEGADA' | 'SEM_EMISSAO'
+
+export interface ModoEmissaoInfo {
+  modo: ModoEmissao
+  /** Parceria viva como operadora (convite pendente, ativa ou bloqueada), se houver. */
+  vinculoId: string | null
+  vinculoStatus: VinculoEmissao['status'] | null
+  emissoraNome: string | null
+  planoPermitePropria: boolean
+  planoPermiteDelegada: boolean
+}
+
+export type StatusAprovacaoInstrutor = 'PENDENTE' | 'APROVADO' | 'REJEITADO' | 'REMOVIDO'
+
+/** Instrutor da operadora submetido à EAMA, com os dados que ela avalia (V070). */
+export interface InstrutorOperadora {
+  instrutorId: string
+  nome: string
+  rg: string | null
+  orgaoEmissor: string | null
+  cpf: string | null
+  cha: string | null
+  dataEmissao: string | null
+  temAssinatura: boolean
+  assinaturaUrl: string | null
+  ativo: boolean
+  status: StatusAprovacaoInstrutor
+  solicitadoEm: string
+  decididoEm: string | null
+  motivo: string | null
 }
 
 export interface EmissaoDelegada {
@@ -126,20 +161,55 @@ export const emissaoDelegadaService = {
     return data
   },
 
-  /** Instrutores da EAMA parceira (id + nome) para a emissão delegada. */
+  /** Modo de emissão da empresa (própria × delegada), decidido pelo backend. */
+  async modo(): Promise<ModoEmissaoInfo> {
+    const { data } = await apiClient.get<ModoEmissaoInfo>(`${vinculosPath()}/modo`)
+    return data
+  },
+
+  /**
+   * Instrutores para a emissão delegada: os da EAMA (designados) e os da operadora
+   * aprovados pela EAMA — id, nome e origem.
+   */
   async instrutoresParceiro(): Promise<InstrutorParceiro[]> {
     const { data } = await apiClient.get<InstrutorParceiro[]>(`${vinculosPath()}/instrutores-parceiro`)
     return data
   },
 
-  /** Instrutores designados da parceria (V049); vazio = todos os ativos da EAMA. */
+  /** Instrutores que a operadora submeteu à parceria, com o status da aprovação (V070). */
+  async instrutoresOperadora(vinculoId: string): Promise<InstrutorOperadora[]> {
+    const { data } = await apiClient.get<InstrutorOperadora[]>(
+      `${vinculosPath()}/${vinculoId}/instrutores-operadora`)
+    return data
+  },
+
+  /** A operadora pede à EAMA a aprovação de um instrutor próprio. */
+  async solicitarAprovacao(instrutorId: string): Promise<{ status: StatusAprovacaoInstrutor }> {
+    const { data } = await apiClient.post<{ status: StatusAprovacaoInstrutor }>(
+      `${vinculosPath()}/instrutores-proprios/${instrutorId}/solicitar-aprovacao`)
+    return data
+  },
+
+  /** A EAMA aprova, rejeita ou remove um instrutor da operadora. */
+  async decidirInstrutor(
+    vinculoId: string,
+    instrutorId: string,
+    decisao: 'APROVAR' | 'REJEITAR' | 'REMOVER',
+    motivo?: string,
+  ): Promise<{ status: StatusAprovacaoInstrutor }> {
+    const { data } = await apiClient.post<{ status: StatusAprovacaoInstrutor }>(
+      `${vinculosPath()}/${vinculoId}/instrutores-operadora/${instrutorId}/decisao`, { decisao, motivo })
+    return data
+  },
+
+  /** Instrutores designados da parceria (V049); vazio = nenhum instrutor da EAMA. */
   async instrutoresDesignados(vinculoId: string): Promise<InstrutorParceiro[]> {
     const { data } = await apiClient.get<InstrutorParceiro[]>(
       `${vinculosPath()}/${vinculoId}/instrutores-designados`)
     return data
   },
 
-  /** Substitui o conjunto de designados (só a EAMA; lista vazia = todos os ativos). */
+  /** Substitui o conjunto de designados (só a EAMA; lista vazia = nenhum instrutor da EAMA). */
   async designarInstrutores(vinculoId: string, instrutorIds: string[]): Promise<InstrutorParceiro[]> {
     const { data } = await apiClient.put<InstrutorParceiro[]>(
       `${vinculosPath()}/${vinculoId}/instrutores-designados`, { instrutorIds })

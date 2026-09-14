@@ -32,6 +32,7 @@ import { useVideoaulaObrigatoria, USER_TENANTS_QUERY_KEY } from '@/lib/hooks/use
 import { userTenantsService } from '@/lib/api/services/user-tenants'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { Badge } from '@/components/ui/badge'
+import { mascaraTelefoneBR } from '@/components/ui/phone-input'
 
 export default function ConfiguracoesPage() {
   return (
@@ -105,7 +106,7 @@ function ConfiguracoesConteudo() {
       setMarinhaEmail(geral.marinhaEmail ?? '')
       setEmailRemetente(geral.emailRemetente ?? '')
       setResponsavelNome(geral.responsavelNome ?? '')
-      setTelefone(geral.telefone ?? '')
+      setTelefone(mascaraTelefoneBR(geral.telefone ?? ''))
       setEmailOficial(geral.emailOficial ?? '')
       setPixChave(geral.pixChave ?? '')
       setSmtpHost(geral.smtpHost ?? '')
@@ -567,9 +568,10 @@ function ConfiguracoesConteudo() {
                     <Label htmlFor="telefone">Telefone</Label>
                     <Input
                       id="telefone"
+                      inputMode="tel"
                       placeholder="(21) 99999-9999"
                       value={telefone}
-                      onChange={(e) => setTelefone(e.target.value)}
+                      onChange={(e) => setTelefone(mascaraTelefoneBR(e.target.value))}
                     />
                   </div>
                   <div className="space-y-2">

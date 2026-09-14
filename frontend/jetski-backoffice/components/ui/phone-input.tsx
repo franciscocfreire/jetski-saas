@@ -43,6 +43,16 @@ function maskNacionalBR(digits: string): string {
   return r
 }
 
+/**
+ * Máscara de telefone brasileiro para campo de texto simples: aceita dígitos, máscara
+ * ou +55 e devolve `(11) 99999-9999` / `(11) 3333-4444` à medida que se digita.
+ */
+export function mascaraTelefoneBR(valor: string): string {
+  let digits = (valor ?? '').replace(/\D/g, '')
+  if (digits.startsWith('55') && digits.length > 11) digits = digits.slice(2)
+  return maskNacionalBR(digits)
+}
+
 /** Quebra um E.164 (+<dial><nacional>) no país conhecido + parte nacional. */
 function parse(value: string): { pais: Pais; nacional: string } {
   const digits = (value ?? '').replace(/\D/g, '')

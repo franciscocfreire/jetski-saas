@@ -84,6 +84,13 @@ test.describe.serial('emissão delegada · jornada EAMA × operadora', () => {
     await op.reload();
     await expect(parceria(op, eama)).toHaveAttribute('data-status', 'ATIVO');
 
+    // Papel exclusivo (§8.M): a operadora segue na Trial (todos os módulos), mas a
+    // parceria em vigor a torna delegada — e ela não é emissora.
+    expect((await operadora.api.modoEmissao()).modo).toBe('DELEGADA');
+    expect((await operadora.api.perfilEmissora()).emissoraHabilitada).toBe(false);
+    await expect(op.getByTestId('delegada-perfil-operadora')).toBeVisible();
+    await expect(op.getByTestId('delegada-convite-bloqueado')).toBeVisible();
+
     // Avisos das transições, cada um ao outro lado da parceria.
     await esperarMensagem({ para: eama.emailRemetente, assunto: 'Convite de parceria de emissão delegada' });
     await esperarMensagem({ para: operadora.emailRemetente, assunto: 'Parceria de emissão delegada ativada' });
@@ -145,6 +152,8 @@ test.describe.serial('emissão delegada · jornada EAMA × operadora', () => {
     // R5: remetente = SMTP da EAMA. R6: Reply-To = e-mail oficial da EAMA.
     expect(oficio.From.Address).toBe(eama.smtpFrom);
     expect(oficio.ReplyTo.map((r) => r.Address)).toContain(eama.emailOficial);
+    // A operadora delegada acompanha o ofício em cópia (e-mail oficial dela).
+    expect((oficio.Cc ?? []).map((c) => c.Address)).toContain(operadora.emailOficial);
 
     // R7: assinatura da EAMA; a operadora só aparece como "operado por", sem contatos.
     expect(oficio.HTML).toContain(`O EAMA <b>${eama.razaoSocial}</b>`);
@@ -223,6 +232,53 @@ test.describe.serial('emissão delegada · jornada EAMA × operadora', () => {
     // Três ofícios à Capitania da EAMA: emissão, reenvio e reemissão — todos pela EAMA.
     const oficios = await esperarMensagens({ para: eama.marinhaEmail, assunto: OFICIO, quantidade: 3 });
     for (const m of oficios) expect(m.From.Address).toBe(eama.smtpFrom);
+  });
+
+  // --------------------------------------------------------------------------------
+  test('H · instrutor da operadora só assina depois de aprovado pela EAMA, que pode removê-lo (NORMAM-212)', async () => {
+    const idProprio = operadora.instrutor.id;
+
+    // Sem aprovação: fora da lista e recusado na emissão.
+    expect((await operadora.api.instrutoresParceiro()).map((i) => i.id)).not.toContain(idProprio);
+    await operadora.api.definirInstrutor(reservaId, idProprio);
+    const semAprovacao = await operadora.api.emitirCru(reservaId, true);
+    expect(semAprovacao.status).toBe(400);
+    expect(JSON.stringify(semAprovacao.corpo)).toContain('aprovado');
+
+    // A operadora pede a aprovação na tela de instrutores (cadastro anterior à parceria).
+    const op = operadora.sessao.page;
+    await op.goto('/dashboard/instrutores');
+    const linhaPropria = op.locator(`[data-testid="instrutores-proprio"][data-instrutor-id="${idProprio}"]`);
+    await expect(linhaPropria).toHaveAttribute('data-aprovacao', 'NAO_ENVIADO');
+    await linhaPropria.getByTestId('instrutores-proprio-solicitar').click();
+    await expect(linhaPropria).toHaveAttribute('data-aprovacao', 'PENDENTE');
+
+    // A EAMA aprova na parceria.
+    const em = eama.sessao.page;
+    await em.goto('/dashboard/emissao-delegada');
+    await parceria(em, operadora).getByTestId('delegada-parceria-instrutores-operadora').click();
+    const pedido = em.locator(`[data-testid="delegada-instrutor-operadora"][data-instrutor-id="${idProprio}"]`);
+    await expect(pedido).toHaveAttribute('data-status', 'PENDENTE');
+    await expect(pedido).toContainText(operadora.instrutor.nome);
+    await pedido.getByTestId('delegada-instrutor-operadora-aprovar').click();
+    await expect(pedido).toHaveAttribute('data-status', 'APROVADO');
+
+    // Aprovado: disponível com origem OPERADORA, e a emissão sai com ele.
+    expect(await operadora.api.instrutoresParceiro()).toContainEqual(
+      expect.objectContaining({ id: idProprio, origem: 'OPERADORA' }),
+    );
+    const aprovada = await operadora.api.emitirCru(reservaId, true);
+    expect(aprovada.status, JSON.stringify(aprovada.corpo)).toBe(200);
+    expect(await operadora.api.saldo()).toBe(saldoAposVinculo - 3);
+
+    // A EAMA remove a aprovação: o instrutor sai da lista da operadora.
+    em.once('dialog', (d) => d.accept('instrutor desligado'));
+    await pedido.getByTestId('delegada-instrutor-operadora-remover').click();
+    await expect(pedido).toHaveAttribute('data-status', 'REMOVIDO');
+    expect((await operadora.api.instrutoresParceiro()).map((i) => i.id)).not.toContain(idProprio);
+
+    // A habilitação volta para o instrutor da EAMA: nada fica apontando para um removido.
+    await operadora.api.definirInstrutor(reservaId, eama.instrutor.id);
   });
 
   // --------------------------------------------------------------------------------
