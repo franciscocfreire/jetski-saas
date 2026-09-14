@@ -144,7 +144,7 @@ class UserInvitationIntegrationTest extends AbstractIntegrationTest {
                 .thenReturn(allowDecision);
 
         // Mock email service (don't actually send emails in tests)
-        doNothing().when(emailService).sendInvitationEmail(anyString(), anyString(), anyString(), anyString());
+        doNothing().when(emailService).sendInvitationEmail(anyString(), anyString(), anyString(), anyString(), nullable(String.class));
     }
 
     // ========================================================================
@@ -250,6 +250,58 @@ class UserInvitationIntegrationTest extends AbstractIntegrationTest {
     // ========================================================================
 
     @Test
+    @DisplayName("@PreAuthorize usa o papel do membro NA EMPRESA, não a realm role do JWT (conta existente convidada)")
+    void preAuthorizeShouldUseTenantRolesNotJwtRealmRoles() throws Exception {
+        InviteUserRequest request = InviteUserRequest.builder()
+                .email("papel.tenant." + UUID.randomUUID() + "@example.com")
+                .nome("Papel do Tenant")
+                .papeis(new String[]{"OPERADOR"})
+                .build();
+
+        // JWT só com CLIENTE (realm role global), mas ADMIN_TENANT como membro → passa
+        mockMvc.perform(post("/v1/tenants/{tenantId}/users/invite", TEST_TENANT_ID)
+                        .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(jwt()
+                                .authorities(new SimpleGrantedAuthority("ROLE_CLIENTE"))
+                                .jwt(jwt -> jwt
+                                        .claim("roles", List.of("CLIENTE"))
+                                        .subject(ADMIN_USER_ID.toString()))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Realm role ADMIN_TENANT no JWT não vale numa empresa em que a pessoa é só OPERADOR")
+    void preAuthorizeShouldDenyWhenTenantRoleIsLowerThanJwtRealmRole() throws Exception {
+        UUID operadorId = UUID.randomUUID();
+        when(tenantAccessService.validateAccess(any(String.class), eq(operadorId.toString()), eq(TEST_TENANT_ID)))
+                .thenReturn(TenantAccessInfo.builder()
+                        .hasAccess(true)
+                        .roles(List.of("OPERADOR"))
+                        .unrestricted(false)
+                        .usuarioId(operadorId)
+                        .build());
+
+        InviteUserRequest request = InviteUserRequest.builder()
+                .email("admin.de.outra." + UUID.randomUUID() + "@example.com")
+                .nome("Admin de Outra")
+                .papeis(new String[]{"OPERADOR"})
+                .build();
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/users/invite", TEST_TENANT_ID)
+                        .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(jwt()
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))
+                                .jwt(jwt -> jwt
+                                        .claim("roles", List.of("ADMIN_TENANT"))
+                                        .subject(operadorId.toString()))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("Convite para quem já tem conta: e-mail de aceite e ativação vincula o papel sem Keycloak")
     void shouldInviteAndActivateExistingAccount() throws Exception {
         String email = "conta.existente." + UUID.randomUUID() + "@example.com";
@@ -258,7 +310,7 @@ class UserInvitationIntegrationTest extends AbstractIntegrationTest {
             "INSERT INTO usuario (id, email, nome, ativo, email_verified, created_at, updated_at) "
                 + "VALUES (?, ?, ?, true, true, NOW(), NOW())",
             usuarioId, email, "Conta Existente");
-        doNothing().when(emailService).sendExistingAccountInvitationEmail(anyString(), anyString(), anyString());
+        doNothing().when(emailService).sendExistingAccountInvitationEmail(anyString(), anyString(), anyString(), nullable(String.class));
 
         InviteUserRequest request = InviteUserRequest.builder()
                 .email(email)
@@ -280,8 +332,10 @@ class UserInvitationIntegrationTest extends AbstractIntegrationTest {
 
         // Conta existente recebe o convite de aceite (sem senha temporária)
         org.mockito.ArgumentCaptor<String> link = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(emailService).sendExistingAccountInvitationEmail(eq(email), eq("Conta Existente"), link.capture());
-        verify(emailService, never()).sendInvitationEmail(eq(email), anyString(), anyString(), anyString());
+        verify(emailService).sendExistingAccountInvitationEmail(
+                eq(email), eq("Conta Existente"), link.capture(), nullable(String.class));
+        verify(emailService, never()).sendInvitationEmail(
+                eq(email), anyString(), anyString(), anyString(), nullable(String.class));
         String magicToken = link.getValue().substring(link.getValue().indexOf("token=") + "token=".length());
 
         // Ativação: antes dava 409 "Usuário com este email já existe"
@@ -351,7 +405,8 @@ class UserInvitationIntegrationTest extends AbstractIntegrationTest {
                 eq("new.user@example.com"),
                 eq("New User"),
                 anyString(),
-                anyString()  // Temporary password (generated randomly)
+                anyString(),  // Temporary password (generated randomly)
+                nullable(String.class)  // Razão social da empresa que convidou
         );
     }
 
@@ -501,7 +556,8 @@ class UserInvitationIntegrationTest extends AbstractIntegrationTest {
                 eq("keycloak.jwt@example.com"),
                 eq("Keycloak JWT User"),
                 anyString(),
-                anyString()  // Temporary password (generated randomly)
+                anyString(),  // Temporary password (generated randomly)
+                nullable(String.class)
         );
     }
 
@@ -1006,7 +1062,8 @@ class UserInvitationIntegrationTest extends AbstractIntegrationTest {
                 eq("email.integration@example.com"),
                 eq("Email Test User"),
                 argThat(loginUrl -> loginUrl.contains("token=")),
-                anyString()  // Temporary password (generated randomly)
+                anyString(),  // Temporary password (generated randomly)
+                nullable(String.class)
         );
     }
 }

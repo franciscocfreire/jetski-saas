@@ -132,8 +132,9 @@ public class DevEmailService implements EmailService {
     }
 
     @Override
-    public void sendInvitationEmail(String to, String name, String activationLink, String temporaryPassword) {
-        String subject = EmailTemplates.INVITATION_SUBJECT;
+    public void sendInvitationEmail(String to, String name, String activationLink, String temporaryPassword,
+                                    String empresa) {
+        String subject = EmailTemplates.invitationSubject(empresa);
 
         // Store last email data for E2E testing
         lastEmail = new LastEmailData(to, name, subject, activationLink, temporaryPassword);
@@ -142,12 +143,12 @@ public class DevEmailService implements EmailService {
 
         // Log/arquivo em texto legível; envio (Mailpit) usa o MESMO HTML do prod.
         logAndSaveEmail(to, subject, buildInvitationEmailBody(name, activationLink, temporaryPassword));
-        maybeSendViaSmtp(to, subject, EmailTemplates.invitationHtml(name, activationLink, temporaryPassword));
+        maybeSendViaSmtp(to, subject, EmailTemplates.invitationHtml(name, activationLink, temporaryPassword, empresa));
     }
 
     @Override
-    public void sendExistingAccountInvitationEmail(String to, String name, String acceptLink) {
-        String subject = EmailTemplates.EXISTING_ACCOUNT_INVITATION_SUBJECT;
+    public void sendExistingAccountInvitationEmail(String to, String name, String acceptLink, String empresa) {
+        String subject = EmailTemplates.existingAccountInvitationSubject(empresa);
 
         // E2E: o magic token do link continua extraível (sem senha temporária no corpo)
         lastEmail = new LastEmailData(to, name, subject, acceptLink, null);
@@ -158,7 +159,7 @@ public class DevEmailService implements EmailService {
                 + "basta aceitar o convite e entrar com a senha que já usa.%n%nAceitar convite: %s%n",
             name, acceptLink);
         logAndSaveEmail(to, subject, body);
-        maybeSendViaSmtp(to, subject, EmailTemplates.existingAccountInvitationHtml(name, acceptLink));
+        maybeSendViaSmtp(to, subject, EmailTemplates.existingAccountInvitationHtml(name, acceptLink, empresa));
     }
 
     @Override

@@ -221,8 +221,7 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
     void testForbiddenParaVendedor() throws Exception {
         mockMvc.perform(get("/v1/tenants/{tenantId}/creditos/saldo", TENANT_ACME)
                 .header("X-Tenant-Id", TENANT_ACME.toString())
-                .with(jwt().jwt(j -> j.subject(USER_ID.toString()))
-                    .authorities(new SimpleGrantedAuthority("ROLE_VENDEDOR"))))
+                .with(com.jetski.integration.MembroDeTeste.comPapel(jdbcTemplate, TENANT_ACME, "VENDEDOR")))
             .andExpect(status().isForbidden());
     }
 

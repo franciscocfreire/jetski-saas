@@ -200,11 +200,33 @@ public final class EmailTemplates {
             """, BRAND_HEADER, titulo, String.format(mensagem, razaoSocial), blocoMotivo, blocoCta);
     }
 
+    /** Assunto do convite de staff: nomeia a empresa quando conhecida. */
+    public static String invitationSubject(String empresa) {
+        return temEmpresa(empresa)
+            ? "Você foi convidado para a equipe da " + empresa + " no Meu Jet"
+            : INVITATION_SUBJECT;
+    }
+
     /** Assunto do convite de staff para quem já tem conta no Meu Jet. */
-    public static final String EXISTING_ACCOUNT_INVITATION_SUBJECT = "Você foi convidado para uma empresa no Meu Jet";
+    public static String existingAccountInvitationSubject(String empresa) {
+        return temEmpresa(empresa)
+            ? "Você foi convidado para a equipe da " + empresa + " no Meu Jet"
+            : "Você foi convidado para uma empresa no Meu Jet";
+    }
+
+    private static boolean temEmpresa(String empresa) {
+        return empresa != null && !empresa.isBlank();
+    }
+
+    /** "da <strong>Empresa</strong>" (escapado) ou o genérico quando a empresa não é conhecida. */
+    private static String equipeDa(String empresa, String generico) {
+        return temEmpresa(empresa)
+            ? "da <strong>" + org.springframework.web.util.HtmlUtils.htmlEscape(empresa) + "</strong>"
+            : generico;
+    }
 
     /** Convite de staff para conta existente (identidade única): sem senha temporária, só o aceite. */
-    public static String existingAccountInvitationHtml(String name, String acceptLink) {
+    public static String existingAccountInvitationHtml(String name, String acceptLink, String empresa) {
         return String.format("""
             <!DOCTYPE html>
             <html>
@@ -218,7 +240,7 @@ public final class EmailTemplates {
 
                     <p>Olá <strong>%s</strong>,</p>
 
-                    <p>Você foi convidado para fazer parte da equipe de uma empresa no <strong>Meu Jet</strong>.</p>
+                    <p>Você foi convidado para fazer parte da equipe %s no <strong>Meu Jet</strong>.</p>
 
                     <p>Como você <strong>já tem uma conta</strong>, basta aceitar o convite. Depois é só entrar
                        com o mesmo e-mail e a senha que você já usa.</p>
@@ -253,10 +275,14 @@ public final class EmailTemplates {
                 </div>
             </body>
             </html>
-            """, BRAND_HEADER, name, acceptLink);
+            """, BRAND_HEADER, name, equipeDa(empresa, "de uma empresa"), acceptLink);
     }
 
     public static String invitationHtml(String name, String activationLink, String temporaryPassword) {
+        return invitationHtml(name, activationLink, temporaryPassword, null);
+    }
+
+    public static String invitationHtml(String name, String activationLink, String temporaryPassword, String empresa) {
         return String.format("""
             <!DOCTYPE html>
             <html>
@@ -270,7 +296,7 @@ public final class EmailTemplates {
 
                     <p>Olá <strong>%s</strong>,</p>
 
-                    <p>Você foi convidado para se juntar ao <strong>Meu Jet</strong>!</p>
+                    <p>Você foi convidado %s!</p>
 
                     <p>Para ativar sua conta, você precisará do link de ativação e da senha temporária abaixo:</p>
 
@@ -312,7 +338,11 @@ public final class EmailTemplates {
                 </div>
             </body>
             </html>
-            """, BRAND_HEADER, name, temporaryPassword, activationLink);
+            """, BRAND_HEADER, name,
+                temEmpresa(empresa)
+                    ? "para fazer parte da equipe " + equipeDa(empresa, "") + " no <strong>Meu Jet</strong>"
+                    : "para se juntar ao <strong>Meu Jet</strong>",
+                temporaryPassword, activationLink);
     }
 
     /**

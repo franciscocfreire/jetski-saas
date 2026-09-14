@@ -575,7 +575,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody)
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_MECANICO"))))
+                .with(com.jetski.integration.MembroDeTeste.comPapel(jdbcTemplate, TENANT_ID, "MECANICO")))
             .andExpect(status().isForbidden());
     }
 
@@ -741,7 +741,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"valor\": 600.00}")
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_MECANICO"))))
+                .with(com.jetski.integration.MembroDeTeste.comPapel(jdbcTemplate, TENANT_ID, "MECANICO")))
             .andExpect(status().isForbidden());
     }
 
@@ -844,7 +844,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"forma\": \"PIX\", \"valor\": 100.00, \"observacao\": \"x\"}")
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_OPERADOR"))))
+                .with(com.jetski.integration.MembroDeTeste.comPapel(jdbcTemplate, TENANT_ID, "OPERADOR")))
             .andExpect(status().isForbidden());
     }
 
@@ -954,7 +954,7 @@ class ReservaControllerTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT_ID.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody)
-                .with(jwt().jwt(jwt -> jwt.subject(USER_ID.toString())).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_MECANICO"))))
+                .with(com.jetski.integration.MembroDeTeste.comPapel(jdbcTemplate, TENANT_ID, "MECANICO")))
             .andExpect(status().isForbidden());
     }
 
