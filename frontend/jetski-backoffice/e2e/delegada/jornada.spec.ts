@@ -90,6 +90,15 @@ test.describe.serial('emissão delegada · jornada EAMA × operadora', () => {
     expect((await operadora.api.perfilEmissora()).emissoraHabilitada).toBe(false);
     await expect(op.getByTestId('delegada-perfil-operadora')).toBeVisible();
     await expect(op.getByTestId('delegada-convite-bloqueado')).toBeVisible();
+    // Capitania herdada da EAMA e travada (sem seletor nem "Salvar perfil").
+    await expect(op.getByTestId('delegada-perfil-capitania-herdada')).toContainText(CAPITANIA_CODIGO);
+    await expect(op.getByTestId('delegada-perfil-capitania')).toHaveCount(0);
+    // Rede de emissão: a EAMA no topo e a operadora abaixo, nas duas visões.
+    await expect(op.getByTestId('delegada-rede-raiz')).toContainText(eama.razaoSocial);
+    await em.reload();
+    await expect(
+      em.locator(`[data-testid="delegada-rede-no"][data-parceiro="${operadora.razaoSocial}"]`),
+    ).toHaveAttribute('data-status', 'ATIVO');
 
     // Avisos das transições, cada um ao outro lado da parceria.
     await esperarMensagem({ para: eama.emailRemetente, assunto: 'Convite de parceria de emissão delegada' });

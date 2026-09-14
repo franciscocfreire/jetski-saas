@@ -20,6 +20,7 @@ import {
   Wrench,
   LogOut,
   Building2,
+  CornerDownRight,
   ChevronDown,
   Plus,
   PieChart,
@@ -67,6 +68,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Logo } from '@/components/logo'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import type { TenantSummary } from '@/lib/api/types'
+import { ordenarPorRede } from '@/lib/rede-emissao'
 import { useSidebarStore } from '@/lib/store/sidebar-store'
 import { usePermissions } from '@/lib/hooks/use-permissions'
 import { useQuery } from '@tanstack/react-query'
@@ -387,16 +389,40 @@ export function AppSidebar() {
                 className="w-[--radix-dropdown-menu-trigger-width]"
                 align="start"
               >
-                {tenants.map((tenant) => (
+                {/* Rede de emissão (§8.M): delegadas aninhadas sob a EAMA emissora delas. */}
+                {ordenarPorRede(tenants).map(({ empresa: tenant, nivel }) => (
                   <DropdownMenuItem
                     key={tenant.id}
                     onClick={() => trocarEmpresa(tenant)}
                     className="cursor-pointer"
+                    data-testid="tenant-switcher-item"
+                    data-papel={tenant.papelEmissao ?? 'NENHUM'}
+                    data-nivel={nivel}
                   >
-                    <Building2 className="mr-2 size-4" />
-                    <div className="flex flex-col">
-                      <span>{tenant.razaoSocial}</span>
-                      <span className="text-xs text-muted-foreground">{tenant.slug}</span>
+                    {nivel > 0 ? (
+                      <CornerDownRight className="ml-3 mr-2 size-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <Building2 className="mr-2 size-4 shrink-0" />
+                    )}
+                    <div className="flex min-w-0 flex-col">
+                      <span className="flex items-center gap-1.5">
+                        <span className="truncate">{tenant.razaoSocial}</span>
+                        {tenant.papelEmissao === 'EMISSORA' && (
+                          <span className="rounded bg-emerald-100 px-1 text-[10px] font-medium text-emerald-900">
+                            EAMA
+                          </span>
+                        )}
+                        {tenant.papelEmissao === 'DELEGADA' && (
+                          <span className="rounded bg-sky-100 px-1 text-[10px] font-medium text-sky-900">
+                            delegada
+                          </span>
+                        )}
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {tenant.papelEmissao === 'DELEGADA' && nivel === 0 && tenant.emissoraNome
+                          ? `delegada de ${tenant.emissoraNome} · ${tenant.slug}`
+                          : tenant.slug}
+                      </span>
                     </div>
                   </DropdownMenuItem>
                 ))}

@@ -29,4 +29,12 @@ public class TenantSummary {
      * Vem aqui porque o OPERADOR (quem atende o balcão) não lê /config/documento.
      */
     private Boolean videoaulaObrigatoria;
+    /**
+     * Papel na emissão (EMISSAO_DELEGADA_SPEC §8.M): EMISSORA, DELEGADA ou NENHUM.
+     * O switcher agrupa as delegadas sob a EAMA emissora delas.
+     */
+    private String papelEmissao;
+    /** Na delegada: a EAMA emissora da parceria em vigor (pode não estar na lista do usuário). */
+    private UUID emissoraTenantId;
+    private String emissoraNome;
 }

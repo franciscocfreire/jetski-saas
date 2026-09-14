@@ -45,6 +45,7 @@ public class TenantConfigService {
     private final SecretCipher secretCipher;
     private final StorageService storageService;
     private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
+    private final com.jetski.tenant.PapelEmissaoService papelEmissaoService;
 
     /** Dados gerais/e-mail da empresa (tenant). */
     @Transactional(readOnly = true)
@@ -136,6 +137,15 @@ public class TenantConfigService {
 
         UUID capitaniaAntes = t.getCapitaniaId();
         String registroAntes = t.getEamaRegistro();
+
+        // Delegada (§8.M): a capitania é a da EAMA da parceria — herdada no aceite e
+        // travada enquanto a parceria estiver em vigor. Salvar sem mudar continua valendo.
+        if (req.capitaniaId() != null && !req.capitaniaId().equals(capitaniaAntes)
+                && papelEmissaoService.papelDe(tenantId, Boolean.TRUE.equals(t.getEmissoraHabilitada())).papel()
+                    == com.jetski.tenant.PapelEmissaoService.Papel.DELEGADA) {
+            throw new BusinessException("A capitania da empresa delegada é a da EAMA emissora da parceria "
+                + "e não pode ser alterada. Para mudar de capitania, revogue a parceria.");
+        }
 
         if (req.capitaniaId() != null) {
             Capitania cap = capitaniaRepository.findById(req.capitaniaId())

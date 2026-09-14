@@ -45,6 +45,7 @@ public class PlatformTenantService {
 
     private final TenantRepository tenantRepository;
     private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
+    private final com.jetski.tenant.PapelEmissaoService papelEmissaoService;
     private final ApplicationEventPublisher eventPublisher;
 
     @PersistenceContext
@@ -60,11 +61,16 @@ public class PlatformTenantService {
      */
     @Transactional(readOnly = true)
     public List<PlatformTenantSummary> listAll() {
-        return tenantRepository.findAll().stream()
+        List<Tenant> todas = tenantRepository.findAll();
+        // Nome da EAMA de cada delegada: todas as empresas já estão em memória.
+        java.util.Map<UUID, String> nomes = new java.util.HashMap<>();
+        todas.forEach(t -> nomes.put(t.getId(), t.getRazaoSocial()));
+        return todas.stream()
             .sorted((a, b) -> a.getRazaoSocial().compareToIgnoreCase(b.getRazaoSocial()))
             .map(t -> {
                 Object[] assinatura = assinaturaAtiva(t.getId());
                 List<String> modulos = planoLimiteService.modulosDoPlano(t.getId());
+                var papel = papelEmissaoService.papelDe(t.getId(), Boolean.TRUE.equals(t.getEmissoraHabilitada()));
                 return PlatformTenantSummary.of(
                     t.getId(), t.getSlug(), t.getRazaoSocial(), t.getStatus().name(),
                     assinatura != null ? (String) assinatura[0] : null,
@@ -72,7 +78,10 @@ public class PlatformTenantService {
                         ? ((java.sql.Date) assinatura[1]).toLocalDate() : null,
                     t.getExclusaoAgendadaEm(),
                     Boolean.TRUE.equals(t.getEmissoraHabilitada()), t.getEamaRegistro(),
-                    modulos.contains("*") ? null : modulos);
+                    modulos.contains("*") ? null : modulos,
+                    papel.papel().name(), papel.emissoraTenantId(),
+                    papel.emissoraTenantId() != null ? nomes.get(papel.emissoraTenantId()) : null,
+                    papel.vinculoStatus());
             })
             .toList();
     }

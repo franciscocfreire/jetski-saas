@@ -16,6 +16,12 @@ export interface TenantSummary {
   modulos?: string[] | null;
   emissoraHabilitada?: boolean;
   eamaRegistro?: string | null;
+  /** Papel na emissão (EMISSAO_DELEGADA_SPEC §8.M). */
+  papelEmissao?: "EMISSORA" | "DELEGADA" | "NENHUM" | null;
+  /** Na delegada: a EAMA emissora da parceria em vigor, e o status dela (ATIVO/BLOQUEADO). */
+  emissoraTenantId?: string | null;
+  emissoraNome?: string | null;
+  vinculoStatus?: string | null;
 }
 
 /** Usuário (staff) de uma empresa — espelha PlatformMembroService.MembroEmpresa. */

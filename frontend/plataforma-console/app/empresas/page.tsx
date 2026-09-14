@@ -5,6 +5,7 @@ import { platform, dataCurta } from "@/lib/platform";
 import { Card, Erro, StatusEmpresa, Tabela, Td, TituloPagina, Badge } from "@/components/ui";
 import { PlatformApiError } from "@/lib/api";
 import { FiltroEmpresas } from "./filtro";
+import { ordenarPorRede } from "@/lib/rede";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,9 @@ export default async function Empresas({
     return acc;
   }, {});
 
+  const delegadasDe = (emissoraId: string) =>
+    tenants.filter((t) => t.papelEmissao === "DELEGADA" && t.emissoraTenantId === emissoraId).length;
+
   const busca = (q ?? "").trim().toLowerCase();
   const filtradas = tenants.filter((t) => {
     if (filtroStatus && t.status !== filtroStatus) return false;
@@ -74,16 +78,22 @@ export default async function Empresas({
           cabecalho={["Empresa", "Status", "Plano", "Vigência", "EAMA", "Alertas"]}
           vazio={busca || filtroStatus ? "Nenhuma empresa com esse filtro." : "Nenhuma empresa."}
         >
-          {filtradas.map((t) => (
-            <tr key={t.id} className="hover:bg-slate-50">
+          {/* Rede de emissão (§8.M): delegadas logo abaixo da EAMA emissora delas. */}
+          {ordenarPorRede(filtradas).map(({ empresa: t, nivel }) => (
+            <tr key={t.id} className="hover:bg-slate-50" data-papel={t.papelEmissao ?? "NENHUM"}>
               <Td>
-                <Link
-                  href={`/empresas/${t.id}`}
-                  className="font-medium text-brand-700 hover:underline"
-                >
-                  {t.razaoSocial}
-                </Link>
-                <div className="text-xs text-ink-300">{t.slug}</div>
+                <div className={nivel > 0 ? "flex items-start gap-1.5 pl-5" : undefined}>
+                  {nivel > 0 && <span className="text-ink-300">↳</span>}
+                  <div>
+                    <Link
+                      href={`/empresas/${t.id}`}
+                      className="font-medium text-brand-700 hover:underline"
+                    >
+                      {t.razaoSocial}
+                    </Link>
+                    <div className="text-xs text-ink-300">{t.slug}</div>
+                  </div>
+                </div>
               </Td>
               <Td>
                 <StatusEmpresa status={t.status} />
@@ -101,8 +111,22 @@ export default async function Empresas({
                 )}
               </Td>
               <Td>
-                {t.emissoraHabilitada ? (
-                  <Badge tom="ativo">habilitada</Badge>
+                {t.papelEmissao === "DELEGADA" ? (
+                  <div>
+                    <Badge tom="marca">delegada</Badge>
+                    {nivel === 0 && t.emissoraNome && (
+                      <div className="mt-0.5 text-xs text-ink-300">de {t.emissoraNome}</div>
+                    )}
+                  </div>
+                ) : t.emissoraHabilitada ? (
+                  <div>
+                    <Badge tom="ativo">emissora</Badge>
+                    {delegadasDe(t.id) > 0 && (
+                      <div className="mt-0.5 text-xs text-ink-300">
+                        {delegadasDe(t.id)} {delegadasDe(t.id) === 1 ? "delegada" : "delegadas"}
+                      </div>
+                    )}
+                  </div>
                 ) : t.eamaRegistro ? (
                   <Badge tom="atencao">declarada</Badge>
                 ) : (

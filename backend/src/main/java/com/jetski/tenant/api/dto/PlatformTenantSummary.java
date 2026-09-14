@@ -32,15 +32,26 @@ public record PlatformTenantSummary(
      * do superadmin usa ESTA lista como TenantSummary — sem os módulos, o god
      * mode enxergava toda empresa como "plano completo" (gating de menu errado).
      */
-    List<String> modulos
+    List<String> modulos,
+    /** Papel na emissão (§8.M): EMISSORA, DELEGADA ou NENHUM. */
+    String papelEmissao,
+    /** Na delegada: a EAMA emissora da parceria em vigor. */
+    String emissoraTenantId,
+    String emissoraNome,
+    /** Na delegada: ATIVO ou BLOQUEADO. */
+    String vinculoStatus
 ) {
     public static PlatformTenantSummary of(UUID id, String slug, String razaoSocial, String status,
                                            String plano, LocalDate assinaturaFim,
                                            java.time.Instant exclusaoAgendadaEm,
                                            boolean emissoraHabilitada, String eamaRegistro,
-                                           List<String> modulos) {
+                                           List<String> modulos,
+                                           String papelEmissao, UUID emissoraTenantId,
+                                           String emissoraNome, String vinculoStatus) {
         return new PlatformTenantSummary(
             id.toString(), slug, razaoSocial, status, List.of("ADMIN_TENANT"), plano,
-            assinaturaFim, exclusaoAgendadaEm, emissoraHabilitada, eamaRegistro, modulos);
+            assinaturaFim, exclusaoAgendadaEm, emissoraHabilitada, eamaRegistro, modulos,
+            papelEmissao, emissoraTenantId != null ? emissoraTenantId.toString() : null,
+            emissoraNome, vinculoStatus);
     }
 }
