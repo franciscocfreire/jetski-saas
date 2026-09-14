@@ -464,6 +464,7 @@ public class ModeloController {
             .caucao(modelo.getCaucao())
             .fotoReferenciaUrl(modelo.getFotoReferenciaUrl())
             .descricao(modelo.getDescricao())
+            .duracaoMinimaMin(modelo.getDuracaoMinimaMin())
             .pacotesJson(modelo.getPacotesJson())
             .ativo(modelo.getAtivo())
             .exibirNoMarketplace(modelo.getExibirNoMarketplace())
@@ -487,6 +488,8 @@ public class ModeloController {
             .fotoReferenciaUrl(request.getFotoReferenciaUrl())
             .descricao(request.getDescricao() != null && !request.getDescricao().isBlank()
                 ? request.getDescricao().trim() : null)
+            .duracaoMinimaMin(request.getDuracaoMinimaMin() != null && request.getDuracaoMinimaMin() > 0
+                ? request.getDuracaoMinimaMin() : null)
             .pacotesJson(request.getPacotesJson())
             .ativo(true)
             .build();
@@ -505,6 +508,7 @@ public class ModeloController {
             .caucao(request.getCaucao())
             .fotoReferenciaUrl(request.getFotoReferenciaUrl())
             .descricao(request.getDescricao())
+            .duracaoMinimaMin(request.getDuracaoMinimaMin())
             .pacotesJson(request.getPacotesJson())
             .exibirNoMarketplace(request.getExibirNoMarketplace())
             .build();

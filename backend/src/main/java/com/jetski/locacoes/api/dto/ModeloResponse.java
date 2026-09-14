@@ -36,6 +36,7 @@ public class ModeloResponse {
     private BigDecimal caucao;
     private String fotoReferenciaUrl;
     private String descricao;
+    private Integer duracaoMinimaMin;
     private String pacotesJson;
     private Boolean ativo;
     private Boolean exibirNoMarketplace;

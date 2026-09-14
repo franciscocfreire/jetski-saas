@@ -20,7 +20,7 @@ function mapModeloToCard(modelo: MarketplaceModelo): CardComLocal {
     precoPacote30min: modelo.precoPacote30min,
     imagemUrl: getPrincipalImage(modelo),
     // A praia é o que o cliente busca — vai em destaque na localização do card
-    localizacao: modelo.praia ? `${modelo.praia} · ${modelo.localizacao}` : modelo.localizacao,
+    localizacao: [modelo.praia, modelo.localizacao].filter(Boolean).join(' · '),
     praia: modelo.praia,
     cidade: modelo.cidade,
     uf: modelo.uf,
@@ -90,7 +90,7 @@ export function JetskiGrid() {
     if (busca.trim()) {
       const q = normalizar(busca)
       lista = lista.filter((j) =>
-        [j.modelo, j.empresa, j.localizacao, j.praia ?? '', j.cidade ?? '', j.uf ?? ''].some((campo) =>
+        [j.modelo, j.empresa, j.localizacao ?? '', j.praia ?? '', j.cidade ?? '', j.uf ?? ''].some((campo) =>
           normalizar(campo).includes(q)
         )
       )

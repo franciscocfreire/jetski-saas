@@ -57,6 +57,8 @@ public class TenantConfigService {
             .cnpj(t.getCnpj())
             .razaoSocial(t.getRazaoSocial())
             .cidade(t.getCidade())
+            .uf(t.getUf())
+            .whatsapp(t.getWhatsapp())
             .marinhaEmail(t.getMarinhaEmail())
             .emailRemetente(t.getEmailRemetente())
             .responsavelNome(t.getResponsavelNome())
@@ -80,6 +82,20 @@ public class TenantConfigService {
         if (req.getRazaoSocial() != null && !req.getRazaoSocial().isBlank())
             t.setRazaoSocial(req.getRazaoSocial().trim());
         if (req.getCidade() != null) t.setCidade(blankToNull(req.getCidade()));
+        if (req.getUf() != null) {
+            String uf = blankToNull(req.getUf());
+            if (uf != null && !uf.matches("[A-Za-z]{2}")) {
+                throw new BusinessException("UF deve ter 2 letras (ex.: SP).");
+            }
+            t.setUf(uf == null ? null : uf.toUpperCase());
+        }
+        if (req.getWhatsapp() != null) {
+            String digitos = req.getWhatsapp().replaceAll("\\D", "");
+            if (!digitos.isEmpty() && (digitos.length() < 10 || digitos.length() > 13)) {
+                throw new BusinessException("WhatsApp inválido: informe DDD e número.");
+            }
+            t.setWhatsapp(digitos.isEmpty() ? null : digitos);
+        }
         if (req.getMarinhaEmail() != null) t.setMarinhaEmail(blankToNull(req.getMarinhaEmail()));
         if (req.getEmailRemetente() != null) t.setEmailRemetente(blankToNull(req.getEmailRemetente()));
         if (req.getResponsavelNome() != null) t.setResponsavelNome(blankToNull(req.getResponsavelNome()));

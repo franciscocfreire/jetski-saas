@@ -14,14 +14,15 @@ interface OfferingDetail {
   modelo: string
   tipo: 'JETSKI' | 'LANCHA'
   empresa: string
-  empresaWhatsapp: string
+  empresaWhatsapp?: string
   precoHora?: number
   precoPacote30min?: number
   precoMeiaDiaria?: number
   precoDiaria?: number
   imagemUrl?: string
   midias?: MarketplaceMidia[]
-  localizacao: string
+  localizacao?: string
+  duracaoMinima?: string
   avaliacao?: number
   totalAvaliacoes?: number
   capacidade: number
@@ -33,27 +34,43 @@ interface OfferingDetail {
   reservaOnline: boolean
 }
 
+function formatDuracao(min: number): string {
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60)
+  const resto = min % 60
+  return resto ? `${h}h${String(resto).padStart(2, '0')}` : `${h}h`
+}
+
+/** Só dígitos, com DDI 55 quando vier sem; sem número cadastrado, o botão some. */
+function whatsappDigitos(whatsapp?: string): string | undefined {
+  const digitos = whatsapp?.replace(/\D/g, '')
+  if (!digitos) return undefined
+  return digitos.length <= 11 ? `55${digitos}` : digitos
+}
+
 /**
  * Mapeia modelo da API para detalhes completos
  */
 function mapApiModeloToDetail(modelo: MarketplaceModelo): OfferingDetail {
+  const local = [modelo.praia, modelo.localizacao].filter(Boolean).join(' · ') || undefined
   return {
     id: modelo.id,
     modelo: modelo.nome,
     tipo: 'JETSKI',
     empresa: modelo.empresaNome,
-    empresaWhatsapp: modelo.empresaWhatsapp || '5548999999999',
+    empresaWhatsapp: whatsappDigitos(modelo.empresaWhatsapp),
     precoHora: modelo.precoBaseHora,
     precoPacote30min: modelo.precoPacote30min,
     imagemUrl: getPrincipalImage(modelo),
     midias: modelo.midias,
-    localizacao: modelo.localizacao,
+    localizacao: local,
+    duracaoMinima: modelo.duracaoMinimaMin ? formatDuracao(modelo.duracaoMinimaMin) : undefined,
     capacidade: modelo.capacidadePessoas || 2,
     potencia: modelo.potenciaHp ? `${modelo.potenciaHp} HP` : '—',
     combustivel: 'Gasolina',
     descricao:
       modelo.descricao?.trim() ||
-      `${modelo.nome} disponível para aluguel em ${modelo.localizacao}. Entre em contato com ${modelo.empresaNome} para mais informações.`,
+      `${modelo.nome} disponível para aluguel${local ? ` em ${local}` : ''}. Entre em contato com ${modelo.empresaNome} para mais informações.`,
     inclusos: [
       'Colete salva-vidas',
       'Orientação de uso',
@@ -503,10 +520,12 @@ export default function EmbarcacaoDetailPage() {
               <h1 className="font-display text-4xl md:text-5xl font-medium text-white mb-4 break-words">
                 {offering.modelo}
               </h1>
-              <div className="flex items-center gap-2 text-white/60">
-                <MapPin className="h-4 w-4" />
-                <span>{offering.localizacao}</span>
-              </div>
+              {offering.localizacao && (
+                <div className="flex items-center gap-2 text-white/60">
+                  <MapPin className="h-4 w-4" />
+                  <span>{offering.localizacao}</span>
+                </div>
+              )}
             </div>
 
             {/* Price */}
@@ -531,7 +550,7 @@ export default function EmbarcacaoDetailPage() {
             </div>
 
             {/* Specs */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className={`grid ${offering.duracaoMinima ? 'grid-cols-3' : 'grid-cols-2'} gap-4 mb-6`}>
               <div className="min-w-0 bg-white/5 rounded-xl p-4 text-center">
                 <Users className="h-5 w-5 text-gold mx-auto mb-2" />
                 <p className="text-white font-medium">{offering.capacidade}</p>
@@ -542,13 +561,13 @@ export default function EmbarcacaoDetailPage() {
                 <p className="text-white font-medium">{offering.potencia}</p>
                 <p className="text-white/50 text-xs">Potência</p>
               </div>
-              <div className="min-w-0 bg-white/5 rounded-xl p-4 text-center">
-                <Clock className="h-5 w-5 text-gold mx-auto mb-2" />
-                <p className="text-white font-medium">
-                  {offering.tipo === 'JETSKI' ? '30min+' : '4h+'}
-                </p>
-                <p className="text-white/50 text-xs">Mínimo</p>
-              </div>
+              {offering.duracaoMinima && (
+                <div className="min-w-0 bg-white/5 rounded-xl p-4 text-center">
+                  <Clock className="h-5 w-5 text-gold mx-auto mb-2" />
+                  <p className="text-white font-medium">{offering.duracaoMinima}</p>
+                  <p className="text-white/50 text-xs">Mínimo</p>
+                </div>
+              )}
             </div>
 
             {/* Description */}
@@ -585,15 +604,17 @@ export default function EmbarcacaoDetailPage() {
                   Reservar Agora
                 </a>
               )}
-              <a
-                href={`https://wa.me/${offering.empresaWhatsapp}?text=Olá! Tenho interesse no ${offering.modelo}. Gostaria de mais informações.`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 inline-flex items-center justify-center gap-2 px-8 py-4 bg-green-600 text-white font-medium hover:bg-green-700 transition-all duration-300"
-              >
-                <MessageCircle className="h-5 w-5" />
-                WhatsApp
-              </a>
+              {offering.empresaWhatsapp && (
+                <a
+                  href={`https://wa.me/${offering.empresaWhatsapp}?text=${encodeURIComponent(`Olá! Tenho interesse no ${offering.modelo}. Gostaria de mais informações.`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-8 py-4 bg-green-600 text-white font-medium hover:bg-green-700 transition-all duration-300"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  WhatsApp
+                </a>
+              )}
             </div>
           </div>
         </div>

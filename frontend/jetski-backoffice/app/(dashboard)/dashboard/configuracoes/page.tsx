@@ -78,6 +78,8 @@ function ConfiguracoesConteudo() {
   // Dados gerais / e-mail da empresa
   const [razaoSocial, setRazaoSocial] = useState('')
   const [cidade, setCidade] = useState('')
+  const [uf, setUf] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
   const [marinhaEmail, setMarinhaEmail] = useState('')
   const [emailRemetente, setEmailRemetente] = useState('')
   const [responsavelNome, setResponsavelNome] = useState('')
@@ -103,6 +105,8 @@ function ConfiguracoesConteudo() {
     if (geral) {
       setRazaoSocial(geral.razaoSocial ?? '')
       setCidade(geral.cidade ?? '')
+      setUf(geral.uf ?? '')
+      setWhatsapp(mascaraTelefoneBR(geral.whatsapp ?? ''))
       setMarinhaEmail(geral.marinhaEmail ?? '')
       setEmailRemetente(geral.emailRemetente ?? '')
       setResponsavelNome(geral.responsavelNome ?? '')
@@ -134,6 +138,8 @@ function ConfiguracoesConteudo() {
     updateGeral.mutate({
       razaoSocial,
       cidade,
+      uf,
+      whatsapp,
       marinhaEmail,
       emailRemetente,
       responsavelNome,
@@ -491,6 +497,32 @@ function ConfiguracoesConteudo() {
                 <div className="space-y-2">
                   <Label htmlFor="cidade">Cidade</Label>
                   <Input id="cidade" value={cidade} onChange={(e) => setCidade(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="uf">UF</Label>
+                  <Input
+                    id="uf"
+                    value={uf}
+                    maxLength={2}
+                    placeholder="SP"
+                    onChange={(e) => setUf(e.target.value.replace(/[^a-zA-Z]/g, '').toUpperCase())}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Cidade e UF aparecem como localização no marketplace e nos filtros de busca.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="whatsapp">WhatsApp da empresa</Label>
+                  <Input
+                    id="whatsapp"
+                    type="tel"
+                    placeholder="(11) 99999-9999"
+                    value={whatsapp}
+                    onChange={(e) => setWhatsapp(mascaraTelefoneBR(e.target.value))}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Botão de WhatsApp no marketplace e na vitrine. Sem número, o botão não aparece.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="marinhaEmail">E-mail da Marinha (Capitania)</Label>

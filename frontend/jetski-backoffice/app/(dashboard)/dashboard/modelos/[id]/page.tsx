@@ -609,6 +609,7 @@ function EditModeloDialog({
     caucao: modelo.caucao || 300,
     exibirNoMarketplace: modelo.exibirNoMarketplace ?? true,
     descricao: modelo.descricao || '',
+    duracaoMinimaMin: modelo.duracaoMinimaMin ?? 0,
   })
 
   useEffect(() => {
@@ -624,6 +625,7 @@ function EditModeloDialog({
       caucao: modelo.caucao || 300,
       exibirNoMarketplace: modelo.exibirNoMarketplace ?? true,
       descricao: modelo.descricao || '',
+      duracaoMinimaMin: modelo.duracaoMinimaMin ?? 0,
     })
   }, [modelo])
 
@@ -761,6 +763,22 @@ function EditModeloDialog({
                 checked={formData.incluiCombustivel || false}
                 onCheckedChange={(checked) => setFormData({ ...formData, incluiCombustivel: checked })}
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="duracaoMinimaMin">Locação mínima (min)</Label>
+              <Input
+                id="duracaoMinimaMin"
+                type="number"
+                min={0}
+                step={15}
+                value={formData.duracaoMinimaMin || ''}
+                onChange={(e) => setFormData({ ...formData, duracaoMinimaMin: Number(e.target.value) || 0 })}
+                placeholder="Ex: 30"
+              />
+              <p className="text-xs text-muted-foreground">
+                Aparece como &quot;Mínimo&quot; no marketplace e limita a duração da reserva no portal. Vazio = sem mínimo.
+              </p>
             </div>
 
             <div className="grid gap-2">
@@ -1106,6 +1124,10 @@ export default function ModeloDetailsPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Gating por plano (V046): aviso quando os canais públicos não estão no plano */}
+              <p className="text-sm text-muted-foreground">
+                Localização (cidade/UF) e WhatsApp da página pública vêm de Configurações › Dados da
+                empresa. Sem eles, a página esconde a localização e o botão de WhatsApp.
+              </p>
               {currentTenant?.modulos && !currentTenant.modulos.includes('MARKETPLACE') && (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
                   Seu plano não inclui o módulo <strong>Marketplace</strong> — mesmo com a exibição

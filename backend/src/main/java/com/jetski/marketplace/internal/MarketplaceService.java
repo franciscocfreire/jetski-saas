@@ -85,7 +85,8 @@ public class MarketplaceService {
                 t.branding->>'vitrine_praia',
                 m.potencia_hp,
                 m.inclui_combustivel,
-                m.descricao
+                m.descricao,
+                m.duracao_minima_min
             FROM modelo m
             INNER JOIN tenant t ON m.tenant_id = t.id
             LEFT JOIN LATERAL (
@@ -158,7 +159,8 @@ public class MarketplaceService {
                 t.branding->>'vitrine_praia',
                 m.potencia_hp,
                 m.inclui_combustivel,
-                m.descricao
+                m.descricao,
+                m.duracao_minima_min
             FROM modelo m
             INNER JOIN tenant t ON m.tenant_id = t.id
             LEFT JOIN LATERAL (
@@ -216,7 +218,8 @@ public class MarketplaceService {
                 t.branding->>'vitrine_praia',
                 m.potencia_hp,
                 m.inclui_combustivel,
-                m.descricao
+                m.descricao,
+                m.duracao_minima_min
             FROM modelo m
             INNER JOIN tenant t ON m.tenant_id = t.id
             LEFT JOIN LATERAL (
@@ -355,6 +358,7 @@ public class MarketplaceService {
         Integer potenciaHp = row[17] != null ? ((Number) row[17]).intValue() : null;
         boolean incluiCombustivel = Boolean.TRUE.equals(row[18]);
         String descricao = (String) row[19];
+        Integer duracaoMinimaMin = row[20] != null ? ((Number) row[20]).intValue() : null;
 
         BigDecimal precoPacote30min = extractPacote30min(pacotesJson);
 
@@ -379,6 +383,7 @@ public class MarketplaceService {
             potenciaHp,
             incluiCombustivel,
             descricao,
+            duracaoMinimaMin,
             moduloHabilitado(tenantId, ModuloPlano.RESERVA_ONLINE)
         );
     }

@@ -59,6 +59,7 @@ function ModeloFormDialog({
     incluiCombustivel: modelo?.incluiCombustivel || false,
     caucao: modelo?.caucao || 300,
     descricao: modelo?.descricao || '',
+    duracaoMinimaMin: modelo?.duracaoMinimaMin ?? 0,
   })
 
   const createMutation = useMutation({
@@ -200,6 +201,19 @@ function ModeloFormDialog({
                   step={50}
                 />
               </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="duracaoMinimaMin">Locação mínima (min)</Label>
+              <Input
+                id="duracaoMinimaMin"
+                type="number"
+                min={0}
+                step={15}
+                value={formData.duracaoMinimaMin || ''}
+                onChange={(e) => setFormData({ ...formData, duracaoMinimaMin: Number(e.target.value) || 0 })}
+                placeholder="Ex: 30 (vazio = sem mínimo)"
+              />
             </div>
 
             <div className="grid gap-2">

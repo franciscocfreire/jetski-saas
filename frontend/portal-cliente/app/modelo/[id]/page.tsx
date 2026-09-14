@@ -18,6 +18,8 @@ import {
   getDisponibilidade,
   getBrandingLoja,
   fotoPrincipal,
+  horasMinimas,
+  formatDuracaoMin,
   type MarketplaceModelo,
   type Disponibilidade,
   type BrandingLoja,
@@ -49,6 +51,7 @@ export default function ModeloPage() {
     getModeloPublico(id)
       .then((modelo) => {
         setM(modelo);
+        setHoras((h) => Math.max(h, horasMinimas(modelo)));
         getBrandingLoja(modelo.lojaSlug).then(setBranding);
       })
       .catch(() => setM(null))
@@ -97,7 +100,7 @@ export default function ModeloPage() {
 
         <div className="mt-5">
           <div className="flex items-center gap-1 text-sm text-slate-400">
-            <MapPin size={14} /> {m.localizacao} · {m.empresaNome}
+            <MapPin size={14} /> {m.localizacao ? `${m.localizacao} · ` : ""}{m.empresaNome}
           </div>
           <h1 className="mt-1 flex items-center gap-3 text-2xl font-bold text-ink-900">
             {branding?.logoDataUrl && (
@@ -189,12 +192,21 @@ export default function ModeloPage() {
                 value={horas}
                 onChange={(e) => setHoras(Number(e.target.value))}
               >
-                <option value={1}>1 hora</option>
-                <option value={2}>2 horas</option>
-                <option value={3}>3 horas</option>
-                <option value={4}>4 horas</option>
+                {[0, 1, 2, 3].map((i) => {
+                  const h = horasMinimas(m) + i;
+                  return (
+                    <option key={h} value={h}>
+                      {h} {h === 1 ? "hora" : "horas"}
+                    </option>
+                  );
+                })}
               </select>
             </Field>
+            {m.duracaoMinimaMin && (
+              <p className="text-xs text-slate-400">
+                Locação mínima: {formatDuracaoMin(m.duracaoMinimaMin)}
+              </p>
+            )}
 
             <Button variant="outline" className="w-full" onClick={verificar} disabled={checando}>
               {checando && <Loader2 size={14} className="animate-spin" />}

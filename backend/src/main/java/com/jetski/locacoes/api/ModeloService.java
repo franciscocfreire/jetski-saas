@@ -184,6 +184,10 @@ public class ModeloService {
         if (updates.getDescricao() != null) {
             existing.setDescricao(updates.getDescricao().isBlank() ? null : updates.getDescricao().trim());
         }
+        // 0 remove o mínimo (null = campo não enviado)
+        if (updates.getDuracaoMinimaMin() != null) {
+            existing.setDuracaoMinimaMin(updates.getDuracaoMinimaMin() > 0 ? updates.getDuracaoMinimaMin() : null);
+        }
         if (updates.getPacotesJson() != null) {
             existing.setPacotesJson(updates.getPacotesJson());
         }

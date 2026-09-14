@@ -80,6 +80,10 @@ public class Modelo {
     @Column(columnDefinition = "text")
     private String descricao;
 
+    /** Locação mínima em minutos (V073); null = sem mínimo. */
+    @Column(name = "duracao_minima_min")
+    private Integer duracaoMinimaMin;
+
     /**
      * Pacotes de precificação por duração (JSONB)
      *

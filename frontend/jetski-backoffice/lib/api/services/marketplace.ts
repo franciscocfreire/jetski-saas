@@ -39,7 +39,8 @@ export interface MarketplaceModelo {
   fotoReferenciaUrl?: string
   empresaNome: string
   empresaWhatsapp?: string
-  localizacao: string
+  /** "Cidade, UF" formatado; ausente quando a empresa não cadastrou cidade/UF. */
+  localizacao?: string
   /** Cidade/UF crus para os filtros em cascata (localizacao é a versão formatada). */
   cidade?: string
   uf?: string
@@ -50,6 +51,8 @@ export interface MarketplaceModelo {
   incluiCombustivel: boolean
   /** Texto livre escrito pela empresa no cadastro do modelo. */
   descricao?: string
+  /** Locação mínima em minutos (ausente = sem mínimo). */
+  duracaoMinimaMin?: number
   /** Loja com o módulo Reserva online: mostra "Reservar Agora"; sem ele, só WhatsApp. */
   reservaOnline: boolean
   midias: MarketplaceMidia[]

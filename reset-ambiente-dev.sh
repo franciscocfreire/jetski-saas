@@ -941,6 +941,11 @@ UPDATE public.plano
 
 -- V073: descrição livre do modelo (marketplace/portal)
 ALTER TABLE public.modelo ADD COLUMN IF NOT EXISTS descricao text;
+ALTER TABLE public.modelo ADD COLUMN IF NOT EXISTS duracao_minima_min integer;
+ALTER TABLE public.modelo DROP CONSTRAINT IF EXISTS modelo_duracao_minima_positiva;
+ALTER TABLE public.modelo
+    ADD CONSTRAINT modelo_duracao_minima_positiva
+    CHECK (duracao_minima_min IS NULL OR duracao_minima_min > 0);
 
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;

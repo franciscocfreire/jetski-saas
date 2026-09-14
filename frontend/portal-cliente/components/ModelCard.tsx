@@ -32,7 +32,13 @@ export function ModelCard({ m }: { m: MarketplaceModelo }) {
         <div className="absolute inset-x-0 bottom-0 p-4">
           <h3 className="text-lg font-bold leading-tight text-white">{m.nome}</h3>
           <p className="flex items-center gap-1 text-xs text-white/80">
-            {m.empresaNome} · <MapPin size={11} /> {m.localizacao}
+            {m.empresaNome}
+            {m.localizacao && (
+              <>
+                {" · "}
+                <MapPin size={11} /> {m.localizacao}
+              </>
+            )}
           </p>
         </div>
       </div>
