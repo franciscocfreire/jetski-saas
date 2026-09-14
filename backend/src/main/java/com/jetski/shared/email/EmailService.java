@@ -30,6 +30,18 @@ public interface EmailService {
     void sendInvitationEmail(String to, String name, String activationLink, String temporaryPassword);
 
     /**
+     * Convite de staff para quem JÁ TEM conta no Meu Jet (identidade única).
+     *
+     * <p>Sem senha temporária: o link apenas aceita o convite (vincula o papel na
+     * empresa à conta existente) e a pessoa entra com a senha/login que já usa.
+     *
+     * @param to Recipient email address
+     * @param name User's full name
+     * @param acceptLink Link de aceite (magic link do convite)
+     */
+    void sendExistingAccountInvitationEmail(String to, String name, String acceptLink);
+
+    /**
      * Convite de ativação da conta do CLIENTE (pré-conta criada no balcão — claim-token).
      *
      * <p>Mesma mecânica do convite de staff (link + senha temporária), mas com

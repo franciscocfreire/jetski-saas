@@ -146,6 +146,22 @@ public class DevEmailService implements EmailService {
     }
 
     @Override
+    public void sendExistingAccountInvitationEmail(String to, String name, String acceptLink) {
+        String subject = EmailTemplates.EXISTING_ACCOUNT_INVITATION_SUBJECT;
+
+        // E2E: o magic token do link continua extraível (sem senha temporária no corpo)
+        lastEmail = new LastEmailData(to, name, subject, acceptLink, null);
+        log.info("📧 Last email data stored for E2E testing (conta existente): to={}", to);
+
+        String body = String.format(
+            "Olá %s,%n%nVocê foi convidado para uma empresa no Meu Jet. Como já tem conta, "
+                + "basta aceitar o convite e entrar com a senha que já usa.%n%nAceitar convite: %s%n",
+            name, acceptLink);
+        logAndSaveEmail(to, subject, body);
+        maybeSendViaSmtp(to, subject, EmailTemplates.existingAccountInvitationHtml(name, acceptLink));
+    }
+
+    @Override
     public void sendClienteInvitationEmail(String to, String name, String activationLink, String temporaryPassword) {
         String subject = EmailTemplates.CLIENTE_INVITATION_SUBJECT;
 

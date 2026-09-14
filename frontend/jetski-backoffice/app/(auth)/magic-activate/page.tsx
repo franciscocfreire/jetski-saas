@@ -16,6 +16,7 @@ function MagicActivateContent() {
   const searchParams = useSearchParams()
   const [status, setStatus] = useState<ActivationStatus>('loading')
   const [errorMessage, setErrorMessage] = useState<string>('')
+  const [contaExistente, setContaExistente] = useState(false)
 
   useEffect(() => {
     const token = searchParams.get('token')
@@ -49,6 +50,8 @@ function MagicActivateContent() {
         }
 
         if (response.ok) {
+          const data = await response.json().catch(() => ({}))
+          setContaExistente(Boolean(data?.contaExistente))
           setStatus('success')
         } else {
           const data = await response.json()
@@ -100,15 +103,18 @@ function MagicActivateContent() {
               <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
             <h1 className="mt-6 text-2xl font-bold tracking-tight">
-              Conta Ativada!
+              {contaExistente ? 'Convite Aceito!' : 'Conta Ativada!'}
             </h1>
             <p className="mt-4 text-sm text-muted-foreground">
-              Sua conta foi ativada com sucesso. Você já pode fazer login e começar a usar o sistema.
+              {contaExistente
+                ? 'A nova empresa foi vinculada à sua conta. Você já pode fazer login.'
+                : 'Sua conta foi ativada com sucesso. Você já pode fazer login e começar a usar o sistema.'}
             </p>
             <Alert className="mt-4 bg-blue-50 dark:bg-blue-950 border-blue-200">
               <AlertDescription>
-                Use o email e a senha temporária que você recebeu por email para fazer o primeiro login.
-                Você será solicitado a alterar sua senha.
+                {contaExistente
+                  ? 'Entre com o mesmo e-mail e a senha que você já usa. Depois, escolha a empresa no seletor de empresas.'
+                  : 'Use o email e a senha temporária que você recebeu por email para fazer o primeiro login. Você será solicitado a alterar sua senha.'}
               </AlertDescription>
             </Alert>
             <div className="mt-8">

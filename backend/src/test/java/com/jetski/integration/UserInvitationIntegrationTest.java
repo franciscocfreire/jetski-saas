@@ -250,6 +250,60 @@ class UserInvitationIntegrationTest extends AbstractIntegrationTest {
     // ========================================================================
 
     @Test
+    @DisplayName("Convite para quem já tem conta: e-mail de aceite e ativação vincula o papel sem Keycloak")
+    void shouldInviteAndActivateExistingAccount() throws Exception {
+        String email = "conta.existente." + UUID.randomUUID() + "@example.com";
+        UUID usuarioId = UUID.randomUUID();
+        jdbcTemplate.update(
+            "INSERT INTO usuario (id, email, nome, ativo, email_verified, created_at, updated_at) "
+                + "VALUES (?, ?, ?, true, true, NOW(), NOW())",
+            usuarioId, email, "Conta Existente");
+        doNothing().when(emailService).sendExistingAccountInvitationEmail(anyString(), anyString(), anyString());
+
+        InviteUserRequest request = InviteUserRequest.builder()
+                .email(email)
+                .nome("Conta Existente")
+                .papeis(new String[]{"ADMIN_TENANT"})
+                .build();
+
+        mockMvc.perform(post("/v1/tenants/{tenantId}/users/invite", TEST_TENANT_ID)
+                        .header("X-Tenant-Id", TEST_TENANT_ID.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(jwt()
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN_TENANT"))
+                                .jwt(jwt -> jwt
+                                        .claim("tenant_id", TEST_TENANT_ID.toString())
+                                        .claim("roles", List.of("ADMIN_TENANT"))
+                                        .subject(ADMIN_USER_ID.toString()))))
+                .andExpect(status().isOk());
+
+        // Conta existente recebe o convite de aceite (sem senha temporária)
+        org.mockito.ArgumentCaptor<String> link = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(emailService).sendExistingAccountInvitationEmail(eq(email), eq("Conta Existente"), link.capture());
+        verify(emailService, never()).sendInvitationEmail(eq(email), anyString(), anyString(), anyString());
+        String magicToken = link.getValue().substring(link.getValue().indexOf("token=") + "token=".length());
+
+        // Ativação: antes dava 409 "Usuário com este email já existe"
+        mockMvc.perform(post("/v1/auth/magic-activate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of("magicToken", magicToken))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usuarioId").value(usuarioId.toString()))
+                .andExpect(jsonPath("$.contaExistente").value(true));
+
+        assertThat(membroRepository.findByTenantIdAndUsuarioId(TEST_TENANT_ID, usuarioId))
+                .hasValueSatisfying(m -> {
+                    assertThat(m.getAtivo()).isTrue();
+                    assertThat(m.getPapeis()).containsExactly("ADMIN_TENANT");
+                });
+        assertThat(conviteRepository.findByTenantIdAndEmail(TEST_TENANT_ID, email).get().getStatus())
+                .isEqualTo(Convite.ConviteStatus.ACTIVATED);
+        verify(userProvisioningService, never())
+                .provisionUserWithPassword(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void shouldInviteNewUserSuccessfully() throws Exception {
         // Given
         InviteUserRequest request = InviteUserRequest.builder()
