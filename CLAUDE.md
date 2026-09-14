@@ -17,7 +17,7 @@ In **production** (Oracle Cloud ARM, docker compose + Cloudflare Tunnel): site p
 - **Infra**: `docker-compose.yml` (+ `.prod.yml`/`.ci.yml`), `infra/` (nginx, keycloak realm, OPA policies em `policies/`, observability, `infra/prod/backup.sh` — backup diário com off-site), scripts na raiz (`rebuild.sh`, `reset-ambiente-dev.sh`, `deploy.sh`).
 - **Mobile** (KMM): apenas docs (`mobile/*.md`); código em working dir separado (`/mnt/c/repos/jetski-mobile`).
 
-Referências: `IMPLEMENTATION_STATUS.md` (status por feature), `PORTAL_CLIENTE_SPEC.md`, `DEPLOY.md`, `BRAND.md`, `inicial.md` (spec original, histórica — inclui cenários BDD e schema SQL), `docs/normativos/` (NORMAM-212/DPC versionada + excerto do item 5.4.2 que o e-mail à Capitania implementa).
+Referências: `IMPLEMENTATION_STATUS.md` (status por feature), `PORTAL_CLIENTE_SPEC.md`, `DEPLOY.md`, `BRAND.md`, `inicial.md` (spec original, histórica — inclui cenários BDD e schema SQL), `AGENTE_IDENTIDADE_SPEC.md` (agentes de IA: titular+ator+delegação, step-up delegado — aprovada, não implementada), `IA_LOCAL_GPU_SPEC.md` (máquina RTX 5080 que serve a IA local do piloto — a executar), `docs/normativos/` (NORMAM-212/DPC versionada + excerto do item 5.4.2 que o e-mail à Capitania implementa).
 
 **Conhecimento especializado** vive em `.claude/agents/` (`backend-dev`, `frontend-dev`, `devops`) e `.claude/skills/` (`/nova-migration`, `/rebuild-dev`, `/rodar-testes`, `/deploy-prod`) — consulte-os antes de mexer nas respectivas áreas; eles carregam os gotchas do projeto.
 
