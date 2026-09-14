@@ -120,6 +120,15 @@ export default function ModeloPage() {
             <Spec icon={<MapPin size={16} />} label="Loja" value={m.empresaNome} />
           </div>
 
+          {m.descricao?.trim() && (
+            <Card className="mt-6 p-5">
+              <h3 className="font-semibold text-ink-900">Sobre</h3>
+              <p className="mt-2 whitespace-pre-line break-words text-sm text-slate-600">
+                {m.descricao}
+              </p>
+            </Card>
+          )}
+
           <Card className="mt-6 p-5">
             <h3 className="font-semibold text-ink-900">O que você precisa saber</h3>
             <ul className="mt-3 space-y-2 text-sm text-slate-600">

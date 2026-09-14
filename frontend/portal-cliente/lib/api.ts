@@ -255,6 +255,10 @@ export interface MarketplaceModelo {
   prioridade: number;
   notaMedia?: number;
   totalAvaliacoes?: number;
+  potenciaHp?: number;
+  incluiCombustivel: boolean;
+  /** Texto livre escrito pela empresa no cadastro do modelo. */
+  descricao?: string;
   /** Loja com o módulo Reserva online; sem ele, o contato é só pelo WhatsApp. */
   reservaOnline: boolean;
   midias: MarketplaceMidia[];

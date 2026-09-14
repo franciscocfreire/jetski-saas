@@ -46,6 +46,10 @@ export interface MarketplaceModelo {
   /** Praia/ponto de encontro da loja — usada na busca por praia. */
   praia?: string
   prioridade: number
+  potenciaHp?: number
+  incluiCombustivel: boolean
+  /** Texto livre escrito pela empresa no cadastro do modelo. */
+  descricao?: string
   /** Loja com o módulo Reserva online: mostra "Reservar Agora"; sem ele, só WhatsApp. */
   reservaOnline: boolean
   midias: MarketplaceMidia[]

@@ -34,6 +34,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -607,6 +608,7 @@ function EditModeloDialog({
     incluiCombustivel: modelo.incluiCombustivel || false,
     caucao: modelo.caucao || 300,
     exibirNoMarketplace: modelo.exibirNoMarketplace ?? true,
+    descricao: modelo.descricao || '',
   })
 
   useEffect(() => {
@@ -621,6 +623,7 @@ function EditModeloDialog({
       incluiCombustivel: modelo.incluiCombustivel || false,
       caucao: modelo.caucao || 300,
       exibirNoMarketplace: modelo.exibirNoMarketplace ?? true,
+      descricao: modelo.descricao || '',
     })
   }, [modelo])
 
@@ -758,6 +761,21 @@ function EditModeloDialog({
                 checked={formData.incluiCombustivel || false}
                 onCheckedChange={(checked) => setFormData({ ...formData, incluiCombustivel: checked })}
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="descricao">Descrição no marketplace</Label>
+              <Textarea
+                id="descricao"
+                value={formData.descricao || ''}
+                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                placeholder="Conte o que o cliente precisa saber: diferenciais do jet, o que está incluso, ponto de saída..."
+                maxLength={2000}
+                rows={4}
+              />
+              <p className="text-xs text-muted-foreground">
+                Aparece em &quot;Sobre&quot; na página pública do modelo. Em branco, usamos um texto padrão.
+              </p>
             </div>
           </div>
 

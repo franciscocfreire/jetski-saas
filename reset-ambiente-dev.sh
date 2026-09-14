@@ -939,6 +939,9 @@ UPDATE public.plano
  WHERE modulos @> '["LOJA_ONLINE"]'::jsonb
    AND NOT modulos @> '["RESERVA_ONLINE"]'::jsonb;
 
+-- V073: descrição livre do modelo (marketplace/portal)
+ALTER TABLE public.modelo ADD COLUMN IF NOT EXISTS descricao text;
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 

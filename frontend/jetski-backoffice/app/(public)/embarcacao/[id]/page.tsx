@@ -49,10 +49,16 @@ function mapApiModeloToDetail(modelo: MarketplaceModelo): OfferingDetail {
     midias: modelo.midias,
     localizacao: modelo.localizacao,
     capacidade: modelo.capacidadePessoas || 2,
-    potencia: `${modelo.capacidadePessoas || 2 > 2 ? '170' : '130'} HP`, // Estimativa
+    potencia: modelo.potenciaHp ? `${modelo.potenciaHp} HP` : '—',
     combustivel: 'Gasolina',
-    descricao: `${modelo.nome} disponível para aluguel em ${modelo.localizacao}. Entre em contato com ${modelo.empresaNome} para mais informações.`,
-    inclusos: ['Colete salva-vidas', 'Orientação de uso', 'Combustível inicial'],
+    descricao:
+      modelo.descricao?.trim() ||
+      `${modelo.nome} disponível para aluguel em ${modelo.localizacao}. Entre em contato com ${modelo.empresaNome} para mais informações.`,
+    inclusos: [
+      'Colete salva-vidas',
+      'Orientação de uso',
+      ...(modelo.incluiCombustivel ? ['Combustível incluso'] : []),
+    ],
     horarios: ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'],
     reservaOnline: modelo.reservaOnline,
   }
@@ -548,7 +554,7 @@ export default function EmbarcacaoDetailPage() {
             {/* Description */}
             <div className="mb-6">
               <h3 className="text-white font-medium mb-3">Sobre</h3>
-              <p className="text-white/60 leading-relaxed">{offering.descricao}</p>
+              <p className="text-white/60 leading-relaxed whitespace-pre-line break-words">{offering.descricao}</p>
             </div>
 
             {/* Included */}

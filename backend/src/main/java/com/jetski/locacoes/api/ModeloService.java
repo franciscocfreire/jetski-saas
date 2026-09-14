@@ -180,6 +180,10 @@ public class ModeloService {
         if (updates.getFotoReferenciaUrl() != null) {
             existing.setFotoReferenciaUrl(updates.getFotoReferenciaUrl());
         }
+        // String vazia limpa a descrição (null = campo não enviado)
+        if (updates.getDescricao() != null) {
+            existing.setDescricao(updates.getDescricao().isBlank() ? null : updates.getDescricao().trim());
+        }
         if (updates.getPacotesJson() != null) {
             existing.setPacotesJson(updates.getPacotesJson());
         }

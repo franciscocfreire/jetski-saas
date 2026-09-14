@@ -32,6 +32,10 @@ public record MarketplaceModeloDTO(
     Integer prioridade,
     BigDecimal notaMedia,
     Integer totalAvaliacoes,
+    Integer potenciaHp,
+    boolean incluiCombustivel,
+    /** Texto livre escrito pela empresa no cadastro do modelo (pode ser nulo). */
+    String descricao,
     /** Loja com o módulo RESERVA_ONLINE: mostra "Reservar Agora"; sem ele, só WhatsApp. */
     boolean reservaOnline,
     List<MarketplaceMidiaDTO> midias
@@ -57,6 +61,9 @@ public record MarketplaceModeloDTO(
             Integer prioridade,
             BigDecimal notaMedia,
             Integer totalAvaliacoes,
+            Integer potenciaHp,
+            boolean incluiCombustivel,
+            String descricao,
             boolean reservaOnline
     ) {
         return new MarketplaceModeloDTO(
@@ -78,6 +85,9 @@ public record MarketplaceModeloDTO(
             prioridade,
             notaMedia,
             totalAvaliacoes,
+            potenciaHp,
+            incluiCombustivel,
+            descricao,
             reservaOnline,
             List.of()
         );
@@ -106,6 +116,9 @@ public record MarketplaceModeloDTO(
             this.prioridade,
             this.notaMedia,
             this.totalAvaliacoes,
+            this.potenciaHp,
+            this.incluiCombustivel,
+            this.descricao,
             this.reservaOnline,
             midias != null ? midias : List.of()
         );

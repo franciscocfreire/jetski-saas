@@ -20,6 +20,7 @@ export interface Modelo extends BaseEntity {
   incluiCombustivel?: boolean
   caucao?: number
   fotoReferenciaUrl?: string
+  descricao?: string
   pacotesJson?: string
   ativo: boolean
   exibirNoMarketplace?: boolean

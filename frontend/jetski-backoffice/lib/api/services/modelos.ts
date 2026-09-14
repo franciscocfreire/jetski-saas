@@ -14,6 +14,7 @@ export interface ModeloCreateRequest {
   incluiCombustivel?: boolean
   caucao?: number
   fotoReferenciaUrl?: string
+  descricao?: string
   exibirNoMarketplace?: boolean
 }
 

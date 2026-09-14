@@ -34,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 
 function ModeloFormDialog({
@@ -57,6 +58,7 @@ function ModeloFormDialog({
     taxaHoraExtra: modelo?.taxaHoraExtra || 50,
     incluiCombustivel: modelo?.incluiCombustivel || false,
     caucao: modelo?.caucao || 300,
+    descricao: modelo?.descricao || '',
   })
 
   const createMutation = useMutation({
@@ -198,6 +200,18 @@ function ModeloFormDialog({
                   step={50}
                 />
               </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="descricao">Descrição no marketplace</Label>
+              <Textarea
+                id="descricao"
+                value={formData.descricao || ''}
+                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                placeholder="Diferenciais do jet, o que está incluso, ponto de saída..."
+                maxLength={2000}
+                rows={3}
+              />
             </div>
           </div>
 
