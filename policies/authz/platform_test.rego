@@ -195,6 +195,41 @@ test_financeiro_nao_gere_operadores if {
 	not platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:operadores", "PUT")
 }
 
+# Cadastro e usuários da empresa pelo console: admin e suporte editam; os demais só veem.
+test_suporte_edita_cadastro_e_usuarios_da_empresa if {
+	platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:cadastro", "PUT")
+	platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:membros:desativar", "POST")
+	platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:membros:reativar", "POST")
+	platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:membros:remover", "POST")
+	platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:membros:convites", "POST")
+	platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:membros:convites:cancelar", "POST")
+}
+
+test_admin_edita_cadastro_e_usuarios_da_empresa if {
+	platform.allow with input as operador("PLATFORM_ADMIN", "platform:tenants:cadastro", "PUT")
+	platform.allow with input as operador("PLATFORM_ADMIN", "platform:tenants:membros:remover", "POST")
+}
+
+test_financeiro_ve_mas_nao_edita_cadastro_nem_usuarios if {
+	platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:tenants:cadastro", "GET")
+	not platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:tenants:cadastro", "PUT")
+	not platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:tenants:membros:remover", "POST")
+	not platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:tenants:membros:convites", "POST")
+}
+
+test_leitura_ve_mas_nao_edita_cadastro_nem_usuarios if {
+	platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:cadastro", "GET")
+	platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:membros:convites", "GET")
+	not platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:cadastro", "PUT")
+	not platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:membros:desativar", "POST")
+	not platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:membros:convites", "POST")
+}
+
+test_admin_tenant_nao_gere_usuarios_pela_plataforma if {
+	not platform.allow with input as empresa("platform:tenants:membros:remover", "POST")
+	not platform.allow with input as empresa("platform:tenants:cadastro", "PUT")
+}
+
 # -------------------------------------------------------------------- LEITURA
 
 test_leitura_le_empresas if {

@@ -129,6 +129,8 @@ public class MemberManagementService {
      * @return Deactivation response
      */
     @Transactional
+    // Sem isto quem foi desativado continuava entrando enquanto o cache de acesso estivesse quente
+    @org.springframework.cache.annotation.CacheEvict(value = "tenant-access", allEntries = true)
     public DeactivateMemberResponse deactivateMember(UUID tenantId, UUID usuarioId) {
         log.info("Deactivating member: usuario={}, tenant={}", usuarioId, tenantId);
 
@@ -199,6 +201,7 @@ public class MemberManagementService {
      * @return Updated member summary
      */
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "tenant-access", allEntries = true)
     public MemberSummaryDTO updateRoles(UUID tenantId, UUID usuarioId, List<String> papeis) {
         log.info("Updating roles for member: usuario={}, tenant={}, newRoles={}", usuarioId, tenantId, papeis);
 
@@ -279,6 +282,7 @@ public class MemberManagementService {
      * @return Reactivated member summary
      */
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "tenant-access", allEntries = true)
     public MemberSummaryDTO reactivateMember(UUID tenantId, UUID usuarioId) {
         log.info("Reactivating member: usuario={}, tenant={}", usuarioId, tenantId);
 

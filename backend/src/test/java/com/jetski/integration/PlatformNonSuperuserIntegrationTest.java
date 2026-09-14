@@ -58,6 +58,8 @@ class PlatformNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
     @Autowired private PlatformFaturaService faturaService;
     @Autowired private PlatformTenantService platformTenantService;
     @Autowired private TenantSignupService tenantSignupService;
+    @Autowired private com.jetski.usuarios.internal.PlatformMembroService platformMembroService;
+    @Autowired private com.jetski.tenant.internal.PlatformCadastroService platformCadastroService;
     @Autowired private JdbcTemplate jdbc; // conecta como app_test
 
     // ------------------------------------------------------------------
@@ -135,6 +137,82 @@ class PlatformNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
             "SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user",
             Boolean.class);
         assertThat(rolsuper).isFalse();
+    }
+
+    // ---------------------------------------------- console: usuários e cadastro
+
+    private static final UUID MEMBRO_ADMIN = UUID.fromString("a4000000-0000-0000-0000-00000000be01");
+    private static final UUID MEMBRO_OPERADOR = UUID.fromString("a4000000-0000-0000-0000-00000000be02");
+
+    private void seedMembros(boolean operadorAtivo) throws SQLException {
+        try (Connection c = superConnection(); Statement st = c.createStatement()) {
+            st.execute("INSERT INTO usuario (id, email, nome, ativo) VALUES ('" + MEMBRO_ADMIN
+                + "', 'nonsuper.admin@test.local', 'Admin NonSuper', true) ON CONFLICT DO NOTHING");
+            st.execute("INSERT INTO usuario (id, email, nome, ativo) VALUES ('" + MEMBRO_OPERADOR
+                + "', 'nonsuper.operador@test.local', 'Operador NonSuper', true) ON CONFLICT DO NOTHING");
+            st.execute("INSERT INTO membro (tenant_id, usuario_id, papeis, ativo) VALUES ('" + TENANT + "', '"
+                + MEMBRO_ADMIN + "', ARRAY['ADMIN_TENANT'], true)");
+            st.execute("INSERT INTO membro (tenant_id, usuario_id, papeis, ativo) VALUES ('" + TENANT + "', '"
+                + MEMBRO_OPERADOR + "', ARRAY['OPERADOR'], " + operadorAtivo + ")");
+        }
+    }
+
+    @Test
+    @DisplayName("console: reativar membro lê o limite do plano sob RLS e a trilha pousa")
+    void reativarMembroSemTenantNaSessao() throws Exception {
+        seedMembros(false);
+
+        // Sem fixar a empresa, o PlanoLimiteService lia assinatura com ''::uuid → 500.
+        platformMembroService.reativar(TENANT, MEMBRO_OPERADOR, "pedido da empresa");
+
+        assertThat(countSuper("SELECT count(*) FROM membro WHERE tenant_id = '" + TENANT
+            + "' AND usuario_id = '" + MEMBRO_OPERADOR + "' AND ativo")).isEqualTo(1);
+        assertThat(aguardarAuditoria("TENANT_MEMBRO_REATIVADO", 10)).isPositive();
+    }
+
+    @Test
+    @DisplayName("console: remover membro sob RLS apaga só o vínculo e audita")
+    void removerMembroSemTenantNaSessao() throws Exception {
+        seedMembros(true);
+
+        platformMembroService.remover(TENANT, MEMBRO_OPERADOR, "saiu da empresa");
+
+        assertThat(countSuper("SELECT count(*) FROM membro WHERE tenant_id = '" + TENANT
+            + "' AND usuario_id = '" + MEMBRO_OPERADOR + "'")).isZero();
+        assertThat(countSuper("SELECT count(*) FROM usuario WHERE id = '" + MEMBRO_OPERADOR + "'")).isEqualTo(1);
+        assertThat(aguardarAuditoria("TENANT_MEMBRO_REMOVIDO", 10)).isPositive();
+    }
+
+    @Test
+    @DisplayName("console: convidar sob RLS grava o convite e as duas trilhas pousam")
+    void convidarSemTenantNaSessao() throws Exception {
+        seedMembros(true);
+        try {
+            platformMembroService.convidar(TENANT, "nonsuper.convidado@test.local", "Convidado NonSuper",
+                java.util.List.of("GERENTE"), "novo gerente");
+
+            assertThat(countSuper("SELECT count(*) FROM convite WHERE tenant_id = '" + TENANT
+                + "' AND email = 'nonsuper.convidado@test.local' AND status = 'PENDING'")).isEqualTo(1);
+            assertThat(aguardarAuditoria("TENANT_MEMBRO_CONVIDADO", 10)).isPositive();
+            // Evento da própria regra de convite: sem fixarRlsDaLinha no listener se perdia em silêncio
+            assertThat(aguardarAuditoria("MEMBER_INVITED", 10)).isPositive();
+        } finally {
+            try (Connection c = superConnection(); Statement st = c.createStatement()) {
+                st.execute("DELETE FROM convite WHERE tenant_id = '" + TENANT + "'");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("console: alterar cadastro da empresa sob RLS audita a diferença")
+    void alterarCadastroSemTenantNaSessao() throws Exception {
+        platformCadastroService.alterar(TENANT, new com.jetski.tenant.internal.PlatformCadastroService.AlteracaoCadastro(
+            "NonSuper Teste Náutica Ltda", "11.222.333/0001-81", null, null, null, null, "Itajaí", "SC",
+            "correção cadastral"));
+
+        assertThat(countSuper("SELECT count(*) FROM tenant WHERE id = '" + TENANT
+            + "' AND cnpj = '11.222.333/0001-81' AND uf = 'SC'")).isEqualTo(1);
+        assertThat(aguardarAuditoria("TENANT_CADASTRO_ALTERADO", 10)).isPositive();
     }
 
     @Test

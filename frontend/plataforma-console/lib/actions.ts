@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { platformFetch, PlatformApiError } from "./api";
 import type {
   AberturaSuporte,
+  CadastroEmpresa,
   ImportPreview,
   ImportResult,
   RecalcResult,
@@ -104,6 +105,64 @@ export async function definirLimiteUsuarios(
         method: "PUT",
         body: JSON.stringify({ maximo, motivo }),
       }),
+    "/empresas",
+  );
+}
+
+/** Campos editáveis do cadastro; string vazia limpa o campo (exceto razão social). */
+export type CadastroEmpresaForm = Omit<CadastroEmpresa, "slug"> & { motivo: string };
+
+export async function salvarCadastroEmpresa(tenantId: string, cadastro: CadastroEmpresaForm) {
+  return executar(
+    () =>
+      platformFetch<CadastroEmpresa>(`/v1/platform/tenants/${tenantId}/cadastro`, {
+        method: "PUT",
+        body: JSON.stringify(cadastro),
+      }),
+    "/empresas",
+  );
+}
+
+// ===================== Usuários da empresa =====================
+
+const membroPath = (tenantId: string, usuarioId: string, acao: string) =>
+  `/v1/platform/tenants/${tenantId}/membros/${encodeURIComponent(usuarioId)}/${acao}`;
+
+export async function desativarMembro(tenantId: string, usuarioId: string, motivo: string) {
+  return executar(() => POST(membroPath(tenantId, usuarioId, "desativar"), { motivo }), "/empresas");
+}
+
+export async function reativarMembro(tenantId: string, usuarioId: string, motivo: string) {
+  return executar(() => POST(membroPath(tenantId, usuarioId, "reativar"), { motivo }), "/empresas");
+}
+
+/** Remove SÓ o vínculo com esta empresa — a conta da pessoa continua existindo. */
+export async function removerMembro(tenantId: string, usuarioId: string, motivo: string) {
+  return executar(() => POST(membroPath(tenantId, usuarioId, "remover"), { motivo }), "/empresas");
+}
+
+/** Serve para conta nova e para quem já tem conta: a pessoa aceita pelo e-mail. */
+export async function convidarMembro(
+  tenantId: string,
+  convite: { email: string; nome: string; papeis: string[]; motivo: string },
+) {
+  return executar(
+    () =>
+      POST(`/v1/platform/tenants/${tenantId}/membros/convites`, convite) as Promise<{
+        conviteId: string;
+        email: string;
+      }>,
+    "/empresas",
+  );
+}
+
+export async function cancelarConvite(tenantId: string, conviteId: string, motivo: string) {
+  return executar(
+    () =>
+      POST(
+        `/v1/platform/tenants/${tenantId}/membros/convites/${encodeURIComponent(conviteId)}/cancelar`,
+        { motivo },
+      ),
     "/empresas",
   );
 }

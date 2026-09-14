@@ -22,6 +22,7 @@ import {
   LancarCreditos,
   LimiteDeUsuarios,
 } from "./acoes";
+import { CadastroDaEmpresa } from "./cadastro";
 import { ZonaDePerigo } from "./perigo";
 import { EntrarNaEmpresa } from "./suporte";
 import { UsuariosDaEmpresa } from "./usuarios";
@@ -39,8 +40,19 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
 
   let dados;
   try {
-    const [tenants, planos, saldos, faturas, emissoes, exports, membros, solicitacoes, limite] =
-      await Promise.all([
+    const [
+      tenants,
+      planos,
+      saldos,
+      faturas,
+      emissoes,
+      exports,
+      membros,
+      solicitacoes,
+      limite,
+      cadastro,
+      convites,
+    ] = await Promise.all([
         platform.tenants(),
         platform.planos(),
         platform.saldos(),
@@ -51,8 +63,22 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
         platform.membros(id).catch(() => null),
         platform.solicitacoes(id).catch(() => null),
         platform.limiteUsuarios(id).catch(() => null),
+        platform.cadastro(id).catch(() => null),
+        platform.convites(id).catch(() => null),
       ]);
-    dados = { tenants, planos, saldos, faturas, emissoes, exports, membros, solicitacoes, limite };
+    dados = {
+      tenants,
+      planos,
+      saldos,
+      faturas,
+      emissoes,
+      exports,
+      membros,
+      solicitacoes,
+      limite,
+      cadastro,
+      convites,
+    };
   } catch (e) {
     const err = e as PlatformApiError;
     return (
@@ -81,6 +107,10 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
         : empresa.eamaRegistro
           ? "registro EAMA em validação"
           : "não é EAMA";
+
+  // Editar cadastro e gerir usuários: só ADMIN e SUPORTE. FINANCEIRO/LEITURA só visualizam
+  // (o backend nega de qualquer forma — esconder evita botão que sempre dá 403).
+  const podeEditar = me.papeis.some((p) => p === "PLATFORM_ADMIN" || p === "PLATFORM_SUPORTE");
 
   const saldo = dados.saldos.find((s) => s.tenantId === id);
   const faturasDaEmpresa = dados.faturas.filter((f) => f.tenantId === id);
@@ -144,6 +174,25 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
             />
             <AcoesStatus tenantId={empresa.id} status={empresa.status} />
           </div>
+        </Card>
+
+        <Card
+          titulo="Cadastro"
+          descricao={
+            podeEditar
+              ? "Dados da empresa. Toda alteração exige motivo e fica auditada."
+              : "Dados da empresa."
+          }
+        >
+          {dados.cadastro ? (
+            <CadastroDaEmpresa
+              tenantId={empresa.id}
+              cadastro={dados.cadastro}
+              podeEditar={podeEditar}
+            />
+          ) : (
+            <Erro>Não foi possível carregar o cadastro da empresa.</Erro>
+          )}
         </Card>
 
         <Card
@@ -292,7 +341,13 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
       </div>
 
       <div className="mt-6">
-        <UsuariosDaEmpresa membros={dados.membros} solicitacoes={dados.solicitacoes} />
+        <UsuariosDaEmpresa
+          tenantId={empresa.id}
+          membros={dados.membros}
+          convites={dados.convites}
+          solicitacoes={dados.solicitacoes}
+          podeEditar={podeEditar}
+        />
       </div>
 
       <div className="mt-6">
