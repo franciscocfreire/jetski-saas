@@ -255,6 +255,8 @@ export interface MarketplaceModelo {
   prioridade: number;
   notaMedia?: number;
   totalAvaliacoes?: number;
+  /** Loja com o módulo Reserva online; sem ele, o contato é só pelo WhatsApp. */
+  reservaOnline: boolean;
   midias: MarketplaceMidia[];
 }
 

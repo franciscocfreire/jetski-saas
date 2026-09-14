@@ -228,23 +228,54 @@ class ModuloPlanoIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("LOJA_ONLINE fora do plano: vitrine some, disponibilidade 404 e reserva online nega")
-    void lojaOnlineGate() throws Exception {
+    @DisplayName("LOJA_ONLINE fora do plano: vitrine some; NULL = volta")
+    void lojaOnlineGate() {
         jdbc.update("UPDATE tenant SET exibir_no_marketplace = true WHERE id = ?", TENANT);
 
         // sem LOJA_ONLINE no plano do setUp
         assertThat(marketplaceService.getPublicLoja("modulos-teste")).isEmpty();
         assertThat(marketplaceService.listPublicModelosByLoja("modulos-teste")).isEmpty();
-        mockMvc.perform(get("/v1/public/lojas/modulos-teste/disponibilidade")
-                .param("modeloId", UUID.randomUUID().toString())
-                .param("dataInicio", "2026-08-01T10:00:00")
-                .param("dataFimPrevista", "2026-08-01T11:00:00"))
-            .andExpect(status().isNotFound());
 
         // NULL = todos → vitrine volta
         jdbc.update("UPDATE plano SET modulos = NULL WHERE nome = 'Modulos Teste'");
         limparCache();
         assertThat(marketplaceService.getPublicLoja("modulos-teste")).isPresent();
+    }
+
+    @Test
+    @DisplayName("RESERVA_ONLINE separado da Loja online: sem ele o modelo aparece sem reserva e a disponibilidade 404")
+    void reservaOnlineGate() throws Exception {
+        UUID modeloId = UUID.fromString("a4000000-0000-0000-0000-0000000000f0");
+        jdbc.update("INSERT INTO modelo (id, tenant_id, nome, preco_base_hora, ativo, exibir_no_marketplace) "
+            + "VALUES (?, ?, 'Reserva Gate Teste', 100, true, true) ON CONFLICT (id) DO NOTHING",
+            modeloId, TENANT);
+        jdbc.update("UPDATE tenant SET exibir_no_marketplace = true WHERE id = ?", TENANT);
+
+        // Marketplace + Loja online, sem Reserva online: vitrine e modelo aparecem, reserva não
+        jdbc.update("UPDATE plano SET modulos = '[\"MARKETPLACE\",\"LOJA_ONLINE\"]'::jsonb "
+            + "WHERE nome = 'Modulos Teste'");
+        limparCache();
+        assertThat(marketplaceService.getPublicLoja("modulos-teste")).isPresent();
+        assertThat(marketplaceService.getPublicModelo(modeloId))
+            .hasValueSatisfying(m -> assertThat(m.reservaOnline()).isFalse());
+        mockMvc.perform(get("/v1/public/lojas/modulos-teste/disponibilidade")
+                .param("modeloId", modeloId.toString())
+                .param("dataInicio", "2026-08-01T10:00:00")
+                .param("dataFimPrevista", "2026-08-01T11:00:00"))
+            .andExpect(status().isNotFound());
+
+        // Marketplace + Reserva online, sem Loja online: vitrine some, reserva liberada
+        jdbc.update("UPDATE plano SET modulos = '[\"MARKETPLACE\",\"RESERVA_ONLINE\"]'::jsonb "
+            + "WHERE nome = 'Modulos Teste'");
+        limparCache();
+        assertThat(marketplaceService.getPublicLoja("modulos-teste")).isEmpty();
+        assertThat(marketplaceService.getPublicModelo(modeloId))
+            .hasValueSatisfying(m -> assertThat(m.reservaOnline()).isTrue());
+        mockMvc.perform(get("/v1/public/lojas/modulos-teste/disponibilidade")
+                .param("modeloId", modeloId.toString())
+                .param("dataInicio", "2026-08-01T10:00:00")
+                .param("dataFimPrevista", "2026-08-01T11:00:00"))
+            .andExpect(status().isOk());
     }
 
     @Test

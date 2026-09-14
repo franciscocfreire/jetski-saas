@@ -363,7 +363,8 @@ public class MarketplaceService {
             praia,
             prioridade,
             notaMedia,
-            totalAvaliacoes
+            totalAvaliacoes,
+            moduloHabilitado(tenantId, ModuloPlano.RESERVA_ONLINE)
         );
     }
 

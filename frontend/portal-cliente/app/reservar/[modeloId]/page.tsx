@@ -126,6 +126,20 @@ function Wizard() {
     );
   }
 
+  if (!m.reservaOnline) {
+    return (
+      <div className="mx-auto max-w-xl py-20 text-center">
+        <p className="text-slate-600">A {m.empresaNome} não recebe reservas online.</p>
+        <Link
+          href={`/modelo/${m.id}`}
+          className="mt-4 inline-block text-sm font-medium text-brand-600 hover:underline"
+        >
+          Ver como falar com a loja
+        </Link>
+      </div>
+    );
+  }
+
   const total = m.precoBaseHora * horas;
   const steps = ["Período", "Dados", "Confirmar e pagar"];
   const logged = status === "authenticated";

@@ -32,6 +32,8 @@ public record MarketplaceModeloDTO(
     Integer prioridade,
     BigDecimal notaMedia,
     Integer totalAvaliacoes,
+    /** Loja com o módulo RESERVA_ONLINE: mostra "Reservar Agora"; sem ele, só WhatsApp. */
+    boolean reservaOnline,
     List<MarketplaceMidiaDTO> midias
 ) {
     /**
@@ -54,7 +56,8 @@ public record MarketplaceModeloDTO(
             String praia,
             Integer prioridade,
             BigDecimal notaMedia,
-            Integer totalAvaliacoes
+            Integer totalAvaliacoes,
+            boolean reservaOnline
     ) {
         return new MarketplaceModeloDTO(
             id,
@@ -75,6 +78,7 @@ public record MarketplaceModeloDTO(
             prioridade,
             notaMedia,
             totalAvaliacoes,
+            reservaOnline,
             List.of()
         );
     }
@@ -102,6 +106,7 @@ public record MarketplaceModeloDTO(
             this.prioridade,
             this.notaMedia,
             this.totalAvaliacoes,
+            this.reservaOnline,
             midias != null ? midias : List.of()
         );
     }

@@ -1098,7 +1098,13 @@ export default function ModeloDetailsPage() {
               {currentTenant?.modulos && !currentTenant.modulos.includes('LOJA_ONLINE') && (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
                   Seu plano não inclui o módulo <strong>Loja online</strong> — a vitrine da sua loja
-                  e a reserva online pelo portal estão desativadas.
+                  está desativada.
+                </div>
+              )}
+              {currentTenant?.modulos && !currentTenant.modulos.includes('RESERVA_ONLINE') && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                  Seu plano não inclui o módulo <strong>Reserva online</strong> — o botão Reservar Agora
+                  não aparece e o cliente fala com você só pelo WhatsApp.
                 </div>
               )}
               {/* Visibility Toggle */}
