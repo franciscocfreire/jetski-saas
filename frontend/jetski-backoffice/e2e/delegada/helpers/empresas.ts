@@ -6,7 +6,7 @@ import {
   OPERADOR_PLATAFORMA_EMAIL,
   OPERADOR_PLATAFORMA_SENHA,
 } from './ambiente';
-import { capitaniaId, garantirPlanoSoDelegada } from './banco';
+import { capitaniaId } from './banco';
 import { empresa, plataforma, publico, type ApiEmpresa, type ApiPlataforma } from './backend';
 import { tokenRopc } from './keycloak';
 import { entrar, type Sessao } from './login';
@@ -85,7 +85,6 @@ function tokenDaSessao(sessao: Sessao): () => Promise<string> {
 
 export async function prepararParDelegado(browser: Browser, sufixo: string): Promise<ParDelegado> {
   const plat = await plataforma(await tokenRopc(OPERADOR_PLATAFORMA_EMAIL, OPERADOR_PLATAFORMA_SENHA));
-  const planoId = Number(process.env.E2E_PLANO_SO_DELEGADA_ID) || garantirPlanoSoDelegada();
   const capitania = capitaniaId(CAPITANIA_CODIGO);
 
   const definicoes = [
@@ -165,8 +164,8 @@ export async function prepararParDelegado(browser: Browser, sufixo: string): Pro
     // 4. Habilitação da EAMA (exige capitania + registro já salvos).
     await plat.habilitarEmissora(eama.tenantId);
 
-    // 6–7. Operadora: plano sem EMISSAO_PROPRIA (depois da aprovação!) e créditos.
-    await plat.mudarPlano(operadora.tenantId, planoId);
+    // 6–7. Operadora: fica na Trial (todos os módulos, inclusive emissão própria). É a
+    // parceria em vigor que a torna delegada (EMISSAO_DELEGADA_SPEC §8.M). Só créditos.
     await plat.lancarCreditos(operadora.tenantId, 10, `e2e emissão delegada ${sufixo}`);
 
     // 9. Modelo para o balcão da operadora.

@@ -178,12 +178,42 @@ public class PlatformTenantService {
             throw new com.jetski.shared.exception.BusinessException(
                 "Empresa sem registro EAMA declarado — peça para ela preencher o perfil de emissão antes de habilitar");
         }
+        // Papel exclusivo (EMISSAO_DELEGADA_SPEC §8.M): uma empresa é emissora OU
+        // delegada. Operadora de parceria em vigor só volta a ser emissora depois
+        // que a parceria for revogada.
+        if (operadoraDeParceriaEmVigor(tenantId)) {
+            throw new com.jetski.shared.exception.BusinessException(
+                "Empresa é operadora (delegada) de uma parceria de emissão em vigor. Uma empresa é "
+                + "emissora OU delegada: a parceria precisa ser revogada antes de habilitá-la como emissora");
+        }
         tenant.setEmissoraHabilitada(true);
         tenantRepository.save(tenant);
         log.info("[PLATFORM] Emissora habilitada: tenant={}, capitania={}, registro={}, por={}",
             tenantId, tenant.getCapitaniaId(), tenant.getEamaRegistro(), actor());
         return new com.jetski.tenant.api.dto.EmissoraStatusResult(
             tenantId, true, "Empresa habilitada como EAMA emissora.");
+    }
+
+    /**
+     * True se a empresa é operadora de parceria ATIVA ou BLOQUEADA. SQL nativo (o
+     * vínculo é do módulo locacoes) na janela RLS da própria empresa — a rota de
+     * plataforma não tem tenant na sessão; o valor anterior é restaurado.
+     */
+    private boolean operadoraDeParceriaEmVigor(UUID tenantId) {
+        String anterior = (String) entityManager.createNativeQuery(
+                "SELECT coalesce(current_setting('app.tenant_id', true), '')")
+            .getSingleResult();
+        definirTenantDaTransacao(tenantId.toString());
+        try {
+            Number n = (Number) entityManager.createNativeQuery(
+                    "SELECT count(*) FROM vinculo_emissao WHERE tenant_operador_id = :tid "
+                    + "AND status IN ('ATIVO', 'BLOQUEADO')")
+                .setParameter("tid", tenantId)
+                .getSingleResult();
+            return n != null && n.longValue() > 0;
+        } finally {
+            definirTenantDaTransacao(anterior);
+        }
     }
 
     /** Desabilita a empresa como EAMA emissora (revalidação/irregularidade). */

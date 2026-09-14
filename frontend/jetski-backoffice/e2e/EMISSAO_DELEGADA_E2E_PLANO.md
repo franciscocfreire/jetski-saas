@@ -54,9 +54,9 @@ exercida de verdade aqui.
 | 3. Mesma capitania (CPSP) nas duas; `eama_registro` na EAMA | `PUT /v1/tenants/{t}/config/emissora` | admin de cada empresa |
 | 4. Habilitar a EAMA | `POST /v1/platform/tenants/{id}/habilitar-emissora` | plataforma |
 | 5. Config geral das duas | `PUT /v1/tenants/{t}/config/geral`: `marinha_email`, `email_oficial`, `responsavel_nome`, `telefone`, `email_remetente` e SMTP (`mailpit`, 1025, usuário/senha fictícios, starttls off, `smtp_from` distinto). A operadora recebe **também** um `marinha_email` próprio, para provar que ele nunca é usado | admin de cada empresa |
-| 6. Plano "só delegada" na operadora | Plano dedicado `E2E Só delegada` com `["EMISSAO_DELEGADA"]` → `POST /v1/platform/tenants/{id}/plano` com `{planoId}` (id numérico; `GET /v1/platform/planos` lista). Sem isso a Trial dá `EMISSAO_PROPRIA` à operadora e a emissão cai no portão duplo da V050 (própria sem `emissora_habilitada` → 400), nunca na delegação. Ver decisão D2 | plataforma |
+| 6. ~~Plano "só delegada" na operadora~~ | **Removido em 13/set/2026 (spec §8.M).** A operadora fica na Trial (todos os módulos): é a parceria em vigor que a torna delegada, não o plano. A jornada passa a provar isso (passo A confere o modo DELEGADA). Antes, sem trocar o plano, a emissão caía no portão da V050 | — |
 | 7. Créditos da operadora | `POST /v1/platform/creditos/{tenantId}` com `{quantidade, motivo}` (motivo obrigatório) | plataforma |
-| 8. Instrutores | Um na EAMA e um na operadora (este não pode aparecer no dropdown, R2): `POST /v1/tenants/{t}/instrutores` | admin de cada empresa |
+| 8. Instrutores | Um na EAMA e um na operadora: `POST /v1/tenants/{t}/instrutores`. O da operadora nasce antes da parceria, então sem pedido de aprovação: não aparece no dropdown (R2). O passo H pede a aprovação, a EAMA aprova (aí ele assina) e depois remove (spec §8.N) | admin de cada empresa |
 | 9. Modelo na operadora | `POST` de modelo (fábrica de `fixtures/test-data.ts`) | admin da operadora |
 
 **Tokens:**

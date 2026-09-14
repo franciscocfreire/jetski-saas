@@ -236,6 +236,24 @@ export async function empresa(tenantId: string, token: () => Promise<string>) {
         gruValor: 23.13,
         gruPago: true,
       }),
+    /** Instrutor da demonstração na habilitação (o balcão faz o mesmo ao escolher no dropdown). */
+    definirInstrutor: (reservaId: string, instrutorId: string) =>
+      chamar('put', `reservas/${reservaId}/habilitacao`, 'habilitação instrutor', { via: 'EMA', instrutorId }),
+    /** Modo de emissão decidido pelo backend (§8.M): a parceria em vigor manda, não o plano. */
+    modoEmissao: () =>
+      chamar<{ modo: 'PROPRIA' | 'DELEGADA' | 'SEM_EMISSAO'; vinculoId: string | null; vinculoStatus: string | null }>(
+        'get',
+        'vinculos-emissao/modo',
+        'modo de emissão',
+      ),
+    /** Instrutores disponíveis na emissão delegada: da EAMA ou da operadora aprovados pela EAMA. */
+    instrutoresParceiro: () =>
+      chamar<Array<{ id: string; nome: string; origem: 'EAMA' | 'OPERADORA' }>>(
+        'get',
+        'vinculos-emissao/instrutores-parceiro',
+        'instrutores do parceiro',
+      ),
+    perfilEmissora: () => chamar<{ emissoraHabilitada: boolean }>('get', 'config/emissora', 'perfil emissora'),
   };
 }
 

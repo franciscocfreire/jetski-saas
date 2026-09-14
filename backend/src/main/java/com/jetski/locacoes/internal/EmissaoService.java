@@ -140,8 +140,8 @@ public class EmissaoService {
         // CHA = cliente já habilitado: não há documentação NORMAM nem envio à Marinha.
         boolean marinhaAplicavel = hab.getVia() == ReservaHabilitacao.Via.EMA;
 
-        // Emissão delegada (V048): sem EMISSAO_PROPRIA no plano, a documentação
-        // NORMAM sai em nome da EAMA parceira — vínculo ATIVO obrigatório,
+        // Emissão delegada (V048, §8.M): operadora de parceria em vigor (ou plano sem
+        // EMISSAO_PROPRIA) emite em nome da EAMA parceira — vínculo ATIVO obrigatório,
         // identidade/instrutor/Capitania de destino são do EMISSOR.
         VinculoEmissaoService.DelegacaoContext delegacao =
             resolverDelegacao(reserva.getTenantId(), hab, marinhaAplicavel);
@@ -566,15 +566,21 @@ public class EmissaoService {
     }
 
     /**
-     * Resolve o contexto delegado quando o plano da loja NÃO inclui emissão
-     * própria (§8.K: portão comercial). Só se aplica ao caminho EMA (Marinha);
-     * a emissão própria segue como sempre — inclusive para planos NULL (todos
-     * os módulos), preservando o comportamento das lojas existentes.
+     * Resolve o contexto delegado da emissão. Só se aplica ao caminho EMA (Marinha).
+     *
+     * <p>Papel exclusivo (§8.M): quem é operadora de uma parceria em vigor (ATIVA ou
+     * BLOQUEADA) emite SEMPRE pela EAMA parceira, qualquer que seja o plano — um
+     * Trial com todos os módulos não pode cair na emissão própria. Sem parceria em
+     * vigor, o plano decide (§8.K): com emissão própria, segue a própria; sem ela,
+     * a delegada exige a parceria e nega com a mensagem de convite.
      */
     private VinculoEmissaoService.DelegacaoContext resolverDelegacao(
             UUID tenantId, ReservaHabilitacao hab, boolean marinhaAplicavel) {
-        if (!marinhaAplicavel
-                || planoLimiteService.moduloHabilitado(tenantId, com.jetski.tenant.ModuloPlano.EMISSAO_PROPRIA)) {
+        if (!marinhaAplicavel) {
+            return null;
+        }
+        if (!vinculoEmissaoService.emissaoDelegadaEmVigor(tenantId)
+                && planoLimiteService.moduloHabilitado(tenantId, com.jetski.tenant.ModuloPlano.EMISSAO_PROPRIA)) {
             return null;
         }
         return vinculoEmissaoService.resolverParaEmissao(tenantId, hab.getInstrutorId());

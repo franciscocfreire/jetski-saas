@@ -1,14 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
-import { Plus, GraduationCap, Edit, MoreHorizontal, Handshake } from 'lucide-react'
+import { Plus, GraduationCap, Edit, MoreHorizontal, Handshake, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
 import { usePermissions } from '@/lib/hooks/use-permissions'
+import { useModoEmissao } from '@/lib/hooks/use-modo-emissao'
 import { instrutoresService, emissaoDelegadaService } from '@/lib/api/services'
 import type { Instrutor, InstrutorCreateRequest } from '@/lib/api/types'
+import { AprovacaoInstrutorBadge } from '@/components/emissao/aprovacao-instrutor-badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -46,6 +48,11 @@ const VAZIO: InstrutorCreateRequest = {
   dataEmissao: '',
 }
 
+function mensagemDeErro(e: unknown, padrao: string): string {
+  const r = e as { response?: { data?: { message?: string } } }
+  return r?.response?.data?.message ?? padrao
+}
+
 export default function InstrutoresPage() {
   const { currentTenant } = useTenantStore()
   // O cadastro do instrutor alimenta o Anexo 5-B-1 que vai à Capitania, então
@@ -64,11 +71,16 @@ export default function InstrutoresPage() {
     enabled: !!currentTenant,
   })
 
-  // Emissão delegada (V048): quem assina o 5-B-1 é instrutor da EAMA parceira.
-  // A página vira visão informativa — os da EAMA em destaque, os próprios
-  // aparecem desativados (não são usados na emissão delegada).
-  const emissaoDelegada =
-    !!currentTenant?.modulos && !currentTenant.modulos.includes('EMISSAO_PROPRIA')
+  // Modo de emissão (§8.M): operadora de parceria em vigor emite pela EAMA parceira,
+  // qualquer que seja o plano. Nesse modo os instrutores próprios só assinam depois de
+  // aprovados pela EAMA (NORMAM-212: a EAMA responde pelo instrutor — V070).
+  const { delegada: emissaoDelegada, info: modo } = useModoEmissao()
+
+  const invalidar = () => {
+    queryClient.invalidateQueries({ queryKey: ['instrutores'] })
+    queryClient.invalidateQueries({ queryKey: ['instrutores-operadora'] })
+    queryClient.invalidateQueries({ queryKey: ['instrutores-parceiro'] })
+  }
 
   const salvar = useMutation({
     mutationFn: () =>
@@ -76,17 +88,17 @@ export default function InstrutoresPage() {
         ? instrutoresService.update(editing.id, form)
         : instrutoresService.create(form),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['instrutores'] })
+      invalidar()
       toast.success(editing ? 'Instrutor atualizado.' : 'Instrutor cadastrado.')
       setOpen(false)
     },
-    onError: () => toast.error('Falha ao salvar instrutor.'),
+    onError: (e) => toast.error(mensagemDeErro(e, 'Falha ao salvar instrutor.')),
   })
 
   const toggleAtivo = useMutation({
     mutationFn: (i: Instrutor) =>
       i.ativo ? instrutoresService.deactivate(i.id) : instrutoresService.reactivate(i.id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['instrutores'] }),
+    onSuccess: invalidar,
     onError: () => toast.error('Falha ao alterar status.'),
   })
 
@@ -109,8 +121,84 @@ export default function InstrutoresPage() {
     setOpen(true)
   }
 
+  const dialogo = (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{editing ? 'Editar instrutor' : 'Novo instrutor'}</DialogTitle>
+        </DialogHeader>
+        {emissaoDelegada && (
+          <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">
+            Na emissão delegada, a EAMA parceira responde pelo instrutor: ele só assina
+            depois de aprovado por ela. Salvar envia o cadastro (ou a alteração) para a
+            aprovação da EAMA.
+          </p>
+        )}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Label className="text-xs">Nome *</Label>
+            <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
+          </div>
+          <div>
+            <Label className="text-xs">RG (identidade)</Label>
+            <Input value={form.rg} onChange={(e) => setForm({ ...form, rg: e.target.value })} />
+          </div>
+          <div>
+            <Label className="text-xs">Órgão emissor</Label>
+            <Input value={form.orgaoEmissor} onChange={(e) => setForm({ ...form, orgaoEmissor: e.target.value })} placeholder="SSP/RJ" />
+          </div>
+          <div>
+            <Label className="text-xs">CPF</Label>
+            <Input value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} />
+          </div>
+          <div>
+            <Label className="text-xs">Nº da CHA</Label>
+            <Input value={form.cha} onChange={(e) => setForm({ ...form, cha: e.target.value })} />
+          </div>
+          <div>
+            <Label className="text-xs">Data de emissão (identidade)</Label>
+            <Input
+              type="date"
+              value={form.dataEmissao}
+              onChange={(e) => setForm({ ...form, dataEmissao: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label className="mb-1 block text-xs">
+            Assinatura do instrutor {editing?.temAssinatura && '(já cadastrada — assine para substituir)'}
+          </Label>
+          <SignaturePad onChange={(dataUrl) => setForm((s) => ({ ...s, assinaturaBase64: dataUrl ?? undefined }))} />
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button disabled={!form.nome.trim() || salvar.isPending} onClick={() => salvar.mutate()}>
+            {salvar.isPending ? 'Salvando…' : 'Salvar'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+
   if (emissaoDelegada) {
-    return <InstrutoresDelegadaView proprios={instrutores} carregandoProprios={isLoading} />
+    return (
+      <InstrutoresDelegadaView
+        proprios={instrutores}
+        carregandoProprios={isLoading}
+        podeEscrever={podeEscrever}
+        vinculoId={modo?.vinculoId ?? null}
+        vinculoEmVigor={modo?.vinculoStatus === 'ATIVO' || modo?.vinculoStatus === 'BLOQUEADO'}
+        nomeEama={modo?.emissoraNome ?? null}
+        onNovo={novo}
+        onEditar={editar}
+        onAlternarAtivo={(i) => toggleAtivo.mutate(i)}
+        dialogo={dialogo}
+      />
+    )
   }
 
   return (
@@ -199,76 +287,40 @@ export default function InstrutoresPage() {
         </Table>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? 'Editar instrutor' : 'Novo instrutor'}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <Label className="text-xs">Nome *</Label>
-              <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
-            </div>
-            <div>
-              <Label className="text-xs">RG (identidade)</Label>
-              <Input value={form.rg} onChange={(e) => setForm({ ...form, rg: e.target.value })} />
-            </div>
-            <div>
-              <Label className="text-xs">Órgão emissor</Label>
-              <Input value={form.orgaoEmissor} onChange={(e) => setForm({ ...form, orgaoEmissor: e.target.value })} placeholder="SSP/RJ" />
-            </div>
-            <div>
-              <Label className="text-xs">CPF</Label>
-              <Input value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} />
-            </div>
-            <div>
-              <Label className="text-xs">Nº da CHA</Label>
-              <Input value={form.cha} onChange={(e) => setForm({ ...form, cha: e.target.value })} />
-            </div>
-            <div>
-              <Label className="text-xs">Data de emissão (identidade)</Label>
-              <Input
-                type="date"
-                value={form.dataEmissao}
-                onChange={(e) => setForm({ ...form, dataEmissao: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label className="mb-1 block text-xs">
-              Assinatura do instrutor {editing?.temAssinatura && '(já cadastrada — assine para substituir)'}
-            </Label>
-            <SignaturePad onChange={(dataUrl) => setForm((s) => ({ ...s, assinaturaBase64: dataUrl ?? undefined }))} />
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancelar
-            </Button>
-            <Button disabled={!form.nome.trim() || salvar.isPending} onClick={() => salvar.mutate()}>
-              {salvar.isPending ? 'Salvando…' : 'Salvar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {dialogo}
     </div>
   )
 }
 
 /**
- * Visão da OPERADORA (emissão delegada): os instrutores que assinam seus
- * documentos são da EAMA parceira — aqui ela vê quem está disponível
- * (respeitando a designação da EAMA) e os instrutores próprios aparecem
- * desativados, sem ações (não são usados na emissão delegada).
+ * Visão da OPERADORA (emissão delegada). Assinam os documentos os instrutores que a
+ * EAMA designou e os instrutores da própria operadora APROVADOS pela EAMA (V070):
+ * pela NORMAM-212 a EAMA responde pelo instrutor, então é ela quem aprova ou remove.
  */
 function InstrutoresDelegadaView({
   proprios,
   carregandoProprios,
+  podeEscrever,
+  vinculoId,
+  vinculoEmVigor,
+  nomeEama,
+  onNovo,
+  onEditar,
+  onAlternarAtivo,
+  dialogo,
 }: {
   proprios?: Instrutor[]
   carregandoProprios: boolean
+  podeEscrever: boolean
+  vinculoId: string | null
+  vinculoEmVigor: boolean
+  nomeEama: string | null
+  onNovo: () => void
+  onEditar: (i: Instrutor) => void
+  onAlternarAtivo: (i: Instrutor) => void
+  dialogo: ReactNode
 }) {
+  const queryClient = useQueryClient()
   const {
     data: parceiros,
     isLoading: carregandoParceiros,
@@ -278,38 +330,55 @@ function InstrutoresDelegadaView({
     queryFn: () => emissaoDelegadaService.instrutoresParceiro(),
     retry: false,
   })
-  const { data: vinculos } = useQuery({
-    queryKey: ['vinculos-emissao'],
-    queryFn: () => emissaoDelegadaService.listVinculos(),
+  // O status da aprovação é da gestão (ADMIN/GERENTE); o OPERADOR só vê quem está disponível.
+  const { data: pedidos } = useQuery({
+    queryKey: ['instrutores-operadora', vinculoId],
+    queryFn: () => emissaoDelegadaService.instrutoresOperadora(vinculoId!),
+    enabled: !!vinculoId && podeEscrever,
     retry: false,
+  })
+  const pedidoPorInstrutor = new Map((pedidos ?? []).map((p) => [p.instrutorId, p]))
+
+  const solicitar = useMutation({
+    mutationFn: (instrutorId: string) => emissaoDelegadaService.solicitarAprovacao(instrutorId),
+    onSuccess: () => {
+      toast.success('Pedido enviado à EAMA parceira.')
+      queryClient.invalidateQueries({ queryKey: ['instrutores-operadora'] })
+    },
+    onError: (e) => toast.error(mensagemDeErro(e, 'Não foi possível enviar o pedido à EAMA.')),
   })
 
   const semParceria = !!erroParceria
-  const nomeEama = (vinculos ?? []).find(
-    (v) => v.papel === 'OPERADORA' && (v.status === 'ATIVO' || v.status === 'BLOQUEADO')
-  )?.parceiroNome
+  const eama = nomeEama ?? 'EAMA parceira'
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <GraduationCap className="h-7 w-7 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold">Instrutores</h1>
-          <p className="text-sm text-muted-foreground">
-            Atestado de Demonstração (Anexo 5-B-1, CHA-MTA-E).
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <GraduationCap className="h-7 w-7 text-primary" />
+          <div>
+            <h1 className="text-2xl font-bold">Instrutores</h1>
+            <p className="text-sm text-muted-foreground">
+              Atestado de Demonstração (Anexo 5-B-1, CHA-MTA-E).
+            </p>
+          </div>
         </div>
+        {podeEscrever && (
+          <Button onClick={onNovo}>
+            <Plus className="mr-2 h-4 w-4" /> Novo instrutor
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
         <div className="flex items-start gap-3">
           <Handshake className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div className="text-sm">
-            <p className="font-medium">Sua emissão é delegada a uma EAMA parceira.</p>
+            <p className="font-medium">Sua emissão é delegada a {eama}.</p>
             <p className="text-muted-foreground">
-              Quem assina o Atestado de Demonstração é sempre um instrutor <b>da EAMA</b>,
-              designado por ela — o cadastro e os dados (CPF, CHA, assinatura) ficam com a
-              emissora e entram direto no documento.
+              Pela NORMAM-212 a EAMA responde pelo instrutor. Assinam o Atestado de
+              Demonstração os instrutores que ela designou e os <b>seus</b> instrutores
+              que ela aprovou — e ela pode removê-los a qualquer momento.
             </p>
           </div>
         </div>
@@ -321,10 +390,7 @@ function InstrutoresDelegadaView({
       </div>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold">
-          Disponíveis para suas emissões
-          {nomeEama ? <span className="text-muted-foreground"> — instrutores de {nomeEama}</span> : null}
-        </h2>
+        <h2 className="text-sm font-semibold">Disponíveis para suas emissões</h2>
         {carregandoParceiros ? (
           <Skeleton className="h-16 w-full" />
         ) : semParceria ? (
@@ -336,20 +402,26 @@ function InstrutoresDelegadaView({
           </div>
         ) : (parceiros ?? []).length === 0 ? (
           <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-            A EAMA parceira ainda não tem instrutores disponíveis para você — peça a ela
-            para cadastrar ou designar instrutores para a parceria.
+            Ainda não há instrutores disponíveis: peça à EAMA para designar um instrutor dela
+            ou aprovar um instrutor seu.
           </div>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {(parceiros ?? []).map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-lg border p-3">
+              <div
+                key={p.id}
+                data-testid="instrutores-disponivel"
+                data-instrutor-id={p.id}
+                data-origem={p.origem ?? 'EAMA'}
+                className="flex items-center gap-3 rounded-lg border p-3"
+              >
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
                   <GraduationCap className="h-4 w-4 text-primary" />
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{p.nome}</p>
                   <Badge variant="outline" className="mt-0.5 text-[10px]">
-                    Instrutor de {nomeEama ?? 'EAMA parceira'}
+                    {p.origem === 'OPERADORA' ? 'Seu instrutor — aprovado pela EAMA' : `Instrutor de ${eama}`}
                   </Badge>
                 </div>
               </div>
@@ -358,47 +430,107 @@ function InstrutoresDelegadaView({
         )}
       </div>
 
-      {(carregandoProprios || (proprios ?? []).length > 0) && (
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">
-            Seus instrutores — desativados na emissão delegada
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Cadastros da sua empresa não assinam documentos enquanto a emissão for
-            delegada; voltam a valer se o seu plano incluir emissão própria.
-          </p>
-          {carregandoProprios ? (
-            <Skeleton className="h-12 w-full" />
-          ) : (
-            <div className="rounded-md border opacity-60">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>CPF</TableHead>
-                    <TableHead>Nº CHA</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(proprios ?? []).map((i) => (
-                    <TableRow key={i.id} className="text-muted-foreground">
-                      <TableCell className="font-medium line-through decoration-muted-foreground/40">
-                        {i.nome}
-                      </TableCell>
+      <div className="space-y-2">
+        <h2 className="text-sm font-semibold">Seus instrutores</h2>
+        <p className="text-xs text-muted-foreground">
+          Só assinam emissões depois da aprovação de {eama}. Cadastros novos e alterações vão
+          automaticamente para a aprovação; para um instrutor ainda não enviado, rejeitado ou
+          removido, use <b>Pedir aprovação</b>.
+        </p>
+        {carregandoProprios ? (
+          <Skeleton className="h-12 w-full" />
+        ) : (proprios ?? []).length === 0 ? (
+          <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+            Nenhum instrutor próprio cadastrado.
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>CPF</TableHead>
+                  <TableHead>Nº CHA</TableHead>
+                  <TableHead>Aprovação da EAMA</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(proprios ?? []).map((i) => {
+                  const pedido = pedidoPorInstrutor.get(i.id)
+                  const podePedir =
+                    podeEscrever && vinculoEmVigor && i.ativo &&
+                    (!pedido || pedido.status === 'REJEITADO' || pedido.status === 'REMOVIDO')
+                  return (
+                    <TableRow
+                      key={i.id}
+                      data-testid="instrutores-proprio"
+                      data-instrutor-id={i.id}
+                      data-aprovacao={pedido?.status ?? 'NAO_ENVIADO'}
+                    >
+                      <TableCell className="font-medium">{i.nome}</TableCell>
                       <TableCell>{i.cpf || '-'}</TableCell>
                       <TableCell>{i.cha || '-'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">Não utilizado</Badge>
+                        {!podeEscrever ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : pedido ? (
+                          <div className="space-y-0.5">
+                            <AprovacaoInstrutorBadge status={pedido.status} />
+                            {pedido.motivo && (
+                              <p className="text-xs text-muted-foreground">Motivo: {pedido.motivo}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <Badge variant="outline">Não enviado</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={i.ativo ? 'default' : 'outline'}>
+                          {i.ativo ? 'Ativo' : 'Inativo'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="space-x-1 text-right">
+                        {podePedir && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            data-testid="instrutores-proprio-solicitar"
+                            onClick={() => solicitar.mutate(i.id)}
+                            disabled={solicitar.isPending}
+                          >
+                            <Send className="mr-1 h-4 w-4" /> Pedir aprovação
+                          </Button>
+                        )}
+                        {podeEscrever && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => onEditar(i)}>
+                                <Edit className="mr-2 h-4 w-4" /> Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onAlternarAtivo(i)}>
+                                {i.ativo ? 'Desativar' : 'Reativar'}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </div>
-      )}
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      {dialogo}
     </div>
   )
 }

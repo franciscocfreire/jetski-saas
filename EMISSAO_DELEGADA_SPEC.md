@@ -224,6 +224,8 @@ gate/identidade trocados pelo vínculo.
 ## 8. Decisões (resolvidas no brainstorm de 12/jul/2026)
 
 - **A. Instrutor**: sempre do tenant emissor; operadora não cadastra instrutor. ✔
+  **Revisto em 13/set/2026 (§8.N)**: a operadora pode cadastrar instrutores próprios, que
+  só assinam emissões delegadas depois de **aprovados pela EAMA**.
 - **B. Capitania**: vira catálogo de plataforma + `tenant.capitania_id`; vínculo só entre
   empresas da **mesma capitania**. ✔
 - **C. Cobrança**: crédito debitado da **operadora** (quem usa paga); acerto financeiro
@@ -257,6 +259,32 @@ gate/identidade trocados pelo vínculo.
   portão **comercial** do plano; `emissora_habilitada` = portão **cadastral** validado pelo
   superadmin). Emissão própria exige **os dois** portões. Viabiliza planos por perfil e o
   upgrade "graduação" operadora → emissora. ✔
+- **M. Papel exclusivo** (13/set/2026): uma EAMA é **emissora OU delegada**, nunca as duas.
+  - A **parceria em vigor** (ATIVA ou BLOQUEADA) como operadora é o que torna a emissão
+    delegada — não o plano. Um Trial (todos os módulos) com parceria emite pela EAMA;
+    antes caía na emissão própria e batia no portão V050. Sem parceria, o plano decide
+    como no §8.K. Endpoint `GET /vinculos-emissao/modo` (PROPRIA | DELEGADA | SEM_EMISSAO)
+    alimenta o balcão e a tela de instrutores.
+  - Aceitar ser operadora **derruba `emissora_habilitada`**. O superadmin não re-habilita
+    enquanto a parceria existir; revogada, a volta exige nova validação.
+  - Convite/aceite negam papel duplo: quem é emissora de parceria viva não vira operadora,
+    e quem é operadora não emite para terceiros. Ser operadora exige o módulo
+    `EMISSAO_DELEGADA` no plano.
+  - V070 corrige dados antigos: operadora de parceria em vigor perde a habilitação. ✔
+- **N. Instrutores da operadora aprovados pela EAMA** (V070, 13/set/2026): pela NORMAM-212 o
+  instrutor é cadastrado na EAMA, que responde por ele. A operadora cadastra instrutores
+  próprios; eles só assinam emissões delegadas depois de **aprovados pela EAMA** da
+  parceria, que também pode **removê-los**.
+  - Tabela `vinculo_instrutor_operadora` (PENDENTE → APROVADO | REJEITADO; APROVADO →
+    REMOVIDO), RLS herdada do vínculo como na designação.
+  - Cadastro novo na operadora em vigor vai direto a PENDENTE; alterar dados de um
+    instrutor submetido devolve o pedido a PENDENTE; rejeitado/removido pode ser pedido
+    de novo.
+  - Na emissão delegada a operadora escolhe entre os instrutores **designados** pela EAMA
+    (§8.L, semântica opt-in mantida) e os **seus aprovados** — validado na listagem e na
+    emissão. A EAMA vê identidade, CHA e assinatura para decidir.
+  - Decisões auditadas nos dois tenants (`VINCULO_EMISSAO_INSTRUTOR_*`, com `instrutorId`)
+    e avisadas por e-mail ao outro lado. ✔
 
 ## 9. Futuro (deferido)
 

@@ -853,6 +853,45 @@ ALTER TABLE public.tenant
     ADD CONSTRAINT tenant_limites_override_objeto
     CHECK (jsonb_typeof(limites_override) = 'object');
 
+-- V070: instrutores da operadora aprovados pela EAMA da parceria + papel exclusivo (emissora OU delegada)
+DO $$ BEGIN
+    IF to_regclass('public.vinculo_emissao') IS NOT NULL THEN
+        CREATE TABLE IF NOT EXISTS public.vinculo_instrutor_operadora (
+            id             uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+            vinculo_id     uuid NOT NULL REFERENCES public.vinculo_emissao(id) ON DELETE CASCADE,
+            instrutor_id   uuid NOT NULL REFERENCES public.instrutor(id) ON DELETE CASCADE,
+            status         varchar(12) NOT NULL DEFAULT 'PENDENTE'
+                           CHECK (status IN ('PENDENTE', 'APROVADO', 'REJEITADO', 'REMOVIDO')),
+            solicitado_em  timestamptz NOT NULL DEFAULT now(),
+            solicitado_por uuid,
+            decidido_em    timestamptz,
+            decidido_por   uuid,
+            motivo         varchar(500),
+            created_at     timestamptz NOT NULL DEFAULT now(),
+            updated_at     timestamptz NOT NULL DEFAULT now(),
+            CONSTRAINT ux_vinculo_instrutor_operadora UNIQUE (vinculo_id, instrutor_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_vinculo_instrutor_operadora_instrutor
+            ON public.vinculo_instrutor_operadora (instrutor_id);
+        ALTER TABLE public.vinculo_instrutor_operadora ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.vinculo_instrutor_operadora FORCE ROW LEVEL SECURITY;
+        IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'vinculo_instrutor_operadora' AND policyname = 'vinculo_instrutor_operadora_partes') THEN
+            CREATE POLICY vinculo_instrutor_operadora_partes ON public.vinculo_instrutor_operadora
+                USING (EXISTS (
+                    SELECT 1 FROM public.vinculo_emissao v
+                    WHERE v.id = vinculo_id
+                      AND (v.tenant_operador_id = public.get_current_tenant_id()
+                        OR v.tenant_emissor_id = public.get_current_tenant_id())
+                ));
+        END IF;
+        UPDATE public.tenant t
+           SET emissora_habilitada = false
+         WHERE t.emissora_habilitada = true
+           AND EXISTS (SELECT 1 FROM public.vinculo_emissao v
+                       WHERE v.tenant_operador_id = t.id AND v.status IN ('ATIVO', 'BLOQUEADO'));
+    END IF;
+END $$;
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 

@@ -3,6 +3,7 @@ package com.jetski.locacoes.api;
 import com.jetski.locacoes.api.dto.ConviteVinculoRequest;
 import com.jetski.locacoes.api.dto.VinculoEmissaoResponse;
 import com.jetski.locacoes.domain.VinculoEmissao;
+import com.jetski.locacoes.domain.VinculoInstrutorOperadora;
 import com.jetski.locacoes.internal.VinculoEmissaoService;
 import com.jetski.shared.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -20,8 +22,9 @@ import java.util.UUID;
  * Parceria de emissão delegada (EMISSAO_DELEGADA_SPEC §6, V048).
  *
  * <p>Gestão do vínculo é do ADMIN_TENANT (OPA: wildcard do papel); a lista de
- * instrutores do parceiro é liberada também ao staff que emite (OPERADOR/
- * GERENTE via rego {@code vinculo-emissao:instrutores-parceiro}).
+ * instrutores do parceiro e o modo de emissão são liberados também ao staff que
+ * emite (OPERADOR/GERENTE via rego). Aprovação dos instrutores da operadora
+ * (V070) é da EAMA: ADMIN_TENANT ou GERENTE, como a designação.
  *
  * @author Jetski Team
  */
@@ -48,6 +51,14 @@ public class VinculoEmissaoController {
     @Operation(summary = "Texto vigente do termo de responsabilidade da parceria")
     public Map<String, String> termo(@PathVariable UUID tenantId) {
         return Map.of("termo", VinculoEmissaoService.TERMO_RESPONSABILIDADE);
+    }
+
+    /** Modo de emissão (§8.M): a parceria em vigor como operadora manda, não o plano. */
+    @GetMapping("/modo")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Modo de emissão da empresa: PROPRIA, DELEGADA ou SEM_EMISSAO")
+    public VinculoEmissaoService.ModoEmissaoInfo modo(@PathVariable UUID tenantId) {
+        return service.modoEmissao(tenantId);
     }
 
     @PostMapping
@@ -119,14 +130,69 @@ public class VinculoEmissaoController {
             .toList();
     }
 
-    /** id + nome dos instrutores da EAMA parceira (exposição mínima — LGPD §5.4). */
+    /**
+     * id + nome + origem dos instrutores disponíveis na emissão delegada: os da EAMA
+     * (designados) e os da operadora aprovados pela EAMA (exposição mínima — LGPD §5.4).
+     */
     @GetMapping("/instrutores-parceiro")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
-    @Operation(summary = "Instrutores da EAMA parceira para a emissão delegada (id + nome)")
+    @Operation(summary = "Instrutores para a emissão delegada (da EAMA ou da operadora aprovados pela EAMA)")
     public List<Map<String, Object>> instrutoresParceiro(@PathVariable UUID tenantId) {
         return service.instrutoresDoParceiro(tenantId).stream()
-            .map(r -> Map.<String, Object>of("id", r[0], "nome", r[1]))
+            .map(r -> Map.<String, Object>of("id", r[0], "nome", r[1],
+                "origem", r.length > 2 && r[2] != null ? r[2] : "EAMA"))
             .toList();
+    }
+
+    // ==================== instrutores da operadora (V070) ====================
+
+    /** Instrutores que a operadora submeteu à parceria, com status da aprovação. */
+    @GetMapping("/{id}/instrutores-operadora")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Instrutores da operadora submetidos à aprovação da EAMA nesta parceria")
+    public List<VinculoEmissaoService.InstrutorOperadoraInfo> instrutoresOperadora(
+            @PathVariable UUID tenantId, @PathVariable("id") UUID id) {
+        return service.listarInstrutoresOperadora(tenantId, id);
+    }
+
+    /** A operadora pede à EAMA a aprovação de um instrutor próprio. */
+    @PostMapping("/instrutores-proprios/{instrutorId}/solicitar-aprovacao")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "Operadora submete um instrutor próprio à aprovação da EAMA parceira")
+    public Map<String, Object> solicitarAprovacao(@PathVariable UUID tenantId,
+                                                  @PathVariable UUID instrutorId) {
+        return resposta(service.solicitarAprovacaoInstrutor(tenantId, instrutorId));
+    }
+
+    /**
+     * EAMA decide sobre um instrutor da operadora: {@code {"decisao": "APROVAR|REJEITAR|REMOVER",
+     * "motivo": "..."}}. Um endpoint só: o ActionExtractor casa o último segmento, e
+     * "rejeitar"/"remover" já nomeiam rotas de outros recursos.
+     */
+    @PostMapping("/{id}/instrutores-operadora/{instrutorId}/decisao")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(summary = "EAMA aprova, rejeita ou remove um instrutor da operadora")
+    public Map<String, Object> decidirInstrutor(@PathVariable UUID tenantId, @PathVariable("id") UUID id,
+                                                @PathVariable UUID instrutorId,
+                                                @RequestBody Map<String, String> body) {
+        VinculoEmissaoService.DecisaoInstrutor decisao;
+        try {
+            decisao = VinculoEmissaoService.DecisaoInstrutor.valueOf(body.get("decisao").trim().toUpperCase());
+        } catch (Exception e) {
+            throw new BusinessException("Decisão inválida: informe APROVAR, REJEITAR ou REMOVER");
+        }
+        return resposta(service.decidirInstrutor(tenantId, id, instrutorId, decisao, body.get("motivo")));
+    }
+
+    private static Map<String, Object> resposta(VinculoInstrutorOperadora a) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("vinculoId", a.getVinculoId());
+        m.put("instrutorId", a.getInstrutorId());
+        m.put("status", a.getStatus().name());
+        m.put("solicitadoEm", a.getSolicitadoEm());
+        m.put("decididoEm", a.getDecididoEm());
+        m.put("motivo", a.getMotivo());
+        return m;
     }
 
     private String nomeDoParceiro(VinculoEmissao v, UUID tenantId) {

@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { DocumentoPreviewButtons } from '@/components/documento-preview-buttons'
 import { reservasService, documentosService, instrutoresService, habilitacaoService, emissaoDelegadaService } from '@/lib/api/services'
-import { useTenantStore } from '@/lib/store/tenant-store'
+import { useModoEmissao } from '@/lib/hooks/use-modo-emissao'
 import {
   Select,
   SelectContent,
@@ -41,22 +41,22 @@ export function StepEmissao({
   const [instrutorId, setInstrutorId] = useState(atendimento.instrutorId ?? '')
   const [salvandoInstrutor, setSalvandoInstrutor] = useState(false)
 
-  // Emissão delegada (V048): sem EMISSAO_PROPRIA no plano, o instrutor que
-  // assina o 5-B-1 é SEMPRE da EAMA parceira (exposto só como id + nome).
-  const { currentTenant } = useTenantStore()
-  const emissaoDelegada =
-    !!currentTenant?.modulos && !currentTenant.modulos.includes('EMISSAO_PROPRIA')
+  // Emissão delegada (§8.M): operadora de parceria em vigor emite pela EAMA, qualquer
+  // que seja o plano — quem diz o modo é o backend. O instrutor que assina o 5-B-1 é
+  // da EAMA (designado) ou da própria operadora com aprovação da EAMA (V070); a lista
+  // expõe só id + nome.
+  const { delegada: emissaoDelegada, carregando: carregandoModo } = useModoEmissao()
   const { data: instrutores } = useQuery({
     queryKey: ['instrutores-emissao', emissaoDelegada],
     queryFn: async () =>
       emissaoDelegada
         ? (await emissaoDelegadaService.instrutoresParceiro()).map((i) => ({
             id: i.id,
-            nome: i.nome,
+            nome: i.origem === 'OPERADORA' ? `${i.nome} (seu instrutor, aprovado pela EAMA)` : i.nome,
             cha: undefined as string | undefined,
           }))
         : instrutoresService.list(),
-    enabled: !atendimento.temCha,
+    enabled: !atendimento.temCha && !carregandoModo,
   })
 
   // O estado "emitido" vive na reserva (documento_emitido_em), não no wizard:
@@ -455,9 +455,11 @@ export function StepEmissao({
           </p>
           {(instrutores ?? []).length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              Nenhum instrutor cadastrado.{' '}
+              {emissaoDelegada
+                ? 'Nenhum instrutor disponível: a EAMA parceira precisa designar um instrutor dela ou aprovar um seu.'
+                : 'Nenhum instrutor cadastrado.'}{' '}
               <Link href="/dashboard/instrutores" className="text-primary underline" target="_blank">
-                Cadastrar instrutor
+                {emissaoDelegada ? 'Ver instrutores' : 'Cadastrar instrutor'}
               </Link>
             </p>
           ) : (

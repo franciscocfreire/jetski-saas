@@ -81,12 +81,40 @@ class PlatformTenantServiceTest {
         t.setCapitaniaId(UUID.randomUUID());
         t.setEamaRegistro("EAMA-SP-123");
         when(tenantRepository.findById(t.getId())).thenReturn(Optional.of(t));
+        parceriasComoOperadora(0L);
 
         var result = service.habilitarEmissora(t.getId());
 
         assertThat(result.emissoraHabilitada()).isTrue();
         assertThat(t.getEmissoraHabilitada()).isTrue();
         verify(tenantRepository).save(t);
+    }
+
+    @Test
+    @DisplayName("habilitarEmissora: operadora de parceria em vigor → BusinessException (emissora OU delegada)")
+    void habilitarEmissoraOperadoraDelegadaNega() {
+        Tenant t = tenant(TenantStatus.ATIVO);
+        t.setCapitaniaId(UUID.randomUUID());
+        t.setEamaRegistro("EAMA-SP-123");
+        when(tenantRepository.findById(t.getId())).thenReturn(Optional.of(t));
+        parceriasComoOperadora(1L);
+
+        assertThatThrownBy(() -> service.habilitarEmissora(t.getId()))
+            .isInstanceOf(com.jetski.shared.exception.BusinessException.class)
+            .hasMessageContaining("emissora OU delegada");
+        assertThat(t.getEmissoraHabilitada()).isNotEqualTo(Boolean.TRUE);
+        verify(tenantRepository, never()).save(any());
+    }
+
+    /**
+     * Janela RLS + contagem de parcerias em vigor como operadora, na ordem das chamadas:
+     * valor anterior do GUC, set_config do alvo, count(*), set_config de volta.
+     */
+    private void parceriasComoOperadora(long quantidade) {
+        Query q = mock(Query.class);
+        when(entityManager.createNativeQuery(anyString())).thenReturn(q);
+        when(q.setParameter(anyString(), any())).thenReturn(q);
+        when(q.getSingleResult()).thenReturn("", "", quantidade, "");
     }
 
     @Test

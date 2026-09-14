@@ -1,21 +1,29 @@
 package com.jetski.locacoes.internal;
 
+import com.jetski.locacoes.domain.Instrutor;
 import com.jetski.locacoes.domain.VinculoEmissao;
+import com.jetski.locacoes.domain.VinculoInstrutorOperadora;
 import com.jetski.locacoes.internal.repository.VinculoEmissaoRepository;
+import com.jetski.locacoes.internal.repository.VinculoInstrutorOperadoraRepository;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.exception.ConflictException;
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.shared.security.TenantContext;
+import com.jetski.tenant.ModuloPlano;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.HtmlUtils;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -23,6 +31,16 @@ import java.util.function.Supplier;
  * Parceria de emissão delegada (EMISSAO_DELEGADA_SPEC §4): convite/aceite
  * bilateral com termo, kill switch da EAMA, estorno anti-fraude do bônus da
  * operadora e resolução do contexto do emissor na emissão.
+ *
+ * <p><b>Papel exclusivo (§8.M)</b>: uma empresa é EAMA emissora OU delegada.
+ * A parceria em vigor como operadora define o modo de emissão (não o plano);
+ * aceitar ser operadora derruba a habilitação de emissora, e ninguém é
+ * operadora numa parceria e emissora em outra.
+ *
+ * <p><b>Instrutores da operadora (§8.N, V070)</b>: pela NORMAM-212 o instrutor
+ * é cadastrado na EAMA, que responde por ele. A operadora pode cadastrar
+ * instrutores próprios, mas eles só assinam emissões delegadas depois de
+ * aprovados pela EAMA da parceria, que também pode removê-los.
  *
  * <p><b>RLS</b>: tenant e instrutor do PARCEIRO não são legíveis na sessão do
  * tenant corrente. As leituras/escritas do outro lado rodam em janelas
@@ -52,14 +70,27 @@ public class VinculoEmissaoService {
         EnumSet.of(VinculoEmissao.Status.CONVIDADO, VinculoEmissao.Status.ATIVO,
             VinculoEmissao.Status.BLOQUEADO);
 
+    /** Parceria aceita e não revogada: é ela que torna a empresa delegada (§8.M). */
+    private static final EnumSet<VinculoEmissao.Status> EM_VIGOR =
+        EnumSet.of(VinculoEmissao.Status.ATIVO, VinculoEmissao.Status.BLOQUEADO);
+
     /** Papel do CONVIDANTE no vínculo proposto. */
     public enum PapelConvite { OPERADORA, EMISSORA }
 
+    /** Como a empresa emite à Marinha hoje. */
+    public enum ModoEmissao { PROPRIA, DELEGADA, SEM_EMISSAO }
+
+    /** Decisão da EAMA sobre um instrutor submetido pela operadora (V070). */
+    public enum DecisaoInstrutor { APROVAR, REJEITAR, REMOVER }
+
     private final VinculoEmissaoRepository repository;
     private final com.jetski.locacoes.internal.repository.VinculoEmissaoInstrutorRepository designacaoRepository;
+    private final VinculoInstrutorOperadoraRepository aprovacaoRepository;
     private final com.jetski.locacoes.internal.repository.InstrutorRepository instrutorRepository;
     private final com.jetski.creditos.CreditoService creditoService;
+    private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
     private final com.jetski.shared.email.EmailService emailService;
+    private final com.jetski.shared.storage.StorageService storageService;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
     private final EntityManager entityManager;
 
@@ -79,6 +110,22 @@ public class VinculoEmissaoService {
         // Ofício à Capitania (V064): a EAMA emissora assina o e-mail (NORMAM-212 5.4.2)
         String eamaRegistro, String responsavelNome, String telefone, String emailOficial) {}
 
+    /**
+     * Modo de emissão da empresa (§8.M). {@code vinculoId}/{@code vinculoStatus}
+     * descrevem a parceria viva como operadora, quando houver; os flags de plano
+     * são o portão comercial, informativo para a UI.
+     */
+    public record ModoEmissaoInfo(ModoEmissao modo, UUID vinculoId, String vinculoStatus,
+                                  String emissoraNome, boolean planoPermitePropria,
+                                  boolean planoPermiteDelegada) {}
+
+    /** Instrutor da operadora submetido à EAMA, com os dados que a EAMA avalia (V070). */
+    public record InstrutorOperadoraInfo(UUID instrutorId, String nome, String rg, String orgaoEmissor,
+                                         String cpf, String cha, java.time.LocalDate dataEmissao,
+                                         boolean temAssinatura, String assinaturaUrl, boolean ativo,
+                                         String status, Instant solicitadoEm, Instant decididoEm,
+                                         String motivo) {}
+
     // ==================== ciclo de vida do vínculo ====================
 
     @Transactional
@@ -96,9 +143,17 @@ public class VinculoEmissaoService {
         UUID operadorId = papel == PapelConvite.OPERADORA ? tenantId : parceiro.id();
         UUID emissorId = papel == PapelConvite.OPERADORA ? parceiro.id() : tenantId;
 
-        validarPar(tenantId, parceiro, operadorId, emissorId);
+        ParceiroInfo self = lookupParceiroPorId(tenantId);
+        ParceiroInfo operador = operadorId.equals(tenantId) ? self : parceiro;
+        ParceiroInfo emissor = emissorId.equals(tenantId) ? self : parceiro;
+        validarMesmaCapitania(operador, emissor);
+        validarEmissorHabilitado(emissor);
+        validarPapelExclusivo(operador, emissor);
+        validarPlanoDaOperadora(operador);
 
-        if (repository.existsByTenantOperadorIdAndStatusIn(operadorId, VIVOS)) {
+        // Janela da operadora: a sessão pode ser a da EAMA, que não enxerga as
+        // parcerias da operadora com terceiros.
+        if (comTenant(operadorId, () -> repository.existsByTenantOperadorIdAndStatusIn(operadorId, VIVOS))) {
             throw new ConflictException("A operadora já tem uma parceria de emissão em andamento "
                 + "(convide de novo após revogá-la)");
         }
@@ -144,6 +199,8 @@ public class VinculoEmissaoService {
         }
         validarMesmaCapitania(operador, emissor);
         validarEmissorHabilitado(emissor);
+        validarPapelExclusivo(operador, emissor);
+        validarPlanoDaOperadora(operador);
 
         v.setStatus(VinculoEmissao.Status.ATIVO);
         v.setAceitoPor(actorOrNull());
@@ -162,6 +219,18 @@ public class VinculoEmissaoService {
             if (estornado > 0) {
                 log.info("Bônus da operadora {} estornado na ativação do vínculo {}: {} créditos",
                     v.getTenantOperadorId(), v.getId(), estornado);
+            }
+            // Papel exclusivo (§8.M): aceitou ser delegada, deixa de ser emissora.
+            // Voltar a emitir por conta própria exige nova validação do superadmin,
+            // e só depois de revogar a parceria.
+            int derrubada = entityManager.createNativeQuery(
+                    "UPDATE tenant SET emissora_habilitada = false "
+                    + "WHERE id = ?1 AND emissora_habilitada = true")
+                .setParameter(1, v.getTenantOperadorId())
+                .executeUpdate();
+            if (derrubada > 0) {
+                log.info("Habilitação de emissora da operadora {} removida na ativação do vínculo {} "
+                    + "(papel exclusivo: emissora OU delegada)", v.getTenantOperadorId(), v.getId());
             }
             return null;
         });
@@ -244,6 +313,45 @@ public class VinculoEmissaoService {
         return p != null ? p.razaoSocial() : null;
     }
 
+    // ==================== modo de emissão (§8.M) ====================
+
+    /**
+     * True quando a empresa é operadora de uma parceria aceita e não revogada
+     * (ATIVA ou BLOQUEADA). É isso — e não o plano — que torna a emissão delegada.
+     */
+    @Transactional(readOnly = true)
+    public boolean emissaoDelegadaEmVigor(UUID operadoraTenantId) {
+        return comTenant(operadoraTenantId,
+            () -> repository.existsByTenantOperadorIdAndStatusIn(operadoraTenantId, EM_VIGOR));
+    }
+
+    /**
+     * Modo de emissão da empresa: parceria em vigor como operadora → DELEGADA;
+     * senão o plano decide (emissão própria → PROPRIA; só a delegada → DELEGADA,
+     * ainda sem parceria); sem nenhum dos dois módulos → SEM_EMISSAO.
+     */
+    @Transactional(readOnly = true)
+    public ModoEmissaoInfo modoEmissao(UUID tenantId) {
+        boolean propria = planoLimiteService.moduloHabilitado(tenantId, ModuloPlano.EMISSAO_PROPRIA);
+        boolean delegada = planoLimiteService.moduloHabilitado(tenantId, ModuloPlano.EMISSAO_DELEGADA);
+        VinculoEmissao v = comTenant(tenantId, () -> vinculoVivoDaOperadora(tenantId));
+        UUID vinculoId = v != null ? v.getId() : null;
+        String vinculoStatus = v != null ? v.getStatus().name() : null;
+        String emissoraNome = v != null ? nomeDoTenant(v.getTenantEmissorId()) : null;
+
+        ModoEmissao modo;
+        if (v != null && EM_VIGOR.contains(v.getStatus())) {
+            modo = ModoEmissao.DELEGADA;
+        } else if (propria) {
+            modo = ModoEmissao.PROPRIA;
+        } else if (delegada) {
+            modo = ModoEmissao.DELEGADA;
+        } else {
+            modo = ModoEmissao.SEM_EMISSAO;
+        }
+        return new ModoEmissaoInfo(modo, vinculoId, vinculoStatus, emissoraNome, propria, delegada);
+    }
+
     // ==================== emissão delegada ====================
 
     /** Condição de designação (V049): sem designação p/ o vínculo = todos; com = só os designados. */
@@ -253,11 +361,12 @@ public class VinculoEmissaoService {
         + "WHERE d.vinculo_id = :vinculoId AND d.instrutor_id = i.id))";
 
     /**
-     * Instrutores (id + nome) da EAMA parceira para o fluxo de emissão da
-     * operadora. Exposição mínima — CPF/RG/CHA entram no PDF pelo serviço,
-     * nunca pela UI da operadora (LGPD, §5.4). Respeita a designação por
-     * parceria (V049): a operadora NÃO vê todos os instrutores quando a EAMA
-     * designou um subconjunto.
+     * Instrutores (id + nome + origem) disponíveis para a emissão delegada da
+     * operadora: os da EAMA (respeitando a designação da V049) e os da própria
+     * operadora APROVADOS pela EAMA (V070). Exposição mínima — CPF/RG/CHA
+     * entram no PDF pelo serviço, nunca pela UI da operadora (LGPD, §5.4).
+     *
+     * @return linhas {id, nome, origem}, origem = EAMA | OPERADORA
      */
     @Transactional(readOnly = true)
     public List<Object[]> instrutoresDoParceiro(UUID operadoraTenantId) {
@@ -265,10 +374,10 @@ public class VinculoEmissaoService {
         if (v == null || v.getStatus() != VinculoEmissao.Status.ATIVO) {
             throw new BusinessException("Não há parceria de emissão ativa com uma EAMA");
         }
-        return comTenant(v.getTenantEmissorId(), () -> {
+        List<Object[]> daEama = comTenant(v.getTenantEmissorId(), () -> {
             @SuppressWarnings("unchecked")
             List<Object[]> rows = entityManager.createNativeQuery(
-                    "SELECT i.id, i.nome FROM instrutor i "
+                    "SELECT i.id, i.nome, CAST('EAMA' AS varchar) FROM instrutor i "
                     + "WHERE i.tenant_id = :emissorId AND i.ativo = true"
                     + COND_DESIGNADO + " ORDER BY i.nome")
                 .setParameter("emissorId", v.getTenantEmissorId())
@@ -276,6 +385,21 @@ public class VinculoEmissaoService {
                 .getResultList();
             return rows;
         });
+        List<Object[]> aprovados = comTenant(operadoraTenantId, () -> {
+            @SuppressWarnings("unchecked")
+            List<Object[]> rows = entityManager.createNativeQuery(
+                    "SELECT i.id, i.nome, CAST('OPERADORA' AS varchar) FROM instrutor i "
+                    + "JOIN vinculo_instrutor_operadora a ON a.instrutor_id = i.id "
+                    + "WHERE a.vinculo_id = :vinculoId AND a.status = 'APROVADO' "
+                    + "AND i.tenant_id = :operadoraId AND i.ativo = true ORDER BY i.nome")
+                .setParameter("vinculoId", v.getId())
+                .setParameter("operadoraId", operadoraTenantId)
+                .getResultList();
+            return rows;
+        });
+        List<Object[]> todos = new ArrayList<>(daEama);
+        todos.addAll(aprovados);
+        return todos;
     }
 
     /**
@@ -294,7 +418,7 @@ public class VinculoEmissaoService {
         }
         List<UUID> ids = instrutorIds == null ? List.of() : instrutorIds.stream().distinct().toList();
         for (UUID id : ids) {
-            var instrutor = instrutorRepository.findById(id)
+            instrutorRepository.findById(id)
                 .filter(i -> tenantId.equals(i.getTenantId()) && Boolean.TRUE.equals(i.getAtivo()))
                 .orElseThrow(() -> new BusinessException(
                     "Instrutor inválido na designação (precisa ser instrutor ATIVO da sua EAMA): " + id));
@@ -330,8 +454,8 @@ public class VinculoEmissaoService {
     /**
      * Resolve o contexto do emissor para uma emissão delegada da operadora:
      * exige vínculo ATIVO (BLOQUEADO = kill switch → 400 de negócio) e EAMA
-     * ainda habilitada. Instrutor é validado como pertencente à EAMA quando
-     * informado (a obrigatoriedade em si segue a parametrização do tenant).
+     * ainda habilitada. O instrutor informado precisa ser da EAMA (e designado,
+     * V049) ou da própria operadora com aprovação da EAMA nesta parceria (V070).
      */
     @Transactional(readOnly = true)
     public DelegacaoContext resolverParaEmissao(UUID operadoraTenantId, UUID instrutorId) {
@@ -345,6 +469,8 @@ public class VinculoEmissaoService {
                 + "Fale com a emissora para liberar.");
         }
         UUID emissorId = v.getTenantEmissorId();
+        Object[] aprovadoDaOperadora = instrutorId == null ? null
+            : comTenant(operadoraTenantId, () -> instrutorAprovadoDaOperadora(v.getId(), operadoraTenantId, instrutorId));
         return comTenant(emissorId, () -> {
             Object[] t;
             try {
@@ -368,21 +494,24 @@ public class VinculoEmissaoService {
                 insCha = null, insAssinatura = null;
             java.time.LocalDate insData = null;
             if (instrutorId != null) {
-                Object[] i;
-                try {
-                    i = (Object[]) entityManager.createNativeQuery(
-                            "SELECT i.id, i.nome, i.rg, i.orgao_emissor, i.cpf, i.cha, i.data_emissao, "
-                            + "i.assinatura_s3_key FROM instrutor i "
-                            + "WHERE i.id = :instrutorId AND i.tenant_id = :emissorId AND i.ativo = true"
-                            + COND_DESIGNADO)
-                        .setParameter("instrutorId", instrutorId)
-                        .setParameter("emissorId", emissorId)
-                        .setParameter("vinculoId", v.getId())
-                        .getSingleResult();
-                } catch (jakarta.persistence.NoResultException e) {
-                    throw new BusinessException("O instrutor informado não pertence à EAMA parceira "
-                        + "ou não está designado para esta parceria (na emissão delegada, o "
-                        + "instrutor é sempre da emissora)");
+                Object[] i = aprovadoDaOperadora;
+                if (i == null) {
+                    try {
+                        i = (Object[]) entityManager.createNativeQuery(
+                                "SELECT i.id, i.nome, i.rg, i.orgao_emissor, i.cpf, i.cha, i.data_emissao, "
+                                + "i.assinatura_s3_key FROM instrutor i "
+                                + "WHERE i.id = :instrutorId AND i.tenant_id = :emissorId AND i.ativo = true"
+                                + COND_DESIGNADO)
+                            .setParameter("instrutorId", instrutorId)
+                            .setParameter("emissorId", emissorId)
+                            .setParameter("vinculoId", v.getId())
+                            .getSingleResult();
+                    } catch (jakarta.persistence.NoResultException e) {
+                        throw new BusinessException("O instrutor informado não pertence à EAMA parceira "
+                            + "nem foi aprovado por ela, ou não está designado para esta parceria (na "
+                            + "emissão delegada o instrutor é da emissora ou um instrutor seu aprovado "
+                            + "pela emissora)");
+                    }
                 }
                 insId = (UUID) i[0];
                 insNome = (String) i[1];
@@ -399,6 +528,22 @@ public class VinculoEmissaoService {
                 insId, insNome, insRg, insOrgao, insCpf, insCha, insData, insAssinatura,
                 (String) t[8], (String) t[9], (String) t[10], (String) t[11]);
         });
+    }
+
+    /** Instrutor ativo da operadora com aprovação da EAMA nesta parceria, ou null. */
+    private Object[] instrutorAprovadoDaOperadora(UUID vinculoId, UUID operadoraTenantId, UUID instrutorId) {
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager.createNativeQuery(
+                "SELECT i.id, i.nome, i.rg, i.orgao_emissor, i.cpf, i.cha, i.data_emissao, "
+                + "i.assinatura_s3_key FROM instrutor i "
+                + "JOIN vinculo_instrutor_operadora a ON a.instrutor_id = i.id "
+                + "WHERE i.id = :instrutorId AND i.tenant_id = :operadoraId AND i.ativo = true "
+                + "AND a.vinculo_id = :vinculoId AND a.status = 'APROVADO'")
+            .setParameter("instrutorId", instrutorId)
+            .setParameter("operadoraId", operadoraTenantId)
+            .setParameter("vinculoId", vinculoId)
+            .getResultList();
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     /**
@@ -437,6 +582,215 @@ public class VinculoEmissaoService {
         });
     }
 
+    // ==================== instrutores da operadora (§8.N, V070) ====================
+
+    /**
+     * A operadora submete um instrutor PRÓPRIO à EAMA da parceria em vigor.
+     * Idempotente para pedidos pendentes; rejeitado ou removido volta a PENDENTE.
+     */
+    @Transactional
+    public VinculoInstrutorOperadora solicitarAprovacaoInstrutor(UUID operadoraTenantId, UUID instrutorId) {
+        VinculoEmissao v = repository.findFirstByTenantOperadorIdAndStatusIn(operadoraTenantId, EM_VIGOR)
+            .orElseThrow(() -> new BusinessException(
+                "Sua empresa não é operadora de uma parceria de emissão em vigor — a aprovação de "
+                + "instrutores é feita pela EAMA emissora da parceria"));
+        Instrutor instrutor = instrutorRepository.findById(instrutorId)
+            .filter(i -> operadoraTenantId.equals(i.getTenantId()))
+            .orElseThrow(() -> new NotFoundException("Instrutor não encontrado: " + instrutorId));
+        if (!Boolean.TRUE.equals(instrutor.getAtivo())) {
+            throw new BusinessException("Reative o instrutor antes de pedir a aprovação da EAMA");
+        }
+        VinculoInstrutorOperadora a = aprovacaoRepository
+            .findByVinculoIdAndInstrutorId(v.getId(), instrutorId).orElse(null);
+        if (a != null && a.getStatus() == VinculoInstrutorOperadora.Status.PENDENTE) {
+            return a;
+        }
+        if (a != null && a.getStatus() == VinculoInstrutorOperadora.Status.APROVADO) {
+            throw new ConflictException("Instrutor já aprovado pela EAMA parceira");
+        }
+        if (a == null) {
+            a = VinculoInstrutorOperadora.builder().vinculoId(v.getId()).instrutorId(instrutorId).build();
+        }
+        a = aprovacaoRepository.save(pendente(a));
+        log.info("Instrutor {} da operadora {} submetido à EAMA {} (vínculo {})",
+            instrutorId, operadoraTenantId, v.getTenantEmissorId(), v.getId());
+        notificar(v, "INSTRUTOR_SOLICITADO", operadoraTenantId, instrutorId,
+            "Instrutor aguardando sua aprovação",
+            "cadastrou o instrutor <b>" + HtmlUtils.htmlEscape(instrutor.getNome()) + "</b> e pede a sua "
+            + "aprovação para usá-lo nas emissões em seu nome. Acesse Emissão delegada no backoffice "
+            + "para aprovar ou rejeitar.");
+        return a;
+    }
+
+    /**
+     * Dados de um instrutor da operadora mudaram: a aprovação anterior (ou a
+     * recusa) deixa de valer e o pedido volta a PENDENTE para a EAMA revisar.
+     * Sem parceria em vigor ou sem pedido, não faz nada.
+     */
+    @Transactional
+    public void reenviarParaAprovacaoSeAlterado(UUID operadoraTenantId, UUID instrutorId, String nome) {
+        VinculoEmissao v = repository.findFirstByTenantOperadorIdAndStatusIn(operadoraTenantId, EM_VIGOR)
+            .orElse(null);
+        if (v == null) {
+            return;
+        }
+        VinculoInstrutorOperadora a = aprovacaoRepository
+            .findByVinculoIdAndInstrutorId(v.getId(), instrutorId).orElse(null);
+        if (a == null || a.getStatus() == VinculoInstrutorOperadora.Status.PENDENTE) {
+            return;
+        }
+        VinculoInstrutorOperadora.Status anterior = a.getStatus();
+        aprovacaoRepository.save(pendente(a));
+        log.info("Instrutor {} da operadora {} alterado: pedido à EAMA voltou a PENDENTE (era {})",
+            instrutorId, operadoraTenantId, anterior);
+        notificar(v, "INSTRUTOR_SOLICITADO", operadoraTenantId, instrutorId,
+            "Instrutor alterado aguardando sua aprovação",
+            "alterou os dados do instrutor <b>" + HtmlUtils.htmlEscape(nome) + "</b>. Ele não assina "
+            + "emissões em seu nome até você revisar e aprovar de novo em Emissão delegada.");
+    }
+
+    /** A EAMA aprova, rejeita ou remove um instrutor submetido pela operadora. */
+    @Transactional
+    public VinculoInstrutorOperadora decidirInstrutor(UUID tenantId, UUID vinculoId, UUID instrutorId,
+                                                      DecisaoInstrutor decisao, String motivo) {
+        VinculoEmissao v = requireParticipante(tenantId, vinculoId);
+        if (!tenantId.equals(v.getTenantEmissorId())) {
+            throw new BusinessException("Somente a EAMA emissora aprova, rejeita ou remove os instrutores "
+                + "da operadora");
+        }
+        if (v.getStatus() == VinculoEmissao.Status.REVOGADO) {
+            throw new ConflictException("Parceria revogada");
+        }
+        VinculoInstrutorOperadora a = aprovacaoRepository.findByVinculoIdAndInstrutorId(vinculoId, instrutorId)
+            .orElseThrow(() -> new NotFoundException(
+                "A operadora não submeteu este instrutor à parceria: " + instrutorId));
+        VinculoInstrutorOperadora.Status status = a.getStatus();
+        String transicao;
+        String corpo;
+        switch (decisao) {
+            case APROVAR -> {
+                exigirStatus(status, VinculoInstrutorOperadora.Status.PENDENTE, "aprovados");
+                Boolean ativo = comTenant(v.getTenantOperadorId(), () -> {
+                    List<?> rows = entityManager.createNativeQuery(
+                            "SELECT ativo FROM instrutor WHERE id = ?1 AND tenant_id = ?2")
+                        .setParameter(1, instrutorId)
+                        .setParameter(2, v.getTenantOperadorId())
+                        .getResultList();
+                    return rows.isEmpty() ? null : (Boolean) rows.get(0);
+                });
+                if (!Boolean.TRUE.equals(ativo)) {
+                    throw new BusinessException("O instrutor está inativo na operadora e não pode ser aprovado");
+                }
+                a.setStatus(VinculoInstrutorOperadora.Status.APROVADO);
+                transicao = "INSTRUTOR_APROVADO";
+                corpo = "aprovou o seu instrutor para as emissões em nome dela.";
+            }
+            case REJEITAR -> {
+                exigirStatus(status, VinculoInstrutorOperadora.Status.PENDENTE, "rejeitados");
+                a.setStatus(VinculoInstrutorOperadora.Status.REJEITADO);
+                transicao = "INSTRUTOR_REJEITADO";
+                corpo = "rejeitou o seu instrutor para as emissões em nome dela.";
+            }
+            case REMOVER -> {
+                exigirStatus(status, VinculoInstrutorOperadora.Status.APROVADO, "removidos");
+                a.setStatus(VinculoInstrutorOperadora.Status.REMOVIDO);
+                transicao = "INSTRUTOR_REMOVIDO";
+                corpo = "removeu o seu instrutor: ele não assina mais emissões em nome dela.";
+            }
+            default -> throw new BusinessException("Decisão inválida: " + decisao);
+        }
+        a.setDecididoEm(Instant.now());
+        a.setDecididoPor(actorOrNull());
+        a.setMotivo(motivoLimpo(motivo));
+        a = aprovacaoRepository.save(a);
+        log.info("EAMA {} decidiu {} sobre o instrutor {} da operadora {} (vínculo {})",
+            tenantId, decisao, instrutorId, v.getTenantOperadorId(), vinculoId);
+        notificar(v, transicao, tenantId, instrutorId,
+            "Decisão sobre instrutor da parceria",
+            corpo + (a.getMotivo() != null ? " Motivo: " + HtmlUtils.htmlEscape(a.getMotivo()) : ""));
+        return a;
+    }
+
+    /**
+     * Instrutores que a operadora submeteu à parceria, com os dados que a EAMA
+     * avalia (identidade, CHA e assinatura). Visível aos dois lados.
+     */
+    @Transactional(readOnly = true)
+    public List<InstrutorOperadoraInfo> listarInstrutoresOperadora(UUID tenantId, UUID vinculoId) {
+        VinculoEmissao v = requireParticipante(tenantId, vinculoId);
+        List<VinculoInstrutorOperadora> pedidos = aprovacaoRepository.findByVinculoIdOrderBySolicitadoEmDesc(vinculoId);
+        if (pedidos.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> ids = pedidos.stream().map(VinculoInstrutorOperadora::getInstrutorId).toList();
+        Map<UUID, Object[]> dados = comTenant(v.getTenantOperadorId(), () -> {
+            @SuppressWarnings("unchecked")
+            List<Object[]> rows = entityManager.createNativeQuery(
+                    "SELECT id, nome, rg, orgao_emissor, cpf, cha, data_emissao, assinatura_s3_key, ativo "
+                    + "FROM instrutor WHERE tenant_id = :operadoraId AND id IN (:ids)")
+                .setParameter("operadoraId", v.getTenantOperadorId())
+                .setParameter("ids", ids)
+                .getResultList();
+            Map<UUID, Object[]> porId = new HashMap<>();
+            for (Object[] r : rows) {
+                porId.put((UUID) r[0], r);
+            }
+            return porId;
+        });
+        List<InstrutorOperadoraInfo> resultado = new ArrayList<>();
+        for (VinculoInstrutorOperadora a : pedidos) {
+            Object[] r = dados.get(a.getInstrutorId());
+            if (r == null) {
+                continue;
+            }
+            String assinaturaKey = (String) r[7];
+            resultado.add(new InstrutorOperadoraInfo(
+                a.getInstrutorId(), (String) r[1], (String) r[2], (String) r[3], (String) r[4],
+                (String) r[5], r[6] != null ? ((java.sql.Date) r[6]).toLocalDate() : null,
+                assinaturaKey != null, urlAssinatura(assinaturaKey), Boolean.TRUE.equals(r[8]),
+                a.getStatus().name(), a.getSolicitadoEm(), a.getDecididoEm(), a.getMotivo()));
+        }
+        return resultado;
+    }
+
+    private VinculoInstrutorOperadora pendente(VinculoInstrutorOperadora a) {
+        a.setStatus(VinculoInstrutorOperadora.Status.PENDENTE);
+        a.setSolicitadoEm(Instant.now());
+        a.setSolicitadoPor(actorOrNull());
+        a.setDecididoEm(null);
+        a.setDecididoPor(null);
+        a.setMotivo(null);
+        return a;
+    }
+
+    private static void exigirStatus(VinculoInstrutorOperadora.Status atual,
+                                     VinculoInstrutorOperadora.Status esperado, String verbo) {
+        if (atual != esperado) {
+            throw new ConflictException("Só instrutores com pedido " + esperado + " podem ser " + verbo
+                + " (status atual: " + atual + ")");
+        }
+    }
+
+    private static String motivoLimpo(String motivo) {
+        if (motivo == null || motivo.isBlank()) {
+            return null;
+        }
+        String m = motivo.trim();
+        return m.length() > 500 ? m.substring(0, 500) : m;
+    }
+
+    private String urlAssinatura(String key) {
+        if (key == null) {
+            return null;
+        }
+        try {
+            return storageService.generatePresignedDownloadUrl(key, 15).getUrl();
+        } catch (Exception e) {
+            log.warn("URL da assinatura do instrutor indisponível ({}): {}", key, e.getMessage());
+            return null;
+        }
+    }
+
     // ==================== helpers ====================
 
     private VinculoEmissao vinculoVivoDaOperadora(UUID operadoraTenantId) {
@@ -450,14 +804,6 @@ public class VinculoEmissaoService {
             throw new NotFoundException("Parceria de emissão não encontrada: " + vinculoId);
         }
         return v;
-    }
-
-    private void validarPar(UUID tenantId, ParceiroInfo parceiro, UUID operadorId, UUID emissorId) {
-        ParceiroInfo self = lookupParceiroPorId(tenantId);
-        ParceiroInfo operador = operadorId.equals(tenantId) ? self : parceiro;
-        ParceiroInfo emissor = emissorId.equals(tenantId) ? self : parceiro;
-        validarMesmaCapitania(operador, emissor);
-        validarEmissorHabilitado(emissor);
     }
 
     private void validarMesmaCapitania(ParceiroInfo operador, ParceiroInfo emissor) {
@@ -474,6 +820,32 @@ public class VinculoEmissaoService {
         if (!emissor.emissoraHabilitada()) {
             throw new BusinessException("A empresa " + emissor.razaoSocial()
                 + " não está habilitada como EAMA emissora (validação do Meu Jet pendente)");
+        }
+    }
+
+    /**
+     * Papel exclusivo (§8.M): a operadora não pode ser emissora de outra parceria
+     * viva, e a emissora não pode ser operadora de outra. Cada checagem roda na
+     * janela da empresa checada — a sessão não enxerga parcerias com terceiros.
+     */
+    private void validarPapelExclusivo(ParceiroInfo operador, ParceiroInfo emissor) {
+        if (comTenant(operador.id(), () -> repository.existsByTenantEmissorIdAndStatusIn(operador.id(), VIVOS))) {
+            throw new BusinessException("A empresa " + operador.razaoSocial() + " é EAMA emissora de outra "
+                + "parceria em andamento. Uma empresa é emissora OU delegada: revogue as parcerias em "
+                + "que ela é emissora antes de torná-la operadora.");
+        }
+        if (comTenant(emissor.id(), () -> repository.existsByTenantOperadorIdAndStatusIn(emissor.id(), VIVOS))) {
+            throw new BusinessException("A empresa " + emissor.razaoSocial() + " é operadora (delegada) de "
+                + "outra parceria em andamento. Uma empresa é emissora OU delegada: ela não pode emitir "
+                + "para outra operadora.");
+        }
+    }
+
+    /** Portão comercial: ser operadora exige o módulo de emissão delegada no plano. */
+    private void validarPlanoDaOperadora(ParceiroInfo operador) {
+        if (!planoLimiteService.moduloHabilitado(operador.id(), ModuloPlano.EMISSAO_DELEGADA)) {
+            throw new BusinessException("O plano da empresa " + operador.razaoSocial() + " não inclui o "
+                + "módulo \"" + ModuloPlano.EMISSAO_DELEGADA.rotulo() + "\". Faça upgrade antes da parceria.");
         }
     }
 
@@ -544,6 +916,20 @@ public class VinculoEmissaoService {
                                     String assunto, String corpo) {
         eventPublisher.publishEvent(com.jetski.locacoes.event.VinculoEmissaoTransicaoEvent.of(
             v.getId(), v.getTenantOperadorId(), v.getTenantEmissorId(), transicao, actorOrNull()));
+        enviarAoOutroLado(v, transicao, actorTenantId, assunto, "<p><b>%s</b>: " + corpo + "</p>");
+    }
+
+    /** Como {@link #notificarTransicao}, com o instrutor na trilha (V070). */
+    private void notificar(VinculoEmissao v, String transicao, UUID actorTenantId, UUID instrutorId,
+                           String assunto, String corpo) {
+        eventPublisher.publishEvent(com.jetski.locacoes.event.VinculoEmissaoTransicaoEvent.of(
+            v.getId(), v.getTenantOperadorId(), v.getTenantEmissorId(), transicao, actorOrNull(),
+            instrutorId));
+        enviarAoOutroLado(v, transicao, actorTenantId, assunto, "<p><b>%s</b> " + corpo + "</p>");
+    }
+
+    private void enviarAoOutroLado(VinculoEmissao v, String transicao, UUID actorTenantId,
+                                   String assunto, String modeloHtml) {
         try {
             UUID outroLado = actorTenantId.equals(v.getTenantOperadorId())
                 ? v.getTenantEmissorId() : v.getTenantOperadorId();
@@ -553,7 +939,7 @@ public class VinculoEmissaoService {
                 String quem = remetente != null ? remetente.razaoSocial() : "A empresa parceira";
                 emailService.sendEmail(destino.contatoEmail(),
                     assunto + " — " + quem,
-                    "<p><b>" + quem + "</b>: " + corpo + "</p>");
+                    modeloHtml.replace("%s", HtmlUtils.htmlEscape(quem)));
             }
         } catch (Exception e) {
             log.warn("E-mail da transição {} do vínculo {} não enviado (segue sem): {}",

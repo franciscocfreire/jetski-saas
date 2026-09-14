@@ -25,4 +25,8 @@ public interface VinculoEmissaoRepository extends JpaRepository<VinculoEmissao, 
 
     boolean existsByTenantOperadorIdAndStatusIn(
         UUID operadorId, Collection<VinculoEmissao.Status> status);
+
+    /** Papel exclusivo (§8.M): a empresa é emissora de alguma parceria nesses status? */
+    boolean existsByTenantEmissorIdAndStatusIn(
+        UUID emissorId, Collection<VinculoEmissao.Status> status);
 }

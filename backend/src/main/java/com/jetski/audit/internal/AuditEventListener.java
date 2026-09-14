@@ -1171,6 +1171,9 @@ public class AuditEventListener {
             dados.put("tenantOperadorId", event.tenantOperadorId().toString());
             dados.put("tenantEmissorId", event.tenantEmissorId().toString());
             dados.put("transicao", event.transicao());
+            if (event.instrutorId() != null) {
+                dados.put("instrutorId", event.instrutorId().toString());
+            }
 
             auditoriaRepository.save(Auditoria.builder()
                 .tenantId(tenantId)

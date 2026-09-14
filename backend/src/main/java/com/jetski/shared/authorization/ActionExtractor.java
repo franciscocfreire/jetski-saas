@@ -297,6 +297,8 @@ public class ActionExtractor {
             // Emissão delegada (V048/V049): vínculo operadora×EAMA + painel do emissor
             "aceitar", "bloquear", "liberar", "revogar", "termo",
             "instrutores-parceiro", "contagens", "instrutores-designados",
+            // Papel exclusivo + instrutores da operadora aprovados pela EAMA (V070)
+            "modo", "instrutores-operadora", "solicitar-aprovacao", "decisao",
             // Perfil self-service do staff (/v1/user/me[/senha|/avatar]) —
             // ações user:me/user:senha/user:avatar puladas no ABACAuthorizationInterceptor
             "me", "senha", "avatar",
