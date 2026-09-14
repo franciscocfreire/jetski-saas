@@ -1,36 +1,43 @@
 import { Badge, Card, Erro, Tabela, Td } from "@/components/ui";
 import { dataCurta } from "@/lib/platform";
-import type { MembroEmpresa, SolicitacaoCadastro } from "@/lib/types";
-
-/** Rótulos dos papéis de EMPRESA — os mesmos do backoffice (AVAILABLE_ROLES). */
-const PAPEIS: Record<string, string> = {
-  ADMIN_TENANT: "Administrador",
-  GERENTE: "Gerente",
-  OPERADOR: "Operador",
-  VENDEDOR: "Vendedor",
-  MECANICO: "Mecânico",
-  FINANCEIRO: "Financeiro",
-};
+import type { ConviteEmpresa, MembroEmpresa, SolicitacaoCadastro } from "@/lib/types";
+import { PAPEIS } from "./papeis";
+import { AcoesMembro, CancelarConvite, IncluirUsuario } from "./usuarios-acoes";
 
 /**
- * Quem opera a empresa e quem pediu o cadastro. Somente leitura: papéis, convites e
- * desativação são decisão da própria empresa, na tela de usuários do backoffice.
+ * Quem opera a empresa, convites em aberto e quem pediu o cadastro.
+ *
+ * A empresa gere a própria equipe no backoffice; a plataforma (ADMIN/SUPORTE) também
+ * pode incluir, desativar, reativar e remover — sempre com motivo auditado. Remover
+ * tira só o vínculo com ESTA empresa: a conta da pessoa continua existindo.
  *
  * `null` em qualquer das listas = a leitura falhou; o resto da página segue de pé.
  */
 export function UsuariosDaEmpresa({
+  tenantId,
   membros,
+  convites,
   solicitacoes,
+  podeEditar,
 }: {
+  tenantId: string;
   membros: MembroEmpresa[] | null;
+  convites: ConviteEmpresa[] | null;
   solicitacoes: SolicitacaoCadastro[] | null;
+  podeEditar: boolean;
 }) {
   const ativos = membros?.filter((m) => m.ativo).length ?? 0;
+  const cabecalho = ["Usuário", "Papéis", "Situação", "Desde"];
+  if (podeEditar) cabecalho.push("Ações");
 
   return (
     <Card
       titulo="Usuários da empresa"
-      descricao="Equipe com acesso ao backoffice. Papéis e convites são geridos pela própria empresa."
+      descricao={
+        podeEditar
+          ? "Equipe com acesso ao backoffice. A empresa gere a própria equipe; aqui a plataforma pode incluir, desativar ou remover alguém, sempre com motivo auditado."
+          : "Equipe com acesso ao backoffice e convites em aberto."
+      }
       acao={
         membros && membros.length > 0 ? (
           <span className="text-sm text-ink-500">
@@ -45,40 +52,141 @@ export function UsuariosDaEmpresa({
         {membros === null ? (
           <Erro>Não foi possível carregar os usuários da empresa.</Erro>
         ) : (
-          <Tabela
-            cabecalho={["Usuário", "Papéis", "Situação", "Desde"]}
-            vazio="Nenhum usuário com conta nesta empresa."
-          >
+          <Tabela cabecalho={cabecalho} vazio="Nenhum usuário com conta nesta empresa.">
             {membros.map((m) => (
-              <tr key={m.usuarioId} className={m.ativo ? undefined : "opacity-60"}>
+              <tr key={m.usuarioId} className={m.ativo ? undefined : "bg-slate-50/60"}>
                 <Td>
-                  <div className="text-ink-900">{m.nome || "—"}</div>
+                  <div className={m.ativo ? "text-ink-900" : "text-ink-500"}>{m.nome || "—"}</div>
                   <div className="text-xs text-ink-500">{m.email}</div>
                   {m.telefone && <div className="text-xs text-ink-300">{m.telefone}</div>}
                 </Td>
                 <Td>
-                  <div className="flex flex-wrap gap-1">
-                    {m.papeis.length === 0 ? (
-                      <span className="text-ink-300">—</span>
-                    ) : (
-                      m.papeis.map((p) => (
-                        <Badge key={p} tom={p === "ADMIN_TENANT" ? "marca" : "neutro"}>
-                          {PAPEIS[p] ?? p}
-                        </Badge>
-                      ))
-                    )}
-                  </div>
+                  <Papeis papeis={m.papeis} />
                 </Td>
                 <Td>
                   <Situacao membro={m} />
                 </Td>
                 <Td className="whitespace-nowrap">{dataCurta(m.desde)}</Td>
+                {podeEditar && (
+                  <Td className="text-right">
+                    <AcoesMembro
+                      tenantId={tenantId}
+                      usuarioId={m.usuarioId}
+                      nome={m.nome || m.email}
+                      ativo={m.ativo}
+                    />
+                  </Td>
+                )}
               </tr>
             ))}
           </Tabela>
         )}
       </div>
+
+      <div className="mt-4 border-t border-slate-100 pt-4">
+        <Convites tenantId={tenantId} convites={convites} podeEditar={podeEditar} />
+        {podeEditar && (
+          <div className="mt-4">
+            <IncluirUsuario tenantId={tenantId} />
+          </div>
+        )}
+      </div>
     </Card>
+  );
+}
+
+function Convites({
+  tenantId,
+  convites,
+  podeEditar,
+}: {
+  tenantId: string;
+  convites: ConviteEmpresa[] | null;
+  podeEditar: boolean;
+}) {
+  const titulo = (
+    <div className="text-xs uppercase tracking-wide text-ink-300">
+      Convites em aberto{convites && convites.length > 0 ? ` (${convites.length})` : ""}
+    </div>
+  );
+
+  if (convites === null) {
+    return (
+      <div>
+        {titulo}
+        <p className="mt-1 text-sm text-red-700">Não foi possível carregar os convites.</p>
+      </div>
+    );
+  }
+
+  if (convites.length === 0) {
+    return (
+      <div>
+        {titulo}
+        <p className="mt-1 text-sm text-ink-300">Nenhum convite aguardando aceite.</p>
+      </div>
+    );
+  }
+
+  const cabecalho = ["Convidado", "Papéis", "Situação", "Enviado"];
+  if (podeEditar) cabecalho.push("Ações");
+
+  return (
+    <div>
+      {titulo}
+      <div className="mt-2">
+        <Tabela cabecalho={cabecalho}>
+          {convites.map((c) => (
+            <tr key={c.id}>
+              <Td>
+                <div className="text-ink-900">{c.nome || "—"}</div>
+                <div className="text-xs text-ink-500">{c.email}</div>
+              </Td>
+              <Td>
+                <Papeis papeis={c.papeis} />
+              </Td>
+              <Td>
+                {c.status === "EXPIRED" ? (
+                  <Badge tom="perigo">convite expirado</Badge>
+                ) : (
+                  <Badge tom="atencao">convite pendente</Badge>
+                )}
+                <div className="mt-1 text-xs text-ink-300">
+                  {c.status === "EXPIRED" ? "expirou em" : "vale até"} {dataCurta(c.expiresAt)}
+                </div>
+              </Td>
+              <Td className="whitespace-nowrap">
+                {dataCurta(c.lastEmailSentAt ?? c.createdAt)}
+                {c.emailSentCount > 1 && (
+                  <div className="text-xs text-ink-300">{c.emailSentCount} envios</div>
+                )}
+              </Td>
+              {podeEditar && (
+                <Td className="text-right">
+                  <CancelarConvite tenantId={tenantId} conviteId={c.id} />
+                </Td>
+              )}
+            </tr>
+          ))}
+        </Tabela>
+      </div>
+    </div>
+  );
+}
+
+function Papeis({ papeis }: { papeis: string[] }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {papeis.length === 0 ? (
+        <span className="text-ink-300">—</span>
+      ) : (
+        papeis.map((p) => (
+          <Badge key={p} tom={p === "ADMIN_TENANT" ? "marca" : "neutro"}>
+            {PAPEIS[p] ?? p}
+          </Badge>
+        ))
+      )}
+    </div>
   );
 }
 

@@ -124,6 +124,13 @@ acoes_suporte := {
 	"platform:capitanias:atualizar",
 	"platform:tenants:suporte", # abrir sessão de suporte numa empresa
 	"platform:suporte", # revogar sessão (a leitura da trilha cai no ramo de GET)
+	# Cadastro e usuários da empresa pelo console (a leitura cai no ramo de GET)
+	"platform:tenants:cadastro", # editar dados cadastrais (PUT)
+	"platform:tenants:membros:desativar",
+	"platform:tenants:membros:reativar",
+	"platform:tenants:membros:remover", # remove só o vínculo com a empresa
+	"platform:tenants:membros:convites", # convidar (POST)
+	"platform:tenants:membros:convites:cancelar",
 }
 
 # Destrutivas e de infraestrutura: SÓ admin. Nunca entram em suporte/financeiro.

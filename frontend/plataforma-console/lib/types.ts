@@ -41,6 +41,34 @@ export interface MembroEmpresa {
   desde: string;
 }
 
+/** Cadastro editável da empresa — espelha GET/PUT /v1/platform/tenants/{id}/cadastro. */
+export interface CadastroEmpresa {
+  /** Somente leitura: o slug não é editável pelo console. */
+  slug: string;
+  razaoSocial: string;
+  cnpj: string | null;
+  responsavelNome: string | null;
+  telefone: string | null;
+  whatsapp: string | null;
+  emailOficial: string | null;
+  cidade: string | null;
+  /** Sigla de 2 letras. */
+  uf: string | null;
+}
+
+/** Convite de usuário para a empresa ainda não aceito. */
+export interface ConviteEmpresa {
+  id: string;
+  email: string;
+  nome: string | null;
+  papeis: string[];
+  createdAt: string;
+  expiresAt: string;
+  status: "PENDING" | "EXPIRED";
+  emailSentCount: number;
+  lastEmailSentAt: string | null;
+}
+
 /** Pedido de cadastro da empresa (signup público) — espelha PlatformSignupService.SolicitacaoCadastro. */
 export interface SolicitacaoCadastro {
   id: string;

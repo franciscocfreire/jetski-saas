@@ -861,6 +861,8 @@ public class AuditEventListener {
     public void onMemberInvited(MemberInvitedEvent event) {
         try {
             log.debug("Processing audit for member invited event: email={}", event.email());
+            // Pode vir do console (rota de plataforma, sem tenant na sessão)
+            fixarRlsDaLinha(event.tenantId());
 
             Map<String, Object> dadosNovos = new HashMap<>();
             dadosNovos.put("conviteId", event.conviteId().toString());
@@ -900,6 +902,8 @@ public class AuditEventListener {
     public void onMemberActivated(MemberActivatedEvent event) {
         try {
             log.debug("Processing audit for member activated event: usuarioId={}", event.usuarioId());
+            // Ativação é pública (sem tenant na sessão) — a linha precisa da empresa do convite
+            fixarRlsDaLinha(event.tenantId());
 
             Map<String, Object> dadosNovos = new HashMap<>();
             dadosNovos.put("usuarioId", event.usuarioId().toString());
@@ -939,6 +943,7 @@ public class AuditEventListener {
     public void onMemberRolesChanged(MemberRolesChangedEvent event) {
         try {
             log.debug("Processing audit for member roles changed event: usuarioId={}", event.usuarioId());
+            fixarRlsDaLinha(event.tenantId());
 
             Map<String, Object> dadosAnteriores = new HashMap<>();
             dadosAnteriores.put("papeis", Arrays.asList(event.previousRoles()));
@@ -982,6 +987,7 @@ public class AuditEventListener {
     public void onMemberDeactivated(MemberDeactivatedEvent event) {
         try {
             log.debug("Processing audit for member deactivated event: usuarioId={}", event.usuarioId());
+            fixarRlsDaLinha(event.tenantId());
 
             Map<String, Object> dadosNovos = new HashMap<>();
             dadosNovos.put("usuarioId", event.usuarioId().toString());

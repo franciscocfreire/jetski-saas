@@ -1,5 +1,7 @@
 import { platformFetch } from "./api";
 import type {
+  CadastroEmpresa,
+  ConviteEmpresa,
   DashboardPlataforma,
   RegistroAuditoria,
   Seguranca2FAConsole,
@@ -97,7 +99,15 @@ export const platform = {
   emissaoEnvioConfig: () =>
     platformFetch<EmissaoEnvioConfig>("/v1/platform/emissao/envio-config"),
 
-  /** Usuários (staff) da empresa, ativos e inativos — somente leitura. */
+  /** Cadastro editável da empresa (razão social, CNPJ, contatos, cidade/UF). */
+  cadastro: (tenantId: string) =>
+    platformFetch<CadastroEmpresa>(`/v1/platform/tenants/${tenantId}/cadastro`),
+
+  /** Convites de usuário ainda não aceitos (pendentes e expirados). */
+  convites: (tenantId: string) =>
+    platformFetch<ConviteEmpresa[]>(`/v1/platform/tenants/${tenantId}/membros/convites`),
+
+  /** Usuários (staff) da empresa, ativos e inativos. */
   membros: (tenantId: string) =>
     platformFetch<MembroEmpresa[]>(`/v1/platform/tenants/${tenantId}/membros`),
 
