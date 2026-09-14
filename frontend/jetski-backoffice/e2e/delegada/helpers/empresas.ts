@@ -53,7 +53,7 @@ export interface ParDelegado {
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Signup + ativação; devolve a senha temporária do admin. */
-async function cadastrar(razaoSocial: string, slug: string, adminEmail: string): Promise<{ tenantId: string; senha: string }> {
+export async function cadastrar(razaoSocial: string, slug: string, adminEmail: string): Promise<{ tenantId: string; senha: string }> {
   const api = await publico();
   try {
     const { tenantId } = await api.signup({ razaoSocial, slug, adminEmail, adminNome: `Admin ${razaoSocial}` });
@@ -174,6 +174,57 @@ export async function prepararParDelegado(browser: Browser, sufixo: string): Pro
 
     const saldoInicialOperadora = await operadora.api.saldo();
     return { sufixo, eama, operadora, plataforma: plat, saldoInicialOperadora, encerrar };
+  } catch (e) {
+    await encerrar();
+    throw e;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Empresa única (E2E de cadastros): uma empresa nova, aprovada e logada, sem par
+// ---------------------------------------------------------------------------
+
+export interface EmpresaSimples {
+  tenantId: string;
+  slug: string;
+  razaoSocial: string;
+  adminEmail: string;
+  sessao: Sessao;
+  api: ApiEmpresa;
+  plataforma: ApiPlataforma;
+  encerrar: () => Promise<void>;
+}
+
+/**
+ * Cria, ativa, aprova e loga uma empresa nova (admin ADMIN_TENANT, sem 2FA). A aprovação
+ * cria a assinatura Trial. `encerrar` fecha o navegador e exclui a empresa (IMEDIATO),
+ * salvo com E2E_MANTER_EMPRESAS=1.
+ */
+export async function prepararEmpresa(browser: Browser, sufixo: string, rotulo = 'cadastros'): Promise<EmpresaSimples> {
+  const plat = await plataforma(await tokenRopc(OPERADOR_PLATAFORMA_EMAIL, OPERADOR_PLATAFORMA_SENHA));
+  const slug = `e2e-${rotulo}-${sufixo}`;
+  const razaoSocial = `Empresa E2E ${rotulo} ${sufixo} LTDA`;
+  const adminEmail = `admin.${rotulo}.${sufixo}@${DOMINIO}`;
+  let tenantId: string | undefined;
+  let sessao: Sessao | undefined;
+
+  const encerrar = async () => {
+    await sessao?.context.close().catch(() => undefined);
+    if (tenantId && process.env.E2E_MANTER_EMPRESAS !== '1') {
+      await plat.excluir(tenantId, slug).catch((e) => console.warn(`[cadastros] limpeza de ${slug}: ${e.message}`));
+    } else if (tenantId) {
+      console.log(`[cadastros] E2E_MANTER_EMPRESAS=1 — mantendo ${slug}`);
+    }
+    await plat.dispose();
+  };
+
+  try {
+    const criado = await cadastrar(razaoSocial, slug, adminEmail);
+    tenantId = criado.tenantId;
+    await plat.aprovar(tenantId);
+    sessao = await entrar(browser, adminEmail, criado.senha);
+    const api = await empresa(tenantId, tokenDaSessao(sessao));
+    return { tenantId, slug, razaoSocial, adminEmail, sessao, api, plataforma: plat, encerrar };
   } catch (e) {
     await encerrar();
     throw e;
