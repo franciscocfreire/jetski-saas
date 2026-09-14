@@ -39,6 +39,7 @@ public class ConviteManagementService {
     private final ConviteRepository conviteRepository;
     private final EmailService emailService;
     private final MagicLinkTokenService magicLinkTokenService;
+    private final com.jetski.usuarios.internal.repository.UsuarioRepository usuarioRepository;
 
     @Value("${jetski.frontend.url:http://localhost:3000}")
     private String frontendUrl;
@@ -111,13 +112,17 @@ public class ConviteManagementService {
 
         log.info("Magic link generated for resend: convite={}", conviteId);
 
-        // Send invitation email with magic link
-        emailService.sendInvitationEmail(
-            convite.getEmail(),
-            convite.getNome(),
-            magicLink,
-            temporaryPassword
-        );
+        // Send invitation email with magic link (conta existente → convite de aceite, sem senha)
+        if (usuarioRepository.findByEmail(convite.getEmail()).isPresent()) {
+            emailService.sendExistingAccountInvitationEmail(convite.getEmail(), convite.getNome(), magicLink);
+        } else {
+            emailService.sendInvitationEmail(
+                convite.getEmail(),
+                convite.getNome(),
+                magicLink,
+                temporaryPassword
+            );
+        }
 
         // Record email resend
         convite.recordEmailSent(magicLink);

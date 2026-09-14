@@ -200,6 +200,62 @@ public final class EmailTemplates {
             """, BRAND_HEADER, titulo, String.format(mensagem, razaoSocial), blocoMotivo, blocoCta);
     }
 
+    /** Assunto do convite de staff para quem já tem conta no Meu Jet. */
+    public static final String EXISTING_ACCOUNT_INVITATION_SUBJECT = "Você foi convidado para uma empresa no Meu Jet";
+
+    /** Convite de staff para conta existente (identidade única): sem senha temporária, só o aceite. */
+    public static String existingAccountInvitationHtml(String name, String acceptLink) {
+        return String.format("""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+            </head>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #FCFAF6;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            %s
+                    <h2 style="color: #1E4266;">Você foi convidado!</h2>
+
+                    <p>Olá <strong>%s</strong>,</p>
+
+                    <p>Você foi convidado para fazer parte da equipe de uma empresa no <strong>Meu Jet</strong>.</p>
+
+                    <p>Como você <strong>já tem uma conta</strong>, basta aceitar o convite. Depois é só entrar
+                       com o mesmo e-mail e a senha que você já usa.</p>
+
+                    <p style="text-align: center; margin: 30px 0;">
+                        <a href="%s"
+                           style="background-color: #1E4266; color: white; padding: 12px 24px;
+                                  text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold;">
+                            Aceitar Convite
+                        </a>
+                    </p>
+
+                    <div style="background-color: #FBF7EE; border-left: 4px solid #B78934; padding: 15px; margin: 20px 0;">
+                        <p style="margin: 5px 0; font-weight: bold; color: #7A5A10;">IMPORTANTE:</p>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li>Este link é válido por 48 horas</li>
+                            <li>Sua senha atual continua valendo — nenhuma senha nova é necessária</li>
+                            <li>Depois de entrar, escolha a empresa no seletor de empresas</li>
+                        </ul>
+                    </div>
+
+                    <p style="color: #666; font-size: 14px;">
+                        Se você não esperava este convite, ignore este email.
+                    </p>
+
+                    <hr style="border: none; border-top: 1px solid #E3D9C2; margin: 30px 0;">
+
+                    <p style="color: #999; font-size: 12px;">
+                        Atenciosamente,<br>
+                        Equipe Meu Jet
+                    </p>
+                </div>
+            </body>
+            </html>
+            """, BRAND_HEADER, name, acceptLink);
+    }
+
     public static String invitationHtml(String name, String activationLink, String temporaryPassword) {
         return String.format("""
             <!DOCTYPE html>

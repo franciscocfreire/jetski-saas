@@ -57,6 +57,8 @@ public class UserInvitationService {
     private final EmailService emailService;
     private final MagicLinkTokenService magicLinkTokenService;
     private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
+    private final com.jetski.usuarios.internal.repository.UsuarioRepository usuarioRepository;
+    private final MemberManagementService memberManagementService;
 
     @PersistenceContext
     private final EntityManager entityManager;
@@ -163,14 +165,19 @@ public class UserInvitationService {
 
         log.info("Magic link generated for invitation: {}", convite.getId());
 
-        // 9. Send invitation email with magic link (backward compatible: also sends temp password)
-        String activationLink = String.format("%s/activate?token=%s", frontendUrl, token);
-        emailService.sendInvitationEmail(
-            request.getEmail(),
-            request.getNome(),
-            magicLink,  // Magic link is primary activation method (UX improvement)
-            temporaryPassword  // Plain password sent in email (backward compatibility + manual activation fallback)
-        );
+        // 9. Send invitation email with magic link. Quem JÁ TEM conta (identidade
+        // única) recebe o convite de aceite, sem senha temporária: a ativação só
+        // vincula o papel à conta existente e a senha atual continua valendo.
+        if (usuarioRepository.findByEmail(request.getEmail()).isPresent()) {
+            emailService.sendExistingAccountInvitationEmail(request.getEmail(), request.getNome(), magicLink);
+        } else {
+            emailService.sendInvitationEmail(
+                request.getEmail(),
+                request.getNome(),
+                magicLink,  // Magic link is primary activation method (UX improvement)
+                temporaryPassword  // Plain password sent in email (backward compatibility + manual activation fallback)
+            );
+        }
 
         // 10. Record email sent and save (updates email_sent_count, email_sent_at)
         convite.recordEmailSent(magicLink);
@@ -254,7 +261,36 @@ public class UserInvitationService {
             .orElse(null);
 
         if (usuario != null) {
-            throw new ConflictException("Usuário com este email já existe");
+            // Identidade única: quem já tem conta (cliente, staff de outra empresa,
+            // operador) ACUMULA o papel. O vínculo é explícito — convite do admin +
+            // posse do e-mail provada pelo link —, nunca JIT por coincidência de e-mail.
+            // Sem Keycloak: senha, 2FA e login existentes ficam intactos.
+            memberManagementService.addExistingMember(
+                convite.getTenantId(), convite.getEmail(), java.util.Arrays.asList(convite.getPapeis()));
+
+            convite.activate(usuario.getId());
+            conviteRepository.save(convite);
+            log.info("Convite aceito por conta existente: usuario={}, tenant={}",
+                usuario.getId(), convite.getTenantId());
+
+            eventPublisher.publishEvent(MemberActivatedEvent.of(
+                convite.getTenantId(),
+                usuario.getId(),
+                convite.getEmail(),
+                usuario.getNome(),
+                convite.getPapeis()
+            ));
+
+            CompleteActivationResponse response = CompleteActivationResponse.success(
+                usuario.getId(),
+                convite.getEmail(),
+                usuario.getNome(),
+                convite.getTenantId(),
+                convite.getPapeis()
+            );
+            response.setContaExistente(true);
+            response.setMessage("Convite aceito! Entre com a senha que você já usa.");
+            return response;
         }
 
         // 6. Create new usuario (email_verified=true since invitation was validated)

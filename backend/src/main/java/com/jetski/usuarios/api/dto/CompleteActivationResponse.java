@@ -29,6 +29,9 @@ public class CompleteActivationResponse {
     private String[] roles;
     private String message;
 
+    /** true = convite aceito por quem já tinha conta (papel vinculado, sem conta nova nem senha temporária). */
+    private boolean contaExistente;
+
     // OAuth2 tokens for automatic login (optional - returned if configured)
     private String accessToken;
     private String refreshToken;
