@@ -202,14 +202,14 @@ export const emissaoDelegadaService = {
     return data
   },
 
-  /** Instrutores designados da parceria (V049); vazio = todos os ativos da EAMA. */
+  /** Instrutores designados da parceria (V049); vazio = nenhum instrutor da EAMA. */
   async instrutoresDesignados(vinculoId: string): Promise<InstrutorParceiro[]> {
     const { data } = await apiClient.get<InstrutorParceiro[]>(
       `${vinculosPath()}/${vinculoId}/instrutores-designados`)
     return data
   },
 
-  /** Substitui o conjunto de designados (só a EAMA; lista vazia = todos os ativos). */
+  /** Substitui o conjunto de designados (só a EAMA; lista vazia = nenhum instrutor da EAMA). */
   async designarInstrutores(vinculoId: string, instrutorIds: string[]): Promise<InstrutorParceiro[]> {
     const { data } = await apiClient.put<InstrutorParceiro[]>(
       `${vinculosPath()}/${vinculoId}/instrutores-designados`, { instrutorIds })

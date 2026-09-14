@@ -154,7 +154,16 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
         return s != null ? s : 0;
     }
 
+    /** Parceria ativa com o instrutor da EAMA designado (designação é obrigatória, §8.L). */
     private VinculoEmissao vinculoAtivo() {
+        VinculoEmissao ativo = vinculoAtivoSemDesignacao();
+        TenantContext.setTenantId(emissora);
+        vinculoService.designarInstrutores(emissora, ativo.getId(), java.util.List.of(instrutorId));
+        TenantContext.setTenantId(operadora);
+        return ativo;
+    }
+
+    private VinculoEmissao vinculoAtivoSemDesignacao() {
         VinculoEmissao convite = vinculoService.convidar(
             operadora, emissoraSlug, VinculoEmissaoService.PapelConvite.OPERADORA);
         TenantContext.setTenantId(emissora);
@@ -391,10 +400,10 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("designação (V049): operadora só vê/usa instrutores designados; vazio = todos; só a EAMA designa")
+    @DisplayName("designação obrigatória (§8.L): operadora só vê/usa instrutores designados; vazio = nenhum da EAMA; só a EAMA designa")
     void designacaoDeInstrutores() {
         seedCreditos(0, 10);
-        VinculoEmissao v = vinculoAtivo();
+        VinculoEmissao v = vinculoAtivoSemDesignacao();
 
         // segundo instrutor da EAMA
         UUID instrutor2 = UUID.randomUUID();
@@ -403,8 +412,8 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
             VALUES (?, ?, 'Instrutor Dois', '222.333.444-55', 'CHA-888', true)
             """, instrutor2, emissora);
 
-        // sem designação → operadora vê os dois
-        assertThat(vinculoService.instrutoresDoParceiro(operadora)).hasSize(2);
+        // sem designação → operadora não vê nenhum instrutor da EAMA
+        assertThat(vinculoService.instrutoresDoParceiro(operadora)).isEmpty();
 
         // operadora NÃO designa
         assertThatThrownBy(() -> vinculoService.designarInstrutores(
@@ -455,12 +464,12 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
             instrutorId, reservaId);
         assertThat(emissaoService.emitir(reservaId).getDocumentoId()).isNotNull();
 
-        // designação vazia volta ao padrão "todos"
+        // designação vazia = nenhum instrutor da EAMA (não volta a "todos")
         TenantContext.setTenantId(emissora);
         assertThat(vinculoService.designarInstrutores(emissora, v.getId(), java.util.List.of()))
             .isEmpty();
         TenantContext.setTenantId(operadora);
-        assertThat(vinculoService.instrutoresDoParceiro(operadora)).hasSize(2);
+        assertThat(vinculoService.instrutoresDoParceiro(operadora)).isEmpty();
     }
 
     @Test

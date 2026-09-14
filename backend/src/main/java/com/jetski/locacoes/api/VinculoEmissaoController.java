@@ -109,7 +109,7 @@ public class VinculoEmissaoController {
     /** Instrutores designados da parceria (V049); visível aos dois lados. */
     @GetMapping("/{id}/instrutores-designados")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
-    @Operation(summary = "Instrutores da EAMA designados para esta parceria (vazio = todos os ativos)")
+    @Operation(summary = "Instrutores da EAMA designados para esta parceria (vazio = nenhum)")
     public List<Map<String, Object>> instrutoresDesignados(@PathVariable UUID tenantId,
                                                            @PathVariable("id") UUID id) {
         return service.listarDesignados(tenantId, id).stream()
@@ -117,7 +117,7 @@ public class VinculoEmissaoController {
             .toList();
     }
 
-    /** Substitui o conjunto de designados (só a EAMA; lista vazia = todos os ativos). */
+    /** Substitui o conjunto de designados (só a EAMA; lista vazia = nenhum instrutor da EAMA). */
     @PutMapping("/{id}/instrutores-designados")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
     @Operation(summary = "Designa quais instrutores da EAMA atendem esta parceria")

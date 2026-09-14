@@ -239,8 +239,12 @@ gate/identidade trocados pelo vínculo.
 - **G. Multi-emissor**: MVP = 1 emissor ativo por operadora; N:N é v2. ✔
 - **L. Instrutores designados por parceria** (V049, 12/jul/2026): a EAMA escolhe quais dos
   seus instrutores atendem cada operadora — a operadora só vê (e só emite com) os
-  designados. Opt-in: sem designação, todos os instrutores ativos da EAMA ficam
-  disponíveis (compatível com V048). Validado na listagem E na emissão. ✔
+  designados. ~~Opt-in: sem designação, todos os instrutores ativos da EAMA ficam
+  disponíveis (compatível com V048).~~ **Revisto em 13/set/2026: designação obrigatória.**
+  Sem designação, nenhum instrutor da EAMA fica disponível; a operadora usa só os
+  instrutores próprios aprovados pela EAMA (§8.N). A V070 designou todos os instrutores
+  ativos da EAMA nas parcerias em vigor que ainda não tinham designação, para nada mudar
+  nelas. Validado na listagem E na emissão. ✔
 - **H. Anti-fraude do bônus**: ao ativar o vínculo de delegação, os créditos ganhos como
   **bônus** (adesão) da **operadora** são **zerados** via lançamento de estorno (§4.1.4);
   créditos comprados são preservados; a **EAMA mantém** o bônus dela (emissão delegada não
@@ -281,8 +285,9 @@ gate/identidade trocados pelo vínculo.
     instrutor submetido devolve o pedido a PENDENTE; rejeitado/removido pode ser pedido
     de novo.
   - Na emissão delegada a operadora escolhe entre os instrutores **designados** pela EAMA
-    (§8.L, semântica opt-in mantida) e os **seus aprovados** — validado na listagem e na
-    emissão. A EAMA vê identidade, CHA e assinatura para decidir.
+    (§8.L, designação obrigatória) e os **seus aprovados** — validado na listagem e na
+    emissão. Sem designação, só os próprios aprovados. A EAMA vê identidade, CHA e
+    assinatura para decidir.
   - Decisões auditadas nos dois tenants (`VINCULO_EMISSAO_INSTRUTOR_*`, com `instrutorId`)
     e avisadas por e-mail ao outro lado. ✔
 

@@ -856,6 +856,18 @@ ALTER TABLE public.tenant
 -- V070: instrutores da operadora aprovados pela EAMA da parceria + papel exclusivo (emissora OU delegada)
 DO $$ BEGIN
     IF to_regclass('public.vinculo_emissao') IS NOT NULL THEN
+        -- Designação obrigatória (§8.L): só na PRIMEIRA aplicação (tabela da V070 ainda não
+        -- existe), parcerias em vigor sem designação recebem todos os instrutores ativos da
+        -- EAMA. Reaplicar não pode desfazer uma designação vazia feita de propósito.
+        IF to_regclass('public.vinculo_instrutor_operadora') IS NULL THEN
+            INSERT INTO public.vinculo_emissao_instrutor (vinculo_id, instrutor_id)
+            SELECT v.id, i.id
+              FROM public.vinculo_emissao v
+              JOIN public.instrutor i ON i.tenant_id = v.tenant_emissor_id AND i.ativo = true
+             WHERE v.status IN ('ATIVO', 'BLOQUEADO')
+               AND NOT EXISTS (SELECT 1 FROM public.vinculo_emissao_instrutor d WHERE d.vinculo_id = v.id)
+            ON CONFLICT (vinculo_id, instrutor_id) DO NOTHING;
+        END IF;
         CREATE TABLE IF NOT EXISTS public.vinculo_instrutor_operadora (
             id             uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
             vinculo_id     uuid NOT NULL REFERENCES public.vinculo_emissao(id) ON DELETE CASCADE,

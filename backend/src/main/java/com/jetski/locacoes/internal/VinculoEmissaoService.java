@@ -354,15 +354,18 @@ public class VinculoEmissaoService {
 
     // ==================== emissão delegada ====================
 
-    /** Condição de designação (V049): sem designação p/ o vínculo = todos; com = só os designados. */
+    /**
+     * Designação obrigatória (V049, revista em 13/set/2026 — §8.L): a operadora só usa
+     * instrutor da EAMA que foi designado para a parceria. Sem designação, nenhum
+     * instrutor da EAMA; a operadora fica só com os próprios aprovados.
+     */
     private static final String COND_DESIGNADO =
-        " AND (NOT EXISTS (SELECT 1 FROM vinculo_emissao_instrutor d WHERE d.vinculo_id = :vinculoId)"
-        + " OR EXISTS (SELECT 1 FROM vinculo_emissao_instrutor d "
-        + "WHERE d.vinculo_id = :vinculoId AND d.instrutor_id = i.id))";
+        " AND EXISTS (SELECT 1 FROM vinculo_emissao_instrutor d "
+        + "WHERE d.vinculo_id = :vinculoId AND d.instrutor_id = i.id)";
 
     /**
      * Instrutores (id + nome + origem) disponíveis para a emissão delegada da
-     * operadora: os da EAMA (respeitando a designação da V049) e os da própria
+     * operadora: os da EAMA DESIGNADOS para a parceria e os da própria
      * operadora APROVADOS pela EAMA (V070). Exposição mínima — CPF/RG/CHA
      * entram no PDF pelo serviço, nunca pela UI da operadora (LGPD, §5.4).
      *
@@ -404,8 +407,9 @@ public class VinculoEmissaoService {
 
     /**
      * Define (substituindo o conjunto) quais instrutores da EAMA atendem esta
-     * parceria. Só o EMISSOR designa; lista vazia volta ao padrão "todos os
-     * ativos". Todos os ids precisam ser instrutores ATIVOS da própria EAMA.
+     * parceria. Só o EMISSOR designa; lista vazia = nenhum instrutor da EAMA (a
+     * operadora fica só com os próprios aprovados). Todos os ids precisam ser
+     * instrutores ATIVOS da própria EAMA.
      */
     @Transactional
     public List<Object[]> designarInstrutores(UUID tenantId, UUID vinculoId, List<UUID> instrutorIds) {
@@ -431,7 +435,7 @@ public class VinculoEmissaoService {
                 .build());
         }
         log.info("Designação de instrutores da parceria {} atualizada pela EAMA {}: {} instrutor(es) "
-            + "(vazio = todos os ativos)", vinculoId, tenantId, ids.size());
+            + "(vazio = nenhum instrutor da EAMA)", vinculoId, tenantId, ids.size());
         return listarDesignados(tenantId, vinculoId);
     }
 
@@ -454,8 +458,8 @@ public class VinculoEmissaoService {
     /**
      * Resolve o contexto do emissor para uma emissão delegada da operadora:
      * exige vínculo ATIVO (BLOQUEADO = kill switch → 400 de negócio) e EAMA
-     * ainda habilitada. O instrutor informado precisa ser da EAMA (e designado,
-     * V049) ou da própria operadora com aprovação da EAMA nesta parceria (V070).
+     * ainda habilitada. O instrutor informado precisa ser da EAMA e designado para
+     * a parceria (V049) ou da própria operadora com aprovação da EAMA (V070).
      */
     @Transactional(readOnly = true)
     public DelegacaoContext resolverParaEmissao(UUID operadoraTenantId, UUID instrutorId) {

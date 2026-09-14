@@ -54,3 +54,15 @@ UPDATE public.tenant t
  WHERE t.emissora_habilitada = true
    AND EXISTS (SELECT 1 FROM public.vinculo_emissao v
                WHERE v.tenant_operador_id = t.id AND v.status IN ('ATIVO', 'BLOQUEADO'));
+
+-- Designação obrigatória (EMISSAO_DELEGADA_SPEC §8.L, revista): sem designação a
+-- operadora não usa instrutor da EAMA. Parcerias em vigor que dependiam do antigo
+-- "vazio = todos os ativos" recebem a designação explícita desses instrutores, para
+-- nada mudar nelas no deploy; a EAMA ajusta depois.
+INSERT INTO public.vinculo_emissao_instrutor (vinculo_id, instrutor_id)
+SELECT v.id, i.id
+  FROM public.vinculo_emissao v
+  JOIN public.instrutor i ON i.tenant_id = v.tenant_emissor_id AND i.ativo = true
+ WHERE v.status IN ('ATIVO', 'BLOQUEADO')
+   AND NOT EXISTS (SELECT 1 FROM public.vinculo_emissao_instrutor d WHERE d.vinculo_id = v.id)
+ON CONFLICT (vinculo_id, instrutor_id) DO NOTHING;

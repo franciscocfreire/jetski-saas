@@ -543,7 +543,7 @@ function DialogDesignacao({ vinculo, onClose }: { vinculo: VinculoEmissao; onClo
     onSuccess: (res) => {
       toast.success(
         res.length === 0
-          ? 'Sem designação — a operadora vê todos os instrutores ativos.'
+          ? 'Nenhum instrutor designado — a operadora fica só com os instrutores próprios que você aprovou.'
           : `${res.length} instrutor(es) designado(s) para a parceria.`)
       qc.invalidateQueries({ queryKey: ['instrutores-designados', vinculo.id] })
       onClose()
@@ -559,7 +559,8 @@ function DialogDesignacao({ vinculo, onClose }: { vinculo: VinculoEmissao; onClo
           <DialogDescription>
             Escolha quais instrutores da sua EAMA atendem {vinculo.parceiroNome ?? 'a operadora'}.
             A operadora só enxerga (e só emite com) os designados. <b>Nenhum selecionado</b> ={' '}
-            todos os instrutores ativos ficam disponíveis.
+            nenhum instrutor da sua EAMA: a operadora fica só com os instrutores próprios que
+            você aprovar.
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-64 space-y-2 overflow-y-auto">
