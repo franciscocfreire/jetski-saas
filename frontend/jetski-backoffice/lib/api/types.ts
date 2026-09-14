@@ -355,6 +355,8 @@ export interface Instrutor extends BaseEntity {
   cha?: string
   dataEmissao?: string
   temAssinatura?: boolean
+  /** Link temporário (15 min) da assinatura cadastrada; ausente/nulo sem assinatura. */
+  assinaturaUrl?: string | null
   ativo: boolean
 }
 

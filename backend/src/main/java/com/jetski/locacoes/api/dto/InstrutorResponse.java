@@ -18,6 +18,8 @@ public class InstrutorResponse {
     private String cha;
     private java.time.LocalDate dataEmissao;
     private Boolean temAssinatura;
+    /** Link temporário (15 min) para exibir a assinatura cadastrada; nulo sem assinatura. */
+    private String assinaturaUrl;
     private Boolean ativo;
     private Instant createdAt;
     private Instant updatedAt;

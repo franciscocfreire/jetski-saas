@@ -114,6 +114,23 @@ public class InstrutorService {
         return key;
     }
 
+    /**
+     * Link temporário (15 min) da assinatura cadastrada, para a empresa conferir o que vai
+     * no Anexo 5-B-1 antes de substituir. Mesmo mecanismo da tela da EAMA na emissão
+     * delegada. Falha ao assinar a URL não derruba a listagem: devolve nulo.
+     */
+    public String assinaturaUrl(Instrutor instrutor) {
+        if (instrutor.getAssinaturaS3Key() == null) {
+            return null;
+        }
+        try {
+            return storageService.generatePresignedDownloadUrl(instrutor.getAssinaturaS3Key(), 15).getUrl();
+        } catch (Exception e) {
+            log.warn("Falha ao gerar link da assinatura do instrutor {}: {}", instrutor.getId(), e.getMessage());
+            return null;
+        }
+    }
+
     @Transactional
     public Instrutor definirAtivo(UUID id, boolean ativo) {
         Instrutor existing = buscar(id);

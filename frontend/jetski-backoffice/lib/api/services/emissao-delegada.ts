@@ -22,6 +22,16 @@ export interface InstrutorParceiro {
   nome: string
   /** EAMA = instrutor da emissora; OPERADORA = instrutor próprio aprovado pela EAMA (V070). */
   origem?: 'EAMA' | 'OPERADORA'
+  // Dados cadastrais (somente leitura na operadora — já vão impressos no Anexo 5-B-1)
+  rg?: string | null
+  orgaoEmissor?: string | null
+  cpf?: string | null
+  cha?: string | null
+  /** yyyy-MM-dd */
+  dataEmissao?: string | null
+  temAssinatura?: boolean
+  /** Link temporário (15 min) da assinatura; nulo sem assinatura. */
+  assinaturaUrl?: string | null
 }
 
 /** Como a empresa emite hoje (§8.M): a parceria em vigor como operadora manda, não o plano. */

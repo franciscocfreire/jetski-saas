@@ -21,6 +21,7 @@ import { useModoEmissao } from '@/lib/hooks/use-modo-emissao'
 import { instrutoresService, emissaoDelegadaService } from '@/lib/api/services'
 import type { Instrutor, InstrutorCreateRequest } from '@/lib/api/types'
 import { AprovacaoInstrutorBadge } from '@/components/emissao/aprovacao-instrutor-badge'
+import { InstrutorParceiroCard } from '@/components/emissao/instrutor-parceiro-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -75,6 +76,13 @@ export default function InstrutoresPage() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Instrutor | null>(null)
   const [form, setForm] = useState<InstrutorCreateRequest>(VAZIO)
+  // Falha ao carregar a assinatura atual, por URL: a de um instrutor não esconde a de outro,
+  // e um link novo (lista recarregada) tenta de novo sem reset manual.
+  const [urlAssinaturaFalhou, setUrlAssinaturaFalhou] = useState<string | null>(null)
+  const assinaturaAtualFalhou =
+    !!editing?.assinaturaUrl && urlAssinaturaFalhou === editing.assinaturaUrl
+  const setAssinaturaAtualFalhou = (falhou: boolean) =>
+    setUrlAssinaturaFalhou(falhou ? editing?.assinaturaUrl ?? null : null)
   const [linkPara, setLinkPara] = useState<Instrutor | null>(null)
 
   const { data: instrutores, isLoading } = useQuery({
@@ -177,9 +185,33 @@ export default function InstrutoresPage() {
           </div>
         </div>
 
+        {editing?.temAssinatura && (
+          <div>
+            <Label className="mb-1 block text-xs">Assinatura atual</Label>
+            <div className="flex h-28 items-center justify-center rounded-md border bg-white p-2">
+              {editing.assinaturaUrl && !assinaturaAtualFalhou ? (
+                // eslint-disable-next-line @next/next/no-img-element -- URL pré-assinada do storage (15 min), fora do otimizador do Next
+                <img
+                  src={editing.assinaturaUrl}
+                  alt={`Assinatura de ${editing.nome}`}
+                  className="max-h-full max-w-full object-contain"
+                  data-testid="instrutor-assinatura-atual"
+                  onError={() => setAssinaturaAtualFalhou(true)}
+                />
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Não foi possível carregar a imagem agora. Feche e abra o cadastro de novo.
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         <div>
           <Label className="mb-1 block text-xs">
-            Assinatura do instrutor {editing?.temAssinatura && '(já cadastrada — assine para substituir)'}
+            {editing?.temAssinatura
+              ? 'Nova assinatura (opcional — assine abaixo só se quiser substituir a atual)'
+              : 'Assinatura do instrutor'}
           </Label>
           <SignaturePad onChange={(dataUrl) => setForm((s) => ({ ...s, assinaturaBase64: dataUrl ?? undefined }))} />
         </div>
@@ -564,23 +596,7 @@ function InstrutoresDelegadaView({
         ) : (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {(parceiros ?? []).map((p) => (
-              <div
-                key={p.id}
-                data-testid="instrutores-disponivel"
-                data-instrutor-id={p.id}
-                data-origem={p.origem ?? 'EAMA'}
-                className="flex items-center gap-3 rounded-lg border p-3"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <GraduationCap className="h-4 w-4 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{p.nome}</p>
-                  <Badge variant="outline" className="mt-0.5 text-[10px]">
-                    {p.origem === 'OPERADORA' ? 'Seu instrutor — aprovado pela EAMA' : `Instrutor de ${eama}`}
-                  </Badge>
-                </div>
-              </div>
+              <InstrutorParceiroCard key={p.id} instrutor={p} eama={eama} />
             ))}
           </div>
         )}
