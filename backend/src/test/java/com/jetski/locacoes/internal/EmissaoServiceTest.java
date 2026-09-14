@@ -144,7 +144,8 @@ class EmissaoServiceTest {
 
         // O que motivou a mudança: os ~24 s de SMTP não podem acontecer no request.
         verify(email, org.mockito.Mockito.never())
-            .sendEmailComAnexo(anyString(), anyString(), anyString(), anyString(), any(), anyString());
+            .sendEmailComAnexo(anyString(), anyString(), anyString(), anyString(), any(), anyString(),
+                nullable(String.class), any());
         assertThat(r.getMarinhaEnvioStatus()).isEqualTo(com.jetski.locacoes.domain.EnvioStatus.PENDENTE);
         assertThat(r.getClienteEnvioStatus()).isEqualTo(com.jetski.locacoes.domain.EnvioStatus.PENDENTE);
         assertThat(r.isEnviadoMarinha()).isFalse();
@@ -176,7 +177,8 @@ class EmissaoServiceTest {
         verify(storage, org.mockito.Mockito.never()).putObject(anyString(), any(), anyString());
         verify(docRepo, org.mockito.Mockito.never()).save(any(DocumentoEmitido.class));
         verify(email, org.mockito.Mockito.never())
-            .sendEmailComAnexo(anyString(), anyString(), anyString(), anyString(), any(), anyString());
+            .sendEmailComAnexo(anyString(), anyString(), anyString(), anyString(), any(), anyString(),
+                nullable(String.class), any());
     }
 
     @Test
@@ -235,7 +237,21 @@ class EmissaoServiceTest {
             .contains("Documento oficial de identificação")
             .contains("<b>Maria da Silva</b><br>EAMA Jet Save Turismo Náutico LTDA<br>CNPJ: 65.455.888/0001-00")
             .doesNotContain("operado por"); // própria: sem operadora na assinatura
-        verify(email).sendEmailComAnexo(eq("roberto@email.com"), anyString(), anyString(), anyString(), any(), anyString());
+
+        // Cliente: em nome da loja, com a reserva no assunto e o resumo no corpo.
+        org.mockito.ArgumentCaptor<String> assuntoCliente = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<String> corpoCliente = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(email).sendEmailComAnexo(eq("roberto@email.com"), assuntoCliente.capture(), corpoCliente.capture(),
+            anyString(), any(), anyString(), nullable(String.class),
+            eq(new EmailService.Remetente(tenant, "Jet Save Turismo Náutico LTDA")));
+        String codigo = "#" + reservaId.toString().substring(0, 8);
+        assertThat(assuntoCliente.getValue())
+            .isEqualTo("Seus documentos — Jet Save Turismo Náutico LTDA — reserva " + codigo);
+        assertThat(corpoCliente.getValue())
+            .contains("Olá, <b>Roberto Lima</b>").contains("<b>" + codigo + "</b>")
+            .contains("987.654.321-00").contains("<b>GRU-1</b> — R$ 23,13")
+            .contains("habilitação temporária (CHA-MTA-E)").doesNotContain(" pela EAMA ")
+            .contains("E-mail: eama@jetsave.com.br").contains("Equipe Jet Save Turismo Náutico LTDA");
     }
 
     @Test
@@ -404,7 +420,8 @@ class EmissaoServiceTest {
         org.mockito.ArgumentCaptor<String> body = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(email).sendEmailComAnexo(eq("capitania-sp@example.com"), anyString(), body.capture(),
             anyString(), any(), eq("application/pdf"), eq("oficial@eamasantos.com.br"),
-            eq(new EmailService.Remetente(emissora, "EAMA Santos LTDA")));
+            // cópia para a operadora (tenant do documento), pelo e-mail oficial dela
+            eq(new EmailService.Remetente(emissora, "EAMA Santos LTDA", "eama@jetsave.com.br")));
         assertThat(body.getValue()).contains("Ana Souza").contains("EAMA-SP-999")
             // a operadora (tenant da sessão) aparece só na assinatura, como quem opera pela EAMA
             .contains("CNPJ: 22.222.222/0001-22<br>operado por <b>Jet Save Turismo Náutico LTDA</b>")
@@ -434,6 +451,6 @@ class EmissaoServiceTest {
             anyString(), anyString(), anyString(), any(), anyString(), nullable(String.class), any());
         // a via do cliente continua saindo normalmente (em nome da operadora)
         verify(email).sendEmailComAnexo(eq("roberto@email.com"), anyString(), anyString(), anyString(),
-            any(), anyString());
+            any(), anyString(), nullable(String.class), eq(new EmailService.Remetente(tenant, "Jet Save Turismo Náutico LTDA")));
     }
 }

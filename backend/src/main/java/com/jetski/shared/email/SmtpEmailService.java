@@ -118,13 +118,16 @@ public class SmtpEmailService implements EmailService {
             : tenantSmtpResolver.forCurrentTenant();
         String nomeGlobal = remetente != null && remetente.nome() != null && !remetente.nome().isBlank()
             ? remetente.nome() : fromName;
+        String cc = remetente != null ? remetente.copia() : null;
         if (perTenant.isPresent()) {
             var s = perTenant.get();
             String nome = (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : nomeGlobal;
-            senderFactory.send(senderFactory.build(s), s.from(), nome, to, subject, html, attName, att, attType, replyTo);
+            senderFactory.send(senderFactory.build(s), s.from(), nome, to, subject, html, attName, att, attType,
+                replyTo, cc);
             log.debug("E-mail enviado pelo SMTP do tenant (from={})", s.from());
         } else {
-            senderFactory.send(mailSender, fromEmail, nomeGlobal, to, subject, html, attName, att, attType, replyTo);
+            senderFactory.send(mailSender, fromEmail, nomeGlobal, to, subject, html, attName, att, attType,
+                replyTo, cc);
         }
     }
 

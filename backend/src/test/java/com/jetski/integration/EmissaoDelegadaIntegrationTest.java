@@ -359,7 +359,8 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
             org.mockito.ArgumentMatchers.eq("capitania-sp@example.com"), anyString(), body.capture(),
             anyString(), any(), anyString(),
             org.mockito.ArgumentMatchers.eq("oficial@eamasantos.com.br"),
-            org.mockito.ArgumentMatchers.eq(new EmailService.Remetente(emissora, "EAMA Santos LTDA")));
+            // cópia (Cc) para a operadora: o e-mail oficial dela
+            org.mockito.ArgumentMatchers.eq(new EmailService.Remetente(emissora, "EAMA Santos LTDA", "oficial@operadora.com")));
         assertThat(body.getValue())
             .contains("Ana Souza").contains("EAMA-SP-999").contains("EAMA Santos LTDA")
             // a operadora só na assinatura, como quem opera pela EAMA; contatos dela não entram

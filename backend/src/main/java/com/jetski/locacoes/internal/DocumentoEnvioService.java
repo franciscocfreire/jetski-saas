@@ -68,10 +68,14 @@ public class DocumentoEnvioService {
     public record EnvioContexto(
         UUID documentoId,
         UUID tenantId,
+        /** Razão social da loja: nome de exibição do "From" da via do cliente. */
+        String lojaNome,
         UUID reservaId,
         String marinhaEmail,
         /** Quem remete o ofício à Capitania: a EAMA emissora (delegada) ou o próprio tenant. */
         UUID remetenteTenantId,
+        /** Cópia (Cc) do ofício: na delegada, a operadora que atendeu; na própria, ninguém. */
+        String copiaOficio,
         String clienteEmail,
         String emissorContatoEmail,
         MarinhaEmailTemplate.DadosOficio oficio,
@@ -157,15 +161,19 @@ public class DocumentoEnvioService {
         // e não o hash canônico (do PDF do cliente) gravado no documento.
         String hashMarinha = pdfMarinha != null ? sha256Hex(pdfMarinha) : doc.getHashSha256();
 
+        boolean delegada = doc.getEmissorTenantId() != null;
         return new EnvioContexto(
-            doc.getId(), reserva.getTenantId(), reserva.getId(),
-            emissor.marinhaEmail(), emissor.remetenteTenantId(), cliente.getEmail(),
+            doc.getId(), reserva.getTenantId(), tenant.getRazaoSocial(), reserva.getId(),
+            emissor.marinhaEmail(), emissor.remetenteTenantId(),
+            // Delegada: a operadora (tenant do documento) acompanha o ofício em cópia.
+            delegada ? emailDaEmpresa(tenant) : null,
+            cliente.getEmail(),
             // A EAMA emissora só é avisada da emissão original; um reenvio não a notifica.
             reenvio ? null : emissor.contatoEmail(),
-            oficio(emissor, doc.getEmissorTenantId() != null ? tenant : null, cliente, hab,
+            oficio(emissor, delegada ? tenant : null, cliente, hab,
                 reserva.getId(), configDocumento(tenant), hashMarinha, reenvio),
-            "Seus documentos — " + tenant.getRazaoSocial(),
-            corpoCliente(cliente, hab),
+            assuntoCliente(tenant, reserva.getId()),
+            corpoCliente(tenant, reserva, cliente, hab, delegada ? emissor.nome() : null),
             DocumentoNome.de(cliente.getNome(), cliente.getDocumento()),
             "Documento emitido em seu nome — " + tenant.getRazaoSocial(),
             corpoNotificacaoEmissor(tenant, cliente, hab, doc.getHashSha256()),
@@ -188,11 +196,13 @@ public class DocumentoEnvioService {
         // O hash no ofício descreve o PDF ANEXADO (a via da Marinha), não o canônico.
         String hashMarinha = pdfMarinha != null ? sha256Hex(pdfMarinha) : hashCliente;
         return new EnvioContexto(
-            documentoId, reserva.getTenantId(), reserva.getId(),
-            emissor.marinhaEmail(), emissor.remetenteTenantId(), cliente.getEmail(), emissor.contatoEmail(),
+            documentoId, reserva.getTenantId(), tenant.getRazaoSocial(), reserva.getId(),
+            emissor.marinhaEmail(), emissor.remetenteTenantId(),
+            delegacao != null ? emailDaEmpresa(tenant) : null,
+            cliente.getEmail(), emissor.contatoEmail(),
             oficio(emissor, delegacao != null ? tenant : null, cliente, hab, reserva.getId(), cfg, hashMarinha, false),
-            "Seus documentos — " + tenant.getRazaoSocial(),
-            corpoCliente(cliente, hab),
+            assuntoCliente(tenant, reserva.getId()),
+            corpoCliente(tenant, reserva, cliente, hab, delegacao != null ? delegacao.razaoSocial() : null),
             DocumentoNome.de(cliente.getNome(), cliente.getDocumento()),
             "Documento emitido em seu nome — " + tenant.getRazaoSocial(),
             corpoNotificacaoEmissor(tenant, cliente, hab, hashCliente),
@@ -229,7 +239,8 @@ public class DocumentoEnvioService {
                         MarinhaEmailTemplate.corpoHtml(ctx.oficio()),
                         MarinhaEmailTemplate.nomeArquivo(ctx.oficio()),
                         ctx.pdfMarinha(), "application/pdf", ctx.oficio().emailOficial(),
-                        new EmailService.Remetente(ctx.remetenteTenantId(), ctx.oficio().eamaNome()));
+                        new EmailService.Remetente(ctx.remetenteTenantId(), ctx.oficio().eamaNome(),
+                            ctx.copiaOficio()));
                     marinha = EnvioStatus.ENVIADO;
                 } catch (Exception e) {
                     log.warn("Falha ao enviar e-mail à Marinha (segue sem enviar): to={}, subject={}, erro={}",
@@ -247,8 +258,10 @@ public class DocumentoEnvioService {
                 destinatario = EnvioStatus.SEM_DESTINATARIO;
             } else {
                 try {
+                    // Via do cliente em nome da loja: sem SMTP próprio, o "From" leva o nome dela.
                     emailService.sendEmailComAnexo(ctx.clienteEmail(), ctx.assuntoCliente(),
-                        ctx.corpoCliente(), ctx.nomeArquivo(), ctx.pdfCliente(), "application/pdf");
+                        ctx.corpoCliente(), ctx.nomeArquivo(), ctx.pdfCliente(), "application/pdf", null,
+                        new EmailService.Remetente(ctx.tenantId(), ctx.lojaNome()));
                     destinatario = EnvioStatus.ENVIADO;
                 } catch (Exception e) {
                     log.warn("Falha ao enviar e-mail (segue sem enviar): to={}, subject={}, erro={}",
@@ -429,21 +442,97 @@ public class DocumentoEnvioService {
         return a;
     }
 
-    String corpoCliente(Cliente c, ReservaHabilitacao hab) {
+    /** Código curto da reserva — o mesmo do backoffice e do ofício ({@code #xxxxxxxx}). */
+    static String codigoReserva(UUID reservaId) {
+        return reservaId != null ? "#" + reservaId.toString().substring(0, 8) : "#—";
+    }
+
+    static String assuntoCliente(Tenant loja, UUID reservaId) {
+        return "Seus documentos — " + loja.getRazaoSocial() + " — reserva " + codigoReserva(reservaId);
+    }
+
+    /** E-mail de contato da empresa: o oficial, ou o de contato quando não há oficial. */
+    static String emailDaEmpresa(Tenant t) {
+        if (t == null) return null;
+        return !vazio(t.getEmailOficial()) ? t.getEmailOficial().trim()
+            : !vazio(t.getEmailRemetente()) ? t.getEmailRemetente().trim() : null;
+    }
+
+    private static final java.time.format.DateTimeFormatter DATA_PASSEIO =
+        java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm");
+
+    /**
+     * Via do cliente: resumo da reserva (código, data, documento, GRU), situação da
+     * habilitação e contatos da loja. O link de ativação da conta (claim, F2.7) é
+     * enviado separadamente, como passo próprio do balcão (POST /clientes/{id}/claim).
+     *
+     * @param eamaNome EAMA que encaminhou a habilitação, só na emissão delegada; {@code null} na própria
+     */
+    String corpoCliente(Tenant loja, Reserva r, Cliente c, ReservaHabilitacao hab, String eamaNome) {
+        String nomeLoja = esc(vazio(loja.getRazaoSocial()) ? "loja" : loja.getRazaoSocial());
+        String codigo = codigoReserva(r.getId());
         StringBuilder sb = new StringBuilder();
-        sb.append("<p>Olá ").append(safe(c.getNome())).append(",</p>");
-        sb.append("<p>Seguem em anexo seus documentos do passeio.</p>");
-        // GRU (habilitação temporária EMA): informa o número no corpo do e-mail.
-        if (hab != null && hab.getGruNumero() != null && !hab.getGruNumero().isBlank()) {
-            sb.append("<p>GRU (taxa CHA-MTA-E): <b>").append(safe(hab.getGruNumero())).append("</b>");
+        sb.append("<div style=\"font-family:Arial,Helvetica,sans-serif;max-width:600px;color:#1f2937;"
+            + "line-height:1.5;font-size:14px\">");
+        sb.append("<p style=\"font-size:16px\">Olá, <b>").append(esc(c.getNome())).append("</b>!</p>");
+        sb.append("<p>Obrigado por escolher a <b>").append(nomeLoja).append("</b>. Seguem em anexo os ")
+          .append("documentos do seu passeio, com os termos e declarações que você assinou no atendimento.</p>");
+
+        sb.append("<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;"
+            + "border:1px solid #e5e7eb;border-radius:8px;margin:16px 0;border-collapse:separate\">"
+            + "<tr><td style=\"padding:16px\">");
+        linha(sb, "Reserva", "<b>" + codigo + "</b>");
+        if (r.getDataInicio() != null) {
+            linha(sb, "Data do passeio", esc(r.getDataInicio().format(DATA_PASSEIO)));
+        }
+        String doc = com.jetski.locacoes.domain.Documentos.formatar(c.getDocumentoTipo(), c.getDocumento());
+        if (!vazio(doc)) {
+            String rotulo = c.getDocumentoTipo() != null ? c.getDocumentoTipo().rotulo() : "Documento";
+            linha(sb, esc(rotulo), esc(doc));
+        }
+        if (hab != null && !vazio(hab.getGruNumero())) {
+            String gru = "<b>" + esc(hab.getGruNumero()) + "</b>";
             if (hab.getGruValor() != null) {
-                sb.append(" — Valor: R$ ").append(hab.getGruValor().toPlainString());
+                gru += " — " + String.format(new java.util.Locale("pt", "BR"), "R$ %,.2f", hab.getGruValor());
             }
+            linha(sb, "GRU (taxa CHA-MTA-E)", gru);
+        }
+        sb.append("</td></tr></table>");
+
+        if (hab != null && hab.getVia() == ReservaHabilitacao.Via.EMA) {
+            sb.append("<p>A documentação da sua <b>habilitação temporária (CHA-MTA-E)</b> foi encaminhada à ")
+              .append("Capitania dos Portos");
+            if (!vazio(eamaNome)) {
+                sb.append(" pela EAMA <b>").append(esc(eamaNome)).append("</b>");
+            }
+            sb.append(".</p>");
+        } else if (hab != null && hab.getVia() == ReservaHabilitacao.Via.CHA) {
+            sb.append("<p>Sua habilitação foi registrada com a CHA informada no atendimento.</p>");
+        }
+        sb.append("<p>Guarde este e-mail: ele reúne os documentos do seu atendimento.</p>");
+
+        String telefone = com.jetski.locacoes.domain.Telefones.formatar(loja.getTelefone());
+        String email = emailDaEmpresa(loja);
+        if (!vazio(telefone) || !vazio(email)) {
+            sb.append("<p>Dúvidas? Fale com a <b>").append(nomeLoja).append("</b>:");
+            if (!vazio(telefone)) sb.append("<br>Telefone: ").append(esc(telefone));
+            if (!vazio(email)) sb.append("<br>E-mail: ").append(esc(email));
             sb.append("</p>");
         }
+        sb.append("<p>Bom passeio!<br><b>Equipe ").append(nomeLoja).append("</b></p>");
+        sb.append("<p style=\"font-size:12px;color:#6b7280\">Referência: reserva ").append(codigo).append("</p>");
+        sb.append("</div>");
         return sb.toString();
-        // O link de ativação da conta (claim, F2.7) é enviado separadamente,
-        // como passo próprio do balcão (POST /clientes/{id}/claim).
+    }
+
+    private static void linha(StringBuilder sb, String rotulo, String valorHtml) {
+        sb.append("<div style=\"margin:2px 0\"><span style=\"color:#6b7280\">").append(rotulo)
+          .append(":</span> ").append(valorHtml).append("</div>");
+    }
+
+    private static String esc(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
     String corpoNotificacaoEmissor(Tenant operadora, Cliente c, ReservaHabilitacao hab, String hash) {

@@ -152,6 +152,8 @@ test.describe.serial('emissão delegada · jornada EAMA × operadora', () => {
     // R5: remetente = SMTP da EAMA. R6: Reply-To = e-mail oficial da EAMA.
     expect(oficio.From.Address).toBe(eama.smtpFrom);
     expect(oficio.ReplyTo.map((r) => r.Address)).toContain(eama.emailOficial);
+    // A operadora delegada acompanha o ofício em cópia (e-mail oficial dela).
+    expect((oficio.Cc ?? []).map((c) => c.Address)).toContain(operadora.emailOficial);
 
     // R7: assinatura da EAMA; a operadora só aparece como "operado por", sem contatos.
     expect(oficio.HTML).toContain(`O EAMA <b>${eama.razaoSocial}</b>`);
