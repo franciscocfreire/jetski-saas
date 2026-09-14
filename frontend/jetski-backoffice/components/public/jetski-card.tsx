@@ -69,10 +69,12 @@ export function JetskiCard({
         {/* Image Container */}
         <div className="relative aspect-[4/3] overflow-hidden">
         {imagemUrl ? (
+          // URL cadastrada pela empresa (qualquer host): fora do otimizador, que só aceita remotePatterns
           <Image
             src={imagemUrl}
             alt={modelo}
             fill
+            unoptimized
             className="object-cover transition-transform duration-700 group-hover:scale-110"
           />
         ) : (

@@ -115,6 +115,7 @@ function VideoPlayerMarketplace({
             src={thumbnail}
             alt={titulo || 'Vídeo'}
             fill
+            unoptimized
             className="object-cover"
             onError={(e) => {
               // Fallback for YouTube if maxresdefault not available
@@ -226,10 +227,12 @@ function MediaGallery({ offering }: { offering: OfferingDetail }) {
       <div className="aspect-[4/3] relative rounded-2xl overflow-hidden bg-white/5">
         {currentMedia ? (
           currentMedia.tipo === 'IMAGEM' ? (
+            // URLs de mídia são cadastradas pela empresa (qualquer host): fora do otimizador do Next
             <Image
               src={currentMedia.url}
               alt={currentMedia.titulo || offering.modelo}
               fill
+              unoptimized
               className="object-cover"
             />
           ) : (
@@ -330,6 +333,7 @@ function MediaGallery({ offering }: { offering: OfferingDetail }) {
                   src={item.url}
                   alt={item.titulo || `Mídia ${index + 1}`}
                   fill
+                  unoptimized
                   className="object-cover"
                 />
               ) : (
@@ -339,6 +343,7 @@ function MediaGallery({ offering }: { offering: OfferingDetail }) {
                       src={item.thumbnailUrl}
                       alt={item.titulo || `Vídeo ${index + 1}`}
                       fill
+                      unoptimized
                       className="object-cover"
                     />
                   ) : null}
