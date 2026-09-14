@@ -105,10 +105,10 @@ public class CustomerReservaService {
 
         Loja loja = lojaBySlug(cmd.lojaSlug())
             .orElseThrow(() -> new NotFoundException("Loja não encontrada: " + cmd.lojaSlug()));
-        // Gate por plano (V046): reserva online exige o módulo Loja online.
+        // Gate por plano (V072): reserva online exige o módulo Reserva online.
         // Reservas já existentes seguem o fluxo normal (aceite, comprovante etc).
         if (!planoLimiteService.moduloHabilitado(loja.tenantId(),
-                com.jetski.tenant.ModuloPlano.LOJA_ONLINE)) {
+                com.jetski.tenant.ModuloPlano.RESERVA_ONLINE)) {
             throw new BusinessException(
                 "Esta loja não está com a reserva online habilitada. Entre em contato pelo WhatsApp.");
         }

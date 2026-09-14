@@ -30,6 +30,7 @@ interface OfferingDetail {
   descricao: string
   inclusos: string[]
   horarios: string[]
+  reservaOnline: boolean
 }
 
 /**
@@ -53,6 +54,7 @@ function mapApiModeloToDetail(modelo: MarketplaceModelo): OfferingDetail {
     descricao: `${modelo.nome} disponível para aluguel em ${modelo.localizacao}. Entre em contato com ${modelo.empresaNome} para mais informações.`,
     inclusos: ['Colete salva-vidas', 'Orientação de uso', 'Combustível inicial'],
     horarios: ['08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'],
+    reservaOnline: modelo.reservaOnline,
   }
 }
 
@@ -563,13 +565,15 @@ export default function EmbarcacaoDetailPage() {
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4">
               {/* Reserva de verdade acontece no portal do cliente (conta, PIX, CHA) */}
-              <a
-                href={`${subBase('cliente')}/modelo/${offering.id}`}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-8 py-4 bg-gold text-black font-medium hover:bg-gold/90 transition-all duration-300"
-              >
-                <Calendar className="h-5 w-5" />
-                Reservar Agora
-              </a>
+              {offering.reservaOnline && (
+                <a
+                  href={`${subBase('cliente')}/modelo/${offering.id}`}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-8 py-4 bg-gold text-black font-medium hover:bg-gold/90 transition-all duration-300"
+                >
+                  <Calendar className="h-5 w-5" />
+                  Reservar Agora
+                </a>
+              )}
               <a
                 href={`https://wa.me/${offering.empresaWhatsapp}?text=Olá! Tenho interesse no ${offering.modelo}. Gostaria de mais informações.`}
                 target="_blank"

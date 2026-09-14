@@ -933,6 +933,12 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+-- V072: módulo RESERVA_ONLINE separado da Loja online (planos com Loja online ganham o novo)
+UPDATE public.plano
+   SET modulos = modulos || '["RESERVA_ONLINE"]'::jsonb
+ WHERE modulos @> '["LOJA_ONLINE"]'::jsonb
+   AND NOT modulos @> '["RESERVA_ONLINE"]'::jsonb;
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 

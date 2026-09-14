@@ -49,7 +49,7 @@ export function ModelCard({ m }: { m: MarketplaceModelo }) {
           </div>
         </div>
         <span className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition group-hover:bg-brand-700">
-          Reservar
+          {m.reservaOnline ? "Reservar" : "Ver detalhes"}
         </span>
       </div>
     </Link>

@@ -183,13 +183,16 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   com negação de negócio e mensagem de upgrade.
 - **Módulos por plano** (V046, `plano.modulos` jsonb): super admin define a oferta por plano
   (Emissão à Marinha, Comissões, Manutenção, Fechamentos, Relatórios, Despesas, Marketplace,
-  Loja online, Videoaula no balcão — configurável); NULL = todos. `VIDEO_ORIENTACAO` (V063) é
+  Loja online, Reserva online, Videoaula no balcão — configurável); NULL = todos. `VIDEO_ORIENTACAO` (V063) é
   um módulo "de permissão": assistir a videoaula até o fim é obrigatório por padrão; tê-lo no
   plano libera o toggle em Configurações › Documentos para desligar essa obrigação (PUT sem o
   módulo → 400). O passo Orientações é exibido sempre. Gating em três camadas: menu do backoffice (itens somem), API
   (`ModuloPlanoInterceptor`, 400 com pedido de upgrade; superadmin isento; cache Redis com
   evict na troca) e canais públicos — Marketplace tira a empresa do marketplace agregado;
-  Loja online desativa a vitrine própria, a disponibilidade pública e a reserva online.
+  Loja online desativa a vitrine própria; Reserva online (`RESERVA_ONLINE`, V072 — separado da
+  Loja online, planos que a tinham ganharam o novo) controla o botão "Reservar Agora" no
+  marketplace/portal (`reservaOnline` no DTO público), a disponibilidade pública e a criação
+  da reserva — sem ele, o cliente só vê o WhatsApp.
 
 ### Infra/segurança/operacional
 - CI (testes + Modulith + E2E Newman 75 asserções) → CD automático em produção (Oracle ARM,

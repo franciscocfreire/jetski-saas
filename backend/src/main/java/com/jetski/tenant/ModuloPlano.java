@@ -61,7 +61,7 @@ public enum ModuloPlano {
         "Lançamento e acompanhamento de despesas da operação",
         List.of("^despesas-operacionais(/|$)")),
 
-    // Os dois módulos abaixo não têm endpoint tenant-scoped gateável (patterns
+    // Os três módulos abaixo não têm endpoint tenant-scoped gateável (patterns
     // vazios): o enforcement é nas consultas PÚBLICAS (MarketplaceService,
     // CustomerReservaService, disponibilidade) via moduloHabilitado.
     MARKETPLACE(
@@ -71,7 +71,13 @@ public enum ModuloPlano {
 
     LOJA_ONLINE(
         "Loja online",
-        "Vitrine própria da loja e reserva online pelo portal do cliente",
+        "Vitrine própria da loja, com os modelos e os dados de contato",
+        List.of()),
+
+    // Separado da Loja online (V072): sem ele o cliente vê o modelo mas só fala pelo WhatsApp.
+    RESERVA_ONLINE(
+        "Reserva online (Reservar Agora)",
+        "Botão Reservar Agora no marketplace e na vitrine, com reserva e sinal PIX pelo portal do cliente (sem o módulo, só o contato por WhatsApp)",
         List.of()),
 
     // Módulo "de permissão": o passo Orientações do balcão SEMPRE exibe a videoaula

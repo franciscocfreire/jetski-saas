@@ -37,6 +37,7 @@ const MODULOS: Record<string, string> = {
   DESPESAS: 'Despesas operacionais',
   MARKETPLACE: 'Marketplace',
   LOJA_ONLINE: 'Loja online',
+  RESERVA_ONLINE: 'Reserva online (Reservar Agora)',
   VIDEO_ORIENTACAO: 'Videoaula no balcão — configurável',
 }
 

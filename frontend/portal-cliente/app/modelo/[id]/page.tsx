@@ -11,6 +11,7 @@ import {
   AlertCircle,
   Loader2,
   XCircle,
+  MessageCircle,
 } from "lucide-react";
 import {
   getModeloPublico,
@@ -150,6 +151,10 @@ export default function ModeloPage() {
             <span className="text-sm text-slate-400">/hora</span>
           </div>
 
+          {!m.reservaOnline ? (
+            <SemReservaOnline m={m} />
+          ) : (
+          <>
           <div className="mt-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Data">
@@ -235,8 +240,38 @@ export default function ModeloPage() {
           <p className="mt-2 flex items-center justify-center gap-1 text-center text-xs text-slate-400">
             <AlertCircle size={12} /> Você só paga o sinal após confirmar.
           </p>
+          </>
+          )}
         </Card>
       </div>
+    </div>
+  );
+}
+
+function whatsappHref(whatsapp: string, modelo: string): string {
+  let digits = whatsapp.replace(/\D/g, "");
+  if (digits.length <= 11) digits = `55${digits}`;
+  const texto = `Olá! Tenho interesse no ${modelo}. Gostaria de reservar.`;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(texto)}`;
+}
+
+/** Loja sem o módulo Reserva online: sem formulário, só o contato direto. */
+function SemReservaOnline({ m }: { m: MarketplaceModelo }) {
+  return (
+    <div className="mt-4 space-y-3">
+      <p className="text-sm text-slate-600">
+        A {m.empresaNome} não recebe reservas online. Fale com a loja para combinar o passeio.
+      </p>
+      {m.empresaWhatsapp && (
+        <a
+          href={whatsappHref(m.empresaWhatsapp, m.nome)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
+        >
+          <MessageCircle size={16} /> Falar pelo WhatsApp
+        </a>
+      )}
     </div>
   );
 }
