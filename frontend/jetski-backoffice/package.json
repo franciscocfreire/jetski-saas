@@ -12,7 +12,8 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:report": "playwright show-report",
-    "test:e2e:delegada": "playwright test -c playwright.delegada.config.ts"
+    "test:e2e:delegada": "playwright test -c playwright.delegada.config.ts",
+    "test:e2e:cadastros": "playwright test -c playwright.cadastros.config.ts"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
