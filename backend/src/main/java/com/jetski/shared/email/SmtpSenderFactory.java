@@ -37,6 +37,27 @@ public class SmtpSenderFactory {
         return m;
     }
 
+    /**
+     * HTML com uma imagem PNG embutida (Content-ID) — o HTML referencia {@code cid:<contentId>}.
+     * Clientes de e-mail bloqueiam {@code data:} em {@code <img>}; a parte inline é o que o Gmail mostra.
+     */
+    public void sendComImagemInline(JavaMailSender sender, String from, String fromName, String to,
+                                    String subject, String html, String contentId, byte[] png)
+            throws Exception {
+        MimeMessage message = sender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+        if (fromName != null && !fromName.isBlank()) {
+            helper.setFrom(from, fromName);
+        } else {
+            helper.setFrom(from);
+        }
+        helper.setTo(to);
+        helper.setSubject(subject);
+        helper.setText(html, true);
+        helper.addInline(contentId, new ByteArrayResource(png), "image/png");
+        sender.send(message);
+    }
+
     public void send(JavaMailSender sender, String from, String fromName, String to, String subject,
                      String html, String attachmentName, byte[] attachment, String attachmentContentType)
             throws Exception {

@@ -47,6 +47,17 @@ export function StepTermos({
     enabled: !!atendimento.reserva?.id,
   })
 
+  // Imagem da assinatura já registrada — o cliente pode ter assinado pelo portal,
+  // então o balcão confere aqui o que foi assinado antes de seguir.
+  const { data: assinaturaUrl } = useQuery({
+    queryKey: ['aceite-assinatura', atendimento.reserva?.id, aceiteExistente?.aceitoEm],
+    queryFn: async () => {
+      const blob = await aceiteService.baixarAssinatura(atendimento.reserva!.id)
+      return blob ? URL.createObjectURL(blob) : null
+    },
+    enabled: !!atendimento.reserva?.id && !!aceiteExistente,
+  })
+
   // Pré-preenche a autodeclaração de saúde da habilitação salva (retomada).
   const { data: habSalva } = useQuery({
     queryKey: ['habilitacao', atendimento.reserva?.id],
@@ -255,19 +266,38 @@ export function StepTermos({
       )}
 
       {jaAssinado ? (
-        <div className="flex items-center justify-between rounded-lg border border-emerald-300 bg-emerald-50 p-4 dark:bg-emerald-950/30">
-          <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
-            <CheckCircle2 className="h-5 w-5" />
-            Termos já assinados
-            {aceiteExistente?.aceitoEm && (
-              <span className="font-normal text-muted-foreground">
-                em {formatDateTime(aceiteExistente.aceitoEm)}
-              </span>
-            )}
-          </p>
-          <Button type="button" variant="ghost" size="sm" onClick={() => setReassinar(true)}>
-            Assinar novamente
-          </Button>
+        <div className="space-y-3 rounded-lg border border-emerald-300 bg-emerald-50 p-4 dark:bg-emerald-950/30">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
+              <CheckCircle2 className="h-5 w-5" />
+              Termos já assinados
+              {aceiteExistente?.aceitoEm && (
+                <span className="font-normal text-muted-foreground">
+                  em {formatDateTime(aceiteExistente.aceitoEm)}
+                </span>
+              )}
+            </p>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setReassinar(true)}>
+              Assinar novamente
+            </Button>
+          </div>
+          {assinaturaUrl ? (
+            <div data-testid="balcao-termos-assinatura-registrada">
+              <p className="mb-1 text-xs text-muted-foreground">
+                Assinatura registrada ({atendimento.cliente?.nome}) — confira antes de avançar
+              </p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={assinaturaUrl}
+                alt="Assinatura do locatário"
+                className="h-32 w-full max-w-md rounded-md border bg-white object-contain p-2"
+              />
+            </div>
+          ) : (
+            aceiteExistente?.metodo === 'PAPEL' && (
+              <p className="text-xs text-muted-foreground">Aceite registrado em papel (sem imagem de assinatura).</p>
+            )
+          )}
         </div>
       ) : (
         <div>

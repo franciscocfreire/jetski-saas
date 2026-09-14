@@ -216,6 +216,41 @@ public class DevEmailService implements EmailService {
         maybeSendViaSmtp(to, subject, htmlBody);
     }
 
+    @Override
+    public void sendEmailComImagemInline(String to, String subject, String htmlBody,
+                                         String contentId, byte[] png) {
+        if (png == null || png.length == 0) {
+            sendEmail(to, subject, htmlBody);
+            return;
+        }
+        logAndSaveEmail(to, subject, String.format("%s%n%n[INLINE] cid:%s (image/png, %d bytes)",
+            htmlBody, contentId, png.length));
+        var perTenant = (tenantSmtpResolver != null && senderFactory != null)
+            ? tenantSmtpResolver.forCurrentTenant()
+            : java.util.Optional.<TenantSmtpResolver.SmtpSettings>empty();
+        try {
+            if (perTenant.isPresent()) {
+                var s = perTenant.get();
+                String nome = (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : fromName;
+                senderFactory.sendComImagemInline(senderFactory.build(s), s.from(), nome, to, subject,
+                    htmlBody, contentId, png);
+                log.info("📨 Email (imagem inline) enviado pelo SMTP do tenant: to={}, from={}", to, s.from());
+            } else if (devSmtpEnabled && mailSender != null) {
+                MimeMessage message = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+                helper.setFrom(fromEmail, fromName);
+                helper.setTo(to);
+                helper.setSubject(subject);
+                helper.setText(htmlBody, true);
+                helper.addInline(contentId, new org.springframework.core.io.ByteArrayResource(png), "image/png");
+                mailSender.send(message);
+                log.info("📨 Email (imagem inline) enviado ao Mailpit: to={}, subject={}", to, subject);
+            }
+        } catch (Exception e) {
+            log.warn("Falha (ignorada) ao enviar email com imagem inline: to={}, error={}", to, e.getMessage());
+        }
+    }
+
     private void logAndSaveEmail(String to, String subject, String body) {
         // Log to console
         log.info("\n" +

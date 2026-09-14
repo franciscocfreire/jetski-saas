@@ -59,6 +59,20 @@ class ActionExtractorTest {
         }
 
         @Test
+        @DisplayName("GET /v1/tenants/{t}/reservas/{id}/aceite/assinatura → reserva:aceite")
+        void shouldMapAssinaturaDoAceiteParaAcaoDoAceite() {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setMethod("GET");
+            request.setContextPath("/api");
+            request.setRequestURI("/api/v1/tenants/123e4567-e89b-12d3-a456-426614174000/reservas/"
+                + "223e4567-e89b-12d3-a456-426614174000/aceite/assinatura");
+
+            String action = actionExtractor.extractAction(request);
+
+            assertThat(action).isEqualTo("reserva:aceite");
+        }
+
+        @Test
         @DisplayName("POST .../reservas/{id}/registrar-estorno → reserva:registrar-estorno")
         void shouldExtractRegistrarEstornoAction() {
             MockHttpServletRequest request = new MockHttpServletRequest();

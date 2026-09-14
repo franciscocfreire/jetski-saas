@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Upload, X, FileCheck, Camera, SwitchCamera } from 'lucide-react'
+import { Upload, X, FileCheck, Camera, SwitchCamera, ZoomIn, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { comprimirImagem } from '@/lib/image-compress'
 import { useImagemConfig } from '@/lib/hooks/use-imagem-config'
@@ -57,6 +58,13 @@ export function FileUpload({
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [trocar, setTrocar] = useState(false)
+  // Visualização ampliada p/ conferir o documento (legibilidade, dados, rosto).
+  const [ampliada, setAmpliada] = useState<string | null>(null)
+  const [ampliadaNaoImagem, setAmpliadaNaoImagem] = useState(false)
+  function abrirAmpliada(url: string) {
+    setAmpliadaNaoImagem(false)
+    setAmpliada(url)
+  }
   const [facing, setFacing] = useState<'user' | 'environment'>(
     cameraPadrao ?? (tipoDocumento === 'SELFIE' ? 'user' : 'environment')
   )
@@ -208,12 +216,14 @@ export function FileUpload({
         </div>
       ) : initialUrl && !picked && !trocar ? (
         <div className="flex items-center gap-3 rounded-xl border bg-card p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={initialUrl} alt="anexo enviado" className="h-12 w-12 rounded-md object-cover" />
+          <Miniatura src={initialUrl} alt="anexo enviado" onClick={() => abrirAmpliada(initialUrl)} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-emerald-600">✓ Já enviado</p>
             <p className="text-xs text-muted-foreground">Carregado do cadastro do cliente</p>
           </div>
+          <Button type="button" variant="ghost" size="sm" onClick={() => abrirAmpliada(initialUrl)}>
+            <ZoomIn className="mr-1 h-4 w-4" /> Conferir
+          </Button>
           <Button type="button" variant="ghost" size="sm" onClick={() => setTrocar(true)}>
             Trocar foto
           </Button>
@@ -248,12 +258,7 @@ export function FileUpload({
       ) : (
         <div className="flex items-center gap-3 rounded-xl border bg-card p-3">
           {isImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={picked.dataUrl}
-              alt={picked.file.name}
-              className="h-12 w-12 rounded-md object-cover"
-            />
+            <Miniatura src={picked.dataUrl} alt={picked.file.name} onClick={() => abrirAmpliada(picked.dataUrl)} />
           ) : (
             <FileCheck className="h-10 w-10 text-emerald-500" />
           )}
@@ -268,6 +273,55 @@ export function FileUpload({
           </Button>
         </div>
       )}
+
+      <Dialog open={!!ampliada} onOpenChange={(aberto) => !aberto && setAmpliada(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Conferir documento</DialogTitle>
+          </DialogHeader>
+          {ampliada &&
+            (ampliadaNaoImagem ? (
+              // Anexo em PDF (ex.: comprovante de residência): o navegador renderiza.
+              <iframe src={ampliada} title="Documento" className="h-[75vh] w-full rounded-md border" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={ampliada}
+                alt="Documento ampliado"
+                className="max-h-[75vh] w-full rounded-md bg-muted object-contain"
+                onError={() => setAmpliadaNaoImagem(true)}
+              />
+            ))}
+          {ampliada && (
+            <a
+              href={ampliada}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-primary underline-offset-2 hover:underline"
+            >
+              <ExternalLink className="h-4 w-4" /> Abrir em nova aba
+            </a>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+/** Miniatura clicável: abre a visualização ampliada. */
+function Miniatura({ src, alt, onClick }: { src: string; alt: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Ampliar para conferir"
+      className="group relative h-12 w-12 shrink-0 overflow-hidden rounded-md"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={alt} className="h-12 w-12 object-cover" />
+      <span className="absolute inset-0 hidden items-center justify-center bg-black/40 text-white group-hover:flex">
+        <ZoomIn size={16} />
+      </span>
+    </button>
   )
 }

@@ -346,6 +346,8 @@ export interface ChecklistReserva {
   habilitacaoVia?: "CHA" | "EMA";
   /** Presente quando a habilitação veio do reuso de temporária vigente. */
   habilitacaoTemporaria?: HabilitacaoReaproveitada;
+  /** EMA: a parte do cliente está feita; falta a loja confirmar o pagamento da GRU. */
+  habilitacaoAguardandoGru?: boolean;
   termosOk: boolean;
   garantida: boolean;
   prontaParaCheckin: boolean;

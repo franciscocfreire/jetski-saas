@@ -278,6 +278,11 @@ public class ActionExtractor {
         if (uri.contains("/habilitacao/")) {
             return "habilitacao";
         }
+        // Imagem da assinatura: leitura dentro do passo de termos (sem isso o GET
+        // caía em reserva:list pelo verbo).
+        if (uri.endsWith("/aceite/assinatura")) {
+            return "aceite";
+        }
 
         // Lista de sub-actions conhecidas
         String[] knownSubActions = {

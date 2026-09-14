@@ -281,6 +281,18 @@ public class CustomerReservaService {
                 && HabilitacaoService.CHA_CATEGORIA_TEMPORARIA.equals(h.getChaCategoria()))
             .map(h -> new HabilitacaoReaproveitada(h.getChaNumero(), h.getChaValidade(), null))
             .orElse(null);
+        // EMA com a parte do cliente feita (videoaula + declarações + residência) e a
+        // GRU emitida mas ainda não paga: quem age agora é a loja, não o cliente.
+        boolean habilitacaoAguardandoGru = hab
+            .filter(h -> h.getVia() == com.jetski.locacoes.domain.ReservaHabilitacao.Via.EMA
+                && !Boolean.TRUE.equals(h.getResolvida())
+                && !Boolean.TRUE.equals(h.getGruPago())
+                && h.getGruNumero() != null
+                && h.getVideoaulaEm() != null
+                && Boolean.TRUE.equals(h.getAnexoSaude())
+                && Boolean.TRUE.equals(h.getAnexoRegras())
+                && Boolean.TRUE.equals(h.getAnexoResidencia()))
+            .isPresent();
         boolean termosOk = aceiteRepository
             .findFirstByReservaIdOrderByAceitoEmDesc(r.getId())
             .isPresent();
@@ -294,6 +306,7 @@ public class CustomerReservaService {
             .habilitacaoOk(habilitacaoOk)
             .habilitacaoVia(habilitacaoVia)
             .habilitacaoTemporaria(habilitacaoTemporaria)
+            .habilitacaoAguardandoGru(habilitacaoAguardandoGru)
             .termosOk(termosOk)
             .garantida(garantida)
             .prontaParaCheckin(garantida && habilitacaoOk && termosOk)
@@ -668,6 +681,8 @@ public class CustomerReservaService {
         String habilitacaoVia;
         /** Presente quando a habilitação veio do REUSO de uma temporária vigente. */
         HabilitacaoReaproveitada habilitacaoTemporaria;
+        /** EMA: requisitos do cliente enviados; falta a loja confirmar o pagamento da GRU. */
+        boolean habilitacaoAguardandoGru;
         boolean termosOk;
         boolean garantida;
         boolean prontaParaCheckin;

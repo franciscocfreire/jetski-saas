@@ -250,6 +250,11 @@ function BalcaoWizard() {
     }
   }, [reservaId])
 
+  // GRU confirmada no passo Emissão: libera a emissão sem refazer a Habilitação.
+  const marcarHabilitacaoResolvida = useCallback(() => {
+    setAt((a) => (a.habilitacaoResolvida ? a : { ...a, habilitacaoResolvida: true }))
+  }, [])
+
   function reset() {
     setAt(VAZIO)
     setStepKey('cliente')
@@ -408,6 +413,7 @@ function BalcaoWizard() {
               onBack={() => anterior('emissao')}
               onReset={reset}
               onBusyChange={setEmitindo}
+              onHabilitacaoResolvida={marcarHabilitacaoResolvida}
             />
           )}
         </CardContent>
