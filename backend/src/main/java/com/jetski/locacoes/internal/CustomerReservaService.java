@@ -471,7 +471,8 @@ public class CustomerReservaService {
     public HabilitacaoCliente habilitacao(String sub, UUID reservaId) {
         Localizada l = localizar(sub, reservaId);
         boolean temFoto = clienteAnexoService
-            .buscar(l.reserva().getClienteId(), com.jetski.locacoes.domain.ClienteAnexo.Tipo.CHA)
+            .buscar(l.reserva().getTenantId(), l.reserva().getClienteId(),
+                com.jetski.locacoes.domain.ClienteAnexo.Tipo.CHA)
             .isPresent();
         return habilitacaoService.getByReserva(l.reserva().getId())
             .map(h -> new HabilitacaoCliente(

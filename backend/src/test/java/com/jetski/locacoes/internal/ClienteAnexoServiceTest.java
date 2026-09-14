@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Base64;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -62,7 +63,7 @@ class ClienteAnexoServiceTest {
     @DisplayName("re-upload com extensão diferente remove a key antiga do storage")
     void reUploadTrocaExtensaoDeletaKeyAntiga() {
         String keyAntiga = tenant + "/cliente/" + clienteId + "/anexo-selfie.jpg";
-        when(repo.findByClienteIdAndTipo(clienteId, ClienteAnexo.Tipo.SELFIE))
+        when(repo.findByTenantIdAndClienteIdAndTipo(tenant, clienteId, ClienteAnexo.Tipo.SELFIE))
             .thenReturn(Optional.of(ClienteAnexo.builder()
                 .tenantId(tenant).clienteId(clienteId)
                 .tipo(ClienteAnexo.Tipo.SELFIE).s3Key(keyAntiga).build()));
@@ -77,7 +78,7 @@ class ClienteAnexoServiceTest {
     @DisplayName("re-upload com a MESMA extensão não deleta (sobrescreve a própria key)")
     void reUploadMesmaExtensaoNaoDeleta() {
         String key = tenant + "/cliente/" + clienteId + "/anexo-selfie.jpg";
-        when(repo.findByClienteIdAndTipo(clienteId, ClienteAnexo.Tipo.SELFIE))
+        when(repo.findByTenantIdAndClienteIdAndTipo(tenant, clienteId, ClienteAnexo.Tipo.SELFIE))
             .thenReturn(Optional.of(ClienteAnexo.builder()
                 .tenantId(tenant).clienteId(clienteId)
                 .tipo(ClienteAnexo.Tipo.SELFIE).s3Key(key).build()));
@@ -91,7 +92,7 @@ class ClienteAnexoServiceTest {
     @DisplayName("falha ao deletar a key antiga não interrompe a substituição")
     void falhaNoDeleteNaoPropaga() {
         String keyAntiga = tenant + "/cliente/" + clienteId + "/anexo-selfie.jpg";
-        when(repo.findByClienteIdAndTipo(clienteId, ClienteAnexo.Tipo.SELFIE))
+        when(repo.findByTenantIdAndClienteIdAndTipo(tenant, clienteId, ClienteAnexo.Tipo.SELFIE))
             .thenReturn(Optional.of(ClienteAnexo.builder()
                 .tenantId(tenant).clienteId(clienteId)
                 .tipo(ClienteAnexo.Tipo.SELFIE).s3Key(keyAntiga).build()));
@@ -105,7 +106,7 @@ class ClienteAnexoServiceTest {
     @Test
     @DisplayName("upload acima de 8 MB é rejeitado")
     void uploadGrandeRejeitado() {
-        when(repo.findByClienteIdAndTipo(clienteId, ClienteAnexo.Tipo.IDENTIDADE))
+        when(repo.findByTenantIdAndClienteIdAndTipo(tenant, clienteId, ClienteAnexo.Tipo.IDENTIDADE))
             .thenReturn(Optional.empty());
         byte[] grande = new byte[8 * 1024 * 1024 + 1];
 
@@ -113,6 +114,43 @@ class ClienteAnexoServiceTest {
             service.salvar(clienteId, ClienteAnexo.Tipo.IDENTIDADE, dataUrl("image/jpeg", grande)))
             .isInstanceOf(BusinessException.class)
             .hasMessageContaining("8 MB");
+        verify(storage, never()).putObject(anyString(), any(), anyString());
+    }
+
+    @Test
+    @DisplayName("listar/buscar consultam SEMPRE pelo tenant informado (não só RLS)")
+    void consultasSaoTenantScoped() {
+        UUID outroTenant = UUID.randomUUID();
+        ClienteAnexo selfie = ClienteAnexo.builder()
+            .tenantId(tenant).clienteId(clienteId).tipo(ClienteAnexo.Tipo.SELFIE).build();
+        when(repo.findByTenantIdAndClienteId(tenant, clienteId)).thenReturn(List.of(selfie));
+        when(repo.findByTenantIdAndClienteId(outroTenant, clienteId)).thenReturn(List.of());
+        when(repo.findByTenantIdAndClienteIdAndTipo(tenant, clienteId, ClienteAnexo.Tipo.SELFIE))
+            .thenReturn(Optional.of(selfie));
+        when(repo.findByTenantIdAndClienteIdAndTipo(outroTenant, clienteId, ClienteAnexo.Tipo.SELFIE))
+            .thenReturn(Optional.empty());
+
+        assertThat(service.listar(tenant, clienteId)).containsExactly(selfie);
+        assertThat(service.buscar(tenant, clienteId, ClienteAnexo.Tipo.SELFIE)).contains(selfie);
+        // cliente de outra empresa acessado a partir de um tenant diferente: nada
+        assertThat(service.listar(outroTenant, clienteId)).isEmpty();
+        assertThat(service.buscar(outroTenant, clienteId, ClienteAnexo.Tipo.SELFIE)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("sem tenant, listar/buscar/deletar/salvar falham fechado")
+    void semTenantFalhaFechado() {
+        assertThatThrownBy(() -> service.listar(null, clienteId))
+            .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> service.buscar(null, clienteId, ClienteAnexo.Tipo.SELFIE))
+            .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> service.deletar(null, clienteId, ClienteAnexo.Tipo.SELFIE))
+            .isInstanceOf(NullPointerException.class);
+
+        TenantContext.clear();
+        assertThatThrownBy(() ->
+            service.salvar(clienteId, ClienteAnexo.Tipo.SELFIE, dataUrl("image/png", new byte[]{1})))
+            .isInstanceOf(IllegalStateException.class);
         verify(storage, never()).putObject(anyString(), any(), anyString());
     }
 

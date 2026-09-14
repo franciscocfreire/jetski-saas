@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -68,11 +69,14 @@ public class ClienteAnexoService {
     public ClienteAnexo salvar(UUID clienteId, ClienteAnexo.Tipo tipo, String conteudoBase64,
                                String origem, String registradoPor) {
         UUID tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            throw new IllegalStateException("Tenant não definido ao salvar anexo do cliente " + clienteId);
+        }
         Decoded d = decode(conteudoBase64);
         String key = String.format("%s/cliente/%s/anexo-%s.%s",
             tenantId, clienteId, tipo.name().toLowerCase(), ext(d.mime));
 
-        ClienteAnexo anexo = repository.findByClienteIdAndTipo(clienteId, tipo)
+        ClienteAnexo anexo = repository.findByTenantIdAndClienteIdAndTipo(tenantId, clienteId, tipo)
             .orElseGet(() -> ClienteAnexo.builder()
                 .tenantId(tenantId).clienteId(clienteId).tipo(tipo).build());
         String keyAntiga = anexo.getS3Key();
@@ -101,20 +105,24 @@ public class ClienteAnexoService {
         return salvo;
     }
 
+    /** Anexos do cliente NESTE tenant (o tenant é obrigatório — nunca só RLS). */
     @Transactional(readOnly = true)
-    public List<ClienteAnexo> listar(UUID clienteId) {
-        return repository.findByClienteId(clienteId);
+    public List<ClienteAnexo> listar(UUID tenantId, UUID clienteId) {
+        Objects.requireNonNull(tenantId, "tenantId");
+        return repository.findByTenantIdAndClienteId(tenantId, clienteId);
     }
 
     @Transactional(readOnly = true)
-    public java.util.Optional<ClienteAnexo> buscar(UUID clienteId, ClienteAnexo.Tipo tipo) {
-        return repository.findByClienteIdAndTipo(clienteId, tipo);
+    public java.util.Optional<ClienteAnexo> buscar(UUID tenantId, UUID clienteId, ClienteAnexo.Tipo tipo) {
+        Objects.requireNonNull(tenantId, "tenantId");
+        return repository.findByTenantIdAndClienteIdAndTipo(tenantId, clienteId, tipo);
     }
 
     /** Remove o anexo (registro + objeto no storage). No-op se não existir. */
     @Transactional
-    public void deletar(UUID clienteId, ClienteAnexo.Tipo tipo) {
-        repository.findByClienteIdAndTipo(clienteId, tipo).ifPresent(anexo -> {
+    public void deletar(UUID tenantId, UUID clienteId, ClienteAnexo.Tipo tipo) {
+        Objects.requireNonNull(tenantId, "tenantId");
+        repository.findByTenantIdAndClienteIdAndTipo(tenantId, clienteId, tipo).ifPresent(anexo -> {
             try {
                 storageService.deleteFile(anexo.getS3Key());
             } catch (Exception e) {
