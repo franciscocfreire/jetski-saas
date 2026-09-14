@@ -8,6 +8,8 @@ import { emissaoDelegadaService, instrutoresService } from '@/lib/api/services'
 import type { EmissaoDelegada, VinculoEmissao } from '@/lib/api/services/emissao-delegada'
 import { useModoEmissao } from '@/lib/hooks/use-modo-emissao'
 import { AprovacaoInstrutorBadge } from '@/components/emissao/aprovacao-instrutor-badge'
+import { RedeEmissao } from '@/components/emissao/rede-emissao'
+import { useTenantStore } from '@/lib/store/tenant-store'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -80,6 +82,13 @@ export default function EmissaoDelegadaPage() {
     (v) => v.papel === 'OPERADORA' && (v.status === 'ATIVO' || v.status === 'BLOQUEADO'))
   const papelConvite: 'OPERADORA' | 'EMISSORA' = souEmissora ? 'EMISSORA' : papel
   const [instrutoresDe, setInstrutoresDe] = useState<VinculoEmissao | null>(null)
+  const { currentTenant } = useTenantStore()
+  // Emissões do mês por operadora, para a árvore (mesma query do painel do emissor).
+  const { data: contagens } = useQuery({
+    queryKey: ['emissoes-delegadas-contagens'],
+    queryFn: () => emissaoDelegadaService.contagens(),
+    enabled: souEmissora,
+  })
 
   const invalidar = () => {
     qc.invalidateQueries({ queryKey: ['vinculos-emissao'] })
@@ -144,6 +153,12 @@ export default function EmissaoDelegadaPage() {
       </div>
 
       <PerfilEmissao operadoraDe={souOperadoraEmVigor ? (modo?.emissoraNome ?? 'EAMA parceira') : null} />
+
+      <RedeEmissao
+        minhaEmpresa={currentTenant?.razaoSocial ?? 'Sua empresa'}
+        vinculos={vinculos ?? []}
+        contagens={contagens}
+      />
 
       {souOperadoraViva ? (
         <Card data-testid="delegada-convite-bloqueado">
@@ -423,6 +438,38 @@ function PerfilEmissao({ operadoraDe }: { operadoraDe: string | null }) {
     onError: (e) => toast.error(errMsg(e)),
   })
 
+  // Delegada (§8.M): a capitania é a da EAMA, herdada no aceite e travada — nada a editar.
+  if (operadoraDe) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+            Perfil de emissão
+            <Badge data-testid="delegada-perfil-operadora" className="bg-sky-100 text-sky-900">
+              Operadora delegada de {operadoraDe}
+            </Badge>
+          </CardTitle>
+          <CardDescription>
+            Sua empresa emite em nome de <b>{operadoraDe}</b> e, enquanto a parceria existir, não é
+            EAMA — uma empresa é emissora <b>ou</b> delegada. A capitania é a da EAMA e não pode
+            ser alterada; para mudar, revogue a parceria.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div data-testid="delegada-perfil-capitania-herdada" className="text-sm">
+            <span className="text-muted-foreground">Capitania: </span>
+            <b>
+              {perfil?.capitaniaCodigo
+                ? `${perfil.capitaniaCodigo} — ${perfil.capitaniaNome ?? ''}`
+                : 'a da EAMA parceira'}
+            </b>
+            <span className="text-muted-foreground"> (herdada de {operadoraDe})</span>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -436,8 +483,14 @@ function PerfilEmissao({ operadoraDe }: { operadoraDe: string | null }) {
             <Badge data-testid="delegada-perfil-habilitada" className="bg-emerald-100 text-emerald-900">
               EAMA emissora habilitada
             </Badge>
+          ) : perfil?.eamaRegistro ? (
+            <Badge variant="outline" data-testid="delegada-perfil-em-validacao">
+              Registro EAMA em validação
+            </Badge>
           ) : (
-            <Badge variant="outline">Não habilitada como emissora</Badge>
+            <Badge variant="outline" data-testid="delegada-perfil-nao-eama">
+              Não é EAMA
+            </Badge>
           )}
         </CardTitle>
         <CardDescription>
@@ -449,10 +502,10 @@ function PerfilEmissao({ operadoraDe }: { operadoraDe: string | null }) {
             </>
           ) : (
             <>
-              A capitania é obrigatória para qualquer parceria (os dois lados precisam ser da
-              mesma). O registro EAMA é só para quem emite: após preencher, o Meu Jet valida e
-              habilita sua empresa como emissora — alterar capitania/registro depois derruba a
-              habilitação. Aceitar ser operadora de uma parceria também remove a habilitação.
+              Capitania e registro EAMA são para quem emite em nome próprio: após preencher, o
+              Meu Jet valida e habilita sua empresa como EAMA emissora — alterar capitania ou
+              registro depois derruba a habilitação. Empresa que não é EAMA não precisa preencher:
+              ao aceitar a parceria com uma EAMA, a capitania passa a ser a dela.
             </>
           )}
         </CardDescription>

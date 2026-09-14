@@ -69,6 +69,19 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
   const empresa = dados.tenants.find((t) => t.id === id);
   if (!empresa) notFound();
 
+  // Rede de emissão (§8.M): quem são as delegadas desta EAMA, e o rótulo do papel.
+  const delegadas = dados.tenants.filter(
+    (t) => t.papelEmissao === "DELEGADA" && t.emissoraTenantId === id,
+  );
+  const rotuloPapel =
+    empresa.papelEmissao === "DELEGADA"
+      ? "delegada"
+      : empresa.emissoraHabilitada
+        ? "EAMA emissora (habilitada)"
+        : empresa.eamaRegistro
+          ? "registro EAMA em validação"
+          : "não é EAMA";
+
   const saldo = dados.saldos.find((s) => s.tenantId === id);
   const faturasDaEmpresa = dados.faturas.filter((f) => f.tenantId === id);
   const emissao = dados.emissoes.find((e) => e.tenantId === id);
@@ -168,21 +181,65 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
 
         <Card
           titulo="Emissão à Marinha (EAMA)"
-          descricao="Portão cadastral: só habilita com capitania e registro declarados pela empresa."
+          descricao="Uma empresa é EAMA emissora (habilitada com capitania e registro), delegada de uma EAMA parceira, ou não é EAMA."
         >
           <dl className="grid grid-cols-2 gap-y-3 text-sm">
+            <Campo rotulo="Papel" valor={rotuloPapel} />
             <Campo rotulo="Registro EAMA" valor={empresa.eamaRegistro ?? "não declarado"} />
-            <Campo
-              rotulo="Situação"
-              valor={empresa.emissoraHabilitada ? "habilitada" : "não habilitada"}
-            />
           </dl>
-          <div className="mt-5 border-t border-slate-100 pt-4">
-            <AcoesEmissora
-              tenantId={empresa.id}
-              habilitada={Boolean(empresa.emissoraHabilitada)}
-            />
-          </div>
+          {empresa.papelEmissao === "DELEGADA" ? (
+            <div className="mt-5 border-t border-slate-100 pt-4 text-sm" data-testid="console-empresa-delegada">
+              <div className="flex flex-wrap items-center gap-2">
+                <span>Opera como delegada de</span>
+                {empresa.emissoraTenantId ? (
+                  <Link
+                    href={`/empresas/${empresa.emissoraTenantId}`}
+                    className="font-medium text-brand-700 hover:underline"
+                  >
+                    {empresa.emissoraNome ?? "EAMA parceira"}
+                  </Link>
+                ) : (
+                  <span className="font-medium">{empresa.emissoraNome ?? "EAMA parceira"}</span>
+                )}
+                {empresa.vinculoStatus === "BLOQUEADO" ? (
+                  <Badge tom="perigo">parceria bloqueada pela EAMA</Badge>
+                ) : (
+                  <Badge tom="ativo">parceria ativa</Badge>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-ink-300">
+                Os documentos saem em nome da EAMA e a capitania é a dela. Uma empresa é emissora ou
+                delegada: habilitar como emissora só depois que a parceria for revogada.
+              </p>
+            </div>
+          ) : (
+            <>
+              {empresa.papelEmissao === "EMISSORA" && delegadas.length > 0 && (
+                <div className="mt-5 border-t border-slate-100 pt-4" data-testid="console-empresa-delegadas">
+                  <div className="text-xs uppercase tracking-wide text-ink-300">
+                    Delegadas ({delegadas.length})
+                  </div>
+                  <ul className="mt-2 space-y-1.5 border-l border-dashed border-slate-300 pl-4 text-sm">
+                    {delegadas.map((d) => (
+                      <li key={d.id} className="flex flex-wrap items-center gap-2">
+                        <span className="text-ink-300">↳</span>
+                        <Link href={`/empresas/${d.id}`} className="text-brand-700 hover:underline">
+                          {d.razaoSocial}
+                        </Link>
+                        {d.vinculoStatus === "BLOQUEADO" && <Badge tom="perigo">bloqueada</Badge>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <AcoesEmissora
+                  tenantId={empresa.id}
+                  habilitada={Boolean(empresa.emissoraHabilitada)}
+                />
+              </div>
+            </>
+          )}
         </Card>
 
         <Card

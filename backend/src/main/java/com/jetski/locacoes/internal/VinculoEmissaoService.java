@@ -232,6 +232,13 @@ public class VinculoEmissaoService {
                 log.info("Habilitação de emissora da operadora {} removida na ativação do vínculo {} "
                     + "(papel exclusivo: emissora OU delegada)", v.getTenantOperadorId(), v.getId());
             }
+            // A delegada passa a ser da capitania da EAMA (e ela fica travada enquanto a
+            // parceria existir — TenantConfigService).
+            entityManager.createNativeQuery(
+                    "UPDATE tenant SET capitania_id = ?2 WHERE id = ?1 AND capitania_id IS DISTINCT FROM ?2")
+                .setParameter(1, v.getTenantOperadorId())
+                .setParameter(2, emissor.capitaniaId())
+                .executeUpdate();
             return null;
         });
 
@@ -821,13 +828,19 @@ public class VinculoEmissaoService {
         return v;
     }
 
+    /**
+     * A EAMA precisa ter capitania. A operadora pode não ter (terceiro estado, §8.M: não
+     * é EAMA e não está oficialmente em capitania nenhuma) — no aceite ela herda a da EAMA.
+     * Se já declarou uma, tem de ser a mesma.
+     */
     private void validarMesmaCapitania(ParceiroInfo operador, ParceiroInfo emissor) {
-        if (operador.capitaniaId() == null || emissor.capitaniaId() == null) {
-            throw new BusinessException("As duas empresas precisam declarar a capitania "
+        if (emissor.capitaniaId() == null) {
+            throw new BusinessException("A EAMA emissora precisa declarar a capitania "
                 + "(perfil de emissão) antes da parceria");
         }
-        if (!operador.capitaniaId().equals(emissor.capitaniaId())) {
-            throw new BusinessException("A parceria de emissão exige empresas da MESMA capitania");
+        if (operador.capitaniaId() != null && !operador.capitaniaId().equals(emissor.capitaniaId())) {
+            throw new BusinessException("A parceria de emissão exige empresas da MESMA capitania "
+                + "(a operadora declarou outra capitania)");
         }
     }
 

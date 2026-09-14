@@ -275,6 +275,15 @@ gate/identidade trocados pelo vínculo.
     e quem é operadora não emite para terceiros. Ser operadora exige o módulo
     `EMISSAO_DELEGADA` no plano.
   - V070 corrige dados antigos: operadora de parceria em vigor perde a habilitação. ✔
+  - **Terceiro estado** (14/set/2026): além de emissora e delegada, a empresa pode **não
+    ser EAMA** — e nem estar oficialmente em uma capitania. Capitania e registro só são
+    exigidos de quem emite em nome próprio. A operadora sem capitania entra na parceria e,
+    no aceite, **herda a capitania da EAMA**; se já declarou outra, o convite é recusado.
+    Enquanto delegada, a capitania fica **travada** (`TenantConfigService`); revogada a
+    parceria, volta a "não é EAMA" e destrava. `PapelEmissaoService` (módulo tenant)
+    expõe EMISSORA | DELEGADA | NENHUM para o switcher do backoffice (delegadas aninhadas
+    sob a EAMA), o console da plataforma (lista em árvore, detalhe com a EAMA ou as
+    delegadas) e a "Rede de emissão" da tela Emissão delegada. ✔
 - **N. Instrutores da operadora aprovados pela EAMA** (V070, 13/set/2026): pela NORMAM-212 o
   instrutor é cadastrado na EAMA, que responde por ele. A operadora cadastra instrutores
   próprios; eles só assinam emissões delegadas depois de **aprovados pela EAMA** da

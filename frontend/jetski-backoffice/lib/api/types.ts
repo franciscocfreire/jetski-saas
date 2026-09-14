@@ -957,6 +957,11 @@ export interface TenantSummary {
   emissoraHabilitada?: boolean
   /** Registro EAMA declarado pela empresa (painel de plataforma; null = não preenchido). */
   eamaRegistro?: string | null
+  /** Papel na emissão (§8.M): EAMA emissora, delegada de uma EAMA, ou não é EAMA. */
+  papelEmissao?: 'EMISSORA' | 'DELEGADA' | 'NENHUM' | null
+  /** Na delegada: a EAMA emissora da parceria em vigor. */
+  emissoraTenantId?: string | null
+  emissoraNome?: string | null
 }
 
 export interface UserTenantsResponse {

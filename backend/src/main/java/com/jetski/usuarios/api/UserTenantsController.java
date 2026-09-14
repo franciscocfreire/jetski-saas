@@ -49,6 +49,7 @@ public class UserTenantsController {
     private final IdentityProviderMappingService identityMappingService;
     private final TenantQueryService tenantQueryService;
     private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
+    private final com.jetski.tenant.PapelEmissaoService papelEmissaoService;
 
     /**
      * GET /api/v1/user/tenants
@@ -164,9 +165,36 @@ public class UserTenantsController {
      * Build TenantSummary list from Membro and Tenant data.
      */
     private List<TenantSummary> buildTenantSummaries(List<Membro> membros, Map<UUID, Tenant> tenantsMap) {
+        // Papel na emissão (§8.M): o switcher agrupa as delegadas sob a EAMA delas.
+        Map<UUID, com.jetski.tenant.PapelEmissaoService.PapelEmissao> papeis = new java.util.HashMap<>();
+        for (Membro m : membros) {
+            Tenant t = tenantsMap.get(m.getTenantId());
+            var papel = papelEmissaoService.papelDe(m.getTenantId(),
+                t != null && Boolean.TRUE.equals(t.getEmissoraHabilitada()));
+            if (papel != null) {
+                papeis.put(m.getTenantId(), papel);
+            }
+        }
+        // A EAMA de uma delegada pode não ser empresa do usuário: busca só o nome dela.
+        List<UUID> emissorasFora = papeis.values().stream()
+            .map(com.jetski.tenant.PapelEmissaoService.PapelEmissao::emissoraTenantId)
+            .filter(java.util.Objects::nonNull)
+            .filter(id -> !tenantsMap.containsKey(id))
+            .distinct()
+            .toList();
+        Map<UUID, Tenant> conhecidas = new java.util.HashMap<>(tenantsMap);
+        if (!emissorasFora.isEmpty()) {
+            Map<UUID, Tenant> fora = tenantQueryService.findTenantsById(emissorasFora);
+            if (fora != null) {
+                conhecidas.putAll(fora);
+            }
+        }
         return membros.stream()
             .map(membro -> {
                 Tenant tenant = tenantsMap.get(membro.getTenantId());
+                var papel = papeis.get(membro.getTenantId());
+                Tenant emissora = papel != null && papel.emissoraTenantId() != null
+                    ? conhecidas.get(papel.emissoraTenantId()) : null;
                 // Módulos do plano (V046): null = todos — o menu do backoffice
                 // filtra por isto (sentinela "*" vira null p/ o frontend)
                 List<String> modulos = planoLimiteService.modulosDoPlano(membro.getTenantId());
@@ -183,6 +211,9 @@ public class UserTenantsController {
                     .roles(membro.getPapeis() != null ? List.of(membro.getPapeis()) : List.of())
                     .modulos(modulos.contains("*") ? null : modulos)
                     .videoaulaObrigatoria(docCfg.videoaulaExigida(podeDesativarVideoaula))
+                    .papelEmissao(papel != null ? papel.papel().name() : null)
+                    .emissoraTenantId(papel != null ? papel.emissoraTenantId() : null)
+                    .emissoraNome(emissora != null ? emissora.getRazaoSocial() : null)
                     .build();
             })
             .collect(Collectors.toList());

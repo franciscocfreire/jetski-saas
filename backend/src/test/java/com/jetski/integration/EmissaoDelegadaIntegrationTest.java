@@ -61,6 +61,8 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
     @Autowired private com.jetski.shared.email.TenantSmtpResolver smtpResolver;
     @Autowired private com.jetski.locacoes.internal.InstrutorService instrutorService;
     @Autowired private com.jetski.tenant.internal.PlatformTenantService platformTenantService;
+    @Autowired private com.jetski.tenant.internal.TenantConfigService tenantConfigService;
+    @Autowired private com.jetski.tenant.PapelEmissaoService papelEmissaoService;
 
     @MockBean private UserProvisioningService userProvisioningService;
     @MockBean private EmailService emailService;
@@ -610,6 +612,43 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
         // ...e, revogada a parceria, volta a poder (nova validação).
         vinculoService.revogar(operadora, v.getId());
         assertThat(platformTenantService.habilitarEmissora(operadora).emissoraHabilitada()).isTrue();
+    }
+
+    @Test
+    @DisplayName("terceiro estado (§8.M): empresa sem capitania vira delegada, herda a capitania da EAMA e não pode trocá-la")
+    void delegadaHerdaCapitaniaDaEamaETrava() {
+        UUID cpsp = jdbc.queryForObject("SELECT id FROM capitania WHERE codigo = 'CPSP'", UUID.class);
+        UUID cprj = jdbc.queryForObject("SELECT id FROM capitania WHERE codigo = 'CPRJ'", UUID.class);
+        jdbc.update("UPDATE tenant SET capitania_id = NULL WHERE id = ?", operadora);
+        var nenhum = com.jetski.tenant.PapelEmissaoService.Papel.NENHUM;
+        assertThat(papelEmissaoService.papelDe(operadora, false).papel()).isEqualTo(nenhum);
+        assertThat(papelEmissaoService.papelDe(emissora, true).papel())
+            .isEqualTo(com.jetski.tenant.PapelEmissaoService.Papel.EMISSORA);
+
+        // Sem capitania, entra na parceria e herda a da EAMA.
+        VinculoEmissao v = vinculoAtivo();
+        assertThat(jdbc.queryForObject("SELECT capitania_id FROM tenant WHERE id = ?", UUID.class, operadora))
+            .isEqualTo(cpsp);
+        var papel = papelEmissaoService.papelDe(operadora, false);
+        assertThat(papel.papel()).isEqualTo(com.jetski.tenant.PapelEmissaoService.Papel.DELEGADA);
+        assertThat(papel.emissoraTenantId()).isEqualTo(emissora);
+        assertThat(papel.vinculoStatus()).isEqualTo("ATIVO");
+
+        // Capitania travada enquanto delegada; salvar a mesma continua valendo.
+        assertThatThrownBy(() -> tenantConfigService.updateEmissoraConfig(operadora,
+                new com.jetski.tenant.api.dto.EmissoraConfigRequest(cprj, null, null)))
+            .isInstanceOf(BusinessException.class)
+            .hasMessageContaining("EAMA emissora");
+        tenantConfigService.updateEmissoraConfig(operadora,
+            new com.jetski.tenant.api.dto.EmissoraConfigRequest(cpsp, null, null));
+
+        // Revogada a parceria, volta a "nenhum" e a capitania destrava.
+        vinculoService.revogar(operadora, v.getId());
+        assertThat(papelEmissaoService.papelDe(operadora, false).papel()).isEqualTo(nenhum);
+        tenantConfigService.updateEmissoraConfig(operadora,
+            new com.jetski.tenant.api.dto.EmissoraConfigRequest(cprj, null, null));
+        assertThat(jdbc.queryForObject("SELECT capitania_id FROM tenant WHERE id = ?", UUID.class, operadora))
+            .isEqualTo(cprj);
     }
 
     @Test
