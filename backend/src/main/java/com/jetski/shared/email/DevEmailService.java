@@ -216,6 +216,13 @@ public class DevEmailService implements EmailService {
     public void sendEmailComAnexo(String to, String subject, String htmlBody,
                                   String attachmentName, byte[] attachment, String attachmentContentType,
                                   String replyTo, Remetente remetente) {
+        // Mesma regra do prod: ofício à Capitania sem SMTP próprio da EAMA não sai (nem no Mailpit).
+        if (remetente != null && remetente.exigeSmtpProprio()
+                && (tenantSmtpResolver == null || tenantSmtpResolver.forTenant(remetente.tenantId()).isEmpty())) {
+            log.warn("E-mail NÃO enviado (exige SMTP próprio do tenant {}): to={}, subject={}",
+                remetente.tenantId(), to, subject);
+            throw new SmtpProprioAusenteException(remetente.tenantId(), remetente.nome());
+        }
         int size = attachment == null ? 0 : attachment.length;
         String body = String.format("%s%n%n[ANEXO] %s (%s, %d bytes)%s%s",
             htmlBody, attachmentName, attachmentContentType, size,

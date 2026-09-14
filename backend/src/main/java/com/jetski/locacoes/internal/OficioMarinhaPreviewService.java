@@ -27,7 +27,7 @@ import java.util.UUID;
  *
  * <p>Além do envelope e do corpo, devolve as pendências que só se descobrem na hora
  * do envio (sem e-mail da Marinha o documento fica {@code SEM_DESTINATARIO}; sem SMTP
- * próprio o e-mail sai da plataforma, o que a NORMAM não aceita como remetente) — a
+ * próprio o ofício não sai — {@code SEM_SMTP} — porque só vai pelo e-mail da EAMA) — a
  * pré-visualização é o lugar de ver isso ANTES da primeira emissão real.
  */
 @Service
@@ -130,9 +130,10 @@ public class OficioMarinhaPreviewService {
                 "Nº de credenciamento do EAMA não cadastrado (aba Emissão): omitido do ofício."));
         }
         if (smtp.isEmpty()) {
-            a.add(new Aviso("AVISO", "smtp",
-                "Sem SMTP próprio: o e-mail sai do remetente da plataforma. A NORMAM-212 exige o envio "
-                + "pelo e-mail do EAMA declarado no Anexo 5-A — configure o servidor de e-mail abaixo."));
+            a.add(new Aviso("ERRO", "smtp",
+                "Sem SMTP próprio (host, usuário e senha): o ofício NÃO é enviado à Capitania — ele só sai "
+                + "pelo e-mail do EAMA (NORMAM-212, Anexo 5-A), nunca pela plataforma. Configure o "
+                + "servidor de e-mail abaixo."));
         } else if (has(emailOficial) && !emailOficial.trim().equalsIgnoreCase(smtp.get().from().trim())) {
             a.add(new Aviso("AVISO", "smtp",
                 "O remetente do SMTP próprio (" + smtp.get().from() + ") é diferente do e-mail oficial "

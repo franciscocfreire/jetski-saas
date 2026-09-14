@@ -609,10 +609,21 @@ function ConfiguracoesConteudo() {
               <CardDescription>
                 Envie com o e-mail real da sua empresa. Configure o SMTP (ex.: Gmail:
                 smtp.gmail.com, porta 587, com uma <strong>senha de app</strong>). Sem isso, os
-                e-mails saem pelo remetente padrão da plataforma.
+                e-mails saem pelo remetente padrão da plataforma — exceto o ofício à Capitania,
+                que só é enviado pelo SMTP da EAMA emissora.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {geral && !geral.smtpCompleto && (
+                <Alert variant="destructive" data-testid="smtp-incompleto">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    SMTP incompleto: sem <strong>host, usuário e senha</strong> os e-mails saem pela
+                    plataforma e, se a empresa emite como EAMA, o ofício à Capitania{' '}
+                    <strong>não é enviado</strong>.
+                  </AlertDescription>
+                </Alert>
+              )}
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="smtpHost">Host SMTP</Label>

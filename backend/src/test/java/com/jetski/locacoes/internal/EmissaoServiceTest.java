@@ -225,8 +225,8 @@ class EmissaoServiceTest {
         org.mockito.ArgumentCaptor<String> anexo = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(email).sendEmailComAnexo(eq("capitania@example.com"), subject.capture(), body.capture(),
             anexo.capture(), any(), eq("application/pdf"), eq("eama@jetsave.com.br"),
-            // remetente explícito = quem emite (própria: o tenant), nunca o "Meu Jet" global
-            eq(new EmailService.Remetente(tenant, "Jet Save Turismo Náutico LTDA")));
+            // remetente explícito = quem emite (própria: o tenant), só pelo SMTP dele
+            eq(EmailService.Remetente.oficioCapitania(tenant, "Jet Save Turismo Náutico LTDA", null)));
         assertThat(subject.getValue())
             .startsWith("Solicitação de Emissão de CHA-MTA-E – Roberto Lima – CPF 987.654.321-00 – reserva #")
             .endsWith("reserva #" + reservaId.toString().substring(0, 8));
@@ -421,7 +421,7 @@ class EmissaoServiceTest {
         verify(email).sendEmailComAnexo(eq("capitania-sp@example.com"), anyString(), body.capture(),
             anyString(), any(), eq("application/pdf"), eq("oficial@eamasantos.com.br"),
             // cópia para a operadora (tenant do documento), pelo e-mail oficial dela
-            eq(new EmailService.Remetente(emissora, "EAMA Santos LTDA", "eama@jetsave.com.br")));
+            eq(EmailService.Remetente.oficioCapitania(emissora, "EAMA Santos LTDA", "eama@jetsave.com.br")));
         assertThat(body.getValue()).contains("Ana Souza").contains("EAMA-SP-999")
             // a operadora (tenant da sessão) aparece só na assinatura, como quem opera pela EAMA
             .contains("CNPJ: 22.222.222/0001-22<br>operado por <b>Jet Save Turismo Náutico LTDA</b>")
@@ -429,6 +429,20 @@ class EmissaoServiceTest {
         // nunca a Capitania configurada pela operadora
         verify(email, org.mockito.Mockito.never()).sendEmailComAnexo(eq("capitania@example.com"),
             anyString(), anyString(), anyString(), any(), anyString(), nullable(String.class), any());
+    }
+
+    @Test
+    @DisplayName("EAMA sem SMTP próprio: ofício fica SEM_SMTP (não cai na plataforma) e a via do cliente sai")
+    void semSmtpDaEamaNaoEnviaOficio() {
+        org.mockito.Mockito.doThrow(new com.jetski.shared.email.SmtpProprioAusenteException(tenant, "Jet Save"))
+            .when(email).sendEmailComAnexo(eq("capitania@example.com"), anyString(), anyString(), anyString(),
+                any(), anyString(), nullable(String.class), any());
+
+        EmissaoService.ResultadoEmissao r = service.emitir(reservaId);
+
+        assertThat(r.getMarinhaEnvioStatus()).isEqualTo(com.jetski.locacoes.domain.EnvioStatus.SEM_SMTP);
+        assertThat(r.isEnviadoMarinha()).isFalse();
+        assertThat(r.isEnviadoCliente()).isTrue();
     }
 
     @Test

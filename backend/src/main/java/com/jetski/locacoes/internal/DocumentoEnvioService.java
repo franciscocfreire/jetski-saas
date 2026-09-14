@@ -13,6 +13,7 @@ import com.jetski.locacoes.internal.repository.ReservaHabilitacaoRepository;
 import com.jetski.locacoes.internal.repository.ReservaRepository;
 import com.jetski.shared.exception.NotFoundException;
 import com.jetski.shared.email.EmailService;
+import com.jetski.shared.email.SmtpProprioAusenteException;
 import com.jetski.shared.storage.StorageService;
 import com.jetski.tenant.TenantQueryService;
 import com.jetski.tenant.domain.DocumentoConfig;
@@ -233,15 +234,20 @@ public class DocumentoEnvioService {
             } else {
                 String subject = MarinhaEmailTemplate.assunto(ctx.oficio());
                 try {
-                    // O ofício sai em nome de quem emite: SMTP/"From" do emissor (a EAMA na
-                    // delegada), nunca do tenant da sessão — que ali é a operadora.
+                    // O ofício sai em nome de quem emite e SÓ pelo SMTP dele (a EAMA na
+                    // delegada) — nunca do tenant da sessão nem da plataforma.
                     emailService.sendEmailComAnexo(ctx.marinhaEmail(), subject,
                         MarinhaEmailTemplate.corpoHtml(ctx.oficio()),
                         MarinhaEmailTemplate.nomeArquivo(ctx.oficio()),
                         ctx.pdfMarinha(), "application/pdf", ctx.oficio().emailOficial(),
-                        new EmailService.Remetente(ctx.remetenteTenantId(), ctx.oficio().eamaNome(),
+                        EmailService.Remetente.oficioCapitania(ctx.remetenteTenantId(), ctx.oficio().eamaNome(),
                             ctx.copiaOficio()));
                     marinha = EnvioStatus.ENVIADO;
+                } catch (SmtpProprioAusenteException e) {
+                    log.warn("Ofício à Capitania não enviado: EAMA {} sem SMTP próprio (doc {})",
+                        ctx.remetenteTenantId(), ctx.documentoId());
+                    marinha = EnvioStatus.SEM_SMTP;
+                    marinhaErro = motivo(e);
                 } catch (Exception e) {
                     log.warn("Falha ao enviar e-mail à Marinha (segue sem enviar): to={}, subject={}, erro={}",
                         ctx.marinhaEmail(), subject, e.getMessage());
@@ -274,11 +280,13 @@ public class DocumentoEnvioService {
 
         // Notificação à EAMA emissora (delegada): o documento saiu em nome dela.
         // Best-effort e sem status próprio — o registro dela é o painel de emissões.
+        // Remetente explícito = a loja (SMTP dela → plataforma): no worker não há tenant na sessão.
         if (!vazio(ctx.emissorContatoEmail())) {
             try {
                 emailService.sendEmailComAnexo(ctx.emissorContatoEmail(),
                     ctx.assuntoEmissor(), ctx.corpoEmissor(), ctx.nomeArquivo(),
-                    ctx.pdfMarinha() != null ? ctx.pdfMarinha() : ctx.pdfCliente(), "application/pdf");
+                    ctx.pdfMarinha() != null ? ctx.pdfMarinha() : ctx.pdfCliente(), "application/pdf",
+                    null, new EmailService.Remetente(ctx.tenantId(), ctx.lojaNome()));
             } catch (Exception e) {
                 log.warn("Falha ao notificar a EAMA emissora (segue sem enviar): to={}, erro={}",
                     ctx.emissorContatoEmail(), e.getMessage());

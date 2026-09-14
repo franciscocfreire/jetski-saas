@@ -86,6 +86,26 @@ class SmtpEmailServiceTest {
     }
 
     @Test
+    @DisplayName("ofício à Capitania sem SMTP próprio da EAMA: não envia e NÃO cai no SMTP da plataforma")
+    void oficioSemSmtpProprioNaoCaiNaPlataforma() {
+        JavaMailSender mailSender = mock(JavaMailSender.class);
+        java.util.UUID eama = java.util.UUID.randomUUID();
+        TenantSmtpResolver smtpResolver = mock(TenantSmtpResolver.class);
+        when(smtpResolver.forTenant(eama)).thenReturn(java.util.Optional.empty());
+        SmtpEmailService service = new SmtpEmailService(mailSender, smtpResolver, new SmtpSenderFactory());
+        ReflectionTestUtils.setField(service, "fromEmail", "noreply@pegaojet.com.br");
+        ReflectionTestUtils.setField(service, "fromName", "Meu Jet");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                service.sendEmailComAnexo("capitania@example.com", "Ofício", "<p>ofício</p>", "doc.pdf",
+                    "%PDF".getBytes(StandardCharsets.US_ASCII), "application/pdf", "oficial@eama.com",
+                    EmailService.Remetente.oficioCapitania(eama, "EAMA Santos LTDA", null)))
+            .isInstanceOf(SmtpProprioAusenteException.class);
+
+        verify(mailSender, org.mockito.Mockito.never()).createMimeMessage();
+    }
+
+    @Test
     @DisplayName("remetente explícito com SMTP próprio: envia pelo servidor dele, com o From dele")
     void remetenteExplicitoComSmtpProprio() throws Exception {
         java.util.UUID eama = java.util.UUID.randomUUID();

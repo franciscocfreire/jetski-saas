@@ -559,12 +559,14 @@ export interface Aceite {
 /**
  * Estado do envio de um documento por destino (V065).
  * PENDENTE = a caminho (o e-mail sai fora do request); BLOQUEADO = documentação
- * incompleta; SEM_DESTINATARIO = falta o e-mail no cadastro.
+ * incompleta; SEM_DESTINATARIO = falta o e-mail no cadastro; SEM_SMTP = a EAMA
+ * emissora não tem SMTP próprio (o ofício à Capitania nunca sai pela plataforma).
  */
 export type EnvioStatus =
   | 'NAO_APLICAVEL'
   | 'BLOQUEADO'
   | 'SEM_DESTINATARIO'
+  | 'SEM_SMTP'
   | 'PENDENTE'
   | 'ENVIADO'
   | 'FALHOU'
@@ -1542,6 +1544,8 @@ export interface TenantGeralConfig {
   smtpFrom?: string
   smtpStarttls?: boolean
   smtpConfigurado?: boolean
+  /** Host + usuário + senha: o SMTP próprio é de fato usado. */
+  smtpCompleto?: boolean
 }
 
 export interface TenantGeralConfigRequest {
