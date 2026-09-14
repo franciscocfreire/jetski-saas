@@ -92,8 +92,7 @@ class ReservaFichaIntegrationTest extends AbstractIntegrationTest {
     }
 
     private RequestPostProcessor staff(String role) {
-        return jwt().jwt(j -> j.subject(STAFF_USER.toString()))
-            .authorities(new SimpleGrantedAuthority("ROLE_" + role));
+        return com.jetski.integration.MembroDeTeste.comPapel(jdbc, TENANT_ACME, role);
     }
 
     private String base() {

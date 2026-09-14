@@ -231,6 +231,7 @@ public class TenantFilter extends OncePerRequestFilter {
 
         // Store roles and usuarioId in context for @PreAuthorize and controllers
         TenantContext.setUserRoles(accessInfo.getRoles());
+        aplicarPapeisDoTenantNoSpring(accessInfo.getRoles());
 
         // Store unrestricted flag (super admin) for ABAC → OPA propagation
         TenantContext.setUnrestricted(accessInfo.isUnrestricted());
@@ -335,6 +336,37 @@ public class TenantFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(
             new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
                 atual.getPrincipal(), atual.getCredentials(), autoridades));
+    }
+
+    /**
+     * Faz o {@code @PreAuthorize("hasRole(...)")} enxergar os papéis DA EMPRESA do request
+     * (membro), e não as realm roles do JWT.
+     *
+     * <p>As realm roles do Keycloak são globais da pessoa — com identidade única ela é
+     * ADMIN numa empresa, OPERADOR em outra, cliente em N lojas. Sem esta troca, quem
+     * entrou numa empresa por convite de conta existente tomava 403 nas rotas com
+     * {@code @PreAuthorize} (visto em PRD na emissão delegada), e quem é ADMIN em A
+     * passava como ADMIN em B. Autoridades que não são papel (SCOPE_*) ficam.
+     */
+    private void aplicarPapeisDoTenantNoSpring(java.util.List<String> papeis) {
+        Authentication atual = SecurityContextHolder.getContext().getAuthentication();
+        if (atual == null || !atual.isAuthenticated() || !(atual.getPrincipal() instanceof Jwt jwt)) {
+            return;
+        }
+        java.util.List<org.springframework.security.core.GrantedAuthority> autoridades =
+            new java.util.ArrayList<>();
+        for (org.springframework.security.core.GrantedAuthority a : atual.getAuthorities()) {
+            if (!a.getAuthority().startsWith("ROLE_")) {
+                autoridades.add(a);
+            }
+        }
+        if (papeis != null) {
+            papeis.forEach(p -> autoridades.add(
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + p)));
+        }
+        SecurityContextHolder.getContext().setAuthentication(
+            new org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken(
+                jwt, autoridades, atual.getName()));
     }
 
     /** Endpoints de plataforma (console) — autenticados, com tenant OPCIONAL. */

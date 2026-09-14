@@ -59,6 +59,7 @@ public class UserInvitationService {
     private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
     private final com.jetski.usuarios.internal.repository.UsuarioRepository usuarioRepository;
     private final MemberManagementService memberManagementService;
+    private final com.jetski.tenant.TenantQueryService tenantQueryService;
 
     @PersistenceContext
     private final EntityManager entityManager;
@@ -168,14 +169,17 @@ public class UserInvitationService {
         // 9. Send invitation email with magic link. Quem JÁ TEM conta (identidade
         // única) recebe o convite de aceite, sem senha temporária: a ativação só
         // vincula o papel à conta existente e a senha atual continua valendo.
+        com.jetski.tenant.domain.Tenant tenant = tenantQueryService.findById(tenantId);
+        String empresa = tenant != null ? tenant.getRazaoSocial() : null;
         if (usuarioRepository.findByEmail(request.getEmail()).isPresent()) {
-            emailService.sendExistingAccountInvitationEmail(request.getEmail(), request.getNome(), magicLink);
+            emailService.sendExistingAccountInvitationEmail(request.getEmail(), request.getNome(), magicLink, empresa);
         } else {
             emailService.sendInvitationEmail(
                 request.getEmail(),
                 request.getNome(),
                 magicLink,  // Magic link is primary activation method (UX improvement)
-                temporaryPassword  // Plain password sent in email (backward compatibility + manual activation fallback)
+                temporaryPassword,  // Plain password sent in email (backward compatibility + manual activation fallback)
+                empresa
             );
         }
 

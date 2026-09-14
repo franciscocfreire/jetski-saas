@@ -42,15 +42,16 @@ public class SmtpEmailService implements EmailService {
     private String fromName;
 
     @Override
-    public void sendInvitationEmail(String to, String name, String activationLink, String temporaryPassword) {
-        sendEmail(to, EmailTemplates.INVITATION_SUBJECT,
-            EmailTemplates.invitationHtml(name, activationLink, temporaryPassword));
+    public void sendInvitationEmail(String to, String name, String activationLink, String temporaryPassword,
+                                    String empresa) {
+        sendEmail(to, EmailTemplates.invitationSubject(empresa),
+            EmailTemplates.invitationHtml(name, activationLink, temporaryPassword, empresa));
     }
 
     @Override
-    public void sendExistingAccountInvitationEmail(String to, String name, String acceptLink) {
-        sendEmail(to, EmailTemplates.EXISTING_ACCOUNT_INVITATION_SUBJECT,
-            EmailTemplates.existingAccountInvitationHtml(name, acceptLink));
+    public void sendExistingAccountInvitationEmail(String to, String name, String acceptLink, String empresa) {
+        sendEmail(to, EmailTemplates.existingAccountInvitationSubject(empresa),
+            EmailTemplates.existingAccountInvitationHtml(name, acceptLink, empresa));
     }
 
     @Override

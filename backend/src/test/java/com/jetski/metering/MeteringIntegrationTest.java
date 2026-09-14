@@ -112,8 +112,7 @@ class MeteringIntegrationTest extends AbstractIntegrationTest {
     }
 
     private RequestPostProcessor vendedor() {
-        return jwt().jwt(j -> j.subject(USER_ID.toString()))
-            .authorities(new SimpleGrantedAuthority("ROLE_VENDEDOR"));
+        return com.jetski.integration.MembroDeTeste.comPapel(jdbcTemplate, TENANT_ACME, "VENDEDOR");
     }
 
     /** Operador de plataforma — quem pode falar com /v1/platform/**. */
