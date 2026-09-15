@@ -120,6 +120,7 @@ acoes_suporte := {
 	"platform:tenants:reactivate",
 	"platform:tenants:habilitar-emissora",
 	"platform:tenants:desabilitar-emissora",
+	"platform:tenants:smtp:teste", # e-mail de teste pelo SMTP da empresa → caixa da plataforma
 	"platform:capitanias", # catálogo EAMA (POST)
 	"platform:capitanias:atualizar",
 	"platform:tenants:suporte", # abrir sessão de suporte numa empresa

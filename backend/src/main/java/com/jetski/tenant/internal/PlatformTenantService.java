@@ -81,9 +81,25 @@ public class PlatformTenantService {
                     modulos.contains("*") ? null : modulos,
                     papel.papel().name(), papel.emissoraTenantId(),
                     papel.emissoraTenantId() != null ? nomes.get(papel.emissoraTenantId()) : null,
-                    papel.vinculoStatus());
+                    papel.vinculoStatus(),
+                    smtpCompleto(t), smtpCompleto(t) ? smtpRemetente(t) : null);
             })
             .toList();
+    }
+
+    /** Mesmo critério do TenantSmtpResolverImpl: sem host + usuário + senha o SMTP próprio não é usado. */
+    static boolean smtpCompleto(Tenant t) {
+        return naoVazio(t.getSmtpHost()) && naoVazio(t.getSmtpUsername()) && naoVazio(t.getSmtpPassword());
+    }
+
+    private static String smtpRemetente(Tenant t) {
+        if (naoVazio(t.getSmtpFrom())) return t.getSmtpFrom().trim();
+        if (naoVazio(t.getEmailRemetente())) return t.getEmailRemetente().trim();
+        return t.getSmtpUsername().trim();
+    }
+
+    private static boolean naoVazio(String s) {
+        return s != null && !s.isBlank();
     }
 
     /** Plano e dt_fim da assinatura ativa do tenant, ou null se não houver. */

@@ -134,10 +134,18 @@ export default async function Empresas({
                 )}
               </Td>
               <Td>
-                {t.exclusaoAgendadaEm ? (
-                  <Badge tom="perigo">
-                    expurgo em {dataCurta(t.exclusaoAgendadaEm)}
-                  </Badge>
+                {/* Emissora sem SMTP próprio: o ofício à Capitania não sai (só vai pelo e-mail da EAMA). */}
+                {t.exclusaoAgendadaEm || (t.papelEmissao === "EMISSORA" && !t.smtpCompleto) ? (
+                  <div className="flex flex-wrap gap-1">
+                    {t.exclusaoAgendadaEm && (
+                      <Badge tom="perigo">expurgo em {dataCurta(t.exclusaoAgendadaEm)}</Badge>
+                    )}
+                    {t.papelEmissao === "EMISSORA" && !t.smtpCompleto && (
+                      <span data-testid="console-alerta-sem-smtp">
+                        <Badge tom="atencao">SMTP não cadastrado</Badge>
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <span className="text-ink-300">—</span>
                 )}
