@@ -17,7 +17,9 @@ public record ModeloMidiaResponse(
     Integer ordem,
     Boolean principal,
     String titulo,
-    Instant createdAt
+    Instant createdAt,
+    /** Imagem enviada por arquivo (guardada no storage) — a URL não é editável. */
+    Boolean armazenada
 ) {
     /**
      * Factory method to create from entity
@@ -32,7 +34,8 @@ public record ModeloMidiaResponse(
             entity.getOrdem(),
             entity.getPrincipal(),
             entity.getTitulo(),
-            entity.getCreatedAt()
+            entity.getCreatedAt(),
+            entity.getStorageKey() != null
         );
     }
 }
