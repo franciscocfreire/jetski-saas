@@ -163,15 +163,16 @@ public class DevEmailService implements EmailService {
     }
 
     @Override
-    public void sendClienteInvitationEmail(String to, String name, String activationLink, String temporaryPassword) {
-        String subject = EmailTemplates.CLIENTE_INVITATION_SUBJECT;
+    public void sendClienteInvitationEmail(String to, String name, String activationLink, String temporaryPassword,
+                                           String empresa) {
+        String subject = EmailTemplates.clienteInvitationSubject(empresa);
 
         // Store last email data for E2E testing (token/senha do claim do cliente)
         lastEmail = new LastEmailData(to, name, subject, activationLink, temporaryPassword);
         log.info("📧 Last email data stored for E2E testing (cliente): to={}", to);
 
-        logAndSaveEmail(to, subject, buildClienteInvitationEmailBody(name, activationLink, temporaryPassword));
-        maybeSendViaSmtp(to, subject, EmailTemplates.clienteInvitationHtml(name, activationLink, temporaryPassword));
+        logAndSaveEmail(to, subject, buildClienteInvitationEmailBody(name, activationLink, temporaryPassword, empresa));
+        maybeSendViaSmtp(to, subject, EmailTemplates.clienteInvitationHtml(name, activationLink, temporaryPassword, empresa));
     }
 
     @Override
@@ -374,11 +375,13 @@ public class DevEmailService implements EmailService {
             """, name, activationLink, temporaryPassword);
     }
 
-    private String buildClienteInvitationEmailBody(String name, String activationLink, String temporaryPassword) {
+    private String buildClienteInvitationEmailBody(String name, String activationLink, String temporaryPassword,
+                                                   String empresa) {
+        String quem = empresa != null && !empresa.isBlank() ? "A empresa " + empresa.trim() : "A loja";
         return String.format("""
             Olá %s,
 
-            A loja criou um cadastro para você no Meu Jet. Ativando sua conta,
+            %s criou um cadastro para você no Meu Jet. Ativando sua conta,
             você acompanha suas reservas, documentos e histórico pelo portal.
 
             Link de ativação: %s
@@ -398,7 +401,7 @@ public class DevEmailService implements EmailService {
 
             ---
             [DEV MODE] Este email NÃO foi enviado. Apenas logado.
-            """, name, activationLink, temporaryPassword);
+            """, name, quem, activationLink, temporaryPassword);
     }
 
     private String buildPasswordResetEmailBody(String name, String resetLink) {

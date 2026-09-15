@@ -225,7 +225,8 @@ class BalcaoFlowE2EIntegrationTest extends AbstractIntegrationTest {
         ArgumentCaptor<String> linkCap = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> senhaCap = ArgumentCaptor.forClass(String.class);
         verify(emailService, timeout(5000)).sendClienteInvitationEmail(
-            eq("roberto.e2e@example.com"), eq("Roberto Lima"), linkCap.capture(), senhaCap.capture());
+            eq("roberto.e2e@example.com"), eq("Roberto Lima"), linkCap.capture(), senhaCap.capture(),
+            org.mockito.ArgumentMatchers.nullable(String.class));
         String senhaTemporaria = senhaCap.getValue();
         assertThat(linkCap.getValue()).contains("/portal/ativar?token=");
         String claimToken = linkCap.getValue()

@@ -22,6 +22,16 @@ public final class EmailTemplates {
     /** Assunto do email de ativação de conta do CLIENTE (pré-conta de balcão). */
     public static final String CLIENTE_INVITATION_SUBJECT = "Ative sua conta no Meu Jet";
 
+    /**
+     * Assunto do convite do cliente dizendo quem criou o cadastro — a pessoa recebe um
+     * e-mail do "Meu Jet" sobre uma loja; sem o nome, parece spam. Sem empresa: o genérico.
+     */
+    public static String clienteInvitationSubject(String empresa) {
+        return empresa == null || empresa.isBlank()
+            ? CLIENTE_INVITATION_SUBJECT
+            : CLIENTE_INVITATION_SUBJECT + " — cadastro feito por " + empresa.trim();
+    }
+
     /** Assunto do email de redefinição de senha. */
     public static final String PASSWORD_RESET_SUBJECT = "Meu Jet - Redefinição de senha";
 
@@ -351,7 +361,12 @@ public final class EmailTemplates {
      * claim-token) e texto voltado ao portal do cliente — inclusive o caso de
      * quem já tem conta no Meu Jet (a senha atual continua valendo).
      */
-    public static String clienteInvitationHtml(String name, String activationLink, String temporaryPassword) {
+    public static String clienteInvitationHtml(String name, String activationLink, String temporaryPassword,
+                                               String empresa) {
+        // Quem criou o cadastro: a razão social da loja (com escape — vem do cadastro da empresa).
+        String quem = empresa != null && !empresa.isBlank()
+            ? "A empresa <strong>" + org.springframework.web.util.HtmlUtils.htmlEscape(empresa.trim()) + "</strong>"
+            : "A loja";
         return String.format("""
             <!DOCTYPE html>
             <html>
@@ -365,7 +380,7 @@ public final class EmailTemplates {
 
                     <p>Olá <strong>%s</strong>,</p>
 
-                    <p>A loja criou um cadastro para você no <strong>Meu Jet</strong>.
+                    <p>%s criou um cadastro para você no <strong>Meu Jet</strong>.
                        Ativando sua conta, você acompanha suas reservas, documentos e
                        histórico direto pelo portal.</p>
 
@@ -411,7 +426,7 @@ public final class EmailTemplates {
                 </div>
             </body>
             </html>
-            """, BRAND_HEADER, name, temporaryPassword, activationLink);
+            """, BRAND_HEADER, name, quem, temporaryPassword, activationLink);
     }
 
     public static String passwordResetHtml(String name, String resetLink) {

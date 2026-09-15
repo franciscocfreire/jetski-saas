@@ -55,9 +55,10 @@ public class SmtpEmailService implements EmailService {
     }
 
     @Override
-    public void sendClienteInvitationEmail(String to, String name, String activationLink, String temporaryPassword) {
-        sendEmail(to, EmailTemplates.CLIENTE_INVITATION_SUBJECT,
-            EmailTemplates.clienteInvitationHtml(name, activationLink, temporaryPassword));
+    public void sendClienteInvitationEmail(String to, String name, String activationLink, String temporaryPassword,
+                                           String empresa) {
+        sendEmail(to, EmailTemplates.clienteInvitationSubject(empresa),
+            EmailTemplates.clienteInvitationHtml(name, activationLink, temporaryPassword, empresa));
     }
 
     @Override
