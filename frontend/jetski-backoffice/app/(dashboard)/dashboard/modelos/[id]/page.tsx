@@ -26,15 +26,15 @@ import {
   Store,
 } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
-import { modelosService, type ModeloCreateRequest } from '@/lib/api/services/modelos'
-import type { Modelo, ModeloMidia, TipoMidia, ModeloMidiaCreateRequest } from '@/lib/api/types'
+import { modelosService } from '@/lib/api/services/modelos'
+import type { ModeloMidia, TipoMidia, ModeloMidiaCreateRequest } from '@/lib/api/types'
+import { ModeloFormDialog } from '@/components/modelos/modelo-form-dialog'
 import { formatCurrency } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -586,231 +586,6 @@ function AddMediaDialog({
   )
 }
 
-// Edit Modelo Dialog
-function EditModeloDialog({
-  modelo,
-  open,
-  onOpenChange,
-}: {
-  modelo: Modelo
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  const queryClient = useQueryClient()
-  const [formData, setFormData] = useState<ModeloCreateRequest>({
-    nome: modelo.nome || '',
-    fabricante: modelo.fabricante || '',
-    potenciaHp: modelo.potenciaHp || 90,
-    capacidadePessoas: modelo.capacidadePessoas || 2,
-    precoBaseHora: modelo.precoBaseHora || 150,
-    toleranciaMin: modelo.toleranciaMin || 5,
-    taxaHoraExtra: modelo.taxaHoraExtra || 50,
-    incluiCombustivel: modelo.incluiCombustivel || false,
-    caucao: modelo.caucao || 300,
-    exibirNoMarketplace: modelo.exibirNoMarketplace ?? true,
-    descricao: modelo.descricao || '',
-    duracaoMinimaMin: modelo.duracaoMinimaMin ?? 0,
-  })
-
-  useEffect(() => {
-    setFormData({
-      nome: modelo.nome || '',
-      fabricante: modelo.fabricante || '',
-      potenciaHp: modelo.potenciaHp || 90,
-      capacidadePessoas: modelo.capacidadePessoas || 2,
-      precoBaseHora: modelo.precoBaseHora || 150,
-      toleranciaMin: modelo.toleranciaMin || 5,
-      taxaHoraExtra: modelo.taxaHoraExtra || 50,
-      incluiCombustivel: modelo.incluiCombustivel || false,
-      caucao: modelo.caucao || 300,
-      exibirNoMarketplace: modelo.exibirNoMarketplace ?? true,
-      descricao: modelo.descricao || '',
-      duracaoMinimaMin: modelo.duracaoMinimaMin ?? 0,
-    })
-  }, [modelo])
-
-  const updateMutation = useMutation({
-    mutationFn: (data: Partial<ModeloCreateRequest>) => modelosService.update(modelo.id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['modelo', modelo.id] })
-      queryClient.invalidateQueries({ queryKey: ['modelos'] })
-      onOpenChange(false)
-    },
-  })
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    updateMutation.mutate(formData)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Editar Modelo</DialogTitle>
-            <DialogDescription>
-              Atualize os dados do modelo
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="nome">Nome *</Label>
-                <Input
-                  id="nome"
-                  value={formData.nome}
-                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  placeholder="Ex: Sea-Doo GTI 130"
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="fabricante">Fabricante</Label>
-                <Input
-                  id="fabricante"
-                  value={formData.fabricante || ''}
-                  onChange={(e) => setFormData({ ...formData, fabricante: e.target.value })}
-                  placeholder="Ex: Sea-Doo"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="potenciaHp">Potência (HP)</Label>
-                <Input
-                  id="potenciaHp"
-                  type="number"
-                  value={formData.potenciaHp || 90}
-                  onChange={(e) => setFormData({ ...formData, potenciaHp: Number(e.target.value) })}
-                  min={0}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="capacidadePessoas">Capacidade (pessoas) *</Label>
-                <Input
-                  id="capacidadePessoas"
-                  type="number"
-                  value={formData.capacidadePessoas}
-                  onChange={(e) => setFormData({ ...formData, capacidadePessoas: Number(e.target.value) })}
-                  min={1}
-                  max={4}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="precoBase">Preço/Hora (R$) *</Label>
-                <Input
-                  id="precoBase"
-                  type="number"
-                  value={formData.precoBaseHora}
-                  onChange={(e) => setFormData({ ...formData, precoBaseHora: Number(e.target.value) })}
-                  min={0}
-                  step={10}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="taxaHoraExtra">Taxa Hora Extra (R$)</Label>
-                <Input
-                  id="taxaHoraExtra"
-                  type="number"
-                  value={formData.taxaHoraExtra || 0}
-                  onChange={(e) => setFormData({ ...formData, taxaHoraExtra: Number(e.target.value) })}
-                  min={0}
-                  step={10}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="toleranciaMin">Tolerância (min)</Label>
-                <Input
-                  id="toleranciaMin"
-                  type="number"
-                  value={formData.toleranciaMin || 5}
-                  onChange={(e) => setFormData({ ...formData, toleranciaMin: Number(e.target.value) })}
-                  min={0}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="caucao">Caução (R$)</Label>
-                <Input
-                  id="caucao"
-                  type="number"
-                  value={formData.caucao || 0}
-                  onChange={(e) => setFormData({ ...formData, caucao: Number(e.target.value) })}
-                  min={0}
-                  step={50}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <Label>Inclui Combustível</Label>
-                <p className="text-xs text-muted-foreground">
-                  O combustível está incluso no preço da locação
-                </p>
-              </div>
-              <Switch
-                checked={formData.incluiCombustivel || false}
-                onCheckedChange={(checked) => setFormData({ ...formData, incluiCombustivel: checked })}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="duracaoMinimaMin">Locação mínima (min)</Label>
-              <Input
-                id="duracaoMinimaMin"
-                type="number"
-                min={0}
-                step={15}
-                value={formData.duracaoMinimaMin || ''}
-                onChange={(e) => setFormData({ ...formData, duracaoMinimaMin: Number(e.target.value) || 0 })}
-                placeholder="Ex: 30"
-              />
-              <p className="text-xs text-muted-foreground">
-                Aparece como &quot;Mínimo&quot; no marketplace e limita a duração da reserva no portal. Vazio = sem mínimo.
-              </p>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="descricao">Descrição no marketplace</Label>
-              <Textarea
-                id="descricao"
-                value={formData.descricao || ''}
-                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                placeholder="Conte o que o cliente precisa saber: diferenciais do jet, o que está incluso, ponto de saída..."
-                maxLength={2000}
-                rows={4}
-              />
-              <p className="text-xs text-muted-foreground">
-                Aparece em &quot;Sobre&quot; na página pública do modelo. Em branco, usamos um texto padrão.
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? 'Salvando...' : 'Salvar'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 export default function ModeloDetailsPage() {
   const params = useParams()
   const router = useRouter()
@@ -1226,7 +1001,7 @@ export default function ModeloDetailsPage() {
       </Tabs>
 
       {/* Dialogs */}
-      <EditModeloDialog modelo={modelo} open={editDialogOpen} onOpenChange={setEditDialogOpen} />
+      <ModeloFormDialog modelo={modelo} open={editDialogOpen} onOpenChange={setEditDialogOpen} />
       <AddMediaDialog modeloId={modeloId} open={addMediaDialogOpen} onOpenChange={setAddMediaDialogOpen} />
     </div>
   )
