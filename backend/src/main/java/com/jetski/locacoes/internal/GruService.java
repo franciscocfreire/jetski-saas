@@ -349,27 +349,29 @@ public class GruService {
         }
         Tenant tenant = tenantQueryService.findById(reserva.getTenantId());
         String loja = tenant != null ? tenant.getRazaoSocial() : "";
-        StringBuilder b = new StringBuilder();
-        b.append("<p>Olá, ").append(cliente.getNome()).append("!</p>");
-        b.append("<p>Sua GRU (taxa da Marinha) foi gerada:</p><ul>");
-        b.append("<li><b>Número da GRU:</b> ").append(hab.getGruNumero()).append("</li>");
-        if (hab.getGruValor() != null) {
-            b.append("<li><b>Valor:</b> R$ ").append(hab.getGruValor().toPlainString().replace('.', ',')).append("</li>");
-        }
-        if (hab.getGruPixExpiracao() != null) {
-            b.append("<li><b>Vencimento do PIX:</b> ").append(hab.getGruPixExpiracao()).append("</li>");
-        }
-        b.append("</ul>");
-        if (hab.getGruPixCopiaECola() != null) {
-            b.append("<p><b>PIX copia-e-cola:</b></p><p style=\"word-break:break-all;font-family:monospace\">")
-             .append(hab.getGruPixCopiaECola()).append("</p>");
-        }
-        b.append("<p>Após o pagamento, siga com os próximos passos do seu atendimento.</p>");
-        b.append("<p>").append(loja).append("</p>");
+        byte[] qr = QrCodePng.gerar(hab.getGruPixCopiaECola(), 440);
+        String html = GruEmailTemplate.html(new GruEmailTemplate.Dados(
+            cliente.getNome(), loja, hab.getGruNumero(),
+            hab.getGruValor() != null ? formatarReais(hab.getGruValor()) : null,
+            hab.getGruPixExpiracao() != null ? VENCIMENTO_FMT.format(hab.getGruPixExpiracao()) : null,
+            hab.getGruPixCopiaECola(), qr != null));
 
-        emailService.sendEmail(email, "Sua GRU — " + loja, b.toString());
-        log.info("E-mail da GRU enviado ao cliente da reserva {} (gru={})", reservaId, hab.getGruNumero());
+        emailService.sendEmailComImagemInline(email, GruEmailTemplate.assunto(loja), html,
+            GruEmailTemplate.QR_CID, qr);
+        log.info("E-mail da GRU enviado ao cliente da reserva {} (gru={}, qr={})",
+            reservaId, hab.getGruNumero(), qr != null);
         return true;
+    }
+
+    private static final java.time.format.DateTimeFormatter VENCIMENTO_FMT =
+        java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm")
+            .withZone(java.time.ZoneId.of("America/Sao_Paulo"));
+
+    private static String formatarReais(BigDecimal v) {
+        java.text.NumberFormat nf = java.text.NumberFormat.getCurrencyInstance(
+            java.util.Locale.forLanguageTag("pt-BR"));
+        // NBSP do formato pt-BR vira espaço comum (alguns clientes de e-mail o exibem como "Â").
+        return nf.format(v).replace(' ', ' ');
     }
 
     private boolean gruValidaReaproveitavel(ReservaHabilitacao hab) {

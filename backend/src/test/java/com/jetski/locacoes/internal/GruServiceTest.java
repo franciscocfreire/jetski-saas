@@ -63,6 +63,35 @@ class GruServiceTest {
             documentoPdfService, emailService, tenantQueryService, eventPublisher);
     }
 
+    @Test
+    void enviarEmailGru_mandaTemplateComQrCodeInline() {
+        stubReservaECliente();
+        clienteRepository.findById(clienteId).orElseThrow().setEmail("cliente@exemplo.com");
+        ReservaHabilitacao hab = ReservaHabilitacao.builder()
+            .reservaId(reservaId)
+            .via(ReservaHabilitacao.Via.EMA)
+            .gruNumero("60893100326392026")
+            .gruValor(new BigDecimal("60.32"))
+            .gruPixCopiaECola("00020101021226930014br.gov.bcb.pix2571apipixstn.tesouro.gov.br/v2/abc6304075D")
+            .gruPixExpiracao(Instant.parse("2026-09-15T23:27:00Z"))
+            .build();
+        when(habilitacaoRepository.findByReservaId(reservaId)).thenReturn(Optional.of(hab));
+
+        assertThat(service.enviarEmailGru(reservaId)).isTrue();
+
+        ArgumentCaptor<String> html = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<byte[]> png = ArgumentCaptor.forClass(byte[].class);
+        verify(emailService).sendEmailComImagemInline(org.mockito.ArgumentMatchers.eq("cliente@exemplo.com"),
+            any(), html.capture(), org.mockito.ArgumentMatchers.eq("qrpix"), png.capture());
+        assertThat(html.getValue())
+            .contains("cid:qrpix")
+            .contains("60893100326392026")
+            .contains("R$ 60,32")
+            .contains("15/09/2026 às 20:27")
+            .contains("Olá, Fulano!");
+        assertThat(png.getValue()).startsWith((byte) 0x89, (byte) 'P', (byte) 'N', (byte) 'G');
+    }
+
     private void stubReservaECliente() {
         Reserva reserva = new Reserva();
         reserva.setClienteId(clienteId);

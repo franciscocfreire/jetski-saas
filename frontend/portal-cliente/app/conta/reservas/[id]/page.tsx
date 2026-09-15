@@ -198,12 +198,18 @@ export default function ReservaDetailPage() {
                 ? checklist.habilitacaoVia === "CHA"
                   ? "CHA enviada e registrada"
                   : "CHA-MTA-E encaminhada"
-                : checklist.habilitacaoVia === "CHA"
-                  ? "Envie os dados e a foto da sua CHA"
-                  : checklist.habilitacaoVia === "EMA"
-                    ? "Complete os passos da CHA-MTA-E — a taxa da Marinha fica com a loja"
-                    : "Envie sua CHA ou emita a CHA-MTA-E",
-            estado: checklist.habilitacaoOk ? "ok" : "pendente",
+                : checklist.habilitacaoAguardandoGru
+                  ? "Sua parte está feita — aguardando a loja confirmar o pagamento da taxa da Marinha (GRU)"
+                  : checklist.habilitacaoVia === "CHA"
+                    ? "Envie os dados e a foto da sua CHA"
+                    : checklist.habilitacaoVia === "EMA"
+                      ? "Complete os passos da CHA-MTA-E — a taxa da Marinha fica com a loja"
+                      : "Envie sua CHA ou emita a CHA-MTA-E",
+            estado: checklist.habilitacaoOk
+              ? "ok"
+              : checklist.habilitacaoAguardandoGru
+                ? "em_validacao"
+                : "pendente",
             icone: <IdCard size={16} />,
             href: `/conta/reservas/${reserva.id}/habilitacao`,
           },

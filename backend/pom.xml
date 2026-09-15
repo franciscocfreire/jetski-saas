@@ -271,6 +271,13 @@
             <version>1.3.35</version>
         </dependency>
 
+        <!-- ZXing: QR Code do PIX da GRU embutido no e-mail ao cliente -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+            <version>3.4.0</version>
+        </dependency>
+
         <!-- Apache PDFBox: extração de texto robusta (ex.: nº da GRU no PDF do boleto) -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>

@@ -21,6 +21,16 @@ export const aceiteService = {
     }
   },
 
+  /** Imagem (PNG) da assinatura do aceite atual, ou null se não houver. */
+  async baixarAssinatura(reservaId: string): Promise<Blob | null> {
+    try {
+      const res = await apiClient.get(`${path(reservaId)}/assinatura`, { responseType: 'blob' })
+      return res.data as Blob
+    } catch {
+      return null
+    }
+  },
+
   /** OTP do aceite: está ativo p/ o tenant? qual canal? já verificado? */
   async otpStatus(reservaId: string): Promise<OtpStatus> {
     const { data } = await apiClient.get<OtpStatus>(`${path(reservaId)}/otp`)

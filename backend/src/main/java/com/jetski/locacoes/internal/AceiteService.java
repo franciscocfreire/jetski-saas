@@ -37,6 +37,20 @@ public class AceiteService {
         return repository.findFirstByReservaIdOrderByAceitoEmDesc(reservaId);
     }
 
+    /**
+     * Bytes (PNG) da assinatura do aceite mais recente — vazio se não houver aceite,
+     * se o método não tiver imagem (PAPEL) ou se o aceite for de outro tenant
+     * (escopo explícito; não confia só na RLS).
+     */
+    @Transactional(readOnly = true)
+    public Optional<byte[]> lerAssinatura(UUID reservaId) {
+        UUID tenantId = TenantContext.getTenantId();
+        return getUltimo(reservaId)
+            .filter(a -> tenantId != null && tenantId.equals(a.getTenantId()))
+            .filter(a -> a.getAssinaturaS3Key() != null)
+            .map(a -> storageService.getObject(a.getAssinaturaS3Key()));
+    }
+
     @Transactional
     public ReservaAceite registrar(UUID reservaId, ReservaAceite.Metodo metodo,
                                    byte[] assinatura, String ip, String userAgent) {

@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { abrirPdfPorLink } from '@/lib/pdf'
 import type { Atendimento } from '../types'
+import { GruConfirmacao } from './gru-confirmacao'
 import type { EnvioStatus, ResultadoEmissao } from '@/lib/api/types'
 
 export function StepEmissao({
@@ -27,12 +28,15 @@ export function StepEmissao({
   onBack,
   onReset,
   onBusyChange,
+  onHabilitacaoResolvida,
 }: {
   atendimento: Atendimento
   onBack: () => void
   onReset: () => void
   /** Avisa o wizard enquanto a emissão está em curso, para congelar a navegação. */
   onBusyChange?: (busy: boolean) => void
+  /** GRU confirmada aqui mesmo (PIX/comprovante): o wizard libera a emissão. */
+  onHabilitacaoResolvida?: () => void
 }) {
   const [resultado, setResultado] = useState<ResultadoEmissao | null>(null)
   const [baixando, setBaixando] = useState(false)
@@ -424,11 +428,17 @@ export function StepEmissao({
           ) : (
             <p>
               A <strong>GRU ainda não está paga</strong>, então os documentos NÃO podem ser emitidos
-              agora. A reserva já vale e pode embarcar normalmente. Pague a GRU (PIX/boleto ou
-              comprovante) e <strong>emita os documentos depois</strong> em Pendências → Retomar.
+              agora. Confirme o pagamento abaixo para emitir já — ou conclua o atendimento e{' '}
+              <strong>emita os documentos depois</strong> em Pendências → Retomar.
             </p>
           )}
         </div>
+        {!cha && atendimento.reserva && (
+          <GruConfirmacao
+            reservaId={atendimento.reserva.id}
+            onPago={() => onHabilitacaoResolvida?.()}
+          />
+        )}
         {atendimento.reserva && (
           <DocumentoPreviewButtons
             reservaId={atendimento.reserva.id}

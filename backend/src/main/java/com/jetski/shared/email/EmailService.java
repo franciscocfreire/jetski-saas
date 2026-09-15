@@ -173,4 +173,14 @@ public interface EmailService {
 
     /** Envia um e-mail HTML simples (sem anexo). */
     void sendEmail(String to, String subject, String htmlBody);
+
+    /**
+     * Envia um e-mail HTML com uma imagem PNG embutida, referenciada no HTML por
+     * {@code <img src="cid:contentId">} (ex.: QR Code do PIX). Best-effort, como
+     * {@link #sendEmail}. Sem imagem, cai no envio simples.
+     */
+    default void sendEmailComImagemInline(String to, String subject, String htmlBody,
+                                          String contentId, byte[] png) {
+        sendEmail(to, subject, htmlBody);
+    }
 }

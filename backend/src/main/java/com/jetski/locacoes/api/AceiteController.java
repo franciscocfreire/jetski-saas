@@ -71,6 +71,22 @@ public class AceiteController {
             .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/assinatura")
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
+    @Operation(summary = "Imagem (PNG) da assinatura do aceite atual — conferência no balcão")
+    public ResponseEntity<byte[]> assinatura(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id
+    ) {
+        validateTenantContext(tenantId);
+        return aceiteService.lerAssinatura(id)
+            .map(png -> ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.IMAGE_PNG)
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "private, no-store")
+                .body(png))
+            .orElse(ResponseEntity.notFound().build());
+    }
+
     @GetMapping("/otp")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR')")
     @Operation(summary = "Status do OTP do aceite (ativo? canal? já verificado?)")

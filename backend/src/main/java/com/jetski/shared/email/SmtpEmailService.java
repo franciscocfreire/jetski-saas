@@ -116,6 +116,31 @@ public class SmtpEmailService implements EmailService {
         }
     }
 
+    @Override
+    public void sendEmailComImagemInline(String to, String subject, String htmlBody,
+                                         String contentId, byte[] png) {
+        if (png == null || png.length == 0) {
+            sendEmail(to, subject, htmlBody);
+            return;
+        }
+        try {
+            var perTenant = tenantSmtpResolver.forCurrentTenant();
+            if (perTenant.isPresent()) {
+                var s = perTenant.get();
+                String nome = (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : fromName;
+                senderFactory.sendComImagemInline(senderFactory.build(s), s.from(), nome, to, subject,
+                    htmlBody, contentId, png);
+            } else {
+                senderFactory.sendComImagemInline(mailSender, fromEmail, fromName, to, subject,
+                    htmlBody, contentId, png);
+            }
+            log.info("Email com imagem inline enviado: to={}, subject={}", to, subject);
+        } catch (Exception e) {
+            log.error("Failed to send email with inline image (ignored, best-effort): to={}, subject={}, error={}",
+                to, subject, e.getMessage(), e);
+        }
+    }
+
     /**
      * Envia usando o SMTP próprio do tenant (se configurado) — "from" real da empresa —
      * ou o SMTP global da plataforma como fallback. Com {@code remetente} explícito, o
