@@ -12,6 +12,8 @@ export function FiltroEmpresas({
   total,
   comCondicao,
   condicaoAtiva,
+  excluidas,
+  verExcluidas,
 }: {
   porStatus: Record<string, number>;
   statusAtual?: string;
@@ -20,6 +22,9 @@ export function FiltroEmpresas({
   /** Empresas com condição comercial vigente (isenção/desconto). */
   comCondicao: number;
   condicaoAtiva: boolean;
+  /** Empresas excluídas (tombstone) — fora da lista e das contagens por padrão. */
+  excluidas: number;
+  verExcluidas: boolean;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -60,6 +65,26 @@ export function FiltroEmpresas({
         >
           com condição comercial ({comCondicao})
         </Chip>
+      )}
+
+      {(excluidas > 0 || verExcluidas) && (
+        <label
+          className="flex cursor-pointer items-center gap-1.5 text-xs text-ink-500"
+          data-testid="console-mostrar-excluidas"
+        >
+          <input
+            type="checkbox"
+            checked={verExcluidas}
+            onChange={() =>
+              navegar(
+                verExcluidas
+                  ? { excluidas: null, ...(statusAtual === "EXCLUIDO" ? { status: null } : {}) }
+                  : { excluidas: "1" },
+              )
+            }
+          />
+          mostrar excluídas ({excluidas})
+        </label>
       )}
 
       <form

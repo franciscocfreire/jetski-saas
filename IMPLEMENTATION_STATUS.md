@@ -175,7 +175,9 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   PLATFORM_ADMIN; confirmação por slug. Não restaura a linha do tenant nem empresa excluída.
 - **Exclusão de empresa**: carência 30 dias (cancelável) ou imediata; expurgo com tombstone
   (slug liberado, sensíveis anonimizados; ledger/metering/auditoria preservados); job diário
-  (05:45) executa expurgos vencidos e remove exports >90 dias.
+  (05:45) executa expurgos vencidos e remove exports >90 dias. Parceria de emissão em vigor
+  bloqueia a exclusão; tombstone é só leitura no console (oculto por padrão na lista) e as
+  escritas de plataforma recusam empresa excluída (`TenantQueryService.exigirNaoExcluida`).
 - **Billing manual assistido** (V045): fatura mensal por plano pago (job 06:00), PIX da
   plataforma, empresa informa txid → conferência no painel → PAGA; inadimplente suspende
   após carência de 7 dias. Página "Plano e faturas" (uso × limites + faturas + PIX).

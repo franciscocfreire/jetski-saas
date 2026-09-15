@@ -65,6 +65,7 @@ public class TenantExclusaoService {
     public Instant agendar(UUID tenantId, String confirmacaoSlug) {
         Tenant tenant = carregarVivo(tenantId);
         validarSlug(tenant, confirmacaoSlug);
+        exigirSemParceriaEmVigor(tenantId);
 
         String statusAntes = tenant.getStatus().name();
         Instant quando = Instant.now().plus(Duration.ofDays(CARENCIA_DIAS));
@@ -121,6 +122,10 @@ public class TenantExclusaoService {
             "SELECT pg_advisory_xact_lock(hashtextextended(?, 42))", Object.class,
             tenantId.toString());
 
+        // 0. Parceria de emissão em vigor bloqueia (vale também para o job: se surgiu
+        //    durante a carência, o expurgo falha, loga e tenta de novo no próximo ciclo)
+        exigirSemParceriaEmVigor(tenantId);
+
         // 1. Arquivamento (falhou → aborta; nada é apagado sem cópia)
         TenantExportService.Export export = tenantExportService.exportar(tenantId);
 
@@ -144,12 +149,25 @@ public class TenantExclusaoService {
         tenant.setExcluidoEm(Instant.now());
         tenant.setExclusaoAgendadaEm(null);
         tenant.setPixChave(null);
-        tenantRepository.save(tenant);
-        // Campos sensíveis fora da entity (SMTP cifrado, contatos) — direto no banco
-        jdbcTemplate.update("UPDATE tenant SET smtp_host = NULL, smtp_username = NULL, "
-            + "smtp_password = NULL, smtp_from = NULL, email_remetente = NULL, "
-            + "whatsapp = NULL, marinha_email = NULL, branding = NULL, "
-            + "exibir_no_marketplace = false WHERE id = ?", tenantId);
+        // Sensíveis PELA ENTIDADE: um UPDATE via JDBC aqui era desfeito no commit — o flush
+        // do Hibernate regrava a linha inteira (sem @DynamicUpdate) com os valores carregados.
+        tenant.setSmtpHost(null);
+        tenant.setSmtpUsername(null);
+        tenant.setSmtpPassword(null);
+        tenant.setSmtpFrom(null);
+        tenant.setEmailRemetente(null);
+        tenant.setWhatsapp(null);
+        tenant.setMarinhaEmail(null);
+        tenant.setBranding(null);
+        tenant.setExibirNoMarketplace(false);
+        tenant.setEmissoraHabilitada(false);
+        tenantRepository.saveAndFlush(tenant);
+        // Convites de parceria ainda não aceitos (dos dois lados) morrem com a empresa —
+        // senão o outro lado poderia aceitar e criar parceria com um tombstone.
+        jdbcTemplate.update("UPDATE vinculo_emissao SET status = 'REVOGADO', revogado_em = now(), "
+            + "revogado_por = ?, updated_at = now() "
+            + "WHERE (tenant_emissor_id = ? OR tenant_operador_id = ?) AND status = 'CONVIDADO'",
+            TenantContext.getUsuarioId(), tenantId, tenantId);
         // Assinatura encerrada (histórico comercial permanece)
         jdbcTemplate.update("UPDATE assinatura SET status = 'expirada' "
             + "WHERE tenant_id = ? AND status <> 'expirada'", tenantId);
@@ -173,6 +191,33 @@ public class TenantExclusaoService {
             throw new BusinessException("Esta empresa já foi excluída");
         }
         return tenant;
+    }
+
+    /**
+     * Empresa com parceria de emissão em vigor (ATIVA ou BLOQUEADA) não é excluída:
+     * EAMA com delegadas deixaria as operadoras emitindo em nome de um tombstone, e a
+     * delegada sumiria do painel da EAMA sem aviso. A revogação é feita antes, pelo
+     * fluxo da parceria (com as notificações às partes). {@code vinculo_emissao} só é
+     * visível às partes: fixa o tenant alvo na transação.
+     */
+    private void exigirSemParceriaEmVigor(UUID tenantId) {
+        jdbcTemplate.queryForObject(
+            "SELECT set_config('app.tenant_id', ?, true)", String.class, tenantId.toString());
+        Integer delegadas = jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM vinculo_emissao WHERE tenant_emissor_id = ? "
+            + "AND status IN ('ATIVO', 'BLOQUEADO')", Integer.class, tenantId);
+        if (delegadas != null && delegadas > 0) {
+            throw new BusinessException("Esta empresa é EAMA emissora de " + delegadas
+                + (delegadas == 1 ? " delegada" : " delegadas")
+                + " com parceria em vigor. Revogue as parcerias antes de excluir.");
+        }
+        Integer comoDelegada = jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM vinculo_emissao WHERE tenant_operador_id = ? "
+            + "AND status IN ('ATIVO', 'BLOQUEADO')", Integer.class, tenantId);
+        if (comoDelegada != null && comoDelegada > 0) {
+            throw new BusinessException("Esta empresa é delegada de uma EAMA com parceria em vigor. "
+                + "Revogue a parceria antes de excluir.");
+        }
     }
 
     private void validarSlug(Tenant tenant, String confirmacaoSlug) {

@@ -1285,6 +1285,20 @@ CREATE POLICY tenant_isolation_cliente_claim_token ON public.cliente_claim_token
   USING (CASE WHEN public.get_current_tenant_id() IS NULL THEN true
               ELSE (tenant_id = public.get_current_tenant_id()) END);
 
+-- V079: tombstone sem dados sensíveis (o expurgo antigo não zerava de fato) e sem
+-- convite de parceria pendente com empresa excluída. No fim do bloco: depende de
+-- excluido_em (V044) e vinculo_emissao (V048), criados acima.
+UPDATE public.tenant
+   SET smtp_host = NULL, smtp_username = NULL, smtp_password = NULL, smtp_from = NULL,
+       email_remetente = NULL, whatsapp = NULL, marinha_email = NULL, branding = NULL,
+       pix_chave = NULL, exibir_no_marketplace = false, emissora_habilitada = false
+ WHERE status = 'EXCLUIDO';
+UPDATE public.vinculo_emissao v
+   SET status = 'REVOGADO', revogado_em = now(), updated_at = now()
+  FROM public.tenant t
+ WHERE v.status = 'CONVIDADO' AND t.status = 'EXCLUIDO'
+   AND t.id IN (v.tenant_emissor_id, v.tenant_operador_id);
+
 -- Re-grant (tabelas criadas aqui, se houver)
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO jetski_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO jetski_app;

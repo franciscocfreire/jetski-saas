@@ -12,6 +12,8 @@ export interface TenantSummary {
   assinaturaFim?: string | null;
   /** Expurgo agendado (ISO); ausente = sem exclusão pendente. */
   exclusaoAgendadaEm?: string | null;
+  /** Quando o expurgo rodou (status EXCLUIDO, tombstone); ausente = empresa viva. */
+  excluidoEm?: string | null;
   /** Chaves do enum ModuloPlano; null/ausente = todos. */
   modulos?: string[] | null;
   emissoraHabilitada?: boolean;

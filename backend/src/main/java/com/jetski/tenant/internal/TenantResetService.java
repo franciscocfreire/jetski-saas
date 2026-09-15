@@ -153,7 +153,7 @@ public class TenantResetService {
      */
     @Transactional
     public Resultado reset(UUID tenantId, Nivel nivel, String confirmacaoSlug) {
-        Tenant tenant = carregarTenant(tenantId);
+        Tenant tenant = com.jetski.tenant.TenantQueryService.exigirViva(carregarTenant(tenantId));
         if (confirmacaoSlug == null || !confirmacaoSlug.trim().equals(tenant.getSlug())) {
             throw new BusinessException(
                 "Confirmação inválida: digite o slug exato da empresa (" + tenant.getSlug() + ")");

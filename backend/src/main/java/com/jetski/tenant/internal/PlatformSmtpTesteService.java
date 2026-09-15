@@ -61,6 +61,7 @@ public class PlatformSmtpTesteService {
     public ResultadoTeste testar(UUID tenantId) {
         Tenant t = tenantRepository.findById(tenantId)
             .orElseThrow(() -> new NotFoundException("Empresa não encontrada: " + tenantId));
+        com.jetski.tenant.TenantQueryService.exigirViva(t);
         TenantSmtpResolver.SmtpSettings s = tenantSmtpResolver.forTenant(tenantId)
             .orElseThrow(() -> new BusinessException("SMTP não cadastrado: a empresa precisa preencher "
                 + "host, usuário e senha em Configurações antes do teste"));

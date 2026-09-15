@@ -110,10 +110,15 @@ public class SessaoSuporteService implements SessaoSuporteValidator {
                 "Descreva o motivo do acesso (mínimo 5 caracteres). Ele fica na trilha "
                 + "e a empresa pode consultá-lo.");
         }
-        Integer existe = jdbc.queryForObject(
-            "SELECT count(*) FROM tenant WHERE id = ?", Integer.class, tenantId);
-        if (existe == null || existe == 0) {
+        List<String> status = jdbc.queryForList(
+            "SELECT status FROM tenant WHERE id = ?", String.class, tenantId);
+        if (status.isEmpty()) {
             throw new NotFoundException("Empresa não encontrada: " + tenantId);
+        }
+        // O operador irrestrito passa por fora do gate de status do TenantFilter: sem esta
+        // trava, entraria numa empresa expurgada (tombstone), sem dados e sem sentido.
+        if ("EXCLUIDO".equals(status.get(0))) {
+            throw new BusinessException("Esta empresa foi excluída: não há o que acessar.");
         }
 
         String codigo = novoSegredo();

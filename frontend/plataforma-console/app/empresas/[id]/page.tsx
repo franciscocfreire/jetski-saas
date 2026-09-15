@@ -26,7 +26,7 @@ import {
 import { CadastroDaEmpresa } from "./cadastro";
 import { CondicaoComercialDaEmpresa } from "./condicao";
 import { ROTULO_TIPO, descreverForma } from "@/lib/condicao";
-import { ZonaDePerigo } from "./perigo";
+import { ArquivamentoDaEmpresa, ZonaDePerigo } from "./perigo";
 import { EntrarNaEmpresa } from "./suporte";
 import { UsuariosDaEmpresa } from "./usuarios";
 
@@ -100,10 +100,13 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
 
   const empresa = dados.tenants.find((t) => t.id === id);
   if (!empresa) notFound();
+  // Tombstone: dados expurgados — a página vira consulta (histórico e arquivamento).
+  // O backend recusa as escritas; esconder evita botão que sempre dá erro.
+  const excluida = empresa.status === "EXCLUIDO";
 
   // Rede de emissão (§8.M): quem são as delegadas desta EAMA, e o rótulo do papel.
   const delegadas = dados.tenants.filter(
-    (t) => t.papelEmissao === "DELEGADA" && t.emissoraTenantId === id,
+    (t) => t.papelEmissao === "DELEGADA" && t.emissoraTenantId === id && t.status !== "EXCLUIDO",
   );
   const rotuloPapel =
     empresa.papelEmissao === "DELEGADA"
@@ -147,6 +150,21 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
         <span className="text-sm text-ink-300">{empresa.slug}</span>
       </div>
 
+      {excluida && (
+        <div className="mb-6" data-testid="console-empresa-excluida">
+          <Aviso>
+            Empresa excluída
+            {empresa.excluidoEm && (
+              <>
+                {" "}em <strong>{dataCurta(empresa.excluidoEm)}</strong>
+              </>
+            )}
+            . Dados e arquivos foram expurgados e o endereço foi liberado. Ficam só o histórico
+            de créditos, faturas, emissões e auditoria, e o arquivamento abaixo.
+          </Aviso>
+        </div>
+      )}
+
       {empresa.exclusaoAgendadaEm && (
         <div className="mb-6">
           <Aviso>
@@ -179,16 +197,20 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
               valor={emissao ? String(emissao.total) : "0"}
             />
           </dl>
-          <div className="mt-5 space-y-3 border-t border-slate-100 pt-4">
-            <EntrarNaEmpresa
-              tenantId={empresa.id}
-              razaoSocial={empresa.razaoSocial}
-              backofficeUrl={backofficeUrl}
-            />
-            <AcoesStatus tenantId={empresa.id} status={empresa.status} />
-          </div>
+          {!excluida && (
+            <div className="mt-5 space-y-3 border-t border-slate-100 pt-4">
+              <EntrarNaEmpresa
+                tenantId={empresa.id}
+                razaoSocial={empresa.razaoSocial}
+                backofficeUrl={backofficeUrl}
+              />
+              <AcoesStatus tenantId={empresa.id} status={empresa.status} />
+            </div>
+          )}
         </Card>
 
+        {!excluida && (
+        <>
         <Card
           titulo="Cadastro"
           descricao={
@@ -352,15 +374,19 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
             </>
           )}
         </Card>
+        </>
+        )}
 
         <Card
           titulo="Créditos de emissão"
           descricao="Ajuste corrige, cortesia concede de graça. Tudo entra no ledger append-only, com motivo, e fica auditado."
         >
           <div className="font-display text-3xl text-brand-800">{saldo?.saldo ?? 0}</div>
-          <div className="mt-4">
-            <LancarCreditos tenantId={empresa.id} condicao={condicaoVigente} />
-          </div>
+          {!excluida && (
+            <div className="mt-4">
+              <LancarCreditos tenantId={empresa.id} condicao={condicaoVigente} />
+            </div>
+          )}
         </Card>
 
         <Card titulo="Faturas em conferência">
@@ -402,24 +428,32 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
         </Card>
       </div>
 
-      <div className="mt-6">
-        <UsuariosDaEmpresa
-          tenantId={empresa.id}
-          membros={dados.membros}
-          convites={dados.convites}
-          solicitacoes={dados.solicitacoes}
-          podeEditar={podeEditar}
-        />
-      </div>
+      {excluida ? (
+        <div className="mt-6">
+          <ArquivamentoDaEmpresa tenantId={empresa.id} exports={dados.exports} />
+        </div>
+      ) : (
+        <>
+          <div className="mt-6">
+            <UsuariosDaEmpresa
+              tenantId={empresa.id}
+              membros={dados.membros}
+              convites={dados.convites}
+              solicitacoes={dados.solicitacoes}
+              podeEditar={podeEditar}
+            />
+          </div>
 
-      <div className="mt-6">
-        <ZonaDePerigo
-          tenantId={empresa.id}
-          slug={empresa.slug}
-          exclusaoAgendadaEm={empresa.exclusaoAgendadaEm ?? null}
-          exports={dados.exports}
-        />
-      </div>
+          <div className="mt-6">
+            <ZonaDePerigo
+              tenantId={empresa.id}
+              slug={empresa.slug}
+              exclusaoAgendadaEm={empresa.exclusaoAgendadaEm ?? null}
+              exports={dados.exports}
+            />
+          </div>
+        </>
+      )}
     </Shell>
   );
 }
