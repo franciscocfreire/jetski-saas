@@ -101,20 +101,39 @@ public class PlataformaMetricasService {
                 emissoes_documento, emissoes_gru, emissoes_previa,
                 creditos_consumidos, saldo_creditos_fim,
                 mrr, plano_nome, faturas_abertas, valor_em_aberto,
-                receita_faturas, receita_creditos, atualizado_em)
+                receita_faturas, receita_creditos, mrr_tabela, condicao_tipo, atualizado_em)
             SELECT
                 CAST(:tid AS uuid), CAST(:dia AS date),
                 COALESCE(op.locacoes, 0), COALESCE(rv.reservas, 0), COALESCE(rv.no_shows, 0),
                 COALESCE(op.receita_bruta, 0), COALESCE(op.receita_comissionavel, 0),
                 COALESCE(em.documento, 0), COALESCE(em.gru, 0), COALESCE(em.previa, 0),
                 COALESCE(cr.consumidos, 0), COALESCE(cr.saldo_fim, 0),
-                -- MRR é o que a empresa paga EM OPERAÇÃO: suspensa/cancelada não
-                -- recorre (antes entrava com o preço cheio do plano).
-                CASE WHEN tn.status IN ('ATIVO', 'TRIAL') THEN COALESCE(pl.preco_mensal, 0) ELSE 0 END,
+                -- MRR contratado: o que a empresa EM OPERAÇÃO paga de fato, com a
+                -- condição comercial vigente (V076). Suspensa/cancelada não recorre.
+                -- Mesma regra do CondicaoComercialService.valorEfetivo.
+                CASE WHEN tn.status NOT IN ('ATIVO', 'TRIAL') THEN 0
+                     WHEN cc.forma = 'ISENCAO' THEN 0
+                     WHEN cc.forma = 'PERCENTUAL'
+                         THEN round(COALESCE(pl.preco_mensal, 0) * (100 - cc.valor) / 100, 2)
+                     WHEN cc.forma = 'VALOR_FIXO' THEN LEAST(cc.valor, COALESCE(pl.preco_mensal, 0))
+                     ELSE COALESCE(pl.preco_mensal, 0) END,
                 pl.nome,
                 COALESCE(fa.abertas, 0), COALESCE(fa.valor, 0),
-                COALESCE(fp.valor, 0), COALESCE(cv.valor, 0), now()
+                COALESCE(fp.valor, 0), COALESCE(cv.valor, 0),
+                -- MRR de tabela: preço cheio; mrr_tabela - mrr = renunciado
+                CASE WHEN tn.status IN ('ATIVO', 'TRIAL') THEN COALESCE(pl.preco_mensal, 0) ELSE 0 END,
+                cc.tipo, now()
             FROM (SELECT 1) AS _
+            LEFT JOIN LATERAL (
+                -- Vigente no dia: mesma regra do CondicaoComercialService (VIGENTE_EM)
+                SELECT tipo, forma, valor FROM condicao_comercial
+                 WHERE tenant_id = CAST(:tid AS uuid)
+                   AND inicio <= CAST(:dia AS date)
+                   AND (fim IS NULL OR fim >= CAST(:dia AS date))
+                   AND (encerrada_em IS NULL
+                        OR (encerrada_em AT TIME ZONE 'America/Sao_Paulo')::date > CAST(:dia AS date))
+                 ORDER BY inicio DESC, created_at DESC LIMIT 1
+            ) cc ON TRUE
             LEFT JOIN LATERAL (
                 SELECT status FROM tenant WHERE id = CAST(:tid AS uuid)
             ) tn ON TRUE
@@ -195,6 +214,8 @@ public class PlataformaMetricasService {
                 valor_em_aberto = EXCLUDED.valor_em_aberto,
                 receita_faturas = EXCLUDED.receita_faturas,
                 receita_creditos = EXCLUDED.receita_creditos,
+                mrr_tabela = EXCLUDED.mrr_tabela,
+                condicao_tipo = EXCLUDED.condicao_tipo,
                 atualizado_em = now()
             """,
             new MapSqlParameterSource()

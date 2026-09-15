@@ -24,6 +24,7 @@ import {
   LimiteDeUsuarios,
 } from "./acoes";
 import { CadastroDaEmpresa } from "./cadastro";
+import { CondicaoComercialDaEmpresa } from "./condicao";
 import { ZonaDePerigo } from "./perigo";
 import { EntrarNaEmpresa } from "./suporte";
 import { UsuariosDaEmpresa } from "./usuarios";
@@ -53,6 +54,7 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
       limite,
       cadastro,
       convites,
+      condicoes,
     ] = await Promise.all([
         platform.tenants(),
         platform.planos(),
@@ -66,6 +68,7 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
         platform.limiteUsuarios(id).catch(() => null),
         platform.cadastro(id).catch(() => null),
         platform.convites(id).catch(() => null),
+        platform.condicoes(id).catch(() => null),
       ]);
     dados = {
       tenants,
@@ -79,6 +82,7 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
       limite,
       cadastro,
       convites,
+      condicoes,
     };
   } catch (e) {
     const err = e as PlatformApiError;
@@ -112,6 +116,9 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
   // Editar cadastro e gerir usuários: só ADMIN e SUPORTE. FINANCEIRO/LEITURA só visualizam
   // (o backend nega de qualquer forma — esconder evita botão que sempre dá 403).
   const podeEditar = me.papeis.some((p) => p === "PLATFORM_ADMIN" || p === "PLATFORM_SUPORTE");
+  // Condição comercial é alçada financeira (mesma de trocar plano) — ver platform.rego.
+  const podeFinanceiro = me.papeis.some((p) => p === "PLATFORM_ADMIN" || p === "PLATFORM_FINANCEIRO");
+  const precoPlano = dados.planos.find((p) => p.nome === empresa.plano)?.precoMensal ?? null;
 
   const saldo = dados.saldos.find((s) => s.tenantId === id);
   const faturasDaEmpresa = dados.faturas.filter((f) => f.tenantId === id);
@@ -227,6 +234,22 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
               )}
             </div>
           </div>
+        </Card>
+
+        <Card
+          titulo="Condição comercial"
+          descricao="Isenção ou desconto da mensalidade, com vigência e motivo. Não afeta créditos de emissão."
+        >
+          {dados.condicoes ? (
+            <CondicaoComercialDaEmpresa
+              tenantId={empresa.id}
+              condicoes={dados.condicoes}
+              precoPlano={precoPlano !== null ? Number(precoPlano) : null}
+              podeEditar={podeFinanceiro}
+            />
+          ) : (
+            <Erro>Não foi possível carregar a condição comercial.</Erro>
+          )}
         </Card>
 
         <Card

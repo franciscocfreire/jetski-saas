@@ -51,8 +51,15 @@ public record PlatformTenantSummary(
      * Conta que autentica no SMTP próprio (smtp_username); null sem SMTP. Quando difere do
      * remetente, o Gmail reescreve o From para esta conta (a menos que haja "Enviar como").
      */
-    String smtpUsuario
+    String smtpUsuario,
+    /** Condição comercial da mensalidade vigente hoje (V076); null = paga o plano cheio. */
+    CondicaoResumo condicao
 ) {
+    /** @param valor % no PERCENTUAL, R$/mês no VALOR_FIXO, null na ISENCAO */
+    public record CondicaoResumo(
+        String id, String tipo, String forma, java.math.BigDecimal valor,
+        LocalDate inicio, LocalDate fim) {}
+
     public static PlatformTenantSummary of(UUID id, String slug, String razaoSocial, String status,
                                            String plano, LocalDate assinaturaFim,
                                            java.time.Instant exclusaoAgendadaEm,
@@ -61,11 +68,11 @@ public record PlatformTenantSummary(
                                            String papelEmissao, UUID emissoraTenantId,
                                            String emissoraNome, String vinculoStatus,
                                            boolean smtpCompleto, String smtpRemetente,
-                                           String smtpUsuario) {
+                                           String smtpUsuario, CondicaoResumo condicao) {
         return new PlatformTenantSummary(
             id.toString(), slug, razaoSocial, status, List.of("ADMIN_TENANT"), plano,
             assinaturaFim, exclusaoAgendadaEm, emissoraHabilitada, eamaRegistro, modulos,
             papelEmissao, emissoraTenantId != null ? emissoraTenantId.toString() : null,
-            emissoraNome, vinculoStatus, smtpCompleto, smtpRemetente, smtpUsuario);
+            emissoraNome, vinculoStatus, smtpCompleto, smtpRemetente, smtpUsuario, condicao);
     }
 }

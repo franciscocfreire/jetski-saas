@@ -6,6 +6,7 @@ import { Card, Erro, StatusEmpresa, Tabela, Td, TituloPagina, Badge } from "@/co
 import { PlatformApiError } from "@/lib/api";
 import { FiltroEmpresas } from "./filtro";
 import { ordenarPorRede } from "@/lib/rede";
+import { ROTULO_TIPO, descreverForma } from "@/lib/condicao";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +19,12 @@ export const dynamic = "force-dynamic";
 export default async function Empresas({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; condicao?: string }>;
 }) {
   const { session, me } = await operadorAtual();
 
-  const { status: filtroStatus, q } = await searchParams;
+  const { status: filtroStatus, q, condicao: filtroCondicao } = await searchParams;
+  const soComCondicao = filtroCondicao === "1";
 
   let tenants;
   try {
@@ -52,6 +54,7 @@ export default async function Empresas({
   const busca = (q ?? "").trim().toLowerCase();
   const filtradas = tenants.filter((t) => {
     if (filtroStatus && t.status !== filtroStatus) return false;
+    if (soComCondicao && !t.condicao) return false;
     if (!busca) return true;
     return (
       t.slug.toLowerCase().includes(busca) ||
@@ -71,12 +74,14 @@ export default async function Empresas({
         statusAtual={filtroStatus}
         buscaAtual={q ?? ""}
         total={tenants.length}
+        comCondicao={tenants.filter((t) => t.condicao).length}
+        condicaoAtiva={soComCondicao}
       />
 
       <Card className="mt-4">
         <Tabela
           cabecalho={["Empresa", "Status", "Plano", "Vigência", "EAMA", "Alertas"]}
-          vazio={busca || filtroStatus ? "Nenhuma empresa com esse filtro." : "Nenhuma empresa."}
+          vazio={busca || filtroStatus || soComCondicao ? "Nenhuma empresa com esse filtro." : "Nenhuma empresa."}
         >
           {/* Rede de emissão (§8.M): delegadas logo abaixo da EAMA emissora delas. */}
           {ordenarPorRede(filtradas).map(({ empresa: t, nivel }) => (
@@ -98,7 +103,20 @@ export default async function Empresas({
               <Td>
                 <StatusEmpresa status={t.status} />
               </Td>
-              <Td>{t.plano ?? <span className="text-ink-300">—</span>}</Td>
+              <Td>
+                {t.plano ?? <span className="text-ink-300">—</span>}
+                {/* Condição comercial vigente (V076): quem não paga o plano cheio salta aos olhos. */}
+                {t.condicao && (
+                  <div className="mt-0.5" data-testid="console-empresa-condicao">
+                    <Badge tom="marca">
+                      {ROTULO_TIPO[t.condicao.tipo]} · {descreverForma(t.condicao)}
+                    </Badge>
+                    <div className="text-xs text-ink-300">
+                      {t.condicao.fim ? `até ${dataCurta(t.condicao.fim)}` : "sem prazo"}
+                    </div>
+                  </div>
+                )}
+              </Td>
               {/* Plano pago não tem dt_fim por design (a inadimplência da
                   fatura é quem suspende) — "—" parecia dado faltando. */}
               <Td>

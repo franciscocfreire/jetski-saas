@@ -58,6 +58,30 @@ test_admin_pode_financeiro if {
 	platform.allow with input as operador("PLATFORM_ADMIN", "platform:faturas:confirmar", "POST")
 }
 
+# ------------------------------------------- condição comercial (V076): alçada financeira
+
+test_financeiro_concede_condicao if {
+	platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:tenants:condicoes", "POST")
+}
+
+test_financeiro_encerra_condicao if {
+	platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:tenants:condicoes:encerrar", "POST")
+}
+
+test_suporte_nao_concede_condicao if {
+	not platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:condicoes", "POST")
+	not platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:condicoes:encerrar", "POST")
+}
+
+test_leitura_ve_condicoes_mas_nao_concede if {
+	platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:condicoes", "GET")
+	not platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:condicoes", "POST")
+}
+
+test_empresa_nao_ve_condicoes if {
+	not platform.allow with input as empresa("platform:tenants:condicoes", "GET")
+}
+
 # -------------------------------------------------------------------- SUPORTE
 
 test_suporte_pode_aprovar_empresa if {

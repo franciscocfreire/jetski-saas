@@ -69,6 +69,9 @@ public class PlataformaDashboardController {
         // empresa (ver comentário da coluna faturas_abertas na V056).
         Map<String, Object> estado = jdbc.queryForMap("""
             SELECT COALESCE(SUM(m.mrr),0) AS mrr,
+                   COALESCE(SUM(m.mrr_tabela),0) AS mrr_tabela,
+                   COALESCE(SUM(m.mrr_tabela - m.mrr),0) AS mrr_renunciado,
+                   count(*) FILTER (WHERE m.condicao_tipo IS NOT NULL) AS empresas_com_condicao,
                    COALESCE(SUM(m.faturas_abertas),0) AS faturas_abertas,
                    COALESCE(SUM(m.valor_em_aberto),0) AS valor_em_aberto,
                    MAX(m.atualizado_em) AS atualizado_em

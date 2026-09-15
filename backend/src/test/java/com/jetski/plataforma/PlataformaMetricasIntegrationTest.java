@@ -138,6 +138,7 @@ class PlataformaMetricasIntegrationTest extends AbstractIntegrationTest {
             + "VALUES (?, 'metrica-mrr', 'Métrica MRR Ltda', ?) "
             + "ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status", EMPRESA_MRR, status);
         jdbc.update("DELETE FROM fatura WHERE tenant_id = ?", EMPRESA_MRR);
+        jdbc.update("DELETE FROM condicao_comercial WHERE tenant_id = ?", EMPRESA_MRR);
         jdbc.update("DELETE FROM assinatura WHERE tenant_id = ?", EMPRESA_MRR);
         jdbc.update("INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, status) "
             + "SELECT ?, id, 'mensal', CURRENT_DATE - 30, 'ativa' FROM plano WHERE nome = 'Pro'",
@@ -185,6 +186,34 @@ class PlataformaMetricasIntegrationTest extends AbstractIntegrationTest {
         service.recalcular(hoje, hoje);
 
         assertThat(coluna("mrr")).isEqualByComparingTo("99.00");
+    }
+
+    @Test
+    @DisplayName("Condição comercial: MRR contratado com desconto, MRR de tabela cheio")
+    void mrrContratadoComCondicao() {
+        seedEmpresaPro("ATIVO");
+        jdbc.update("INSERT INTO condicao_comercial (tenant_id, tipo, forma, valor, inicio, fim, motivo) "
+            + "VALUES (?, 'NEGOCIADO', 'PERCENTUAL', 50, CURRENT_DATE - 1, NULL, 'teste')", EMPRESA_MRR);
+
+        service.recalcular(hoje, hoje);
+
+        assertThat(coluna("mrr")).isEqualByComparingTo("149.50");
+        assertThat(coluna("mrr_tabela")).isEqualByComparingTo("299.00");
+        assertThat(jdbc.queryForObject("SELECT condicao_tipo FROM plataforma_metrica_diaria "
+            + "WHERE tenant_id = ? AND dia = ?", String.class, EMPRESA_MRR, hoje)).isEqualTo("NEGOCIADO");
+    }
+
+    @Test
+    @DisplayName("Condição encerrada hoje não vale hoje: MRR volta ao plano cheio")
+    void condicaoEncerradaNaoConta() {
+        seedEmpresaPro("ATIVO");
+        jdbc.update("INSERT INTO condicao_comercial (tenant_id, tipo, forma, valor, inicio, fim, motivo, "
+            + "encerrada_em) VALUES (?, 'PILOTO', 'ISENCAO', NULL, CURRENT_DATE - 5, CURRENT_DATE + 30, "
+            + "'teste', now())", EMPRESA_MRR);
+
+        service.recalcular(hoje, hoje);
+
+        assertThat(coluna("mrr")).isEqualByComparingTo("299.00");
     }
 
     @Test

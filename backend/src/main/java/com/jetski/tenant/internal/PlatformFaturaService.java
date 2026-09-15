@@ -54,6 +54,7 @@ public class PlatformFaturaService {
     private final EntityManager entityManager;
     private final com.jetski.tenant.internal.repository.TenantRepository tenantRepository;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private final CondicaoComercialService condicaoService;
 
     /** Mesma chave PIX da plataforma usada na venda de créditos. */
     @Value("${jetski.creditos.pix-chave:pix@meujet.com.br}")
@@ -84,6 +85,20 @@ public class PlatformFaturaService {
             setTenant(tenantId);
             if (faturaRepository.existsByTenantIdAndCompetencia(tenantId, competencia)) {
                 continue;
+            }
+            // Condição comercial vigente (V076): a fatura sai com o valor efetivo, e
+            // isenção (ou valor efetivo zero) não gera fatura nenhuma.
+            var condicao = condicaoService.vigenteHoje(tenantId).orElse(null);
+            if (condicao != null) {
+                valor = CondicaoComercialService.valorEfetivo(valor, condicao);
+                if (valor.signum() <= 0) {
+                    log.info("[PLATFORM] Sem fatura: tenant={} ({}) com condição comercial: {}",
+                        tenantId, t[1], CondicaoComercialService.descrever(condicao));
+                    continue;
+                }
+                String rotulo = planoNome + " (" + CondicaoComercialService.descrever(condicao)
+                    .split(",")[0].toLowerCase() + ")";
+                planoNome = rotulo.length() > 60 ? rotulo.substring(0, 60) : rotulo;
             }
             LocalDate vencimento = LocalDate.now(ZONA).plusDays(vencimentoDias);
             Fatura fatura = faturaRepository.save(Fatura.builder()
@@ -167,6 +182,13 @@ public class PlatformFaturaService {
                 continue; // já suspenso/trial/excluído — nada a fazer
             }
             setTenant(tenantId);
+            // Isenta não é inadimplente: fatura antiga ainda aberta de antes da isenção
+            // se resolve em Faturamento (cancelar), não suspendendo a empresa do piloto.
+            if (condicaoService.vigenteHoje(tenantId)
+                    .filter(c -> c.forma() == CondicaoComercialService.Forma.ISENCAO)
+                    .isPresent()) {
+                continue;
+            }
             boolean inadimplente = faturaRepository
                 .findByTenantIdAndStatus(tenantId, Fatura.Status.ABERTA).stream()
                 .anyMatch(f -> f.getVencimento().isBefore(limite));

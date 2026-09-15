@@ -4,6 +4,7 @@ import com.jetski.integration.AbstractIntegrationTest;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.security.TenantContext;
 import com.jetski.tenant.domain.Fatura;
+import com.jetski.tenant.internal.CondicaoComercialService;
 import com.jetski.tenant.internal.FaturaService;
 import com.jetski.tenant.internal.PlatformFaturaService;
 import org.junit.jupiter.api.AfterEach;
@@ -37,6 +38,7 @@ class FaturamentoIntegrationTest extends AbstractIntegrationTest {
     void setUp() {
         TenantContext.setTenantId(TENANT);
         jdbc.update("DELETE FROM fatura WHERE tenant_id = ?", TENANT);
+        jdbc.update("DELETE FROM condicao_comercial WHERE tenant_id = ?", TENANT);
         jdbc.update("DELETE FROM assinatura WHERE tenant_id = ?", TENANT);
         jdbc.update("INSERT INTO tenant (id, slug, razao_social, status) "
             + "VALUES (?, 'fatura-teste', 'Fatura Teste Ltda', 'ATIVO') "
@@ -172,6 +174,65 @@ class FaturamentoIntegrationTest extends AbstractIntegrationTest {
             "SELECT dt_fim FROM assinatura WHERE tenant_id = ? AND status = 'ativa'",
             java.time.LocalDate.class, TENANT);
         assertThat(fimBasic).isNull();
+    }
+
+    // ------------------------------------------------ condição comercial (V076)
+
+    @Autowired private com.jetski.tenant.internal.CondicaoComercialService condicaoService;
+
+    private void conceder(CondicaoComercialService.Forma forma, String valor) {
+        condicaoService.conceder(TENANT, new CondicaoComercialService.NovaCondicao(
+            CondicaoComercialService.Tipo.PILOTO, forma,
+            valor == null ? null : new java.math.BigDecimal(valor),
+            null, java.time.LocalDate.now(java.time.ZoneId.of("America/Sao_Paulo")).plusMonths(3),
+            "piloto de verão"));
+    }
+
+    @Test
+    @DisplayName("isenção vigente: não gera fatura")
+    void isencaoNaoFatura() {
+        conceder(CondicaoComercialService.Forma.ISENCAO, null);
+
+        platformService.gerarFaturasDoMes();
+
+        assertThat(faturaService.minhas(TENANT)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("desconto de 50%: fatura sai com o valor efetivo e a condição no nome do plano")
+    void descontoFaturaValorEfetivo() {
+        conceder(CondicaoComercialService.Forma.PERCENTUAL, "50");
+
+        platformService.gerarFaturasDoMes();
+
+        Fatura f = unica();
+        assertThat(f.getValor()).isEqualByComparingTo("149.50");
+        assertThat(f.getPlanoNome()).startsWith("Pro (piloto");
+    }
+
+    @Test
+    @DisplayName("isenta não é suspensa por fatura antiga vencida")
+    void isentaNaoSuspende() {
+        platformService.gerarFaturasDoMes();
+        jdbc.update("UPDATE fatura SET vencimento = CURRENT_DATE - 10 WHERE tenant_id = ?", TENANT);
+        conceder(CondicaoComercialService.Forma.ISENCAO, null);
+
+        platformService.suspenderInadimplentes();
+
+        assertThat(jdbc.queryForObject("SELECT status FROM tenant WHERE id = ?", String.class, TENANT))
+            .isEqualTo("ATIVO");
+    }
+
+    @Test
+    @DisplayName("condição encerrada: volta a faturar o plano cheio")
+    void encerradaVoltaAFaturarCheio() {
+        conceder(CondicaoComercialService.Forma.ISENCAO, null);
+        UUID condicaoId = condicaoService.vigenteHoje(TENANT).orElseThrow().id();
+
+        condicaoService.encerrar(TENANT, condicaoId, "piloto virou contrato");
+        platformService.gerarFaturasDoMes();
+
+        assertThat(unica().getValor()).isEqualByComparingTo("299.00");
     }
 
     @Test

@@ -72,8 +72,8 @@ export default async function Home() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Indicador titulo="Empresas" valor={String(tenants.length)}
               nota={Object.entries(porStatus).map(([s, q]) => `${q} ${s.toLowerCase()}`).join(" · ")} />
-            <Indicador titulo="MRR" valor={BRL.format(n("mrr"))}
-              nota="planos das empresas em operação" />
+            <Indicador titulo="MRR contratado" valor={BRL.format(n("mrr"))}
+              nota={`tabela ${BRL.format(n("mrr_tabela"))} · empresas em operação`} />
             {/* Receita DA PLATAFORMA: faturas pagas + créditos vendidos na janela.
                 O que as lojas movimentam (locações) fica no card "Movimentado pelas lojas". */}
             <Indicador titulo="Receita da plataforma (30d)"
@@ -85,14 +85,17 @@ export default async function Home() {
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Isenções e descontos (V076): quanto a plataforma deixa de faturar por mês. */}
+            <Link href="/empresas?condicao=1" className="rounded-lg transition hover:ring-2 hover:ring-brand-200">
+              <Indicador titulo="MRR renunciado" valor={BRL.format(n("mrr_renunciado"))}
+                nota={`${n("empresas_com_condicao")} empresa(s) com condição comercial`} />
+            </Link>
             <Indicador titulo="Emissões cobráveis" valor={String(n("emissoes_cobraveis"))}
               nota={`${n("emissoes_previa")} prévias (não cobráveis)`} />
             <Indicador titulo="Créditos consumidos" valor={String(n("creditos_consumidos"))} />
-            <Indicador titulo="Reservas (30d)" valor={String(n("reservas"))}
-              nota={`${n("no_shows")} no-show`} />
             <Indicador titulo="Movimentado pelas lojas (30d)"
               valor={BRL.format(n("receita_bruta"))}
-              nota={`${n("locacoes")} locações · ${BRL.format(n("receita_comissionavel"))} sem combustível`} />
+              nota={`${n("locacoes")} locações · ${n("reservas")} reservas · ${n("no_shows")} no-show`} />
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
