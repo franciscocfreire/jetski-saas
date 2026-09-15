@@ -92,6 +92,10 @@ public class SmtpEmailService implements EmailService {
             dispatch(to, subject, htmlBody, attachmentName, attachment, attachmentContentType, replyTo, remetente);
             log.info("Email com anexo enviado: to={}, subject={}, anexo={} ({} bytes)",
                 to, subject, attachmentName, attachment == null ? 0 : attachment.length);
+        } catch (SmtpProprioAusenteException e) {
+            log.warn("E-mail NÃO enviado (exige SMTP próprio do tenant {}): to={}, subject={}",
+                e.getTenantId(), to, subject);
+            throw e; // sem embrulhar: o chamador distingue "sem SMTP" de falha de envio
         } catch (Exception e) {
             log.error("Failed to send email with attachment: to={}, subject={}", to, subject, e);
             throw new RuntimeException("Failed to send email with attachment", e);
@@ -115,7 +119,8 @@ public class SmtpEmailService implements EmailService {
      * Envia usando o SMTP próprio do tenant (se configurado) — "from" real da empresa —
      * ou o SMTP global da plataforma como fallback. Com {@code remetente} explícito, o
      * tenant é o dele (e não o da sessão) e, no fallback global, o nome de exibição
-     * do "From" é o dele — o ofício à Capitania sai sempre em nome de quem emite.
+     * do "From" é o dele. Com {@code exigeSmtpProprio} (ofício à Capitania) não há
+     * fallback: sem SMTP próprio, nada sai.
      */
     private void dispatch(String to, String subject, String html,
                           String attName, byte[] att, String attType, String replyTo,
@@ -123,6 +128,9 @@ public class SmtpEmailService implements EmailService {
         var perTenant = remetente != null
             ? tenantSmtpResolver.forTenant(remetente.tenantId())
             : tenantSmtpResolver.forCurrentTenant();
+        if (perTenant.isEmpty() && remetente != null && remetente.exigeSmtpProprio()) {
+            throw new SmtpProprioAusenteException(remetente.tenantId(), remetente.nome());
+        }
         String nomeGlobal = remetente != null && remetente.nome() != null && !remetente.nome().isBlank()
             ? remetente.nome() : fromName;
         String cc = remetente != null ? remetente.copia() : null;

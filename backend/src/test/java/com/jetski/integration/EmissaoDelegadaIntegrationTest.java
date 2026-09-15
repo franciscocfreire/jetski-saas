@@ -302,7 +302,7 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
         org.mockito.Mockito.verify(emailService).sendEmailComAnexo(
             org.mockito.ArgumentMatchers.eq("capitania-sp@example.com"), anyString(), anyString(),
             anyString(), any(), anyString(), org.mockito.ArgumentMatchers.nullable(String.class),
-            org.mockito.ArgumentMatchers.eq(new EmailService.Remetente(emissora, "EAMA Santos LTDA")));
+            org.mockito.ArgumentMatchers.eq(EmailService.Remetente.oficioCapitania(emissora, "EAMA Santos LTDA", null)));
 
         // kill switch: bloqueia novas emissões, libera volta
         VinculoEmissao v = vinculoService.listar(emissora).get(0);
@@ -362,7 +362,7 @@ class EmissaoDelegadaIntegrationTest extends AbstractIntegrationTest {
             anyString(), any(), anyString(),
             org.mockito.ArgumentMatchers.eq("oficial@eamasantos.com.br"),
             // cópia (Cc) para a operadora: o e-mail oficial dela
-            org.mockito.ArgumentMatchers.eq(new EmailService.Remetente(emissora, "EAMA Santos LTDA", "oficial@operadora.com")));
+            org.mockito.ArgumentMatchers.eq(EmailService.Remetente.oficioCapitania(emissora, "EAMA Santos LTDA", "oficial@operadora.com")));
         assertThat(body.getValue())
             .contains("Ana Souza").contains("EAMA-SP-999").contains("EAMA Santos LTDA")
             // a operadora só na assinatura, como quem opera pela EAMA; contatos dela não entram

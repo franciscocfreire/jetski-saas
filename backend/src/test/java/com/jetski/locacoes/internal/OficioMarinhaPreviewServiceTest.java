@@ -133,6 +133,9 @@ class OficioMarinhaPreviewServiceTest {
             .containsExactlyInAnyOrder("marinhaEmail", "eamaRegistro", "smtp");
         assertThat(r.avisos()).filteredOn(a -> a.campo().equals("marinhaEmail"))
             .extracting(OficioMarinhaPreviewResponse.Aviso::nivel).containsExactly("ERRO");
+        // sem SMTP próprio o ofício não sai (nunca pela plataforma): também bloqueia
+        assertThat(r.avisos()).filteredOn(a -> a.campo().equals("smtp"))
+            .extracting(OficioMarinhaPreviewResponse.Aviso::nivel).containsExactly("ERRO");
         assertThat(r.corpoHtml()).doesNotContain("credenciamento nº");
     }
 

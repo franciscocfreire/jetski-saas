@@ -110,10 +110,22 @@ public interface EmailService {
      * @param nome     nome de exibição quando cai no SMTP global (ex.: razão social)
      * @param copia    endereço em cópia (Cc) visível, opcional — ex.: a operadora
      *                 delegada acompanha o ofício que a EAMA remete em nome da parceria
+     * @param exigeSmtpProprio {@code true} = sem SMTP próprio de {@code tenantId} o e-mail
+     *                 NÃO sai (lança {@link SmtpProprioAusenteException}) em vez de cair no
+     *                 global. Regra do ofício à Capitania: só pelo SMTP da EAMA emissora.
      */
-    record Remetente(java.util.UUID tenantId, String nome, String copia) {
+    record Remetente(java.util.UUID tenantId, String nome, String copia, boolean exigeSmtpProprio) {
         public Remetente(java.util.UUID tenantId, String nome) {
-            this(tenantId, nome, null);
+            this(tenantId, nome, null, false);
+        }
+
+        public Remetente(java.util.UUID tenantId, String nome, String copia) {
+            this(tenantId, nome, copia, false);
+        }
+
+        /** Ofício à Capitania: remetido SÓ pelo SMTP da EAMA emissora — nunca pela plataforma. */
+        public static Remetente oficioCapitania(java.util.UUID eamaTenantId, String eamaNome, String copia) {
+            return new Remetente(eamaTenantId, eamaNome, copia, true);
         }
     }
 

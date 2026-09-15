@@ -29,5 +29,8 @@ public class TenantGeralConfigResponse {
     private String smtpUsername;
     private String smtpFrom;
     private Boolean smtpStarttls;
+    /** Senha gravada (write-only) — só serve ao placeholder do campo de senha. */
     private boolean smtpConfigurado;
+    /** Host + usuário + senha: o SMTP próprio é de fato usado (senão, plataforma; e sem ofício à Capitania). */
+    private boolean smtpCompleto;
 }

@@ -88,7 +88,11 @@ public class EmissaoDelegadaService {
             emailService.sendEmailComAnexo(destino,
                 MarinhaEmailTemplate.assunto(oficio), MarinhaEmailTemplate.corpoHtml(oficio),
                 MarinhaEmailTemplate.nomeArquivo(oficio), pdf, "application/pdf", oficio.emailOficial(),
-                new EmailService.Remetente(tenantId, oficio.eamaNome(), emailDaOperadora(e.getOperadoraTenantId())));
+                EmailService.Remetente.oficioCapitania(tenantId, oficio.eamaNome(),
+                    emailDaOperadora(e.getOperadoraTenantId())));
+        } catch (com.jetski.shared.email.SmtpProprioAusenteException ex) {
+            throw new BusinessException("Configure o servidor de e-mail (SMTP) em Configurações: "
+                + "o ofício à Capitania só é enviado pelo e-mail da EAMA");
         } catch (Exception ex) {
             throw new BusinessException("Falha ao enviar o e-mail: " + ex.getMessage());
         }

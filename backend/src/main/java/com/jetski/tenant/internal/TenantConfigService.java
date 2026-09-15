@@ -71,6 +71,10 @@ public class TenantConfigService {
             .smtpFrom(t.getSmtpFrom())
             .smtpStarttls(t.getSmtpStarttls())
             .smtpConfigurado(t.getSmtpPassword() != null && !t.getSmtpPassword().isBlank())
+            // Mesmo critério do TenantSmtpResolverImpl — é o que decide se o SMTP próprio é usado.
+            .smtpCompleto(t.getSmtpHost() != null && !t.getSmtpHost().isBlank()
+                && t.getSmtpUsername() != null && !t.getSmtpUsername().isBlank()
+                && t.getSmtpPassword() != null && !t.getSmtpPassword().isBlank())
             .build();
     }
 

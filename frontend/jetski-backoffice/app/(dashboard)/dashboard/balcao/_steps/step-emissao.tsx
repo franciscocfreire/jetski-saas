@@ -201,19 +201,31 @@ export function StepEmissao({
         <p {...ancora} className="flex items-center gap-2 text-muted-foreground">{icone} {semDestinatario}</p>
       )
     }
+    const botaoReenviar = (
+      <Button
+        data-testid={`${testId}-reenviar`}
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={reenviar.isPending}
+        onClick={() => reenviar.mutate()}
+      >
+        <Send size={13} className="mr-1" /> {reenviar.isPending ? 'Reenviando…' : 'Reenviar'}
+      </Button>
+    )
+    if (status === 'SEM_SMTP') {
+      // O ofício só sai pelo e-mail da EAMA emissora: depois de ela configurar o SMTP, reenviar.
+      return (
+        <div {...ancora} className="flex flex-wrap items-center gap-2 text-amber-700 dark:text-amber-500">
+          <XCircle size={15} /> Não enviado à Marinha: a EAMA emissora não configurou o servidor de e-mail (SMTP)
+          {botaoReenviar}
+        </div>
+      )
+    }
     return (
       <div {...ancora} className="flex flex-wrap items-center gap-2 text-amber-700 dark:text-amber-500">
         <XCircle size={15} /> {rotulo}: falhou no envio
-        <Button
-          data-testid={`${testId}-reenviar`}
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={reenviar.isPending}
-          onClick={() => reenviar.mutate()}
-        >
-          <Send size={13} className="mr-1" /> {reenviar.isPending ? 'Reenviando…' : 'Reenviar'}
-        </Button>
+        {botaoReenviar}
       </div>
     )
   }

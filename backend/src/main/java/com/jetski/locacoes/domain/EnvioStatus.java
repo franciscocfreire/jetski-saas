@@ -22,6 +22,12 @@ public enum EnvioStatus {
     /** Destino sem endereço cadastrado. Remédio diferente de falha: cadastrar o e-mail. */
     SEM_DESTINATARIO,
 
+    /**
+     * Ofício à Capitania sem SMTP próprio da EAMA emissora: não sai pela plataforma.
+     * Remédio: a EAMA configura o servidor de e-mail e o documento é reenviado.
+     */
+    SEM_SMTP,
+
     /** Enfileirado para envio fora do request; ainda não tentado. */
     PENDENTE,
 
