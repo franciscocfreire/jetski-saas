@@ -53,8 +53,11 @@ class ClaimServiceTest {
     private final com.jetski.usuarios.api.PessoaProvisioningService pessoa =
         mock(com.jetski.usuarios.api.PessoaProvisioningService.class);
 
+    private final com.jetski.tenant.TenantQueryService tenantQuery =
+        mock(com.jetski.tenant.TenantQueryService.class);
+
     private final ClaimService service = new ClaimService(
-        clienteRepo, tokenRepo, provisioning, pessoa, email, events, em);
+        clienteRepo, tokenRepo, provisioning, pessoa, email, events, em, tenantQuery);
 
     private final UUID tenant = UUID.randomUUID();
     private final UUID clienteId = UUID.randomUUID();
@@ -70,6 +73,8 @@ class ClaimServiceTest {
         when(pessoa.provisionarPessoa(anyString(), anyString(), anyString(), anyString()))
             .thenReturn(pessoaId);
         when(clienteRepo.findByTenantIdAndUsuarioId(any(), any())).thenReturn(Optional.empty());
+        when(tenantQuery.findById(tenant)).thenReturn(
+            com.jetski.tenant.domain.Tenant.builder().razaoSocial("Jet Save Turismo Náutico LTDA").build());
 
         // fixarTenant(): set_config('app.tenant_id', ...) na conexão
         Query q = mock(Query.class);
@@ -109,7 +114,9 @@ class ClaimServiceTest {
         assertThat(cli.getValue().getStatusConta()).isEqualTo(Cliente.StatusConta.CONVIDADA);
 
         verify(tokenRepo).save(any(ClienteClaimToken.class));
-        verify(email).sendClienteInvitationEmail(eq("maria@email.com"), eq("Maria Souza"), anyString(), anyString());
+        // o convite diz qual empresa criou o cadastro
+        verify(email).sendClienteInvitationEmail(eq("maria@email.com"), eq("Maria Souza"), anyString(), anyString(),
+            eq("Jet Save Turismo Náutico LTDA"));
         verify(events).publishEvent(any(ClaimEnviadoEvent.class));
     }
 
@@ -132,7 +139,7 @@ class ClaimServiceTest {
         when(clienteRepo.findById(clienteId)).thenReturn(Optional.of(ativa));
 
         assertThatThrownBy(() -> service.gerar(clienteId, null)).isInstanceOf(BusinessException.class);
-        verify(email, never()).sendClienteInvitationEmail(anyString(), anyString(), anyString(), anyString());
+        verify(email, never()).sendClienteInvitationEmail(anyString(), anyString(), anyString(), anyString(), any());
     }
 
     @Test

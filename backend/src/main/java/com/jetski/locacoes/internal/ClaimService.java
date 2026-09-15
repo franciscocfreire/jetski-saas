@@ -54,6 +54,7 @@ public class ClaimService {
     private final EmailService emailService;
     private final ApplicationEventPublisher eventPublisher;
     private final EntityManager entityManager;
+    private final com.jetski.tenant.TenantQueryService tenantQueryService;
 
     @org.springframework.beans.factory.annotation.Value("${jetski.frontend.url:http://localhost:3000}")
     private String frontendUrl;
@@ -133,7 +134,10 @@ public class ClaimService {
         String basePortal = portalUrl != null && !portalUrl.isBlank()
             ? portalUrl : frontendUrl + "/portal";
         String link = String.format("%s/ativar?token=%s", basePortal, token);
-        emailService.sendClienteInvitationEmail(cliente.getEmail(), cliente.getNome(), link, senhaTemporaria);
+        // O cliente precisa saber quem o cadastrou: o convite leva a razão social da loja.
+        com.jetski.tenant.domain.Tenant loja = tenantQueryService.findById(cliente.getTenantId());
+        emailService.sendClienteInvitationEmail(cliente.getEmail(), cliente.getNome(), link, senhaTemporaria,
+            loja != null ? loja.getRazaoSocial() : null);
 
         eventPublisher.publishEvent(ClaimEnviadoEvent.of(
             cliente.getTenantId(), clienteId, canaisResolvidos, TenantContext.getUsuarioId()));
