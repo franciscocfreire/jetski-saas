@@ -66,6 +66,22 @@ export const modelosService = {
       return data
     },
 
+    /** Envia uma imagem (arquivo já comprimido) — JPG, PNG ou WebP de até 5 MB. */
+    async upload(
+      modeloId: string,
+      arquivo: File,
+      opcoes: { titulo?: string; principal?: boolean } = {}
+    ): Promise<ModeloMidia> {
+      const form = new FormData()
+      form.append('arquivo', arquivo)
+      if (opcoes.titulo) form.append('titulo', opcoes.titulo)
+      form.append('principal', String(!!opcoes.principal))
+      const { data } = await apiClient.post<ModeloMidia>(`${getBasePath()}/${modeloId}/midias/upload`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data
+    },
+
     async update(modeloId: string, midiaId: string, request: Partial<ModeloMidiaCreateRequest>): Promise<ModeloMidia> {
       const { data } = await apiClient.put<ModeloMidia>(`${getBasePath()}/${modeloId}/midias/${midiaId}`, request)
       return data

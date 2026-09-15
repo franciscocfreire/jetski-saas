@@ -439,6 +439,36 @@ public class ModeloController {
         return ResponseEntity.ok(reordered);
     }
 
+    /**
+     * Upload de imagem do modelo (arquivo, em vez de URL). O backoffice comprime para o
+     * preset MODELO antes; aqui valem os limites do servidor (5 MB, JPG/PNG/WebP).
+     */
+    @PostMapping(value = "/{id}/midias/upload", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE')")
+    @Operation(
+        summary = "Enviar imagem do modelo",
+        description = "JPG, PNG ou WebP de até 5 MB. A imagem fica no storage da empresa e é servida "
+                    + "publicamente em /v1/public/midias/{tenantId}/{midiaId} (a url da mídia)."
+    )
+    public ResponseEntity<ModeloMidiaResponse> uploadMidia(
+        @PathVariable UUID tenantId,
+        @PathVariable UUID id,
+        @RequestParam("arquivo") org.springframework.web.multipart.MultipartFile arquivo,
+        @RequestParam(value = "titulo", required = false) String titulo,
+        @RequestParam(value = "principal", defaultValue = "false") boolean principal
+    ) throws java.io.IOException {
+        log.info("POST /v1/tenants/{}/modelos/{}/midias/upload - {} bytes", tenantId, id, arquivo.getSize());
+        validateTenantContext(tenantId);
+
+        // Recusa antes de carregar o arquivo inteiro em memória.
+        if (arquivo.getSize() > ModeloMidiaService.MAX_BYTES) {
+            throw new com.jetski.shared.exception.BusinessException(
+                "Imagem maior que 5 MB. Reduza a imagem e envie de novo.");
+        }
+        ModeloMidiaResponse created = midiaService.uploadImagem(id, arquivo.getBytes(), titulo, principal);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
     // ========== Private Helper Methods ==========
 
     private void validateTenantContext(UUID tenantId) {
