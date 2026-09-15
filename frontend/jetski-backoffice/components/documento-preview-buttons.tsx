@@ -6,13 +6,18 @@ import { Anchor, Eye, Loader2, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { reservasService } from '@/lib/api/services'
 import { abrirPdfPorLink } from '@/lib/pdf'
+import { useTenantStore } from '@/lib/store/tenant-store'
 
 type Destino = 'MARINHA' | 'CLIENTE'
+
+/** Módulo de plano (V078) que libera a prévia; sem ele o backend nega com 400. */
+export const MODULO_PREVIA_DOCUMENTOS = 'PREVIA_DOCUMENTOS'
 
 /**
  * Abre a prévia (sem enviar) do PDF que cada destino receberá, respeitando a
  * parametrização do tenant. Útil antes de emitir os documentos definitivos —
  * o PDF sai com marca d'água RASCUNHO enquanto houver pendências.
+ * Não renderiza nada se o plano não inclui o módulo Prévia dos documentos.
  */
 export function DocumentoPreviewButtons({
   reservaId,
@@ -25,6 +30,7 @@ export function DocumentoPreviewButtons({
   marinha?: boolean
 }) {
   const [carregando, setCarregando] = useState<Destino | null>(null)
+  const modulos = useTenantStore((s) => s.currentTenant?.modulos)
 
   async function abrir(destino: Destino) {
     try {
@@ -36,6 +42,11 @@ export function DocumentoPreviewButtons({
     } finally {
       setCarregando(null)
     }
+  }
+
+  // modulos null/ausente = plano sem restrição (todos liberados)
+  if (modulos && !modulos.includes(MODULO_PREVIA_DOCUMENTOS)) {
+    return null
   }
 
   return (

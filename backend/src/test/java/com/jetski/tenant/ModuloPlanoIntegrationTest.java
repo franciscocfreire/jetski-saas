@@ -312,6 +312,54 @@ class ModuloPlanoIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("PREVIA_DOCUMENTOS (V078): prévia exige emissão E o módulo; superadmin isento")
+    void previaDocumentosPorModulo() throws Exception {
+        String preview = "/v1/tenants/{t}/reservas/{r}/emitir-documentos/preview-link";
+        UUID reservaInexistente = UUID.randomUUID();
+
+        // Emissão sem o módulo de prévia → 400 com o rótulo (antes de buscar a reserva)
+        jdbc.update("UPDATE plano SET modulos = '[\"EMISSAO_PROPRIA\"]'::jsonb "
+            + "WHERE nome = 'Modulos Teste'");
+        limparCache();
+        mockMvc.perform(get(preview, TENANT, reservaInexistente)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value(
+                org.hamcrest.Matchers.containsString("Prévia dos documentos")));
+
+        // Prévia sem emissão → o interceptor nega pelo módulo de emissão
+        jdbc.update("UPDATE plano SET modulos = '[\"PREVIA_DOCUMENTOS\"]'::jsonb "
+            + "WHERE nome = 'Modulos Teste'");
+        limparCache();
+        mockMvc.perform(get(preview, TENANT, reservaInexistente)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value(
+                org.hamcrest.Matchers.containsString("Emissão à Marinha")));
+
+        // Os dois no plano → passa o gate (a reserva inexistente dá 404)
+        jdbc.update("UPDATE plano SET modulos = '[\"EMISSAO_DELEGADA\",\"PREVIA_DOCUMENTOS\"]'::jsonb "
+            + "WHERE nome = 'Modulos Teste'");
+        limparCache();
+        mockMvc.perform(get(preview, TENANT, reservaInexistente)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(status().isNotFound());
+
+        // Superadmin sem o módulo de prévia → não é bloqueado pelo gating
+        jdbc.update("UPDATE plano SET modulos = '[\"EMISSAO_PROPRIA\"]'::jsonb "
+            + "WHERE nome = 'Modulos Teste'");
+        limparCache();
+        mockAcesso(true);
+        mockMvc.perform(get(preview, TENANT, reservaInexistente)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
     @DisplayName("padrões dos módulos cobrem os sub-paths certos e poupam o core")
     void padroesDosModulos() {
         assertThat(ModuloPlano.EMISSAO_PROPRIA.cobre("documentos")).isTrue();

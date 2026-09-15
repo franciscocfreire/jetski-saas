@@ -186,7 +186,10 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   Loja online, Reserva online, Videoaula no balcão — configurável); NULL = todos. `VIDEO_ORIENTACAO` (V063) é
   um módulo "de permissão": assistir a videoaula até o fim é obrigatório por padrão; tê-lo no
   plano libera o toggle em Configurações › Documentos para desligar essa obrigação (PUT sem o
-  módulo → 400). O passo Orientações é exibido sempre. Gating em três camadas: menu do backoffice (itens somem), API
+  módulo → 400). O passo Orientações é exibido sempre. `PREVIA_DOCUMENTOS` (V078, Prévia dos
+  documentos) libera a Prévia Marinha/Cliente no balcão e na agenda: exige um módulo de emissão
+  E ele (gate no `EmissaoService.preview`, botões somem sem o módulo; planos que já emitiam
+  ganharam o novo). Gating em três camadas: menu do backoffice (itens somem), API
   (`ModuloPlanoInterceptor`, 400 com pedido de upgrade; superadmin isento; cache Redis com
   evict na troca) e canais públicos — Marketplace tira a empresa do marketplace agregado;
   Loja online desativa a vitrine própria; Reserva online (`RESERVA_ONLINE`, V072 — separado da

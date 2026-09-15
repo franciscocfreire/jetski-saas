@@ -951,6 +951,12 @@ ALTER TABLE public.modelo
 ALTER TABLE public.modelo_midia ADD COLUMN IF NOT EXISTS storage_key varchar(512);
 ALTER TABLE public.modelo_midia ADD COLUMN IF NOT EXISTS tamanho_bytes integer;
 
+-- V078: módulo PREVIA_DOCUMENTOS (planos com emissão à Marinha ganham o novo)
+UPDATE public.plano
+   SET modulos = modulos || '["PREVIA_DOCUMENTOS"]'::jsonb
+ WHERE (modulos @> '["EMISSAO_PROPRIA"]'::jsonb OR modulos @> '["EMISSAO_DELEGADA"]'::jsonb)
+   AND NOT modulos @> '["PREVIA_DOCUMENTOS"]'::jsonb;
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 

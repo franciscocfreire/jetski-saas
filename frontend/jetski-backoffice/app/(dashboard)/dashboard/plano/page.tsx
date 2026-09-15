@@ -39,6 +39,7 @@ const MODULOS: Record<string, string> = {
   LOJA_ONLINE: 'Loja online',
   RESERVA_ONLINE: 'Reserva online (Reservar Agora)',
   VIDEO_ORIENTACAO: 'Videoaula no balcão — configurável',
+  PREVIA_DOCUMENTOS: 'Prévia dos documentos',
 }
 
 const mesAno = (iso: string) => {

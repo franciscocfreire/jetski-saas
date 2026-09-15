@@ -88,6 +88,15 @@ public enum ModuloPlano {
     VIDEO_ORIENTACAO(
         "Videoaula no balcão — configurável",
         "Permite à empresa desligar a obrigação de assistir a videoaula da Marinha até o fim no balcão (sem o módulo, o atendimento EMA só continua ao término do vídeo)",
+        List.of()),
+
+    // Prévia (V078): o path emitir-documentos/preview já é coberto pelos módulos de
+    // emissão (o interceptor libera com QUALQUER cobridor), então a prévia é um
+    // complemento que exige emissão E este módulo — enforcement programático em
+    // EmissaoService.preview; o backoffice esconde os botões sem ele.
+    PREVIA_DOCUMENTOS(
+        "Prévia dos documentos",
+        "Pré-visualizar no balcão e na agenda o PDF que a Marinha e o cliente receberão, antes da emissão (exige um módulo de Emissão à Marinha)",
         List.of());
 
     private final String rotulo;
