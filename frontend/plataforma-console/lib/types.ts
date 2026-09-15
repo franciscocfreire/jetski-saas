@@ -22,6 +22,20 @@ export interface TenantSummary {
   emissoraTenantId?: string | null;
   emissoraNome?: string | null;
   vinculoStatus?: string | null;
+  /** SMTP próprio completo (host + usuário + senha). Na emissora, sem ele o ofício não sai. */
+  smtpCompleto?: boolean;
+  /** "From" do SMTP próprio; null sem SMTP. */
+  smtpRemetente?: string | null;
+}
+
+/** Resultado de POST /v1/platform/tenants/{id}/smtp/teste. */
+export interface ResultadoTesteSmtp {
+  enviado: boolean;
+  de: string;
+  para: string;
+  servidor: string;
+  erro?: string | null;
+  em: string;
 }
 
 /** Usuário (staff) de uma empresa — espelha PlatformMembroService.MembroEmpresa. */

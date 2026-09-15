@@ -225,6 +225,15 @@ test_leitura_ve_mas_nao_edita_cadastro_nem_usuarios if {
 	not platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:membros:convites", "POST")
 }
 
+# Teste de SMTP da empresa: admin e suporte disparam; financeiro, leitura e empresa não.
+test_teste_de_smtp_admin_e_suporte if {
+	platform.allow with input as operador("PLATFORM_ADMIN", "platform:tenants:smtp:teste", "POST")
+	platform.allow with input as operador("PLATFORM_SUPORTE", "platform:tenants:smtp:teste", "POST")
+	not platform.allow with input as operador("PLATFORM_FINANCEIRO", "platform:tenants:smtp:teste", "POST")
+	not platform.allow with input as operador("PLATFORM_LEITURA", "platform:tenants:smtp:teste", "POST")
+	not platform.allow with input as empresa("platform:tenants:smtp:teste", "POST")
+}
+
 test_admin_tenant_nao_gere_usuarios_pela_plataforma if {
 	not platform.allow with input as empresa("platform:tenants:membros:remover", "POST")
 	not platform.allow with input as empresa("platform:tenants:cadastro", "PUT")

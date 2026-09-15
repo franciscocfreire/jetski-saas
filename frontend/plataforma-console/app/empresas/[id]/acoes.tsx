@@ -11,8 +11,9 @@ import {
   mudarPlano,
   reativarEmpresa,
   suspenderEmpresa,
+  testarSmtp,
 } from "@/lib/actions";
-import type { LimiteUsuarios, PlanoInfo } from "@/lib/types";
+import type { LimiteUsuarios, PlanoInfo, ResultadoTesteSmtp } from "@/lib/types";
 import { BRL } from "@/lib/platform";
 
 /** Ações de status: só as que fazem sentido para o status atual aparecem. */
@@ -72,6 +73,47 @@ export function AcoesEmissora({
       confirmar="Habilitar como EAMA emissora?"
       acao={() => habilitarEmissora(tenantId)}
     />
+  );
+}
+
+/**
+ * Dispara um e-mail de teste pelo SMTP da empresa para o e-mail da plataforma. Falha de
+ * SMTP volta como resultado (não como erro HTTP) para mostrar a causa ao operador.
+ */
+export function TesteSmtp({ tenantId }: { tenantId: string }) {
+  const [resultado, setResultado] = useState<ResultadoTesteSmtp | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [pendente, iniciar] = useTransition();
+
+  return (
+    <div>
+      <Botao
+        data-testid="console-smtp-teste"
+        disabled={pendente}
+        onClick={() => {
+          setErro(null);
+          setResultado(null);
+          iniciar(async () => {
+            const r = await testarSmtp(tenantId);
+            if (!r.ok) setErro(r.erro);
+            else setResultado(r.dados);
+          });
+        }}
+      >
+        {pendente ? "Enviando teste…" : "Enviar e-mail de teste"}
+      </Botao>
+      {erro && <p className="mt-1 text-xs text-red-700">{erro}</p>}
+      {resultado?.enviado && (
+        <p className="mt-1 text-xs text-emerald-700" data-testid="console-smtp-teste-ok">
+          Enviado de {resultado.de} via {resultado.servidor}. Confira a caixa de {resultado.para}.
+        </p>
+      )}
+      {resultado && !resultado.enviado && (
+        <p className="mt-1 text-xs text-red-700" data-testid="console-smtp-teste-falha">
+          Falhou ({resultado.servidor}): {resultado.erro}
+        </p>
+      )}
+    </div>
   );
 }
 

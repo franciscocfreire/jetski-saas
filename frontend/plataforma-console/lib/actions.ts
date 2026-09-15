@@ -11,6 +11,7 @@ import type {
   ResetNivel,
   ResetResult,
   ReencryptResult,
+  ResultadoTesteSmtp,
   TenantExport,
 } from "./types";
 
@@ -76,6 +77,15 @@ export async function habilitarEmissora(tenantId: string) {
   return executar(
     () => POST(`/v1/platform/tenants/${tenantId}/habilitar-emissora`),
     "/empresas",
+  );
+}
+
+/** E-mail de teste pelo SMTP da empresa para o e-mail da plataforma (auditado). */
+export async function testarSmtp(tenantId: string) {
+  return executar(() =>
+    platformFetch<ResultadoTesteSmtp>(`/v1/platform/tenants/${tenantId}/smtp/teste`, {
+      method: "POST",
+    }),
   );
 }
 

@@ -39,7 +39,14 @@ public record PlatformTenantSummary(
     String emissoraTenantId,
     String emissoraNome,
     /** Na delegada: ATIVO ou BLOQUEADO. */
-    String vinculoStatus
+    String vinculoStatus,
+    /**
+     * SMTP próprio completo (host + usuário + senha) — mesmo critério do envio. Na EAMA
+     * emissora, sem ele o ofício à Capitania não sai.
+     */
+    boolean smtpCompleto,
+    /** "From" que o SMTP próprio usa (smtp_from → email_remetente → usuário); null sem SMTP. */
+    String smtpRemetente
 ) {
     public static PlatformTenantSummary of(UUID id, String slug, String razaoSocial, String status,
                                            String plano, LocalDate assinaturaFim,
@@ -47,11 +54,12 @@ public record PlatformTenantSummary(
                                            boolean emissoraHabilitada, String eamaRegistro,
                                            List<String> modulos,
                                            String papelEmissao, UUID emissoraTenantId,
-                                           String emissoraNome, String vinculoStatus) {
+                                           String emissoraNome, String vinculoStatus,
+                                           boolean smtpCompleto, String smtpRemetente) {
         return new PlatformTenantSummary(
             id.toString(), slug, razaoSocial, status, List.of("ADMIN_TENANT"), plano,
             assinaturaFim, exclusaoAgendadaEm, emissoraHabilitada, eamaRegistro, modulos,
             papelEmissao, emissoraTenantId != null ? emissoraTenantId.toString() : null,
-            emissoraNome, vinculoStatus);
+            emissoraNome, vinculoStatus, smtpCompleto, smtpRemetente);
     }
 }

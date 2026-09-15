@@ -18,6 +18,7 @@ import { PlatformApiError } from "@/lib/api";
 import {
   AcoesStatus,
   AcoesEmissora,
+  TesteSmtp,
   TrocarPlano,
   LancarCreditos,
   LimiteDeUsuarios,
@@ -236,6 +237,29 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
             <Campo rotulo="Papel" valor={rotuloPapel} />
             <Campo rotulo="Registro EAMA" valor={empresa.eamaRegistro ?? "não declarado"} />
           </dl>
+          <div className="mt-5 border-t border-slate-100 pt-4 text-sm" data-testid="console-empresa-smtp">
+            <div className="text-xs uppercase tracking-wide text-ink-300">Servidor de e-mail (SMTP)</div>
+            {empresa.smtpCompleto ? (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <Badge tom="ativo">configurado</Badge>
+                {empresa.smtpRemetente && <span className="text-ink-700">{empresa.smtpRemetente}</span>}
+              </div>
+            ) : (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <Badge tom="atencao">SMTP não cadastrado</Badge>
+                {empresa.papelEmissao === "EMISSORA" && (
+                  <span className="text-xs text-ink-500">
+                    Sem host, usuário e senha, o ofício à Capitania não é enviado.
+                  </span>
+                )}
+              </div>
+            )}
+            {empresa.smtpCompleto && podeEditar && (
+              <div className="mt-3">
+                <TesteSmtp tenantId={empresa.id} />
+              </div>
+            )}
+          </div>
           {empresa.papelEmissao === "DELEGADA" ? (
             <div className="mt-5 border-t border-slate-100 pt-4 text-sm" data-testid="console-empresa-delegada">
               <div className="flex flex-wrap items-center gap-2">

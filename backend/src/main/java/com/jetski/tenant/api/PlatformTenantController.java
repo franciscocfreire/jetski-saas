@@ -32,6 +32,7 @@ public class PlatformTenantController {
     private final com.jetski.tenant.internal.TenantExportService tenantExportService;
     private final com.jetski.tenant.internal.TenantExclusaoService tenantExclusaoService;
     private final com.jetski.tenant.internal.TenantImportService tenantImportService;
+    private final com.jetski.tenant.internal.PlatformSmtpTesteService platformSmtpTesteService;
 
     /** Lista TODAS as empresas (qualquer status) — visão completa do super admin. */
     @GetMapping("/tenants")
@@ -77,6 +78,16 @@ public class PlatformTenantController {
     @PostMapping("/tenants/{id}/desabilitar-emissora")
     public com.jetski.tenant.api.dto.EmissoraStatusResult desabilitarEmissora(@PathVariable("id") UUID id) {
         return platformTenantService.desabilitarEmissora(id);
+    }
+
+    /**
+     * Envia um e-mail de teste pelo SMTP próprio da empresa para o e-mail da plataforma.
+     * Falha de SMTP volta como {@code enviado=false} + erro (não 500). Auditado.
+     * Ação OPA: {@code platform:tenants:smtp:teste} (admin e suporte).
+     */
+    @PostMapping("/tenants/{id}/smtp/teste")
+    public com.jetski.tenant.internal.PlatformSmtpTesteService.ResultadoTeste testarSmtp(@PathVariable("id") UUID id) {
+        return platformSmtpTesteService.testar(id);
     }
 
     /**
