@@ -47,6 +47,7 @@ public class PlatformTenantService {
     private final com.jetski.tenant.PlanoLimiteService planoLimiteService;
     private final com.jetski.tenant.PapelEmissaoService papelEmissaoService;
     private final ApplicationEventPublisher eventPublisher;
+    private final CondicaoComercialService condicaoService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -71,6 +72,11 @@ public class PlatformTenantService {
                 Object[] assinatura = assinaturaAtiva(t.getId());
                 List<String> modulos = planoLimiteService.modulosDoPlano(t.getId());
                 var papel = papelEmissaoService.papelDe(t.getId(), Boolean.TRUE.equals(t.getEmissoraHabilitada()));
+                var condicao = condicaoService.vigenteHoje(t.getId())
+                    .map(c -> new PlatformTenantSummary.CondicaoResumo(
+                        c.id().toString(), c.tipo().name(), c.forma().name(), c.valor(),
+                        c.inicio(), c.fim()))
+                    .orElse(null);
                 return PlatformTenantSummary.of(
                     t.getId(), t.getSlug(), t.getRazaoSocial(), t.getStatus().name(),
                     assinatura != null ? (String) assinatura[0] : null,
@@ -83,7 +89,8 @@ public class PlatformTenantService {
                     papel.emissoraTenantId() != null ? nomes.get(papel.emissoraTenantId()) : null,
                     papel.vinculoStatus(),
                     smtpCompleto(t), smtpCompleto(t) ? smtpRemetente(t) : null,
-                    smtpCompleto(t) ? t.getSmtpUsername().trim() : null);
+                    smtpCompleto(t) ? t.getSmtpUsername().trim() : null,
+                    condicao);
             })
             .toList();
     }

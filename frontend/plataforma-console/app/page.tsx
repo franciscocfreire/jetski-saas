@@ -72,30 +72,37 @@ export default async function Home() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Indicador titulo="Empresas" valor={String(tenants.length)}
               nota={Object.entries(porStatus).map(([s, q]) => `${q} ${s.toLowerCase()}`).join(" · ")} />
-            <Indicador titulo="MRR" valor={BRL.format(n("mrr"))}
-              nota="soma dos planos vigentes" />
-            <Indicador titulo="Receita (30d)" valor={BRL.format(n("receita_bruta"))}
-              nota={`${n("locacoes")} locações`} />
+            <Indicador titulo="MRR contratado" valor={BRL.format(n("mrr"))}
+              nota={`tabela ${BRL.format(n("mrr_tabela"))} · empresas em operação`} />
+            {/* Receita DA PLATAFORMA: faturas pagas + créditos vendidos na janela.
+                O que as lojas movimentam (locações) fica no card "Movimentado pelas lojas". */}
+            <Indicador titulo="Receita da plataforma (30d)"
+              valor={BRL.format(n("receita_plataforma"))}
+              nota={`faturas ${BRL.format(n("receita_faturas"))} · créditos ${BRL.format(n("receita_creditos"))}`} />
             <Indicador titulo="Em aberto" valor={BRL.format(n("valor_em_aberto"))}
               nota={`${n("faturas_abertas")} fatura(s)`}
               alerta={n("faturas_abertas") > 0} />
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Isenções e descontos (V076): quanto a plataforma deixa de faturar por mês. */}
+            <Link href="/empresas?condicao=1" className="rounded-lg transition hover:ring-2 hover:ring-brand-200">
+              <Indicador titulo="MRR renunciado" valor={BRL.format(n("mrr_renunciado"))}
+                nota={`${n("empresas_com_condicao")} empresa(s) com condição comercial`} />
+            </Link>
             <Indicador titulo="Emissões cobráveis" valor={String(n("emissoes_cobraveis"))}
               nota={`${n("emissoes_previa")} prévias (não cobráveis)`} />
-            <Indicador titulo="Créditos consumidos" valor={String(n("creditos_consumidos"))} />
-            <Indicador titulo="Reservas (30d)" valor={String(n("reservas"))}
-              nota={`${n("no_shows")} no-show`} />
-            <Indicador titulo="Receita comissionável"
-              valor={BRL.format(n("receita_comissionavel"))}
-              nota="sem combustível (RN04)" />
+            <Indicador titulo="Créditos consumidos" valor={String(n("creditos_consumidos"))}
+              nota={`entraram ${n("creditos_vendidos")} vendidos · ${n("creditos_cortesia")} de cortesia`} />
+            <Indicador titulo="Movimentado pelas lojas (30d)"
+              valor={BRL.format(n("receita_bruta"))}
+              nota={`${n("locacoes")} locações · ${n("reservas")} reservas · ${n("no_shows")} no-show`} />
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
-            <Card titulo="Top empresas por receita" descricao="Janela de 30 dias.">
+            <Card titulo="Top empresas por movimento" descricao="Locações das lojas, janela de 30 dias.">
               <Tabela
-                cabecalho={["Empresa", "Locações", "Receita", "Emissões"]}
+                cabecalho={["Empresa", "Locações", "Movimentado", "Emissões"]}
                 vazio="Nenhum movimento na janela."
               >
                 {dash.topEmpresas.map((e) => (
@@ -114,7 +121,7 @@ export default async function Home() {
               </Tabela>
             </Card>
 
-            <Card titulo="Movimento por dia" descricao="Locações e receita da plataforma.">
+            <Card titulo="Movimento por dia" descricao="Valor das locações das lojas por dia.">
               <SerieDiaria serie={dash.serie} />
             </Card>
           </div>

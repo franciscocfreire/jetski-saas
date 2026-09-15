@@ -228,6 +228,56 @@ class CreditoIntegrationTest extends AbstractIntegrationTest {
     // ============================== Plataforma ==============================
 
     @Test
+    @DisplayName("Cortesia (V077): tipo próprio no ledger, vinculada à condição comercial da empresa")
+    void testPlatformCortesiaComCondicao() throws Exception {
+        jdbcTemplate.update("DELETE FROM condicao_comercial WHERE tenant_id = ?", TENANT_MARINA);
+        UUID condicao = jdbcTemplate.queryForObject(
+            "INSERT INTO condicao_comercial (tenant_id, tipo, forma, inicio, fim, motivo) "
+            + "VALUES (?, 'PILOTO', 'ISENCAO', CURRENT_DATE, CURRENT_DATE + 60, 'piloto') RETURNING id",
+            UUID.class, TENANT_MARINA);
+
+        mockMvc.perform(post("/v1/platform/creditos/{tenantId}", TENANT_MARINA)
+                .contentType("application/json")
+                .content("{\"quantidade\": 20, \"motivo\": \"Cortesia do piloto\", \"tipo\": \"CORTESIA\", "
+                    + "\"condicaoId\": \"" + condicao + "\"}")
+                .with(superAdmin()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.tipo").value("CORTESIA"))
+            .andExpect(jsonPath("$.quantidade").value(20));
+
+        UUID gravada = jdbcTemplate.queryForObject(
+            "SELECT condicao_id FROM credito_lancamento WHERE tenant_id = ? AND tipo = 'CORTESIA'",
+            UUID.class, TENANT_MARINA);
+        assertThat(gravada).isEqualTo(condicao);
+    }
+
+    @Test
+    @DisplayName("Cortesia negativa ou com condição de OUTRA empresa é recusada (400)")
+    void testPlatformCortesiaInvalida() throws Exception {
+        mockMvc.perform(post("/v1/platform/creditos/{tenantId}", TENANT_MARINA)
+                .contentType("application/json")
+                .content("{\"quantidade\": -3, \"motivo\": \"x\", \"tipo\": \"CORTESIA\"}")
+                .with(superAdmin()))
+            .andExpect(status().isBadRequest());
+
+        jdbcTemplate.update("DELETE FROM condicao_comercial WHERE tenant_id = ?", TENANT_ACME);
+        UUID daAcme = jdbcTemplate.queryForObject(
+            "INSERT INTO condicao_comercial (tenant_id, tipo, forma, inicio, motivo) "
+            + "VALUES (?, 'CORTESIA', 'ISENCAO', CURRENT_DATE, 'cortesia') RETURNING id",
+            UUID.class, TENANT_ACME);
+        mockMvc.perform(post("/v1/platform/creditos/{tenantId}", TENANT_MARINA)
+                .contentType("application/json")
+                .content("{\"quantidade\": 5, \"motivo\": \"x\", \"tipo\": \"CORTESIA\", "
+                    + "\"condicaoId\": \"" + daAcme + "\"}")
+                .with(superAdmin()))
+            .andExpect(status().isBadRequest());
+
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM credito_lancamento WHERE tenant_id = ? AND tipo = 'CORTESIA'",
+            Integer.class, TENANT_MARINA)).isZero();
+    }
+
+    @Test
     @DisplayName("Admin lança créditos para outro tenant (set_config fura sessão) com motivo")
     void testPlatformLancamentoCrossTenant() throws Exception {
         mockMvc.perform(post("/v1/platform/creditos/{tenantId}", TENANT_MARINA)

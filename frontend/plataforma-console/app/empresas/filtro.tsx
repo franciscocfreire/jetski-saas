@@ -10,11 +10,16 @@ export function FiltroEmpresas({
   statusAtual,
   buscaAtual,
   total,
+  comCondicao,
+  condicaoAtiva,
 }: {
   porStatus: Record<string, number>;
   statusAtual?: string;
   buscaAtual: string;
   total: number;
+  /** Empresas com condição comercial vigente (isenção/desconto). */
+  comCondicao: number;
+  condicaoAtiva: boolean;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -48,6 +53,14 @@ export function FiltroEmpresas({
           {s.replace(/_/g, " ").toLowerCase()} ({porStatus[s]})
         </Chip>
       ))}
+      {(comCondicao > 0 || condicaoAtiva) && (
+        <Chip
+          ativo={condicaoAtiva}
+          onClick={() => navegar({ condicao: condicaoAtiva ? null : "1" })}
+        >
+          com condição comercial ({comCondicao})
+        </Chip>
+      )}
 
       <form
         className="ml-auto"

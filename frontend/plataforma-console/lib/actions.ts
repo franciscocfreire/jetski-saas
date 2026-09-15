@@ -7,6 +7,7 @@ import type {
   CadastroEmpresa,
   ImportPreview,
   ImportResult,
+  NovaCondicao,
   RecalcResult,
   ResetNivel,
   ResetResult,
@@ -100,6 +101,24 @@ export async function mudarPlano(tenantId: string, planoId: string) {
   return executar(
     () => POST(`/v1/platform/tenants/${tenantId}/plano`, { planoId }),
     "/empresas",
+  );
+}
+
+/** Concede condição comercial (isenção/desconto da mensalidade) — motivo obrigatório, auditado. */
+export async function concederCondicao(tenantId: string, condicao: NovaCondicao) {
+  return executar(
+    () => POST(`/v1/platform/tenants/${tenantId}/condicoes`, condicao),
+    "/empresas",
+    "/",
+  );
+}
+
+/** Encerra hoje a condição (vigente ou agendada); o histórico fica. */
+export async function encerrarCondicao(tenantId: string, condicaoId: string, motivo: string) {
+  return executar(
+    () => POST(`/v1/platform/tenants/${tenantId}/condicoes/${condicaoId}/encerrar`, { motivo }),
+    "/empresas",
+    "/",
   );
 }
 
@@ -252,9 +271,19 @@ export async function cancelarExclusao(tenantId: string) {
 
 // ===================== Créditos =====================
 
-export async function lancarCreditos(tenantId: string, quantidade: number, motivo: string) {
+/**
+ * AJUSTE corrige (± — negativo vira estorno); CORTESIA concede de graça (só positiva),
+ * opcionalmente ligada à condição comercial que a motivou.
+ */
+export async function lancarCreditos(
+  tenantId: string,
+  quantidade: number,
+  motivo: string,
+  tipo: "AJUSTE" | "CORTESIA" = "AJUSTE",
+  condicaoId: string | null = null,
+) {
   return executar(
-    () => POST(`/v1/platform/creditos/${tenantId}`, { quantidade, motivo }),
+    () => POST(`/v1/platform/creditos/${tenantId}`, { quantidade, motivo, tipo, condicaoId }),
     "/creditos",
     "/empresas",
   );

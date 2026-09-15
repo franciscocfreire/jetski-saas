@@ -1,6 +1,7 @@
 import { platformFetch } from "./api";
 import type {
   CadastroEmpresa,
+  CondicaoComercial,
   ConviteEmpresa,
   DashboardPlataforma,
   RegistroAuditoria,
@@ -114,6 +115,10 @@ export const platform = {
   /** Quem pediu o cadastro (signup público), mais recente primeiro. Vazia = criada por usuário já cadastrado. */
   solicitacoes: (tenantId: string) =>
     platformFetch<SolicitacaoCadastro[]>(`/v1/platform/tenants/${tenantId}/solicitacoes`),
+
+  /** Condições comerciais da empresa (vigente, agendadas e histórico), mais recente primeiro. */
+  condicoes: (tenantId: string) =>
+    platformFetch<CondicaoComercial[]>(`/v1/platform/tenants/${tenantId}/condicoes`),
 
   /** Limite de usuários ativos: do plano × personalizado × efetivo, e o uso atual. */
   limiteUsuarios: (tenantId: string) =>

@@ -101,6 +101,9 @@ public class TenantResetService {
     static final Set<String> TABELAS_PRESERVADAS = Set.of(
         "assinatura", "auditoria", "credito_compra", "credito_lancamento",
         "emissao_uso", "tenant_signup", "fatura",
+        // condição comercial (V076): histórico do que foi concedido e por quê — é
+        // base de cobrança, como a fatura; reset operacional não apaga acordo comercial
+        "condicao_comercial",
         // trilha legal da EAMA emissora (V048): o espelho vive no tenant do
         // EMISSOR e prova o que saiu em nome dele — nunca some num reset
         "emissao_delegada",

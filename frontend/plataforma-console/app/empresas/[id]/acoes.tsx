@@ -171,8 +171,20 @@ export function TrocarPlano({
   );
 }
 
-/** Lançamento manual de créditos: quantidade com sinal (+/−) e motivo obrigatório. */
-export function LancarCreditos({ tenantId }: { tenantId: string }) {
+/**
+ * Lançamento manual de créditos. Ajuste = correção (±, negativo vira estorno); cortesia =
+ * crédito dado de graça (só positiva), que pode ficar ligada à condição comercial vigente.
+ */
+export function LancarCreditos({
+  tenantId,
+  condicao,
+}: {
+  tenantId: string;
+  /** Condição comercial vigente, para vincular a cortesia (ex.: "Piloto isenta"). */
+  condicao?: { id: string; rotulo: string } | null;
+}) {
+  const [tipo, setTipo] = useState<"AJUSTE" | "CORTESIA">("AJUSTE");
+  const [vincular, setVincular] = useState(true);
   const [quantidade, setQuantidade] = useState("");
   const [motivo, setMotivo] = useState("");
   const [erro, setErro] = useState<string | null>(null);
@@ -180,16 +192,27 @@ export function LancarCreditos({ tenantId }: { tenantId: string }) {
   const [pendente, iniciar] = useTransition();
 
   const qtd = Number(quantidade);
-  const valido = Number.isInteger(qtd) && qtd !== 0 && motivo.trim().length > 0;
+  const cortesia = tipo === "CORTESIA";
+  const valido =
+    Number.isInteger(qtd) && (cortesia ? qtd > 0 : qtd !== 0) && motivo.trim().length > 0;
 
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value as "AJUSTE" | "CORTESIA")}
+          className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+        >
+          <option value="AJUSTE">Ajuste (±)</option>
+          <option value="CORTESIA">Cortesia</option>
+        </select>
         <input
           type="number"
           value={quantidade}
           onChange={(e) => setQuantidade(e.target.value)}
-          placeholder="±qtd"
+          min={cortesia ? 1 : undefined}
+          placeholder={cortesia ? "qtd" : "±qtd"}
           className="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
         />
         <input
@@ -205,7 +228,13 @@ export function LancarCreditos({ tenantId }: { tenantId: string }) {
             setErro(null);
             setOk(false);
             iniciar(async () => {
-              const r = await lancarCreditos(tenantId, qtd, motivo);
+              const r = await lancarCreditos(
+                tenantId,
+                qtd,
+                motivo,
+                tipo,
+                cortesia && vincular && condicao ? condicao.id : null,
+              );
               if (!r.ok) setErro(r.erro);
               else {
                 setQuantidade("");
@@ -218,6 +247,12 @@ export function LancarCreditos({ tenantId }: { tenantId: string }) {
           {pendente ? "…" : "Lançar"}
         </Botao>
       </div>
+      {cortesia && condicao && (
+        <label className="mt-2 flex items-center gap-2 text-xs text-ink-500">
+          <input type="checkbox" checked={vincular} onChange={(e) => setVincular(e.target.checked)} />
+          vincular à condição comercial ({condicao.rotulo})
+        </label>
+      )}
       {erro && <p className="mt-1 text-xs text-red-700">{erro}</p>}
       {ok && <p className="mt-1 text-xs text-emerald-700">Lançamento registrado.</p>}
     </div>

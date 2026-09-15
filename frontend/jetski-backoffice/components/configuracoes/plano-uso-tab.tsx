@@ -31,6 +31,7 @@ import {
 const TIPO_LABEL: Record<string, string> = {
   ADESAO: 'Créditos de adesão',
   AJUSTE: 'Lançamento Meu Jet',
+  CORTESIA: 'Cortesia Meu Jet',
   CONSUMO: 'Emissão de documento',
   ESTORNO: 'Estorno',
 }

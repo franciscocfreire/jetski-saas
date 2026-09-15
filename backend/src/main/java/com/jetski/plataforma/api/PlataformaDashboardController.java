@@ -58,7 +58,12 @@ public class PlataformaDashboardController {
                    COALESCE(SUM(receita_comissionavel),0) AS receita_comissionavel,
                    COALESCE(SUM(emissoes_documento + emissoes_gru),0) AS emissoes_cobraveis,
                    COALESCE(SUM(emissoes_previa),0) AS emissoes_previa,
-                   COALESCE(SUM(creditos_consumidos),0) AS creditos_consumidos
+                   COALESCE(SUM(creditos_consumidos),0) AS creditos_consumidos,
+                   COALESCE(SUM(creditos_cortesia),0) AS creditos_cortesia,
+                   COALESCE(SUM(creditos_vendidos),0) AS creditos_vendidos,
+                   COALESCE(SUM(receita_faturas),0) AS receita_faturas,
+                   COALESCE(SUM(receita_creditos),0) AS receita_creditos,
+                   COALESCE(SUM(receita_faturas + receita_creditos),0) AS receita_plataforma
               FROM plataforma_metrica_diaria WHERE dia BETWEEN ? AND ?
             """, de, ate);
 
@@ -66,6 +71,9 @@ public class PlataformaDashboardController {
         // empresa (ver comentário da coluna faturas_abertas na V056).
         Map<String, Object> estado = jdbc.queryForMap("""
             SELECT COALESCE(SUM(m.mrr),0) AS mrr,
+                   COALESCE(SUM(m.mrr_tabela),0) AS mrr_tabela,
+                   COALESCE(SUM(m.mrr_tabela - m.mrr),0) AS mrr_renunciado,
+                   count(*) FILTER (WHERE m.condicao_tipo IS NOT NULL) AS empresas_com_condicao,
                    COALESCE(SUM(m.faturas_abertas),0) AS faturas_abertas,
                    COALESCE(SUM(m.valor_em_aberto),0) AS valor_em_aberto,
                    MAX(m.atualizado_em) AS atualizado_em
