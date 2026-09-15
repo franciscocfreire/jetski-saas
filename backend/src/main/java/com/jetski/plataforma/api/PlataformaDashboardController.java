@@ -58,7 +58,10 @@ public class PlataformaDashboardController {
                    COALESCE(SUM(receita_comissionavel),0) AS receita_comissionavel,
                    COALESCE(SUM(emissoes_documento + emissoes_gru),0) AS emissoes_cobraveis,
                    COALESCE(SUM(emissoes_previa),0) AS emissoes_previa,
-                   COALESCE(SUM(creditos_consumidos),0) AS creditos_consumidos
+                   COALESCE(SUM(creditos_consumidos),0) AS creditos_consumidos,
+                   COALESCE(SUM(receita_faturas),0) AS receita_faturas,
+                   COALESCE(SUM(receita_creditos),0) AS receita_creditos,
+                   COALESCE(SUM(receita_faturas + receita_creditos),0) AS receita_plataforma
               FROM plataforma_metrica_diaria WHERE dia BETWEEN ? AND ?
             """, de, ate);
 

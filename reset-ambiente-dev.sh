@@ -947,6 +947,11 @@ ALTER TABLE public.modelo
     ADD CONSTRAINT modelo_duracao_minima_positiva
     CHECK (duracao_minima_min IS NULL OR duracao_minima_min > 0);
 
+-- V075: receita DA PLATAFORMA no read model (faturas pagas + créditos vendidos)
+ALTER TABLE public.plataforma_metrica_diaria
+    ADD COLUMN IF NOT EXISTS receita_faturas  numeric(12,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS receita_creditos numeric(12,2) NOT NULL DEFAULT 0;
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 
