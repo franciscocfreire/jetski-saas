@@ -260,6 +260,8 @@ services:
       # Email: em dev envia para o Mailpit (UI em http://localhost:8025).
       # O host/port default (mailpit:1025) vêm do application-dev.yml.
       EMAIL_DEV_SMTP_ENABLED: "true"
+      # Tudo cai no Mailpit, até e-mail de empresa com SMTP próprio; "true" = regra de prod.
+      EMAIL_DEV_USAR_SMTP_TENANT: ${EMAIL_DEV_USAR_SMTP_TENANT:-false}
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
 

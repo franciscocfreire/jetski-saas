@@ -56,6 +56,15 @@ public class DevEmailService implements EmailService {
     @Value("${jetski.email.dev-smtp-enabled:false}")
     private boolean devSmtpEnabled;
 
+    /**
+     * Quando true, o dev volta a usar a regra de produção: tenant com SMTP próprio envia pela
+     * conta real da empresa e o ofício sem SMTP da EAMA não sai ({@code SEM_SMTP}). Default
+     * false → com o Mailpit ligado, TUDO cai nele (com o From da empresa), para nenhum e-mail
+     * real — nem o ofício à Capitania — sair do dev.
+     */
+    @Value("${jetski.email.dev-usar-smtp-do-tenant:false}")
+    private boolean devUsarSmtpDoTenant;
+
     @Value("${jetski.email.from:noreply@pegaojet.com.br}")
     private String fromEmail;
 
@@ -217,12 +226,17 @@ public class DevEmailService implements EmailService {
     public void sendEmailComAnexo(String to, String subject, String htmlBody,
                                   String attachmentName, byte[] attachment, String attachmentContentType,
                                   String replyTo, Remetente remetente) {
-        // Mesma regra do prod: ofício à Capitania sem SMTP próprio da EAMA não sai (nem no Mailpit).
+        // Regra do prod: ofício à Capitania sem SMTP próprio da EAMA não sai. Com o Mailpit
+        // capturando, o dev só avisa e deixa o ofício chegar nele.
         if (remetente != null && remetente.exigeSmtpProprio()
                 && (tenantSmtpResolver == null || tenantSmtpResolver.forTenant(remetente.tenantId()).isEmpty())) {
-            log.warn("E-mail NÃO enviado (exige SMTP próprio do tenant {}): to={}, subject={}",
-                remetente.tenantId(), to, subject);
-            throw new SmtpProprioAusenteException(remetente.tenantId(), remetente.nome());
+            if (!capturaTudoNoMailpit()) {
+                log.warn("E-mail NÃO enviado (exige SMTP próprio do tenant {}): to={}, subject={}",
+                    remetente.tenantId(), to, subject);
+                throw new SmtpProprioAusenteException(remetente.tenantId(), remetente.nome());
+            }
+            log.warn("[DEV] Tenant {} sem SMTP próprio: em produção este e-mail NÃO sairia (SEM_SMTP). "
+                + "Capturado no Mailpit: to={}, subject={}", remetente.tenantId(), to, subject);
         }
         int size = attachment == null ? 0 : attachment.length;
         String body = String.format("%s%n%n[ANEXO] %s (%s, %d bytes)%s%s",
@@ -254,7 +268,7 @@ public class DevEmailService implements EmailService {
             ? tenantSmtpResolver.forCurrentTenant()
             : java.util.Optional.<TenantSmtpResolver.SmtpSettings>empty();
         try {
-            if (perTenant.isPresent()) {
+            if (perTenant.isPresent() && !capturaTudoNoMailpit()) {
                 var s = perTenant.get();
                 String nome = (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : fromName;
                 senderFactory.sendComImagemInline(senderFactory.build(s), s.from(), nome, to, subject,
@@ -263,7 +277,12 @@ public class DevEmailService implements EmailService {
             } else if (devSmtpEnabled && mailSender != null) {
                 MimeMessage message = mailSender.createMimeMessage();
                 MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-                helper.setFrom(fromEmail, fromName);
+                if (perTenant.isPresent()) {
+                    var s = perTenant.get();
+                    helper.setFrom(s.from(), (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : fromName);
+                } else {
+                    helper.setFrom(fromEmail, fromName);
+                }
                 helper.setTo(to);
                 helper.setSubject(subject);
                 helper.setText(htmlBody, true);
@@ -311,6 +330,11 @@ public class DevEmailService implements EmailService {
      * Usa o MESMO template HTML do prod (EmailTemplates), então o que se vê no Mailpit é fiel.
      * Best-effort: uma falha de SMTP NUNCA interrompe o fluxo (signup/convite) nem o E2E.
      */
+    /** Mailpit ligado e sem opt-in da regra de prod → nenhum e-mail do dev sai por SMTP real. */
+    private boolean capturaTudoNoMailpit() {
+        return devSmtpEnabled && mailSender != null && !devUsarSmtpDoTenant;
+    }
+
     private void maybeSendViaSmtp(String to, String subject, String htmlBody) {
         maybeSendViaSmtp(to, subject, htmlBody, null, null, null, null, null);
     }
@@ -329,7 +353,7 @@ public class DevEmailService implements EmailService {
         String nomeGlobal = remetente != null && remetente.nome() != null && !remetente.nome().isBlank()
             ? remetente.nome() : fromName;
         String cc = remetente != null ? remetente.copia() : null;
-        if (perTenant.isPresent()) {
+        if (perTenant.isPresent() && !capturaTudoNoMailpit()) {
             var s = perTenant.get();
             try {
                 String nome = (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : nomeGlobal;
@@ -349,7 +373,13 @@ public class DevEmailService implements EmailService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, comAnexo, "UTF-8");
-            helper.setFrom(fromEmail, nomeGlobal);
+            if (perTenant.isPresent()) {
+                // Capturado no Mailpit, mas com o From que o SMTP da empresa usaria em prod.
+                var s = perTenant.get();
+                helper.setFrom(s.from(), (s.fromName() != null && !s.fromName().isBlank()) ? s.fromName() : nomeGlobal);
+            } else {
+                helper.setFrom(fromEmail, nomeGlobal);
+            }
             helper.setTo(to);
             if (cc != null && !cc.isBlank() && !cc.equalsIgnoreCase(to)) {
                 helper.setCc(cc);

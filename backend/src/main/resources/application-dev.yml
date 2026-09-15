@@ -129,6 +129,9 @@ jetski:
     from-name: Meu Jet
     # Quando true, o DevEmailService também envia via SMTP (Mailpit) além de logar.
     dev-smtp-enabled: ${EMAIL_DEV_SMTP_ENABLED:false}
+    # Com o Mailpit ligado, TODO e-mail cai nele — inclusive os de empresa com SMTP próprio e o
+    # ofício de EAMA sem SMTP (que em prod seria SEM_SMTP). true = regra de produção no dev.
+    dev-usar-smtp-do-tenant: ${EMAIL_DEV_USAR_SMTP_TENANT:false}
   frontend:
     url: ${JETSKI_FRONTEND_URL:http://localhost:3001}
 
