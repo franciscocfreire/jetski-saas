@@ -12,6 +12,7 @@ const DEFAULT_PRESETS: Record<TipoImagemDoc, PresetCompressaoImagem> = {
   CHA: { maxDimensao: 2000, qualidade: 0.85 },
   GRU_COMPROVANTE: { maxDimensao: 2000, qualidade: 0.85 },
   SELFIE: { maxDimensao: 1280, qualidade: 0.8 },
+  MODELO: { maxDimensao: 1920, qualidade: 0.82 },
 }
 
 /** Preset para imagem sem tipo definido (ex.: upload genérico). */

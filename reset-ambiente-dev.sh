@@ -947,6 +947,10 @@ ALTER TABLE public.modelo
     ADD CONSTRAINT modelo_duracao_minima_positiva
     CHECK (duracao_minima_min IS NULL OR duracao_minima_min > 0);
 
+-- V074: fotos de modelo enviadas por upload (chave no storage + tamanho)
+ALTER TABLE public.modelo_midia ADD COLUMN IF NOT EXISTS storage_key varchar(512);
+ALTER TABLE public.modelo_midia ADD COLUMN IF NOT EXISTS tamanho_bytes integer;
+
 -- V075: receita DA PLATAFORMA no read model (faturas pagas + créditos vendidos)
 ALTER TABLE public.plataforma_metrica_diaria
     ADD COLUMN IF NOT EXISTS receita_faturas  numeric(12,2) NOT NULL DEFAULT 0,

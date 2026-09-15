@@ -40,13 +40,26 @@ public class ImagemConfigService {
                     "SELECT valor FROM plataforma_config WHERE chave = ?1")
                 .setParameter(1, CHAVE)
                 .getSingleResult();
-            return objectMapper.readValue(valor.toString(), ImagemCompressaoConfig.class);
+            return comDefaults(objectMapper.readValue(valor.toString(), ImagemCompressaoConfig.class));
         } catch (NoResultException e) {
             return ImagemCompressaoConfig.defaults();
         } catch (Exception e) {
             log.warn("plataforma_config.{} inválido, usando defaults: {}", CHAVE, e.getMessage());
             return ImagemCompressaoConfig.defaults();
         }
+    }
+
+    /**
+     * Tipo novo (ex.: MODELO) ausente da config já gravada herda o default — senão ele
+     * não aparece na tela do super admin nem chega aos navegadores.
+     */
+    static ImagemCompressaoConfig comDefaults(ImagemCompressaoConfig salvo) {
+        java.util.Map<String, ImagemCompressaoConfig.Preset> tipos =
+            new java.util.LinkedHashMap<>(ImagemCompressaoConfig.defaults().tipos());
+        if (salvo != null && salvo.tipos() != null) {
+            tipos.putAll(salvo.tipos());
+        }
+        return new ImagemCompressaoConfig(tipos);
     }
 
     /** Grava a config (super admin) — upsert na chave-valor global. */

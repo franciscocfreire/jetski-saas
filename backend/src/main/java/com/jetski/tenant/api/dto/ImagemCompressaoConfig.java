@@ -16,7 +16,7 @@ import java.util.Map;
  *
  * <p>Persistida como JSON no {@code plataforma_config.valor} (chave
  * {@code imagem_compressao}). Tipos previstos: IDENTIDADE, COMPROVANTE_RESIDENCIA,
- * SELFIE, CHA, GRU_COMPROVANTE.
+ * SELFIE, CHA, GRU_COMPROVANTE e MODELO (fotos dos modelos no marketplace).
  *
  * @param tipos preset por tipo de documento
  */
@@ -40,6 +40,7 @@ public record ImagemCompressaoConfig(
         t.put("CHA", new Preset(2000, 0.85));
         t.put("GRU_COMPROVANTE", new Preset(2000, 0.85));
         t.put("SELFIE", new Preset(1280, 0.80));
+        t.put("MODELO", new Preset(1920, 0.82));
         return new ImagemCompressaoConfig(t);
     }
 }

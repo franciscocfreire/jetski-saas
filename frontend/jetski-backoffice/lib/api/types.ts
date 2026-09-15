@@ -40,6 +40,8 @@ export interface ModeloMidia {
   principal: boolean
   titulo?: string
   createdAt?: string
+  /** Imagem enviada por arquivo (guardada no storage da empresa): URL não editável. */
+  armazenada?: boolean
 }
 
 export interface ModeloMidiaCreateRequest {
@@ -1002,6 +1004,7 @@ export type TipoImagemDoc =
   | 'SELFIE'
   | 'CHA'
   | 'GRU_COMPROVANTE'
+  | 'MODELO'
 
 export interface PresetCompressaoImagem {
   maxDimensao: number

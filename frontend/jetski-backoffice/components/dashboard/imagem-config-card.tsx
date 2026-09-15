@@ -16,6 +16,7 @@ const TIPOS: { key: TipoImagemDoc; label: string }[] = [
   { key: 'CHA', label: 'CHA / CHV' },
   { key: 'GRU_COMPROVANTE', label: 'Comprovante de pagamento (GRU)' },
   { key: 'SELFIE', label: 'Selfie / foto do cliente' },
+  { key: 'MODELO', label: 'Fotos dos modelos (marketplace)' },
 ]
 
 /**

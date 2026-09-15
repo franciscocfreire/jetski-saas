@@ -81,6 +81,14 @@ public class ModeloMidia {
     @Column(length = 255)
     private String titulo;
 
+    /** Chave no storage quando a imagem veio por upload (V074); null = URL externa. */
+    @Column(name = "storage_key", length = 512)
+    private String storageKey;
+
+    /** Tamanho do arquivo enviado, em bytes (V074). */
+    @Column(name = "tamanho_bytes")
+    private Integer tamanhoBytes;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

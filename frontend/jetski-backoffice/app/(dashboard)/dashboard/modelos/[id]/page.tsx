@@ -24,17 +24,23 @@ import {
   X,
   Check,
   Store,
+  Upload,
+  Link2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useTenantStore } from '@/lib/store/tenant-store'
-import { modelosService, type ModeloCreateRequest } from '@/lib/api/services/modelos'
-import type { Modelo, ModeloMidia, TipoMidia, ModeloMidiaCreateRequest } from '@/lib/api/types'
+import { modelosService } from '@/lib/api/services/modelos'
+import type { ModeloMidia, TipoMidia, ModeloMidiaCreateRequest } from '@/lib/api/types'
+import { ModeloFormDialog } from '@/components/modelos/modelo-form-dialog'
 import { formatCurrency } from '@/lib/utils'
+import { comprimirImagem } from '@/lib/image-compress'
+import { useImagemConfig } from '@/lib/hooks/use-imagem-config'
+import { useObjectUrl } from '@/lib/hooks/use-object-url'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -212,6 +218,7 @@ function EditMediaDialog({
   const updateMutation = useMutation({
     mutationFn: (data: Partial<ModeloMidiaCreateRequest>) =>
       modelosService.midia.update(modeloId, midia.id, data),
+    onError: (e: unknown) => toast.error(mensagemErro(e, 'Não foi possível salvar a mídia.')),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['modelo-midias', modeloId] })
       queryClient.invalidateQueries({ queryKey: ['modelo', modeloId] })
@@ -269,8 +276,14 @@ function EditMediaDialog({
                 value={formData.url}
                 onChange={(e) => setFormData({ ...formData, url: e.target.value })}
                 placeholder="https://..."
-                required
+                required={!midia.armazenada}
+                disabled={midia.armazenada}
               />
+              {midia.armazenada && (
+                <p className="text-xs text-muted-foreground">
+                  Imagem enviada por arquivo. Para trocar a foto, envie outra e apague esta.
+                </p>
+              )}
             </div>
 
             {formData.tipo === 'VIDEO' && (
@@ -432,6 +445,30 @@ function MediaItem({
 }
 
 // Add Media Dialog
+/** Limites do upload de foto: o original no navegador e o arquivo já otimizado (servidor: 5 MB). */
+const FOTO_MAX_ORIGINAL_BYTES = 20 * 1024 * 1024
+const FOTO_MAX_ENVIO_BYTES = 5 * 1024 * 1024
+const FOTO_TIPOS = ['image/jpeg', 'image/png', 'image/webp']
+
+const MIDIA_VAZIA: ModeloMidiaCreateRequest = {
+  tipo: 'IMAGEM',
+  url: '',
+  thumbnailUrl: '',
+  titulo: '',
+  principal: false,
+}
+
+function formatarBytes(bytes: number) {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+/** Mensagem do backend (400 de negócio) ou o texto padrão. */
+function mensagemErro(e: unknown, padrao: string) {
+  const err = e as { response?: { data?: { message?: string } } }
+  return err.response?.data?.message || padrao
+}
+
 function AddMediaDialog({
   modeloId,
   open,
@@ -442,31 +479,100 @@ function AddMediaDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const queryClient = useQueryClient()
-  const [formData, setFormData] = useState<ModeloMidiaCreateRequest>({
-    tipo: 'IMAGEM',
-    url: '',
-    thumbnailUrl: '',
-    titulo: '',
-    principal: false,
-  })
+  const { presetPara } = useImagemConfig()
+  const preset = presetPara('MODELO')
+  const [formData, setFormData] = useState<ModeloMidiaCreateRequest>(MIDIA_VAZIA)
+  const [origem, setOrigem] = useState<'ARQUIVO' | 'URL'>('ARQUIVO')
+  const [original, setOriginal] = useState<File | null>(null)
+  const [arquivo, setArquivo] = useState<File | null>(null)
+  const [preparando, setPreparando] = useState(false)
+  const [erroArquivo, setErroArquivo] = useState<string | null>(null)
+  const previewArquivo = useObjectUrl(arquivo)
+
+  const enviandoArquivo = formData.tipo === 'IMAGEM' && origem === 'ARQUIVO'
+
+  const limpar = () => {
+    setFormData(MIDIA_VAZIA)
+    setOrigem('ARQUIVO')
+    setOriginal(null)
+    setArquivo(null)
+    setErroArquivo(null)
+  }
+
+  const concluir = () => {
+    queryClient.invalidateQueries({ queryKey: ['modelo-midias', modeloId] })
+    queryClient.invalidateQueries({ queryKey: ['modelo', modeloId] })
+    onOpenChange(false)
+    limpar()
+  }
 
   const addMutation = useMutation({
     mutationFn: (data: ModeloMidiaCreateRequest) => modelosService.midia.add(modeloId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['modelo-midias', modeloId] })
-      queryClient.invalidateQueries({ queryKey: ['modelo', modeloId] })
-      onOpenChange(false)
-      setFormData({ tipo: 'IMAGEM', url: '', thumbnailUrl: '', titulo: '', principal: false })
-    },
+    onSuccess: concluir,
+    onError: (e: unknown) => toast.error(mensagemErro(e, 'Não foi possível adicionar a mídia.')),
   })
+
+  const uploadMutation = useMutation({
+    mutationFn: (foto: File) =>
+      modelosService.midia.upload(modeloId, foto, {
+        titulo: formData.titulo || undefined,
+        principal: formData.principal,
+      }),
+    onSuccess: () => {
+      toast.success('Imagem enviada.')
+      concluir()
+    },
+    onError: (e: unknown) => toast.error(mensagemErro(e, 'Não foi possível enviar a imagem.')),
+  })
+
+  async function selecionar(file?: File) {
+    setErroArquivo(null)
+    setArquivo(null)
+    setOriginal(file ?? null)
+    if (!file) return
+    if (!FOTO_TIPOS.includes(file.type)) {
+      setErroArquivo('Formato não suportado. Envie uma imagem JPG, PNG ou WebP.')
+      return
+    }
+    if (file.size > FOTO_MAX_ORIGINAL_BYTES) {
+      setErroArquivo('Arquivo acima de 20 MB. Escolha uma imagem menor.')
+      return
+    }
+    setPreparando(true)
+    try {
+      const otimizado = await comprimirImagem(file, preset)
+      if (otimizado.size > FOTO_MAX_ENVIO_BYTES) {
+        setErroArquivo(
+          `Mesmo otimizada, a imagem ficou com ${formatarBytes(otimizado.size)} (máximo 5 MB). Escolha outra.`
+        )
+        return
+      }
+      setArquivo(otimizado)
+    } finally {
+      setPreparando(false)
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (enviandoArquivo) {
+      if (arquivo) uploadMutation.mutate(arquivo)
+      return
+    }
     addMutation.mutate(formData)
   }
 
+  const pendente = addMutation.isPending || uploadMutation.isPending
+  const podeConfirmar = enviandoArquivo ? !!arquivo && !preparando : !!formData.url
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(aberto) => {
+        if (!aberto) limpar()
+        onOpenChange(aberto)
+      }}
+    >
       <DialogContent className="sm:max-w-[500px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
@@ -503,19 +609,92 @@ function AddMediaDialog({
               </Select>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="url">URL *</Label>
-              <Input
-                id="url"
-                value={formData.url}
-                onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                placeholder="https://..."
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Cole a URL da imagem ou vídeo
-              </p>
-            </div>
+            {formData.tipo === 'IMAGEM' && (
+              <div className="grid grid-cols-2 gap-1 rounded-md border p-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={origem === 'ARQUIVO' ? 'default' : 'ghost'}
+                  aria-pressed={origem === 'ARQUIVO'}
+                  onClick={() => setOrigem('ARQUIVO')}
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Enviar arquivo
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={origem === 'URL' ? 'default' : 'ghost'}
+                  aria-pressed={origem === 'URL'}
+                  onClick={() => setOrigem('URL')}
+                >
+                  <Link2 className="mr-2 h-4 w-4" />
+                  Usar URL
+                </Button>
+              </div>
+            )}
+
+            {enviandoArquivo ? (
+              <div className="grid gap-2">
+                <Label htmlFor="arquivo-midia">Imagem *</Label>
+                <label
+                  htmlFor="arquivo-midia"
+                  className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-center transition-colors hover:border-primary"
+                >
+                  {previewArquivo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={previewArquivo} alt="Prévia da imagem" className="max-h-48 rounded object-contain" />
+                  ) : (
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                  )}
+                  <span className="text-sm">
+                    {preparando
+                      ? 'Otimizando imagem…'
+                      : arquivo
+                        ? 'Trocar imagem'
+                        : 'Clique para escolher uma imagem'}
+                  </span>
+                </label>
+                <input
+                  id="arquivo-midia"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={(e) => {
+                    selecionar(e.target.files?.[0])
+                    e.target.value = ''
+                  }}
+                />
+                {original && arquivo && (
+                  <p className="text-xs text-muted-foreground">
+                    {original.name}: {formatarBytes(original.size)} → {formatarBytes(arquivo.size)} depois de
+                    otimizada
+                  </p>
+                )}
+                {erroArquivo ? (
+                  <p className="text-xs text-destructive">{erroArquivo}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    JPG, PNG ou WebP de até 20 MB. A imagem é reduzida para até {preset.maxDimensao} px
+                    antes de enviar.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                <Label htmlFor="url">URL *</Label>
+                <Input
+                  id="url"
+                  value={formData.url}
+                  onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                  placeholder="https://..."
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Cole a URL da imagem ou vídeo
+                </p>
+              </div>
+            )}
 
             {formData.tipo === 'VIDEO' && (
               <div className="grid gap-2">
@@ -554,8 +733,8 @@ function AddMediaDialog({
               </div>
             )}
 
-            {/* Preview */}
-            {formData.url && formData.tipo === 'IMAGEM' && (
+            {/* Preview da URL */}
+            {!enviandoArquivo && formData.url && formData.tipo === 'IMAGEM' && (
               <div className="grid gap-2">
                 <Label>Preview</Label>
                 <div className="aspect-video rounded-lg border bg-muted overflow-hidden">
@@ -576,233 +755,14 @@ function AddMediaDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={addMutation.isPending}>
-              {addMutation.isPending ? 'Adicionando...' : 'Adicionar'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// Edit Modelo Dialog
-function EditModeloDialog({
-  modelo,
-  open,
-  onOpenChange,
-}: {
-  modelo: Modelo
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  const queryClient = useQueryClient()
-  const [formData, setFormData] = useState<ModeloCreateRequest>({
-    nome: modelo.nome || '',
-    fabricante: modelo.fabricante || '',
-    potenciaHp: modelo.potenciaHp || 90,
-    capacidadePessoas: modelo.capacidadePessoas || 2,
-    precoBaseHora: modelo.precoBaseHora || 150,
-    toleranciaMin: modelo.toleranciaMin || 5,
-    taxaHoraExtra: modelo.taxaHoraExtra || 50,
-    incluiCombustivel: modelo.incluiCombustivel || false,
-    caucao: modelo.caucao || 300,
-    exibirNoMarketplace: modelo.exibirNoMarketplace ?? true,
-    descricao: modelo.descricao || '',
-    duracaoMinimaMin: modelo.duracaoMinimaMin ?? 0,
-  })
-
-  useEffect(() => {
-    setFormData({
-      nome: modelo.nome || '',
-      fabricante: modelo.fabricante || '',
-      potenciaHp: modelo.potenciaHp || 90,
-      capacidadePessoas: modelo.capacidadePessoas || 2,
-      precoBaseHora: modelo.precoBaseHora || 150,
-      toleranciaMin: modelo.toleranciaMin || 5,
-      taxaHoraExtra: modelo.taxaHoraExtra || 50,
-      incluiCombustivel: modelo.incluiCombustivel || false,
-      caucao: modelo.caucao || 300,
-      exibirNoMarketplace: modelo.exibirNoMarketplace ?? true,
-      descricao: modelo.descricao || '',
-      duracaoMinimaMin: modelo.duracaoMinimaMin ?? 0,
-    })
-  }, [modelo])
-
-  const updateMutation = useMutation({
-    mutationFn: (data: Partial<ModeloCreateRequest>) => modelosService.update(modelo.id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['modelo', modelo.id] })
-      queryClient.invalidateQueries({ queryKey: ['modelos'] })
-      onOpenChange(false)
-    },
-  })
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    updateMutation.mutate(formData)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Editar Modelo</DialogTitle>
-            <DialogDescription>
-              Atualize os dados do modelo
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="nome">Nome *</Label>
-                <Input
-                  id="nome"
-                  value={formData.nome}
-                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  placeholder="Ex: Sea-Doo GTI 130"
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="fabricante">Fabricante</Label>
-                <Input
-                  id="fabricante"
-                  value={formData.fabricante || ''}
-                  onChange={(e) => setFormData({ ...formData, fabricante: e.target.value })}
-                  placeholder="Ex: Sea-Doo"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="potenciaHp">Potência (HP)</Label>
-                <Input
-                  id="potenciaHp"
-                  type="number"
-                  value={formData.potenciaHp || 90}
-                  onChange={(e) => setFormData({ ...formData, potenciaHp: Number(e.target.value) })}
-                  min={0}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="capacidadePessoas">Capacidade (pessoas) *</Label>
-                <Input
-                  id="capacidadePessoas"
-                  type="number"
-                  value={formData.capacidadePessoas}
-                  onChange={(e) => setFormData({ ...formData, capacidadePessoas: Number(e.target.value) })}
-                  min={1}
-                  max={4}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="precoBase">Preço/Hora (R$) *</Label>
-                <Input
-                  id="precoBase"
-                  type="number"
-                  value={formData.precoBaseHora}
-                  onChange={(e) => setFormData({ ...formData, precoBaseHora: Number(e.target.value) })}
-                  min={0}
-                  step={10}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="taxaHoraExtra">Taxa Hora Extra (R$)</Label>
-                <Input
-                  id="taxaHoraExtra"
-                  type="number"
-                  value={formData.taxaHoraExtra || 0}
-                  onChange={(e) => setFormData({ ...formData, taxaHoraExtra: Number(e.target.value) })}
-                  min={0}
-                  step={10}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="toleranciaMin">Tolerância (min)</Label>
-                <Input
-                  id="toleranciaMin"
-                  type="number"
-                  value={formData.toleranciaMin || 5}
-                  onChange={(e) => setFormData({ ...formData, toleranciaMin: Number(e.target.value) })}
-                  min={0}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="caucao">Caução (R$)</Label>
-                <Input
-                  id="caucao"
-                  type="number"
-                  value={formData.caucao || 0}
-                  onChange={(e) => setFormData({ ...formData, caucao: Number(e.target.value) })}
-                  min={0}
-                  step={50}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <Label>Inclui Combustível</Label>
-                <p className="text-xs text-muted-foreground">
-                  O combustível está incluso no preço da locação
-                </p>
-              </div>
-              <Switch
-                checked={formData.incluiCombustivel || false}
-                onCheckedChange={(checked) => setFormData({ ...formData, incluiCombustivel: checked })}
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="duracaoMinimaMin">Locação mínima (min)</Label>
-              <Input
-                id="duracaoMinimaMin"
-                type="number"
-                min={0}
-                step={15}
-                value={formData.duracaoMinimaMin || ''}
-                onChange={(e) => setFormData({ ...formData, duracaoMinimaMin: Number(e.target.value) || 0 })}
-                placeholder="Ex: 30"
-              />
-              <p className="text-xs text-muted-foreground">
-                Aparece como &quot;Mínimo&quot; no marketplace e limita a duração da reserva no portal. Vazio = sem mínimo.
-              </p>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="descricao">Descrição no marketplace</Label>
-              <Textarea
-                id="descricao"
-                value={formData.descricao || ''}
-                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                placeholder="Conte o que o cliente precisa saber: diferenciais do jet, o que está incluso, ponto de saída..."
-                maxLength={2000}
-                rows={4}
-              />
-              <p className="text-xs text-muted-foreground">
-                Aparece em &quot;Sobre&quot; na página pública do modelo. Em branco, usamos um texto padrão.
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? 'Salvando...' : 'Salvar'}
+            <Button type="submit" disabled={pendente || !podeConfirmar}>
+              {pendente
+                ? enviandoArquivo
+                  ? 'Enviando...'
+                  : 'Adicionando...'
+                : enviandoArquivo
+                  ? 'Enviar'
+                  : 'Adicionar'}
             </Button>
           </DialogFooter>
         </form>
@@ -1226,7 +1186,7 @@ export default function ModeloDetailsPage() {
       </Tabs>
 
       {/* Dialogs */}
-      <EditModeloDialog modelo={modelo} open={editDialogOpen} onOpenChange={setEditDialogOpen} />
+      <ModeloFormDialog modelo={modelo} open={editDialogOpen} onOpenChange={setEditDialogOpen} />
       <AddMediaDialog modeloId={modeloId} open={addMediaDialogOpen} onOpenChange={setAddMediaDialogOpen} />
     </div>
   )
