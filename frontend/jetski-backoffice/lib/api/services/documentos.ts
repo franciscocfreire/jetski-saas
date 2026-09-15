@@ -32,9 +32,17 @@ export const documentosService = {
     return { blob: res.data as Blob, filename }
   },
 
-  /** Reenvia por e-mail um documento já emitido (Marinha + cliente). */
-  async reenviar(id: string): Promise<{ enviadoMarinha: boolean; enviadoCliente: boolean }> {
-    const { data } = await apiClient.post(`${getBasePath()}/${id}/reenviar`)
+  /**
+   * Reenvia por e-mail um documento já emitido: só o ofício à Marinha, só a via do
+   * cliente ou, sem destino, os dois. O destino não escolhido mantém o status gravado.
+   */
+  async reenviar(
+    id: string,
+    destino?: 'MARINHA' | 'CLIENTE'
+  ): Promise<{ enviadoMarinha: boolean; enviadoCliente: boolean }> {
+    const { data } = await apiClient.post(`${getBasePath()}/${id}/reenviar`, undefined, {
+      params: destino ? { destino } : undefined,
+    })
     return data
   },
 

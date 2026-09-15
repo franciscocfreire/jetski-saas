@@ -33,7 +33,6 @@ import {
   FileClock,
   CalendarSearch,
   GraduationCap,
-  Landmark,
   Handshake,
   ShieldCheck,
 } from 'lucide-react'
@@ -134,8 +133,8 @@ const NAV_GROUPS: NavGroup[] = [
         permissao: 'instrutor:list',
       },
       { title: 'Reservas', href: '/dashboard/reservas', icon: CalendarSearch, permissao: 'reserva:list' },
-      { title: 'Documentos', href: '/dashboard/documentos', icon: FileText, modulo: ['EMISSAO_PROPRIA', 'EMISSAO_DELEGADA'], permissao: 'documento:list' },
-      { title: 'GRUs', href: '/dashboard/grus', icon: Landmark, modulo: ['EMISSAO_PROPRIA', 'EMISSAO_DELEGADA'], permissao: 'gru:list' },
+      // Documentos e GRUs numa tela só (o ciclo da GRU e os documentos emitidos da reserva)
+      { title: 'Documentos e GRUs', href: '/dashboard/documentos', icon: FileText, modulo: ['EMISSAO_PROPRIA', 'EMISSAO_DELEGADA'], permissao: 'documento:list' },
       {
         title: 'Emissão delegada',
         href: '/dashboard/emissao-delegada',

@@ -119,6 +119,16 @@ public class DocumentoEnvioService {
      */
     @Transactional(readOnly = true)
     public EnvioContexto carregar(UUID documentoId, boolean reenvio) {
+        return carregar(documentoId, reenvio, null);
+    }
+
+    /**
+     * Idem, com o destino do reenvio: {@code null} = os dois; {@code MARINHA} ou {@code CLIENTE}
+     * = só esse. O outro entra como {@link EnvioStatus#NAO_APLICAVEL}, não é despachado e o
+     * status gravado dele fica intacto (ver {@link #persistirStatus(UUID, ResultadoEnvio, EmissaoService.Destino)}).
+     */
+    @Transactional(readOnly = true)
+    public EnvioContexto carregar(UUID documentoId, boolean reenvio, EmissaoService.Destino destino) {
         DocumentoEmitido doc = documentoRepository.findById(documentoId)
             .orElseThrow(() -> new NotFoundException("Documento não encontrado: " + documentoId));
         Reserva reserva = reservaRepository.findById(doc.getReservaId())
@@ -153,10 +163,14 @@ public class DocumentoEnvioService {
         Emissor emissor = Emissor.fromSnapshot(doc.getEmissorSnapshot(), doc.getEmissorTenantId(),
             emissorTenant, reserva.getTenantId(), tenant, objectMapper);
 
+        boolean reenviaMarinha = destino == null || destino == EmissaoService.Destino.MARINHA;
+        boolean reenviaCliente = destino == null || destino == EmissaoService.Destino.CLIENTE;
         EnvioStatus marinhaInicial = reenvio
-            ? (pdfMarinha != null ? EnvioStatus.PENDENTE : EnvioStatus.NAO_APLICAVEL)
+            ? (reenviaMarinha && pdfMarinha != null ? EnvioStatus.PENDENTE : EnvioStatus.NAO_APLICAVEL)
             : ouPendente(doc.getMarinhaEnvioStatus());
-        EnvioStatus clienteInicial = reenvio ? EnvioStatus.PENDENTE : ouPendente(doc.getClienteEnvioStatus());
+        EnvioStatus clienteInicial = reenvio
+            ? (reenviaCliente ? EnvioStatus.PENDENTE : EnvioStatus.NAO_APLICAVEL)
+            : ouPendente(doc.getClienteEnvioStatus());
 
         // O hash no ofício descreve o PDF ANEXADO — por isso o da via da Marinha,
         // e não o hash canônico (do PDF do cliente) gravado no documento.
@@ -306,20 +320,37 @@ public class DocumentoEnvioService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void persistirStatus(UUID documentoId, ResultadoEnvio r) {
+        persistirStatus(documentoId, r, null);
+    }
+
+    /**
+     * Idem, gravando só o destino reenviado ({@code null} = os dois): num reenvio só ao
+     * cliente, o status e o {@code marinha_enviado_em} da Marinha não podem ser apagados (e vice-versa).
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void persistirStatus(UUID documentoId, ResultadoEnvio r, EmissaoService.Destino destino) {
         DocumentoEmitido doc = documentoRepository.findById(documentoId)
             .orElseThrow(() -> new NotFoundException("Documento não encontrado: " + documentoId));
-        aplicar(doc, r);
+        aplicar(doc, r, destino);
         documentoRepository.save(doc);
     }
 
     /** Idem, para quando já existe uma transação e a entidade está gerenciada. */
     public void aplicar(DocumentoEmitido doc, ResultadoEnvio r) {
-        doc.setMarinhaEnvioStatus(r.marinha());
-        doc.setMarinhaEnvioErro(r.marinhaErro());
-        doc.setClienteEnvioStatus(r.cliente());
-        doc.setClienteEnvioErro(r.clienteErro());
-        if (r.enviadoMarinha()) doc.setMarinhaEnviadoEm(Instant.now());
-        if (r.enviadoCliente()) doc.setClienteEnviadoEm(Instant.now());
+        aplicar(doc, r, null);
+    }
+
+    private void aplicar(DocumentoEmitido doc, ResultadoEnvio r, EmissaoService.Destino destino) {
+        if (destino == null || destino == EmissaoService.Destino.MARINHA) {
+            doc.setMarinhaEnvioStatus(r.marinha());
+            doc.setMarinhaEnvioErro(r.marinhaErro());
+            if (r.enviadoMarinha()) doc.setMarinhaEnviadoEm(Instant.now());
+        }
+        if (destino == null || destino == EmissaoService.Destino.CLIENTE) {
+            doc.setClienteEnvioStatus(r.cliente());
+            doc.setClienteEnvioErro(r.clienteErro());
+            if (r.enviadoCliente()) doc.setClienteEnviadoEm(Instant.now());
+        }
         doc.setEnvioAtualizadoEm(Instant.now());
     }
 

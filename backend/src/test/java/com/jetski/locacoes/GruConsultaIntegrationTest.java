@@ -207,4 +207,30 @@ class GruConsultaIntegrationTest extends AbstractIntegrationTest {
             "SELECT marinha_enviado_em FROM documento_emitido WHERE id = ?", docId)
             .get("marinha_enviado_em")).isNull();
     }
+
+    @Test
+    @DisplayName("Reenvio com destino=CLIENTE não reenvia o ofício nem apaga o envio à Marinha")
+    void testReenvioSoAoClientePreservaMarinha() throws Exception {
+        UUID reservaId = seedReserva("1 day");
+        seedHab(reservaId, "EMA", "608931002438534444");
+        UUID docId = seedDocumento(reservaId, true);
+        storageService.putObject(TENANT_ACME + "/reserva/" + reservaId + "/documentos.pdf",
+            "%PDF-fake".getBytes(), "application/pdf");
+        Object antes = jdbc.queryForMap(
+            "SELECT marinha_enviado_em FROM documento_emitido WHERE id = ?", docId).get("marinha_enviado_em");
+
+        mockMvc.perform(post("/v1/tenants/{t}/documentos/{id}/reenviar", TENANT_ACME, docId)
+                .param("destino", "CLIENTE")
+                .header("X-Tenant-Id", TENANT_ACME.toString()).with(staff()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.enviadoMarinha").value(false));
+
+        assertThat(jdbc.queryForMap(
+            "SELECT marinha_enviado_em FROM documento_emitido WHERE id = ?", docId)
+            .get("marinha_enviado_em")).isEqualTo(antes);
+        org.mockito.Mockito.verify(emailService, org.mockito.Mockito.never())
+            .sendEmailComAnexo(anyString(), org.mockito.ArgumentMatchers.startsWith("Solicitação de Emissão"),
+                anyString(), anyString(), any(), anyString(),
+                org.mockito.ArgumentMatchers.nullable(String.class), any());
+    }
 }
