@@ -49,6 +49,7 @@ class ModuloPlanoIntegrationTest extends AbstractIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private CacheManager cacheManager;
     @Autowired private MarketplaceService marketplaceService;
+    @Autowired private com.jetski.tenant.internal.PlatformFaturaService platformFaturaService;
 
     @MockBean private OPAAuthorizationService opaAuthorizationService;
     @MockBean private TenantAccessService tenantAccessService;
@@ -309,6 +310,88 @@ class ModuloPlanoIntegrationTest extends AbstractIntegrationTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value(
                 org.hamcrest.Matchers.containsString("não está incluído no seu plano")));
+    }
+
+    @Test
+    @DisplayName("PREVIA_DOCUMENTOS (V078): prévia exige emissão E o módulo; superadmin isento")
+    void previaDocumentosPorModulo() throws Exception {
+        String preview = "/v1/tenants/{t}/reservas/{r}/emitir-documentos/preview-link";
+        UUID reservaInexistente = UUID.randomUUID();
+
+        // Emissão sem o módulo de prévia → 400 com o rótulo (antes de buscar a reserva)
+        jdbc.update("UPDATE plano SET modulos = '[\"EMISSAO_PROPRIA\"]'::jsonb "
+            + "WHERE nome = 'Modulos Teste'");
+        limparCache();
+        mockMvc.perform(get(preview, TENANT, reservaInexistente)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value(
+                org.hamcrest.Matchers.containsString("Prévia dos documentos")));
+
+        // Prévia sem emissão → o interceptor nega pelo módulo de emissão
+        jdbc.update("UPDATE plano SET modulos = '[\"PREVIA_DOCUMENTOS\"]'::jsonb "
+            + "WHERE nome = 'Modulos Teste'");
+        limparCache();
+        mockMvc.perform(get(preview, TENANT, reservaInexistente)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value(
+                org.hamcrest.Matchers.containsString("Emissão à Marinha")));
+
+        // Os dois no plano → passa o gate (a reserva inexistente dá 404)
+        jdbc.update("UPDATE plano SET modulos = '[\"EMISSAO_DELEGADA\",\"PREVIA_DOCUMENTOS\"]'::jsonb "
+            + "WHERE nome = 'Modulos Teste'");
+        limparCache();
+        mockMvc.perform(get(preview, TENANT, reservaInexistente)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(status().isNotFound());
+
+        // Superadmin sem o módulo de prévia → não é bloqueado pelo gating
+        jdbc.update("UPDATE plano SET modulos = '[\"EMISSAO_PROPRIA\"]'::jsonb "
+            + "WHERE nome = 'Modulos Teste'");
+        limparCache();
+        mockAcesso(true);
+        mockMvc.perform(get(preview, TENANT, reservaInexistente)
+                .header("X-Tenant-Id", TENANT.toString())
+                .with(jwtAdmin()))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("V078: planos do seed têm a lista explícita = catálogo completo (sem NULL/todos)")
+    void seedComListaExplicitaDoCatalogo() {
+        // Se falhar após criar um módulo: a migration dele precisa decidir quais planos o recebem
+        // e esta lista (V078) não pode ficar para trás para os planos que eram "todos".
+        String modulos = jdbc.queryForObject(
+            "SELECT modulos::text FROM plano WHERE nome = 'Enterprise'", String.class);
+        assertThat(modulos).isNotNull();
+        for (ModuloPlano m : ModuloPlano.values()) {
+            assertThat(modulos).as("Enterprise inclui %s", m).contains("\"" + m.name() + "\"");
+        }
+    }
+
+    @Test
+    @DisplayName("salvarModulos grava a lista explícita: tudo marcado não vira NULL; vazio = só o core")
+    void salvarModulosSempreExplicito() {
+        Integer planoId = jdbc.queryForObject(
+            "SELECT id FROM plano WHERE nome = 'Modulos Teste'", Integer.class);
+        List<String> todos = java.util.Arrays.stream(ModuloPlano.values()).map(Enum::name).toList();
+
+        platformFaturaService.salvarModulos(planoId, todos);
+        assertThat(jdbc.queryForObject(
+            "SELECT modulos IS NULL FROM plano WHERE id = ?", Boolean.class, planoId)).isFalse();
+        assertThat(planoLimiteService.modulosDoPlano(TENANT)).containsExactlyInAnyOrderElementsOf(todos);
+
+        platformFaturaService.salvarModulos(planoId, List.of());
+        limparCache();
+        assertThat(planoLimiteService.modulosDoPlano(TENANT)).isEmpty();
+        assertThat(planoLimiteService.moduloHabilitado(TENANT, ModuloPlano.MANUTENCAO)).isFalse();
+
+        assertThatThrownBy(() -> platformFaturaService.salvarModulos(planoId, List.of("NAO_EXISTE")))
+            .isInstanceOf(BusinessException.class);
     }
 
     @Test

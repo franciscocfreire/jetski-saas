@@ -11,7 +11,10 @@ import {
 import type { ImagemPreset, ModuloCatalogo, PlanoInfo, PlatformCapitania } from "@/lib/types";
 import { BRL } from "@/lib/platform";
 
-/** `plano.modulos` é um jsonb serializado como texto; null = todos liberados. */
+/**
+ * `plano.modulos` é um jsonb serializado como texto. null é legado (= todos, antes
+ * da V078): o editor mostra tudo marcado e, ao salvar, grava a lista explícita.
+ */
 function parseModulos(bruto?: string | null): string[] | null {
   if (bruto == null) return null;
   try {
@@ -40,12 +43,12 @@ export function ModulosPorPlano({
 
 function EditorPlano({ plano, catalogo }: { plano: PlanoInfo; catalogo: ModuloCatalogo[] }) {
   const inicial = parseModulos(plano.modulos);
-  const [marcados, setMarcados] = useState<string[]>(inicial ?? []);
+  const [marcados, setMarcados] = useState<string[]>(inicial ?? catalogo.map((m) => m.key));
   const [erro, setErro] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const [pendente, iniciar] = useTransition();
 
-  const semRestricao = marcados.length === 0;
+  const nenhum = marcados.length === 0;
 
   return (
     <div className="rounded-md border border-slate-200 p-4">
@@ -56,8 +59,8 @@ function EditorPlano({ plano, catalogo }: { plano: PlanoInfo; catalogo: ModuloCa
             {BRL.format(plano.precoMensal)}/mês
           </span>
         </h3>
-        {semRestricao && (
-          <span className="text-xs text-ink-500">sem restrição — todos os módulos</span>
+        {nenhum && (
+          <span className="text-xs text-ink-500">nenhum módulo — só o essencial da operação</span>
         )}
       </div>
 

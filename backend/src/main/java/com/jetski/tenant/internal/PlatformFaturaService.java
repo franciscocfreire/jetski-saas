@@ -281,15 +281,16 @@ public class PlatformFaturaService {
     }
 
     /**
-     * Define os módulos do plano (controle de oferta). Lista vazia é inválida
-     * (plano sem nenhum módulo não faz sentido — use null/todos ou escolha).
+     * Define os módulos do plano (controle de oferta). Grava SEMPRE a lista
+     * explícita (V078): marcar tudo não vira NULL/"todos", para que um módulo
+     * criado depois não entre sozinho no plano. Lista vazia = só o core.
      * Chaves validadas contra o catálogo {@link com.jetski.tenant.ModuloPlano}.
      */
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = "plano-modulos", allEntries = true)
     public void salvarModulos(Integer planoId, List<String> modulos) {
-        if (modulos == null || modulos.isEmpty()) {
-            throw new BusinessException("Selecione ao menos um módulo (ou todos)");
+        if (modulos == null) {
+            throw new BusinessException("Informe a lista de módulos do plano");
         }
         for (String m : modulos) {
             try {
@@ -298,10 +299,8 @@ public class PlatformFaturaService {
                 throw new BusinessException("Módulo desconhecido: " + m);
             }
         }
-        boolean todos = modulos.size() == com.jetski.tenant.ModuloPlano.values().length;
-        String json = todos ? null
-            : "[" + modulos.stream().map(m -> "\"" + m + "\"")
-                .collect(java.util.stream.Collectors.joining(",")) + "]";
+        String json = "[" + modulos.stream().distinct().map(m -> "\"" + m + "\"")
+            .collect(java.util.stream.Collectors.joining(",")) + "]";
         int n = entityManager.createNativeQuery(
                 "UPDATE plano SET modulos = CAST(:json AS jsonb) WHERE id = :pid")
             .setParameter("json", json)
@@ -310,8 +309,7 @@ public class PlatformFaturaService {
         if (n == 0) {
             throw new NotFoundException("Plano não encontrado: " + planoId);
         }
-        log.warn("[PLATFORM] Módulos do plano {} atualizados: {}", planoId,
-            todos ? "TODOS" : modulos);
+        log.warn("[PLATFORM] Módulos do plano {} atualizados: {}", planoId, modulos);
     }
 
     // ------------------------------------------------------------------

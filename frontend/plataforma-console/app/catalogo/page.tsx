@@ -45,7 +45,7 @@ export default async function Catalogo() {
       <div className="space-y-6">
         <Card
           titulo="Módulos por plano"
-          descricao="Nenhum módulo marcado = plano sem restrição (todos liberados)."
+          descricao="O plano inclui exatamente os módulos marcados. Módulo novo não entra sozinho em nenhum plano."
         >
           <ModulosPorPlano planos={dados.planos} catalogo={dados.modulos} />
         </Card>

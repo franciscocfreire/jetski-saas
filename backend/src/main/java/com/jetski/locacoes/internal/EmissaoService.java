@@ -519,8 +519,17 @@ public class EmissaoService {
     /** Prévia + nome do arquivo, para o link abrir com o nome do locatário. */
     public record PreviaPdf(byte[] conteudo, String filename) {}
 
+    /** Prévia é módulo de plano (V078); superadmin isento, como no ModuloPlanoInterceptor. */
+    private void verificarModuloPrevia() {
+        UUID tenantId = com.jetski.shared.security.TenantContext.getTenantId();
+        if (tenantId != null && !com.jetski.shared.security.TenantContext.isUnrestricted()) {
+            planoLimiteService.verificarModulo(tenantId, com.jetski.tenant.ModuloPlano.PREVIA_DOCUMENTOS);
+        }
+    }
+
     @Transactional(readOnly = true)
     public PreviaPdf previewNomeado(UUID reservaId, Destino destino) {
+        verificarModuloPrevia();
         Cliente cliente = reservaRepository.findById(reservaId)
             .flatMap(r -> clienteRepository.findById(r.getClienteId()))
             .orElseThrow(() -> new NotFoundException("Reserva não encontrada: " + reservaId));
@@ -531,6 +540,7 @@ public class EmissaoService {
 
     @Transactional(readOnly = true)
     public byte[] preview(UUID reservaId, Destino destino) {
+        verificarModuloPrevia();
         Reserva reserva = reservaRepository.findById(reservaId)
             .orElseThrow(() -> new NotFoundException("Reserva não encontrada: " + reservaId));
         ReservaHabilitacao hab = habilitacaoRepository.findByReservaId(reservaId)
