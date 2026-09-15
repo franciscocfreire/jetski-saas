@@ -1,302 +1,284 @@
 "use client";
 
-import { withBase } from "@/lib/base";
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { sairDaConta } from "@/lib/logout";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Briefcase, ChevronRight, ExternalLink, IdCard, Loader2, LogOut, ShieldCheck, Store, User } from "lucide-react";
+import { Badge, Button, Card } from "@/components/ui";
 import {
-  Button,
-  Card,
-  Field,
-  SectionTitle,
-  inputCls,
-  Badge,
-} from "@/components/ui";
-import { getSelf, updateSelf, updateContatoLoja, getAnexosLoja, getAnexoLoja, uploadAnexoLoja, getHabilitacoes, getHabilitacaoDocumento, getCredentials, getTrustedDevices, revokeDevice, ApiError, isCpfEmUso, type CustomerSelf, type IdentidadeCliente, type VinculoLoja, type HabilitacaoTemporaria, type SecondFactorCredential, type TrustedDevice } from "@/lib/api";
-import { UploadTile } from "@/components/UploadTile";
-import { Award, Copy, FileDown, Loader2, LogOut, MailWarning, Store, BadgeCheck, IdCard, Briefcase, ExternalLink, ShieldCheck, Smartphone, KeyRound, MonitorSmartphone, Trash2 } from "lucide-react";
-import { signIn } from "next-auth/react";
-import { maskCpf } from "@/lib/masks";
-import { PhoneInput } from "@/components/PhoneInput";
-import { useToast } from "@/components/Toast";
+  getAnexosLoja, getCredentials, getHabilitacoes,
+  type HabilitacaoTemporaria, type SecondFactorCredential,
+} from "@/lib/api";
+import { sairDaConta } from "@/lib/logout";
+import { usePerfil } from "@/components/perfil/usePerfil";
+import { acaoSeguranca, fmtDataBr } from "@/components/perfil/secoes";
+import {
+  cpfMascarado, dadosCompletos, fmtData, iniciais, passosCadastro, tiposPendentes,
+} from "@/components/perfil/completude";
+
+const PAPEIS_STAFF = ["ADMIN_TENANT", "GERENTE", "OPERADOR", "FINANCEIRO", "MECANICO", "VENDEDOR", "PLATFORM_ADMIN"];
 
 /**
- * Perfil REAL (P0): dados da identidade global + lojas vinculadas, direto do
- * backend (/v1/customers/self). As demais telas de conta seguem mock até P1.
+ * Perfil — hub (redesenho B, set/2026): faixa de identidade com o checklist
+ * para emissão + um resumo por seção. A edição vive nas subpáginas
+ * /conta/perfil/{dados,documentos,seguranca,lojas}.
  */
 export default function PerfilPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-
-  const { toast } = useToast();
-  const [self, setSelf] = useState<CustomerSelf | null>(null);
-  const [nome, setNome] = useState("");
-  const [ident, setIdent] = useState<IdentidadeCliente>({});
-  const [carregando, setCarregando] = useState(true);
-  const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-  const [salvo, setSalvo] = useState(false);
-
-  const carregar = useCallback(async (token: string) => {
-    setCarregando(true);
-    setErro(null);
-    try {
-      const dados = await getSelf(token);
-      setSelf(dados);
-      setNome(dados.nome ?? "");
-      setIdent(dados.identidade ?? {});
-    } catch (e) {
-      setErro(e instanceof ApiError ? e.message : "Não foi possível carregar o perfil.");
-    } finally {
-      setCarregando(false);
-    }
-  }, []);
+  const { session, token, self, erro, carregando } = usePerfil();
+  const [habs, setHabs] = useState<HabilitacaoTemporaria[]>([]);
+  const [fatores, setFatores] = useState<SecondFactorCredential[] | null>(null);
+  // tenantId → tipos enviados; null = lista daquela loja não carregou
+  const [anexos, setAnexos] = useState<Record<string, string[] | null> | null>(null);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.replace("/login");
-      return;
-    }
-    if (status === "authenticated" && session?.accessToken) {
-      carregar(session.accessToken);
-    }
-  }, [status, session?.accessToken, carregar, router]);
+    if (!token) return;
+    getHabilitacoes(token).then(setHabs).catch(() => { /* resumo sem habilitação */ });
+    getCredentials(token).then(setFatores).catch(() => setFatores([]));
+  }, [token]);
 
-  async function salvar() {
-    if (!session?.accessToken) return;
-    setSalvando(true);
-    setErro(null);
-    setSalvo(false);
-    try {
-      await updateSelf(session.accessToken, nome, ident);
-      setSalvo(true);
-      toast("Perfil salvo");
-      const dados = await getSelf(session.accessToken);
-      setSelf(dados);
-      setIdent(dados.identidade ?? {});
-    } catch (e) {
-      if (isCpfEmUso(e)) {
-        // CPF pertence a outra conta → fluxo de unificação em /conta/cpf
-        router.push("/conta/cpf");
-        return;
-      }
-      const msg = e instanceof ApiError ? e.message : "Não foi possível salvar.";
-      setErro(msg);
-      toast(msg, "erro");
-    } finally {
-      setSalvando(false);
-    }
-  }
+  const lojaIds = self?.lojas.map((l) => l.tenantId).join(",");
+  useEffect(() => {
+    if (!token || !self) return;
+    Promise.all(
+      self.lojas.map((l) =>
+        getAnexosLoja(token, l.tenantId)
+          .then((tipos) => [l.tenantId, tipos] as const)
+          .catch(() => [l.tenantId, null] as const),
+      ),
+    ).then((pares) => setAnexos(Object.fromEntries(pares)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, lojaIds]);
 
-  if (status === "loading" || (carregando && !erro)) {
+  if (carregando) {
     return (
       <div className="flex justify-center py-20 text-slate-400">
         <Loader2 className="animate-spin" />
       </div>
     );
   }
+  if (!self) {
+    return (
+      <div className="mx-auto max-w-2xl rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+        {erro ?? "Não foi possível carregar o perfil."}
+      </div>
+    );
+  }
+
+  const ident = self.identidade ?? {};
+  const cpf = cpfMascarado(ident.cpf);
+  const passos = anexos ? passosCadastro(self, anexos) : null;
+  const feitos = passos?.filter((p) => p.ok).length ?? 0;
+  const proximo = passos?.find((p) => !p.ok);
+  const pendentes = anexos ? tiposPendentes(self, anexos) : [];
+  const habPrincipal = habs.find((h) => h.vigente) ?? habs[0];
+  const doisFatores = fatores === null ? null : fatores.length > 0;
+  const staff = session?.roles?.some((r) => PAPEIS_STAFF.includes(r));
+
+  const statusDados = dadosCompletos(self)
+    ? <Status tom="green">Completo</Status>
+    : <Status tom="amber">Incompleto</Status>;
+  const statusDocs = self.lojas.length === 0
+    ? <Status tom="slate">Na 1ª reserva</Status>
+    : anexos === null
+      ? null
+      : pendentes.length > 0
+        ? <Status tom="amber">{pendentes.length} pendente{pendentes.length > 1 ? "s" : ""}</Status>
+        : <Status tom="green">Completo</Status>;
+  const statusSeg = doisFatores === null
+    ? null
+    : doisFatores
+      ? <Status tom="green">2FA ativado</Status>
+      : <Status tom="slate">2FA desativado</Status>;
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <SectionTitle sub="Seus dados e lojas vinculadas">Meu perfil</SectionTitle>
-
-      {self && !self.emailVerified && (
-        <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <MailWarning size={16} className="mt-0.5 shrink-0" />
-          <span>
-            <strong>Verifique seu e-mail.</strong> Enviamos um link para{" "}
-            {self.email}. Sem a verificação, suas reservas não ficam garantidas.
-          </span>
-        </div>
-      )}
-
-      {erro && (
-        <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-          {erro}
-        </div>
-      )}
-
-      <Card className="p-6">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Nome completo">
-            <input
-              className={inputCls}
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-            />
-          </Field>
-          <Field label="E-mail">
-            <div className="flex items-center gap-2">
-              <input className={inputCls} value={self?.email ?? ""} disabled />
-              {self?.emailVerified && (
-                <span title="E-mail verificado">
-                  <BadgeCheck size={18} className="shrink-0 text-emerald-600" />
+    <div className="mx-auto max-w-5xl space-y-5 md:space-y-6">
+      {/* Faixa de identidade — navy é a âncora da marca */}
+      <div className="relative overflow-hidden rounded-[20px] bg-brand-900 px-5 py-6 text-[#efeae0] md:px-8 md:py-7">
+        <svg
+          aria-hidden
+          className="pointer-events-none absolute -bottom-8 -right-10 hidden opacity-[.18] md:block"
+          width="420" height="260" viewBox="0 0 64 40" fill="none" strokeLinecap="round" strokeWidth="2"
+        >
+          <path d="M5 15.5 C 15 15.5, 19 6, 30 6 C 39.5 6, 42 12.5, 59 10.5" stroke="#C9A24B" />
+          <path d="M5 29 C 13 29, 18.5 20.5, 28 20.5 C 37 20.5, 42.5 27.5, 59 25" stroke="#F8F4EA" />
+        </svg>
+        <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:gap-6">
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full border-2 border-gold-500 font-display text-xl font-semibold md:h-[72px] md:w-[72px] md:text-[26px]">
+              {iniciais(self.nome)}
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-display text-[21px] font-semibold leading-tight md:text-3xl">
+                {self.nome}
+              </h1>
+              <p className="mt-1 flex flex-wrap gap-x-3 text-sm text-[#b9c4d2]">
+                <span className="truncate">
+                  {self.email}
+                  {self.emailVerified ? " · verificado" : ""}
                 </span>
+                {cpf && <span>CPF {cpf}</span>}
+              </p>
+            </div>
+          </div>
+
+          {passos && (
+            <div className="md:w-[300px]">
+              <div className="flex justify-between text-[13px]">
+                <span>{proximo ? "Cadastro para emissão" : "Pronto para emitir sua habilitação"}</span>
+                <span className="font-semibold tabular-nums">
+                  {feitos} de {passos.length}
+                </span>
+              </div>
+              <div className="mt-2 h-1.5 rounded-full bg-[#efeae0]/15">
+                <div
+                  className="h-1.5 rounded-full bg-gold-300 transition-[width]"
+                  style={{ width: `${(feitos / passos.length) * 100}%` }}
+                />
+              </div>
+              {proximo && (
+                <Link href={proximo.href} className="mt-2 hidden text-[13px] text-[#b9c4d2] hover:text-white md:block">
+                  {proximo.acao} →
+                </Link>
               )}
             </div>
-          </Field>
+          )}
         </div>
-        <div className="mt-4 flex items-center gap-3">
-          <Button onClick={salvar} disabled={salvando || nome.trim().length < 3}>
-            {salvando && <Loader2 size={14} className="animate-spin" />}
-            Salvar alterações
-          </Button>
-          {salvo && <span className="text-sm text-emerald-600">Salvo ✓</span>}
+      </div>
+
+      {/* Próximo passo — no celular vira um aviso com ação */}
+      {proximo && (
+        <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 md:hidden">
+          <p className="flex-1 text-sm font-medium text-amber-900">{proximo.acao}</p>
+          <Button size="sm" href={proximo.href}>Resolver</Button>
         </div>
+      )}
+
+      {/* Celular: lista de seções */}
+      <Card className="divide-y divide-slate-100 overflow-hidden md:hidden">
+        <LinhaSecao href="/conta/perfil/dados" icone={<User size={20} />} titulo="Dados pessoais"
+          detalhe="Nome, nascimento, documento" status={statusDados} />
+        <LinhaSecao href="/conta/perfil/documentos" icone={<IdCard size={20} />} titulo="Documentos e habilitações"
+          detalhe={habPrincipal ? `CHA ${habPrincipal.vigente ? `vigente até ${fmtDataBr(habPrincipal.validaAte)}` : "expirada"}` : "Fotos e CHA-MTA-E"}
+          status={statusDocs} />
+        <LinhaSecao href="/conta/perfil/seguranca" icone={<ShieldCheck size={20} />} titulo="Segurança"
+          detalhe="Verificação em duas etapas" status={statusSeg} />
+        <LinhaSecao href="/conta/perfil/lojas" icone={<Store size={20} />} titulo="Lojas vinculadas"
+          detalhe={self.lojas.length ? self.lojas.map((l) => l.nome).join(", ") : "Nenhuma ainda"}
+          status={<span className="text-xs font-semibold text-slate-500">{self.lojas.length}</span>} />
       </Card>
 
-      <Card className="mt-4 p-6">
-        <h3 className="flex items-center gap-2 font-semibold text-ink-900">
-          <IdCard size={18} /> Documento de identidade
-        </h3>
-        <p className="mt-1 text-sm text-slate-500">
-          Vale para todas as lojas — endereço e telefone são pedidos por loja,
-          no fluxo da reserva.
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <Field
-            label="CPF"
-            hint={self?.identidade?.cpf ? "Definido uma única vez — fale com a loja para corrigir" : "Você também poderá entrar com o CPF"}
-          >
-            <input
-              className={inputCls}
-              inputMode="numeric"
-              value={maskCpf(ident.cpf ?? "")}
-              onChange={(e) => setIdent({ ...ident, cpf: maskCpf(e.target.value) })}
-              placeholder="000.000.000-00"
-              disabled={!!self?.identidade?.cpf}
-            />
-          </Field>
-          <Field label="Data de nascimento">
-            <input
-              type="date"
-              className={inputCls}
-              value={ident.dataNascimento ?? ""}
-              onChange={(e) => setIdent({ ...ident, dataNascimento: e.target.value })}
-            />
-          </Field>
-          <Field label="RG / Identidade">
-            <input
-              className={inputCls}
-              value={ident.rg ?? ""}
-              onChange={(e) => setIdent({ ...ident, rg: e.target.value })}
-            />
-          </Field>
-          <Field label="Órgão emissor">
-            <input
-              className={inputCls}
-              value={ident.orgaoEmissor ?? ""}
-              onChange={(e) => setIdent({ ...ident, orgaoEmissor: e.target.value })}
-              placeholder="SSP/UF"
-            />
-          </Field>
-          <Field label="Nacionalidade">
-            <input
-              className={inputCls}
-              value={ident.nacionalidade ?? ""}
-              onChange={(e) => setIdent({ ...ident, nacionalidade: e.target.value })}
-              placeholder="Brasileira"
-            />
-          </Field>
-          <Field label="Naturalidade (Cidade/UF)">
-            <input
-              className={inputCls}
-              value={ident.naturalidade ?? ""}
-              onChange={(e) => setIdent({ ...ident, naturalidade: e.target.value })}
-            />
-          </Field>
-        </div>
-        <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={ident.estrangeiro ?? false}
-            onChange={(e) => setIdent({ ...ident, estrangeiro: e.target.checked })}
-          />
-          Sou estrangeiro(a)
-        </label>
-      </Card>
+      {/* Desktop: cartões resumo */}
+      <div className="hidden gap-5 md:grid md:grid-cols-2">
+        <CartaoSecao icone={<User size={20} />} titulo="Dados pessoais" status={statusDados}
+          rodape={<Link href="/conta/perfil/dados">Editar dados →</Link>}>
+          <dl className="grid grid-cols-2 gap-x-5 gap-y-3.5">
+            <Dado rotulo="Nascimento" valor={fmtData(ident.dataNascimento)} />
+            <Dado rotulo="RG" valor={ident.rg ? [ident.rg, ident.orgaoEmissor].filter(Boolean).join(" · ") : null} />
+            <Dado rotulo="Nacionalidade" valor={ident.nacionalidade} />
+            <Dado rotulo="Naturalidade" valor={ident.naturalidade} />
+          </dl>
+        </CartaoSecao>
 
-      {session?.accessToken && (
-        <SegurancaCard token={session.accessToken} />
-      )}
+        <CartaoSecao icone={<IdCard size={20} />} titulo="Documentos e habilitações" status={statusDocs}
+          rodape={<Link href="/conta/perfil/documentos">{pendentes.length ? "Enviar documentos →" : "Ver documentos →"}</Link>}>
+          {self.lojas.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              As fotos dos documentos são pedidas por loja, na sua primeira reserva.
+            </p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2.5">
+              <TileDoc rotulo="Identidade" ok={anexos ? !pendentes.includes("IDENTIDADE") : null} />
+              <TileDoc rotulo="Selfie" ok={anexos ? !pendentes.includes("SELFIE") : null} />
+              <TileDoc rotulo="Comprovante" opcional
+                ok={anexos ? self.lojas.every((l) => anexos[l.tenantId]?.includes("COMPROVANTE_RESIDENCIA")) : null} />
+            </div>
+          )}
+          {habPrincipal && (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-3.5 py-2.5">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-ink-900">CHA-MTA-E · {habPrincipal.lojaNome}</p>
+                <p className="text-xs text-slate-500">
+                  {habPrincipal.vigente ? "Válida" : "Expirou"} até {fmtDataBr(habPrincipal.validaAte)} · GRU {habPrincipal.gruNumero}
+                </p>
+              </div>
+              <Badge tone={!habPrincipal.vigente ? "slate" : habPrincipal.confirmada ? "green" : "amber"}>
+                {!habPrincipal.vigente ? "Expirada" : habPrincipal.confirmada ? "Vigente" : "Aguardando Marinha"}
+              </Badge>
+            </div>
+          )}
+        </CartaoSecao>
 
-      {session?.accessToken && (
-        <DispositivosCard token={session.accessToken} />
-      )}
+        <CartaoSecao icone={<ShieldCheck size={20} />} titulo="Segurança" status={statusSeg}
+          rodape={<Link href="/conta/perfil/seguranca">Gerenciar segurança →</Link>}>
+          {doisFatores ? (
+            <p className="text-sm leading-relaxed text-slate-600">
+              Seu login pede um segundo fator: {fatores!.length} cadastrado{fatores!.length > 1 ? "s" : ""}.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm leading-relaxed text-slate-600">
+                Hoje seu login pede só a primeira etapa. Adicione um app autenticador
+                ou uma passkey para proteger suas reservas e documentos.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2.5">
+                <Button onClick={() => acaoSeguranca("CONFIGURE_TOTP", true, "/conta/perfil/seguranca")}>
+                  Ativar verificação
+                </Button>
+                <Button variant="outline" onClick={() => acaoSeguranca("webauthn-register", true, "/conta/perfil/seguranca")}>
+                  Usar passkey
+                </Button>
+              </div>
+            </>
+          )}
+        </CartaoSecao>
 
-      {session?.accessToken && (
-        <MinhasHabilitacoes token={session.accessToken} />
-      )}
+        <CartaoSecao icone={<Store size={20} />} titulo="Lojas vinculadas"
+          status={<span className="text-sm text-slate-500">{self.lojas.length} loja{self.lojas.length === 1 ? "" : "s"}</span>}
+          rodape={self.lojas.length ? <Link href="/conta/perfil/lojas">Editar contatos →</Link> : undefined}>
+          {self.lojas.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              Sua conta é única — o vínculo com uma loja é criado na primeira reserva.
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {self.lojas.slice(0, 3).map((l) => {
+                const tel = l.telefone ?? l.whatsapp;
+                return (
+                  <li key={l.tenantId} className="flex items-center gap-3 py-2.5 first:pt-0">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-brand-50 text-[13px] font-semibold text-brand-600">
+                      {iniciais(l.nome)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-ink-900">{l.nome}</p>
+                      <p className="text-xs text-slate-500">{tel ? `Contato ${tel}` : "Sem telefone nesta loja"}</p>
+                    </div>
+                  </li>
+                );
+              })}
+              {self.lojas.length > 3 && (
+                <li className="pt-2.5 text-xs text-slate-500">+ {self.lojas.length - 3} loja(s)</li>
+              )}
+            </ul>
+          )}
+        </CartaoSecao>
+      </div>
 
-      {self && self.lojas.length > 0 && session?.accessToken && (
-        <Card className="mt-4 p-6">
-          <h3 className="flex items-center gap-2 font-semibold text-ink-900">
-            <IdCard size={18} /> Meus documentos
-          </h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Estas fotos são usadas apenas para a emissão da sua habilitação
-            (NORMAM-212/DPC) e ficam visíveis só para você e para a loja.
-          </p>
-          <div className="mt-3 space-y-4">
-            {self.lojas.map((loja) => (
-              <DocumentosLoja
-                key={loja.tenantId}
-                loja={loja}
-                token={session.accessToken}
-                mostrarCabecalho={self.lojas.length > 1}
-              />
-            ))}
-          </div>
-        </Card>
-      )}
-
-      <Card className="mt-4 p-6">
-        <h3 className="flex items-center gap-2 font-semibold text-ink-900">
-          <Store size={18} /> Lojas vinculadas
-        </h3>
-        <p className="mt-1 text-sm text-slate-500">
-          Sua conta é única — cada loja onde você aluga cria um vínculo aqui.
-        </p>
-        {self && self.lojas.length === 0 && (
-          <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">
-            Nenhum vínculo ainda. Ele é criado na sua primeira reserva com uma
-            loja.
-          </p>
-        )}
-        <div className="mt-3 space-y-2">
-          {self?.lojas.map((loja) => (
-            <LojaRow
-              key={loja.tenantId}
-              loja={loja}
-              token={session?.accessToken}
-            />
-          ))}
-        </div>
-      </Card>
-
-      {session?.roles?.some((r) =>
-        ["ADMIN_TENANT", "GERENTE", "OPERADOR", "FINANCEIRO", "MECANICO", "VENDEDOR", "PLATFORM_ADMIN"].includes(r)
-      ) && (
-        <Card className="mt-4 p-6">
-          <h3 className="flex items-center gap-2 font-semibold text-ink-900">
-            <Briefcase size={18} /> Acesso da equipe
-          </h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Sua conta também tem papel de staff — o painel da loja fica no
-            Backoffice.
+      {staff && (
+        <Card className="flex flex-wrap items-center gap-3 p-5">
+          <Briefcase size={18} className="text-brand-600" />
+          <p className="flex-1 text-sm text-slate-600">
+            Sua conta também tem papel de equipe — o painel da loja fica no Backoffice.
           </p>
           {/* <a> puro: URL absoluta do host, fora do basePath /portal */}
           <a
             href="/dashboard"
-            className="mt-3 inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Abrir o Backoffice <ExternalLink size={14} />
           </a>
         </Card>
       )}
 
-      <div className="mt-6 text-center">
+      <div className="text-center">
         <button
           onClick={() => sairDaConta()}
           className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
@@ -308,383 +290,80 @@ export default function PerfilPage() {
   );
 }
 
-/** Linha da loja com telefone/WhatsApp editável — contato é POR LOJA. */
-function LojaRow({ loja, token }: { loja: VinculoLoja; token?: string }) {
-  const { toast } = useToast();
-  const [tel, setTel] = useState(loja.telefone ?? loja.whatsapp ?? "");
-  const [salvandoTel, setSalvandoTel] = useState(false);
-  const [okTel, setOkTel] = useState(false);
-  const original = loja.telefone ?? loja.whatsapp ?? "";
-
-  async function salvarTel() {
-    if (!token) return;
-    setSalvandoTel(true);
-    setOkTel(false);
-    try {
-      await updateContatoLoja(token, loja.tenantId, tel);
-      setOkTel(true);
-      toast(`Contato salvo na ${loja.nome}`);
-    } catch {
-      // mantém o valor digitado; usuário tenta de novo
-    } finally {
-      setSalvandoTel(false);
-    }
-  }
-
+function Status({ tom, children }: { tom: "green" | "amber" | "slate"; children: React.ReactNode }) {
+  const ponto = { green: "bg-emerald-500", amber: "bg-amber-500", slate: "bg-slate-400" }[tom];
   return (
-    <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
-      <div className="flex items-center gap-2">
-        <span className="flex-1 font-medium text-slate-700">{loja.nome}</span>
-        <Badge tone="brand">{loja.slug}</Badge>
-      </div>
-      <div className="mt-2 flex items-center gap-2">
-        <PhoneInput
-          className="max-w-[300px] flex-1"
-          value={tel}
-          onChange={(v) => { setTel(v); setOkTel(false); }}
-        />
-        {tel !== original && !okTel && (
-          <Button size="sm" variant="outline" onClick={salvarTel} disabled={salvandoTel}>
-            {salvandoTel ? <Loader2 size={13} className="animate-spin" /> : "Salvar"}
-          </Button>
-        )}
-        {okTel && <span className="text-xs text-emerald-600">Salvo ✓</span>}
-      </div>
-    </div>
+    <Badge tone={tom} className="shrink-0">
+      <span className={`h-1.5 w-1.5 rounded-full ${ponto}`} />
+      {children}
+    </Badge>
   );
 }
 
-/** Documentos (fotos) do cliente NESTA loja — anexos são tenant-scoped. */
-function DocumentosLoja({ loja, token, mostrarCabecalho }: {
-  loja: VinculoLoja; token: string; mostrarCabecalho: boolean;
+function CartaoSecao({ icone, titulo, status, rodape, children }: {
+  icone: React.ReactNode; titulo: string; status?: React.ReactNode;
+  rodape?: React.ReactNode; children: React.ReactNode;
 }) {
-  const { toast } = useToast();
-  const [presentes, setPresentes] = useState<string[]>([]);
-  const [previews, setPreviews] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    getAnexosLoja(token, loja.tenantId)
-      .then(setPresentes)
-      .catch(() => { /* sem lista — tiles ficam vazios */ });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loja.tenantId]);
-
-  useEffect(() => {
-    (["IDENTIDADE", "SELFIE", "COMPROVANTE_RESIDENCIA"] as const).forEach((tipo) => {
-      if (presentes.includes(tipo) && !previews[tipo]) {
-        getAnexoLoja(token, loja.tenantId, tipo)
-          .then((url) => setPreviews((p) => ({ ...p, [tipo]: url })))
-          .catch(() => { /* sem preview — o tile mostra só o check */ });
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presentes]);
-
-  async function enviar(tipo: "IDENTIDADE" | "SELFIE" | "COMPROVANTE_RESIDENCIA", dataUrl: string) {
-    try {
-      const tipos = await uploadAnexoLoja(token, loja.tenantId, tipo, dataUrl);
-      setPresentes(tipos);
-      setPreviews((p) => ({ ...p, [tipo]: dataUrl }));
-      toast("Documento atualizado.");
-    } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Não foi possível enviar.", "erro");
-    }
-  }
-
   return (
-    <div>
-      {mostrarCabecalho && (
-        <p className="mb-2 text-sm font-medium text-slate-700">{loja.nome}</p>
-      )}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <UploadTile rotulo="Identidade (RG/CNH)" presente={presentes.includes("IDENTIDADE")}
-          previewUrl={previews.IDENTIDADE}
-          onFile={(d) => enviar("IDENTIDADE", d)} />
-        <UploadTile rotulo="Selfie com documento" presente={presentes.includes("SELFIE")}
-          previewUrl={previews.SELFIE} camera="user"
-          onFile={(d) => enviar("SELFIE", d)} />
-        <UploadTile rotulo="Comprovante de residência"
-          presente={presentes.includes("COMPROVANTE_RESIDENCIA")}
-          previewUrl={previews.COMPROVANTE_RESIDENCIA}
-          onFile={(d) => enviar("COMPROVANTE_RESIDENCIA", d)} />
+    <Card className="flex flex-col p-6">
+      <div className="flex items-center gap-2.5">
+        <span className="text-brand-600">{icone}</span>
+        <h3 className="flex-1 font-semibold text-ink-900">{titulo}</h3>
+        {status}
       </div>
+      <div className="mt-4 flex-1">{children}</div>
+      {rodape && (
+        <div className="mt-4 border-t border-slate-100 pt-3.5 text-sm font-medium text-brand-500 hover:[&_a]:text-brand-600">
+          {rodape}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function LinhaSecao({ href, icone, titulo, detalhe, status }: {
+  href: string; icone: React.ReactNode; titulo: string; detalhe: string; status?: React.ReactNode;
+}) {
+  return (
+    <Link href={href} className="flex min-h-[64px] items-center gap-3 px-4 py-3 active:bg-slate-50">
+      <span className="shrink-0 text-brand-600">{icone}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] font-medium text-ink-900">{titulo}</span>
+        <span className="block truncate text-xs text-slate-500">{detalhe}</span>
+      </span>
+      {status}
+      <ChevronRight size={16} className="shrink-0 text-slate-400" />
+    </Link>
+  );
+}
+
+function Dado({ rotulo, valor }: { rotulo: string; valor?: string | null }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-slate-500">{rotulo}</dt>
+      <dd className={`truncate text-sm font-medium ${valor ? "text-ink-900" : "text-slate-400"}`}>
+        {valor || "Não informado"}
+      </dd>
     </div>
   );
 }
 
-/** Habilitações temporárias (CHA-MTA-E) emitidas — validade 30 dias, GRU como referência na Marinha. */
-function MinhasHabilitacoes({ token }: { token: string }) {
-  const { toast } = useToast();
-  const [itens, setItens] = useState<HabilitacaoTemporaria[]>([]);
-
-  useEffect(() => {
-    getHabilitacoes(token)
-      .then(setItens)
-      .catch(() => { /* sem lista — card não renderiza */ });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  if (itens.length === 0) return null;
-
-  const fmt = (iso: string) =>
-    new Date(iso.length === 10 ? iso + "T12:00:00" : iso).toLocaleDateString("pt-BR");
-
-  return (
-    <Card className="mt-4 p-6">
-      <h3 className="flex items-center gap-2 font-semibold text-ink-900">
-        <Award size={18} /> Minhas habilitações
-      </h3>
-      <p className="mt-1 text-sm text-slate-500">
-        Habilitações temporárias (CHA-MTA-E) valem 30 dias a partir da emissão.
-        Use o número da GRU para consultar o estado junto à Marinha.
-      </p>
-      <div className="mt-3 space-y-2">
-        {itens.map((h) => (
-          <div key={h.reservaId}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 px-4 py-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-ink-900">{h.lojaNome}</p>
-              <p className="text-xs text-slate-500">
-                Emitida em {fmt(h.emitidaEm)} ·{" "}
-                {h.vigente ? `válida até ${fmt(h.validaAte)}` : `expirou em ${fmt(h.validaAte)}`}
-              </p>
-              <div className="mt-1 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(h.gruNumero);
-                    toast("Número da GRU copiado");
-                  }}
-                  className="flex items-center gap-1 text-xs font-medium text-brand-600"
-                >
-                  <Copy size={12} /> GRU {h.gruNumero}
-                </button>
-                {h.confirmada && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const url = await getHabilitacaoDocumento(token, h.reservaId);
-                        window.open(url, "_blank");
-                      } catch {
-                        toast("Não foi possível baixar a confirmação.", "erro");
-                      }
-                    }}
-                    className="flex items-center gap-1 text-xs font-medium text-brand-600"
-                  >
-                    <FileDown size={12} /> Baixar confirmação (PDF)
-                  </button>
-                )}
-              </div>
-              {h.vigente && !h.confirmada && (
-                <p className="mt-1 text-xs text-amber-600">
-                  A loja ainda aguarda a confirmação da Marinha — quando chegar, esta
-                  habilitação poderá ser usada em novas reservas.
-                </p>
-              )}
-            </div>
-            <Badge tone={!h.vigente ? "slate" : h.confirmada ? "green" : "amber"}>
-              {!h.vigente ? "Expirada" : h.confirmada ? "Confirmada · Vigente" : "Aguardando confirmação"}
-            </Badge>
-          </div>
-        ))}
+/** ok: true enviado · false faltando · null carregando */
+function TileDoc({ rotulo, ok, opcional }: { rotulo: string; ok: boolean | null; opcional?: boolean }) {
+  if (ok) {
+    return (
+      <div className="rounded-xl bg-emerald-50 px-3 py-2.5 text-[13px] text-emerald-700">
+        <p className="font-semibold">{rotulo}</p>
+        <p>Enviado</p>
       </div>
-    </Card>
-  );
-}
-
-/**
- * Verificação em duas etapas (identidade única no Keycloak). Toggle explícito:
- * cadastrar um fator ativa; "Desativar" remove todos (RA custom mj-2fa-disable).
- * Ações que reduzem segurança (remover fator, desativar) levam max_age=0 → o
- * Keycloak reautentica e desafia o próprio fator (step-up).
- */
-function SegurancaCard({ token }: { token: string }) {
-  const [fatores, setFatores] = useState<SecondFactorCredential[] | null>(null);
-
-  useEffect(() => {
-    getCredentials(token).then(setFatores).catch(() => setFatores([]));
-  }, [token]);
-
-  const acao = (kcAction: string, stepUp = false) =>
-    signIn(
-      "keycloak",
-      { callbackUrl: withBase("/conta/perfil") },
-      stepUp ? { kc_action: kcAction, max_age: "0" } : { kc_action: kcAction },
     );
-
-  const desativar = () => {
-    if (
-      window.confirm(
-        "Desativar a verificação em duas etapas? Todos os fatores serão removidos e você precisará confirmar sua identidade agora.",
-      )
-    ) {
-      acao("mj-2fa-disable", true);
-    }
-  };
-
-  const rotulo = (tipo: string) =>
-    tipo === "otp" ? "Aplicativo autenticador" : "Passkey / chave de segurança";
-
-  const ativo = !!fatores && fatores.length > 0;
-
-  return (
-    <Card className="mt-4 p-6">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 font-semibold text-ink-900">
-          <ShieldCheck size={18} /> Segurança
-        </h3>
-        {fatores !== null &&
-          (ativo ? <Badge tone="green">Ativado</Badge> : <Badge tone="slate">Desativado</Badge>)}
-      </div>
-      <p className="mt-1 text-sm text-slate-500">
-        Verificação em duas etapas (opcional): além do código por e-mail, senha
-        ou Google, pedimos um fator só seu — app autenticador ou passkey.
-      </p>
-      {fatores === null ? (
-        <div className="mt-3 flex items-center gap-2 text-sm text-slate-400">
-          <Loader2 size={16} className="animate-spin" /> Carregando…
-        </div>
-      ) : ativo ? (
-        <>
-          <ul className="mt-3 space-y-2">
-            {fatores.map((f) => (
-              <li
-                key={f.id}
-                className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  {f.type === "otp" ? (
-                    <Smartphone size={18} className="text-slate-400" />
-                  ) : (
-                    <KeyRound size={18} className="text-slate-400" />
-                  )}
-                  <div>
-                    <p className="text-sm font-medium text-ink-900">
-                      {f.userLabel || rotulo(f.type)}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {rotulo(f.type)}
-                      {f.createdDate
-                        ? ` · desde ${new Date(f.createdDate).toLocaleDateString("pt-BR")}`
-                        : ""}
-                    </p>
-                  </div>
-                </div>
-                {/* remover fator = downgrade → step-up */}
-                <Button variant="outline" onClick={() => acao(`delete_credential:${f.id}`, true)}>
-                  Remover
-                </Button>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => acao("CONFIGURE_TOTP", true)}>
-              <Smartphone size={16} className="mr-2" /> Adicionar app autenticador
-            </Button>
-            <Button variant="outline" onClick={() => acao("webauthn-register", true)}>
-              <KeyRound size={16} className="mr-2" /> Adicionar passkey
-            </Button>
-            <Button
-              variant="outline"
-              className="border-rose-300 text-rose-700 hover:bg-rose-50"
-              onClick={desativar}
-            >
-              Desativar verificação em duas etapas
-            </Button>
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="mt-3 text-sm text-slate-500">
-            Desativada — seu login usa só a primeira etapa. Ative para exigir também
-            um aplicativo autenticador ou uma passkey.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button onClick={() => acao("CONFIGURE_TOTP", true)}>
-              <Smartphone size={16} className="mr-2" /> Ativar com app autenticador
-            </Button>
-            <Button variant="outline" onClick={() => acao("webauthn-register", true)}>
-              <KeyRound size={16} className="mr-2" /> Ativar com passkey
-            </Button>
-          </div>
-        </>
-      )}
-    </Card>
-  );
-}
-
-/**
- * Dispositivos confiáveis (trusted device): navegadores onde o 2FA foi
- * dispensado por 30 dias. Revogar = DELETE simples (aumento de segurança,
- * sem step-up); some da lista e volta a pedir 2FA no próximo login.
- */
-function DispositivosCard({ token }: { token: string }) {
-  const [devices, setDevices] = useState<TrustedDevice[] | null>(null);
-  const [revogando, setRevogando] = useState<string | null>(null);
-  const { toast } = useToast();
-
-  const carregar = useCallback(() => {
-    getTrustedDevices(token).then(setDevices).catch(() => setDevices([]));
-  }, [token]);
-
-  useEffect(() => {
-    carregar();
-  }, [carregar]);
-
-  async function revogar(id: string) {
-    setRevogando(id);
-    try {
-      await revokeDevice(token, id);
-      toast("Dispositivo revogado");
-      carregar();
-    } catch {
-      toast("Não foi possível revogar", "erro");
-    } finally {
-      setRevogando(null);
-    }
   }
-
-  // sem dispositivos → não renderiza (não polui o perfil)
-  if (devices !== null && devices.length === 0) return null;
-
   return (
-    <Card className="mt-4 p-6">
-      <h3 className="flex items-center gap-2 font-semibold text-ink-900">
-        <MonitorSmartphone size={18} /> Dispositivos confiáveis
-      </h3>
-      <p className="mt-1 text-sm text-slate-500">
-        Navegadores onde você marcou &quot;não pedir a verificação&quot;. Revogue os que
-        não reconhece — voltam a pedir o código.
+    <div className="rounded-xl border-[1.5px] border-dashed border-slate-300 px-3 py-2 text-[13px] text-slate-700">
+      <p className="font-semibold">{rotulo}</p>
+      <p className={ok === null ? "text-slate-400" : opcional ? "text-slate-500" : "text-amber-700"}>
+        {ok === null ? "…" : opcional ? "Opcional" : "Pendente"}
       </p>
-      {devices === null ? (
-        <div className="mt-3 flex items-center gap-2 text-sm text-slate-400">
-          <Loader2 size={16} className="animate-spin" /> Carregando…
-        </div>
-      ) : (
-        <ul className="mt-3 space-y-2">
-          {devices.map((d) => (
-            <li
-              key={d.id}
-              className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3"
-            >
-              <div className="flex items-center gap-3">
-                <MonitorSmartphone size={18} className="text-slate-400" />
-                <div>
-                  <p className="text-sm font-medium text-ink-900">{d.userLabel || "Navegador"}</p>
-                  <p className="text-xs text-slate-500">
-                    {d.createdDate ? `desde ${new Date(d.createdDate).toLocaleDateString("pt-BR")}` : ""}
-                    {d.lastUsedAt ? ` · último uso ${new Date(d.lastUsedAt * 1000).toLocaleDateString("pt-BR")}` : ""}
-                  </p>
-                </div>
-              </div>
-              <Button variant="outline" disabled={revogando === d.id} onClick={() => revogar(d.id)}>
-                <Trash2 size={16} className="mr-2" /> Revogar
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
+    </div>
   );
 }
