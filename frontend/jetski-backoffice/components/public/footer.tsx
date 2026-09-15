@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Mail, Phone, MapPin, Instagram, Facebook, Linkedin } from 'lucide-react'
+import { Mail, Phone, Instagram, Facebook, Linkedin } from 'lucide-react'
 import { Logo } from '@/components/logo'
 import { PortalLink } from '@/components/public/portal-link'
 
@@ -83,7 +83,7 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/para-empresas#planos" className="text-sm text-white/40 hover:text-gold transition-colors duration-300">
-                  Planos e preços
+                  Planos
                 </Link>
               </li>
               <li>
@@ -107,27 +107,21 @@ export function Footer() {
             <ul className="space-y-4">
               <li>
                 <a
-                  href="mailto:contato@meujet.com.br"
+                  href="mailto:suporte@meujet.com.br"
                   className="flex items-center gap-3 text-sm text-white/40 hover:text-gold transition-colors duration-300"
                 >
                   <Mail className="h-4 w-4" />
-                  contato@meujet.com.br
+                  suporte@meujet.com.br
                 </a>
               </li>
               <li>
                 <a
-                  href="tel:+5548999999999"
+                  href="tel:+5571993219862"
                   className="flex items-center gap-3 text-sm text-white/40 hover:text-gold transition-colors duration-300"
                 >
                   <Phone className="h-4 w-4" />
-                  (48) 99999-9999
+                  (71) 99321-9862
                 </a>
-              </li>
-              <li>
-                <div className="flex items-start gap-3 text-sm text-white/40">
-                  <MapPin className="h-4 w-4 mt-0.5" />
-                  <span>Florianópolis, SC<br />Brasil</span>
-                </div>
               </li>
             </ul>
           </div>
