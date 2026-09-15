@@ -92,7 +92,8 @@ export default async function Home() {
             </Link>
             <Indicador titulo="Emissões cobráveis" valor={String(n("emissoes_cobraveis"))}
               nota={`${n("emissoes_previa")} prévias (não cobráveis)`} />
-            <Indicador titulo="Créditos consumidos" valor={String(n("creditos_consumidos"))} />
+            <Indicador titulo="Créditos consumidos" valor={String(n("creditos_consumidos"))}
+              nota={`entraram ${n("creditos_vendidos")} vendidos · ${n("creditos_cortesia")} de cortesia`} />
             <Indicador titulo="Movimentado pelas lojas (30d)"
               valor={BRL.format(n("receita_bruta"))}
               nota={`${n("locacoes")} locações · ${n("reservas")} reservas · ${n("no_shows")} no-show`} />

@@ -50,6 +50,10 @@ public class CreditoLancamento {
     @Column(name = "criado_por", updatable = false)
     private UUID criadoPor;
 
+    /** Condição comercial (V076) que motivou a CORTESIA; referência lógica, sem FK. */
+    @Column(name = "condicao_id", updatable = false)
+    private UUID condicaoId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

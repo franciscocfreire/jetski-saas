@@ -5,6 +5,8 @@ import com.jetski.creditos.api.dto.PlatformCompraDTO;
 import com.jetski.creditos.api.dto.PlatformSaldoTenantDTO;
 import com.jetski.creditos.domain.CreditoCompra;
 import com.jetski.creditos.domain.CreditoLancamento;
+import com.jetski.creditos.domain.TipoLancamento;
+import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.security.TenantContext;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -32,10 +34,31 @@ public class PlatformCreditoService {
     /** Lança créditos (±) para o tenant alvo, com auditoria via evento. */
     @Transactional
     public CreditoLancamento lancar(UUID tenantId, int quantidade, String motivo) {
+        return lancar(tenantId, quantidade, motivo, null, null);
+    }
+
+    /**
+     * @param tipo       AJUSTE (padrão; negativo vira ESTORNO) ou CORTESIA (sempre positiva)
+     * @param condicaoId só na CORTESIA: condição comercial que a motivou (opcional)
+     */
+    @Transactional
+    public CreditoLancamento lancar(UUID tenantId, int quantidade, String motivo,
+                                    String tipo, UUID condicaoId) {
         UUID actor = actorOrNull();
         setTenant(tenantId);
-        CreditoLancamento lanc = creditoService.lancarAjuste(tenantId, quantidade, motivo, actor);
-        log.info("[PLATFORM] Créditos lançados: tenant={}, quantidade={}, actor={}", tenantId, quantidade, actor);
+        CreditoLancamento lanc;
+        if (tipo == null || tipo.isBlank() || TipoLancamento.AJUSTE.name().equals(tipo)) {
+            if (condicaoId != null) {
+                throw new BusinessException("Vínculo com condição comercial só vale para cortesia");
+            }
+            lanc = creditoService.lancarAjuste(tenantId, quantidade, motivo, actor);
+        } else if (TipoLancamento.CORTESIA.name().equals(tipo)) {
+            lanc = creditoService.lancarCortesia(tenantId, quantidade, motivo, condicaoId, actor);
+        } else {
+            throw new BusinessException("Tipo de lançamento inválido: use AJUSTE ou CORTESIA");
+        }
+        log.info("[PLATFORM] Créditos lançados: tenant={}, tipo={}, quantidade={}, actor={}",
+            tenantId, lanc.getTipo(), quantidade, actor);
         return lanc;
     }
 

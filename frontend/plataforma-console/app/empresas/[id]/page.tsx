@@ -25,6 +25,7 @@ import {
 } from "./acoes";
 import { CadastroDaEmpresa } from "./cadastro";
 import { CondicaoComercialDaEmpresa } from "./condicao";
+import { ROTULO_TIPO, descreverForma } from "@/lib/condicao";
 import { ZonaDePerigo } from "./perigo";
 import { EntrarNaEmpresa } from "./suporte";
 import { UsuariosDaEmpresa } from "./usuarios";
@@ -119,6 +120,10 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
   // Condição comercial é alçada financeira (mesma de trocar plano) — ver platform.rego.
   const podeFinanceiro = me.papeis.some((p) => p === "PLATFORM_ADMIN" || p === "PLATFORM_FINANCEIRO");
   const precoPlano = dados.planos.find((p) => p.nome === empresa.plano)?.precoMensal ?? null;
+  const vigente = dados.condicoes?.find((c) => c.situacao === "VIGENTE");
+  const condicaoVigente = vigente
+    ? { id: vigente.id, rotulo: `${ROTULO_TIPO[vigente.tipo]} ${descreverForma(vigente)}` }
+    : null;
 
   const saldo = dados.saldos.find((s) => s.tenantId === id);
   const faturasDaEmpresa = dados.faturas.filter((f) => f.tenantId === id);
@@ -350,11 +355,11 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
 
         <Card
           titulo="Créditos de emissão"
-          descricao="Ajuste manual entra no ledger append-only, com motivo, e fica auditado."
+          descricao="Ajuste corrige, cortesia concede de graça. Tudo entra no ledger append-only, com motivo, e fica auditado."
         >
           <div className="font-display text-3xl text-brand-800">{saldo?.saldo ?? 0}</div>
           <div className="mt-4">
-            <LancarCreditos tenantId={empresa.id} />
+            <LancarCreditos tenantId={empresa.id} condicao={condicaoVigente} />
           </div>
         </Card>
 

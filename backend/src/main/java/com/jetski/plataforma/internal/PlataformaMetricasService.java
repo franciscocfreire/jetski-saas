@@ -101,7 +101,8 @@ public class PlataformaMetricasService {
                 emissoes_documento, emissoes_gru, emissoes_previa,
                 creditos_consumidos, saldo_creditos_fim,
                 mrr, plano_nome, faturas_abertas, valor_em_aberto,
-                receita_faturas, receita_creditos, mrr_tabela, condicao_tipo, atualizado_em)
+                receita_faturas, receita_creditos, mrr_tabela, condicao_tipo,
+                creditos_cortesia, creditos_vendidos, atualizado_em)
             SELECT
                 CAST(:tid AS uuid), CAST(:dia AS date),
                 COALESCE(op.locacoes, 0), COALESCE(rv.reservas, 0), COALESCE(rv.no_shows, 0),
@@ -122,7 +123,9 @@ public class PlataformaMetricasService {
                 COALESCE(fp.valor, 0), COALESCE(cv.valor, 0),
                 -- MRR de tabela: preço cheio; mrr_tabela - mrr = renunciado
                 CASE WHEN tn.status IN ('ATIVO', 'TRIAL') THEN COALESCE(pl.preco_mensal, 0) ELSE 0 END,
-                cc.tipo, now()
+                cc.tipo,
+                -- V077: crédito dado de graça (adesão + cortesia) × vendido
+                COALESCE(cr.cortesia, 0), COALESCE(cv.quantidade, 0), now()
             FROM (SELECT 1) AS _
             LEFT JOIN LATERAL (
                 -- Vigente no dia: mesma regra do CondicaoComercialService (VIGENTE_EM)
@@ -164,6 +167,8 @@ public class PlataformaMetricasService {
             ) em ON TRUE
             LEFT JOIN LATERAL (
                 SELECT COALESCE(SUM(-quantidade) FILTER (WHERE tipo = 'CONSUMO'), 0) AS consumidos,
+                       COALESCE(SUM(quantidade) FILTER (WHERE tipo IN ('ADESAO', 'CORTESIA')), 0)
+                           AS cortesia,
                        (SELECT saldo_apos FROM credito_lancamento
                          WHERE tenant_id = CAST(:tid AS uuid)
                            AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date <= CAST(:dia AS date)
@@ -195,7 +200,7 @@ public class PlataformaMetricasService {
                    AND (pago_em AT TIME ZONE 'America/Sao_Paulo')::date = CAST(:dia AS date)
             ) fp ON TRUE
             LEFT JOIN LATERAL (
-                SELECT SUM(COALESCE(valor_pago, 0)) AS valor
+                SELECT SUM(COALESCE(valor_pago, 0)) AS valor, SUM(quantidade) AS quantidade
                   FROM credito_compra
                  WHERE tenant_id = CAST(:tid AS uuid) AND status = 'APROVADA'
                    AND (decidido_em AT TIME ZONE 'America/Sao_Paulo')::date = CAST(:dia AS date)
@@ -216,6 +221,8 @@ public class PlataformaMetricasService {
                 receita_creditos = EXCLUDED.receita_creditos,
                 mrr_tabela = EXCLUDED.mrr_tabela,
                 condicao_tipo = EXCLUDED.condicao_tipo,
+                creditos_cortesia = EXCLUDED.creditos_cortesia,
+                creditos_vendidos = EXCLUDED.creditos_vendidos,
                 atualizado_em = now()
             """,
             new MapSqlParameterSource()

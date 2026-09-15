@@ -222,6 +222,50 @@ public class CreditoService {
         return lanc;
     }
 
+    /**
+     * Cortesia (super admin): crédito gratuito, sempre positivo. {@code condicaoId} opcional
+     * liga o lançamento à condição comercial que o motivou — validada no tenant alvo, porque
+     * a referência é lógica (sem FK no ledger append-only).
+     * Chamado com a sessão já apontando para o tenant alvo (set_config).
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public CreditoLancamento lancarCortesia(UUID tenantId, int quantidade, String motivo,
+                                            UUID condicaoId, UUID actor) {
+        if (quantidade <= 0) {
+            throw new BusinessException("Cortesia é sempre positiva. Para retirar créditos, use um ajuste negativo.");
+        }
+        if (motivo == null || motivo.isBlank()) {
+            throw new BusinessException("Motivo é obrigatório no lançamento de créditos");
+        }
+        if (condicaoId != null) {
+            Number existe = (Number) entityManager.createNativeQuery(
+                    "SELECT count(*) FROM condicao_comercial WHERE id = ?1 AND tenant_id = ?2")
+                .setParameter(1, condicaoId)
+                .setParameter(2, tenantId)
+                .getSingleResult();
+            if (existe.intValue() == 0) {
+                throw new BusinessException("Condição comercial não encontrada nesta empresa");
+            }
+        }
+        lockTenant(tenantId);
+        int saldoAtual = repository.saldo(tenantId);
+        int novoSaldo = saldoAtual + quantidade;
+        CreditoLancamento lanc = repository.save(CreditoLancamento.builder()
+            .tenantId(tenantId)
+            .tipo(TipoLancamento.CORTESIA)
+            .quantidade(quantidade)
+            .saldoApos(novoSaldo)
+            .motivo(motivo.trim())
+            .criadoPor(actor)
+            .condicaoId(condicaoId)
+            .build());
+        eventPublisher.publishEvent(CreditoLancadoEvent.of(
+            tenantId, TipoLancamento.CORTESIA.name(), quantidade, novoSaldo, lanc.getMotivo(), actor));
+        log.info("Cortesia de créditos: tenant={}, quantidade={}, condicao={}, saldo {} -> {}, actor={}",
+            tenantId, quantidade, condicaoId, saldoAtual, novoSaldo, actor);
+        return lanc;
+    }
+
     @Transactional(readOnly = true)
     public List<CreditoLancamento> extrato(UUID tenantId, int limit) {
         return repository.findByTenantIdOrderByCreatedAtDesc(

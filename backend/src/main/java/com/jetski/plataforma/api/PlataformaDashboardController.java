@@ -59,6 +59,8 @@ public class PlataformaDashboardController {
                    COALESCE(SUM(emissoes_documento + emissoes_gru),0) AS emissoes_cobraveis,
                    COALESCE(SUM(emissoes_previa),0) AS emissoes_previa,
                    COALESCE(SUM(creditos_consumidos),0) AS creditos_consumidos,
+                   COALESCE(SUM(creditos_cortesia),0) AS creditos_cortesia,
+                   COALESCE(SUM(creditos_vendidos),0) AS creditos_vendidos,
                    COALESCE(SUM(receita_faturas),0) AS receita_faturas,
                    COALESCE(SUM(receita_creditos),0) AS receita_creditos,
                    COALESCE(SUM(receita_faturas + receita_creditos),0) AS receita_plataforma

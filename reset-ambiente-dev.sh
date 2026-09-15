@@ -987,6 +987,20 @@ ALTER TABLE public.plataforma_metrica_diaria
     ADD COLUMN IF NOT EXISTS mrr_tabela     numeric(12,2) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS condicao_tipo  varchar(20);
 
+-- V077: crédito de CORTESIA no ledger (+ vínculo lógico com a condição comercial)
+ALTER TABLE public.credito_lancamento DROP CONSTRAINT IF EXISTS credito_lancamento_tipo_check;
+ALTER TABLE public.credito_lancamento
+    ADD CONSTRAINT credito_lancamento_tipo_check
+    CHECK (tipo IN ('ADESAO', 'AJUSTE', 'CORTESIA', 'CONSUMO', 'ESTORNO'));
+ALTER TABLE public.credito_lancamento DROP CONSTRAINT IF EXISTS credito_lancamento_cortesia_positiva;
+ALTER TABLE public.credito_lancamento
+    ADD CONSTRAINT credito_lancamento_cortesia_positiva
+    CHECK (tipo <> 'CORTESIA' OR quantidade > 0);
+ALTER TABLE public.credito_lancamento ADD COLUMN IF NOT EXISTS condicao_id uuid;
+ALTER TABLE public.plataforma_metrica_diaria
+    ADD COLUMN IF NOT EXISTS creditos_cortesia integer NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS creditos_vendidos integer NOT NULL DEFAULT 0;
+
 -- V046: módulos por plano (NULL = todos)
 ALTER TABLE public.plano ADD COLUMN IF NOT EXISTS modulos jsonb;
 

@@ -217,6 +217,30 @@ class PlataformaMetricasIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("Créditos: cortesia (adesão + CORTESIA) separada de vendidos (compra aprovada)")
+    void creditosCortesiaSeparadaDeVendidos() {
+        seedEmpresaPro("ATIVO");
+        jdbc.execute("ALTER TABLE credito_lancamento DISABLE TRIGGER trg_credito_lancamento_append_only");
+        jdbc.update("DELETE FROM credito_lancamento WHERE tenant_id = ?", EMPRESA_MRR);
+        jdbc.execute("ALTER TABLE credito_lancamento ENABLE TRIGGER trg_credito_lancamento_append_only");
+        jdbc.update("DELETE FROM credito_compra WHERE tenant_id = ?", EMPRESA_MRR);
+        jdbc.update("INSERT INTO credito_lancamento (tenant_id, tipo, quantidade, saldo_apos, motivo) "
+            + "VALUES (?, 'ADESAO', 5, 5, 'adesão'), (?, 'CORTESIA', 20, 25, 'piloto'), "
+            + "(?, 'AJUSTE', 10, 35, 'venda')", EMPRESA_MRR, EMPRESA_MRR, EMPRESA_MRR);
+        jdbc.update("INSERT INTO credito_compra (tenant_id, quantidade, status, pix_txid, valor_pago, "
+            + "preco_unitario, decidido_em) VALUES (?, 10, 'APROVADA', 'metrica-tx', 50, 5, now())",
+            EMPRESA_MRR);
+
+        service.recalcular(hoje, hoje);
+
+        var linha = jdbc.queryForMap("SELECT creditos_cortesia, creditos_vendidos, receita_creditos "
+            + "FROM plataforma_metrica_diaria WHERE tenant_id = ? AND dia = ?", EMPRESA_MRR, hoje);
+        assertThat(((Number) linha.get("creditos_cortesia")).intValue()).isEqualTo(25);
+        assertThat(((Number) linha.get("creditos_vendidos")).intValue()).isEqualTo(10);
+        assertThat((BigDecimal) linha.get("receita_creditos")).isEqualByComparingTo("50.00");
+    }
+
+    @Test
     @DisplayName("Receita da plataforma = fatura PAGA no dia; aberta não conta")
     void receitaDaPlataformaContaFaturaPaga() {
         seedEmpresaPro("ATIVO");

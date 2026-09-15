@@ -1692,7 +1692,7 @@ export interface SaldoCreditos {
 /** Linha do extrato do ledger (append-only). */
 export interface CreditoLancamento {
   id: string
-  tipo: 'ADESAO' | 'AJUSTE' | 'CONSUMO' | 'ESTORNO'
+  tipo: 'ADESAO' | 'AJUSTE' | 'CORTESIA' | 'CONSUMO' | 'ESTORNO'
   quantidade: number
   saldoApos: number
   motivo?: string | null
