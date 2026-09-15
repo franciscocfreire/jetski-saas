@@ -45,8 +45,13 @@ public record PlatformTenantSummary(
      * emissora, sem ele o ofício à Capitania não sai.
      */
     boolean smtpCompleto,
-    /** "From" que o SMTP próprio usa (smtp_from → email_remetente → usuário); null sem SMTP. */
-    String smtpRemetente
+    /** "From" que o SMTP próprio usa (smtp_from → conta do SMTP); null sem SMTP. */
+    String smtpRemetente,
+    /**
+     * Conta que autentica no SMTP próprio (smtp_username); null sem SMTP. Quando difere do
+     * remetente, o Gmail reescreve o From para esta conta (a menos que haja "Enviar como").
+     */
+    String smtpUsuario
 ) {
     public static PlatformTenantSummary of(UUID id, String slug, String razaoSocial, String status,
                                            String plano, LocalDate assinaturaFim,
@@ -55,11 +60,12 @@ public record PlatformTenantSummary(
                                            List<String> modulos,
                                            String papelEmissao, UUID emissoraTenantId,
                                            String emissoraNome, String vinculoStatus,
-                                           boolean smtpCompleto, String smtpRemetente) {
+                                           boolean smtpCompleto, String smtpRemetente,
+                                           String smtpUsuario) {
         return new PlatformTenantSummary(
             id.toString(), slug, razaoSocial, status, List.of("ADMIN_TENANT"), plano,
             assinaturaFim, exclusaoAgendadaEm, emissoraHabilitada, eamaRegistro, modulos,
             papelEmissao, emissoraTenantId != null ? emissoraTenantId.toString() : null,
-            emissoraNome, vinculoStatus, smtpCompleto, smtpRemetente);
+            emissoraNome, vinculoStatus, smtpCompleto, smtpRemetente, smtpUsuario);
     }
 }

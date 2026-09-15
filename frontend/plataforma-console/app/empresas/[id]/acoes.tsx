@@ -105,7 +105,11 @@ export function TesteSmtp({ tenantId }: { tenantId: string }) {
       {erro && <p className="mt-1 text-xs text-red-700">{erro}</p>}
       {resultado?.enviado && (
         <p className="mt-1 text-xs text-emerald-700" data-testid="console-smtp-teste-ok">
-          Enviado de {resultado.de} via {resultado.servidor}. Confira a caixa de {resultado.para}.
+          Enviado pela conta {resultado.usuario ?? resultado.de}
+          {resultado.usuario && resultado.usuario.toLowerCase() !== resultado.de.toLowerCase()
+            ? ` (remetente configurado: ${resultado.de})`
+            : ""}{" "}
+          via {resultado.servidor}. Confira a caixa de {resultado.para}.
         </p>
       )}
       {resultado && !resultado.enviado && (
