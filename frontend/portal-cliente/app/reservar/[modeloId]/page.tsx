@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import {
   getModeloPublico,
+  horasMinimas,
   criarReserva,
   getSelf,
   getHabilitacoes,
@@ -67,7 +68,12 @@ function Wizard() {
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
-    getModeloPublico(modeloId).then(setM).catch(() => setM(null));
+    getModeloPublico(modeloId)
+      .then((modelo) => {
+        setM(modelo);
+        setHoras((h) => Math.max(h, horasMinimas(modelo)));
+      })
+      .catch(() => setM(null));
   }, [modeloId]);
 
   // CPF do cadastro (identidade global): a reserva sempre usa ele
@@ -187,7 +193,8 @@ function Wizard() {
     <div className="mx-auto max-w-xl">
       <h1 className="text-2xl font-bold text-ink-900">Reservar {m.nome}</h1>
       <p className="text-sm text-slate-500">
-        {m.empresaNome} · {m.localizacao}
+        {m.empresaNome}
+        {m.localizacao ? ` · ${m.localizacao}` : ""}
       </p>
 
       {/* Stepper */}
@@ -230,10 +237,14 @@ function Wizard() {
           <div className="mt-3">
             <Field label="Duração">
               <select className={inputCls} value={horas} onChange={(e) => setHoras(Number(e.target.value))}>
-                <option value={1}>1 hora</option>
-                <option value={2}>2 horas</option>
-                <option value={3}>3 horas</option>
-                <option value={4}>4 horas</option>
+                {[0, 1, 2, 3].map((i) => {
+                  const h = horasMinimas(m) + i;
+                  return (
+                    <option key={h} value={h}>
+                      {h} {h === 1 ? "hora" : "horas"}
+                    </option>
+                  );
+                })}
               </select>
             </Field>
           </div>

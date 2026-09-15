@@ -56,5 +56,13 @@ public class ModeloCreateRequest {
 
     private String fotoReferenciaUrl;
 
+    @Size(max = 2000, message = "Descrição deve ter no máximo 2000 caracteres")
+    private String descricao;
+
+    /** Locação mínima em minutos; 0 = sem mínimo. */
+    @Min(value = 0, message = "Locação mínima não pode ser negativa")
+    @jakarta.validation.constraints.Max(value = 1440, message = "Locação mínima deve ser de no máximo 24 horas")
+    private Integer duracaoMinimaMin;
+
     private String pacotesJson;
 }

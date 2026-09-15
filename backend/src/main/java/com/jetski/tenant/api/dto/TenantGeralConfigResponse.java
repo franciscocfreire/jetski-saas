@@ -15,6 +15,8 @@ public class TenantGeralConfigResponse {
     private String cnpj;
     private String razaoSocial;
     private String cidade;
+    private String uf;
+    private String whatsapp;
     private String marinhaEmail;
     private String emailRemetente;
     private String responsavelNome;

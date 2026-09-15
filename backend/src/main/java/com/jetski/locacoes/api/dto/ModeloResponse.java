@@ -35,6 +35,8 @@ public class ModeloResponse {
     private Boolean incluiCombustivel;
     private BigDecimal caucao;
     private String fotoReferenciaUrl;
+    private String descricao;
+    private Integer duracaoMinimaMin;
     private String pacotesJson;
     private Boolean ativo;
     private Boolean exibirNoMarketplace;

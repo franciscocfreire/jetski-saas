@@ -114,6 +114,13 @@ public class CustomerReservaService {
         }
         fixarTenant(loja.tenantId());
 
+        // Locação mínima do modelo (V073): a UI já só oferece durações válidas.
+        Integer minimo = modeloService.findById(cmd.modeloId(), loja.tenantId()).getDuracaoMinimaMin();
+        if (minimo != null && cmd.dataInicio() != null && cmd.dataFimPrevista() != null
+                && Duration.between(cmd.dataInicio(), cmd.dataFimPrevista()).toMinutes() < minimo) {
+            throw new BusinessException("A locação mínima deste modelo é de " + minimo + " minutos.");
+        }
+
         Cliente cliente = resolverOuCriarCliente(loja.tenantId(), sub, email, nome, cmd.cpf(), cmd.telefone());
 
         Reserva reserva = Reserva.builder()

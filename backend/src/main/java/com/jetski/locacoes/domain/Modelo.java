@@ -76,6 +76,14 @@ public class Modelo {
     @Column(name = "foto_referencia_url")
     private String fotoReferenciaUrl;
 
+    /** Texto livre da empresa, exibido no marketplace e no portal (V073). */
+    @Column(columnDefinition = "text")
+    private String descricao;
+
+    /** Locação mínima em minutos (V073); null = sem mínimo. */
+    @Column(name = "duracao_minima_min")
+    private Integer duracaoMinimaMin;
+
     /**
      * Pacotes de precificação por duração (JSONB)
      *

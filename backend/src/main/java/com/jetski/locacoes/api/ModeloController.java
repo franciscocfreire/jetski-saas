@@ -463,6 +463,8 @@ public class ModeloController {
             .incluiCombustivel(modelo.getIncluiCombustivel())
             .caucao(modelo.getCaucao())
             .fotoReferenciaUrl(modelo.getFotoReferenciaUrl())
+            .descricao(modelo.getDescricao())
+            .duracaoMinimaMin(modelo.getDuracaoMinimaMin())
             .pacotesJson(modelo.getPacotesJson())
             .ativo(modelo.getAtivo())
             .exibirNoMarketplace(modelo.getExibirNoMarketplace())
@@ -484,6 +486,10 @@ public class ModeloController {
             .incluiCombustivel(request.getIncluiCombustivel() != null ? request.getIncluiCombustivel() : false)
             .caucao(request.getCaucao() != null ? request.getCaucao() : BigDecimal.ZERO)
             .fotoReferenciaUrl(request.getFotoReferenciaUrl())
+            .descricao(request.getDescricao() != null && !request.getDescricao().isBlank()
+                ? request.getDescricao().trim() : null)
+            .duracaoMinimaMin(request.getDuracaoMinimaMin() != null && request.getDuracaoMinimaMin() > 0
+                ? request.getDuracaoMinimaMin() : null)
             .pacotesJson(request.getPacotesJson())
             .ativo(true)
             .build();
@@ -501,6 +507,8 @@ public class ModeloController {
             .incluiCombustivel(request.getIncluiCombustivel())
             .caucao(request.getCaucao())
             .fotoReferenciaUrl(request.getFotoReferenciaUrl())
+            .descricao(request.getDescricao())
+            .duracaoMinimaMin(request.getDuracaoMinimaMin())
             .pacotesJson(request.getPacotesJson())
             .exibirNoMarketplace(request.getExibirNoMarketplace())
             .build();

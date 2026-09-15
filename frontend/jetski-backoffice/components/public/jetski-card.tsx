@@ -15,7 +15,7 @@ export interface JetskiCardProps {
   precoMeiaDiaria?: number  // Para lanchas
   precoDiaria?: number      // Para lanchas
   imagemUrl?: string
-  localizacao: string
+  localizacao?: string
   avaliacao?: number
   totalAvaliacoes?: number
 }
@@ -141,10 +141,14 @@ export function JetskiCard({
 
         {/* Footer */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-white/40">
-            <MapPin className="h-3.5 w-3.5" />
-            <span className="text-xs">{localizacao}</span>
-          </div>
+          {localizacao ? (
+            <div className="flex items-center gap-1.5 text-white/40">
+              <MapPin className="h-3.5 w-3.5" />
+              <span className="text-xs">{localizacao}</span>
+            </div>
+          ) : (
+            <span />
+          )}
 
           <span className="flex items-center gap-1 text-xs text-white/60 group-hover:text-gold transition-colors duration-300">
             <span>Ver detalhes</span>

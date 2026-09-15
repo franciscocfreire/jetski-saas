@@ -14,6 +14,9 @@ export interface ModeloCreateRequest {
   incluiCombustivel?: boolean
   caucao?: number
   fotoReferenciaUrl?: string
+  descricao?: string
+  /** Minutos; 0 = sem mínimo. */
+  duracaoMinimaMin?: number
   exibirNoMarketplace?: boolean
 }
 

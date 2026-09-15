@@ -20,6 +20,8 @@ export interface Modelo extends BaseEntity {
   incluiCombustivel?: boolean
   caucao?: number
   fotoReferenciaUrl?: string
+  descricao?: string
+  duracaoMinimaMin?: number
   pacotesJson?: string
   ativo: boolean
   exibirNoMarketplace?: boolean
@@ -1529,6 +1531,8 @@ export interface TenantGeralConfig {
   cnpj?: string
   razaoSocial?: string
   cidade?: string
+  uf?: string
+  whatsapp?: string
   marinhaEmail?: string
   emailRemetente?: string
   /** Dados do EAMA no ofício à Capitania (V064 — NORMAM-212 5.4.2 / Anexo 5-A). */
@@ -1547,6 +1551,8 @@ export interface TenantGeralConfig {
 export interface TenantGeralConfigRequest {
   razaoSocial?: string
   cidade?: string
+  uf?: string
+  whatsapp?: string
   marinhaEmail?: string
   emailRemetente?: string
   responsavelNome?: string

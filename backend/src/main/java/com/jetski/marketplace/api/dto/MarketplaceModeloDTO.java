@@ -32,6 +32,12 @@ public record MarketplaceModeloDTO(
     Integer prioridade,
     BigDecimal notaMedia,
     Integer totalAvaliacoes,
+    Integer potenciaHp,
+    boolean incluiCombustivel,
+    /** Texto livre escrito pela empresa no cadastro do modelo (pode ser nulo). */
+    String descricao,
+    /** Locação mínima em minutos definida pela empresa (null = sem mínimo). */
+    Integer duracaoMinimaMin,
     /** Loja com o módulo RESERVA_ONLINE: mostra "Reservar Agora"; sem ele, só WhatsApp. */
     boolean reservaOnline,
     List<MarketplaceMidiaDTO> midias
@@ -57,6 +63,10 @@ public record MarketplaceModeloDTO(
             Integer prioridade,
             BigDecimal notaMedia,
             Integer totalAvaliacoes,
+            Integer potenciaHp,
+            boolean incluiCombustivel,
+            String descricao,
+            Integer duracaoMinimaMin,
             boolean reservaOnline
     ) {
         return new MarketplaceModeloDTO(
@@ -78,6 +88,10 @@ public record MarketplaceModeloDTO(
             prioridade,
             notaMedia,
             totalAvaliacoes,
+            potenciaHp,
+            incluiCombustivel,
+            descricao,
+            duracaoMinimaMin,
             reservaOnline,
             List.of()
         );
@@ -106,6 +120,10 @@ public record MarketplaceModeloDTO(
             this.prioridade,
             this.notaMedia,
             this.totalAvaliacoes,
+            this.potenciaHp,
+            this.incluiCombustivel,
+            this.descricao,
+            this.duracaoMinimaMin,
             this.reservaOnline,
             midias != null ? midias : List.of()
         );
@@ -119,6 +137,7 @@ public record MarketplaceModeloDTO(
         } else if (uf != null) {
             return uf;
         }
-        return "Brasil";
+        // Sem cidade/UF cadastradas: as telas escondem a linha em vez de mostrar "Brasil"
+        return null;
     }
 }

@@ -20,6 +20,13 @@ public class TenantGeralConfigRequest {
     @Size(max = 100)
     private String cidade;
 
+    @Size(max = 2)
+    private String uf;
+
+    /** WhatsApp público da empresa (botão do marketplace/vitrine). */
+    @Size(max = 30)
+    private String whatsapp;
+
     @Email(message = "E-mail da Marinha inválido")
     @Size(max = 255)
     private String marinhaEmail;

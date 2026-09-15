@@ -82,7 +82,11 @@ public class MarketplaceService {
                 t.prioridade_marketplace,
                 av.nota_media,
                 av.total_avaliacoes,
-                t.branding->>'vitrine_praia'
+                t.branding->>'vitrine_praia',
+                m.potencia_hp,
+                m.inclui_combustivel,
+                m.descricao,
+                m.duracao_minima_min
             FROM modelo m
             INNER JOIN tenant t ON m.tenant_id = t.id
             LEFT JOIN LATERAL (
@@ -152,7 +156,11 @@ public class MarketplaceService {
                 t.prioridade_marketplace,
                 av.nota_media,
                 av.total_avaliacoes,
-                t.branding->>'vitrine_praia'
+                t.branding->>'vitrine_praia',
+                m.potencia_hp,
+                m.inclui_combustivel,
+                m.descricao,
+                m.duracao_minima_min
             FROM modelo m
             INNER JOIN tenant t ON m.tenant_id = t.id
             LEFT JOIN LATERAL (
@@ -207,7 +215,11 @@ public class MarketplaceService {
                 t.prioridade_marketplace,
                 av.nota_media,
                 av.total_avaliacoes,
-                t.branding->>'vitrine_praia'
+                t.branding->>'vitrine_praia',
+                m.potencia_hp,
+                m.inclui_combustivel,
+                m.descricao,
+                m.duracao_minima_min
             FROM modelo m
             INNER JOIN tenant t ON m.tenant_id = t.id
             LEFT JOIN LATERAL (
@@ -343,6 +355,10 @@ public class MarketplaceService {
         BigDecimal notaMedia = row[14] != null ? new BigDecimal(row[14].toString()) : null;
         Integer totalAvaliacoes = row[15] != null ? ((Number) row[15]).intValue() : 0;
         String praia = (String) row[16];
+        Integer potenciaHp = row[17] != null ? ((Number) row[17]).intValue() : null;
+        boolean incluiCombustivel = Boolean.TRUE.equals(row[18]);
+        String descricao = (String) row[19];
+        Integer duracaoMinimaMin = row[20] != null ? ((Number) row[20]).intValue() : null;
 
         BigDecimal precoPacote30min = extractPacote30min(pacotesJson);
 
@@ -364,6 +380,10 @@ public class MarketplaceService {
             prioridade,
             notaMedia,
             totalAvaliacoes,
+            potenciaHp,
+            incluiCombustivel,
+            descricao,
+            duracaoMinimaMin,
             moduloHabilitado(tenantId, ModuloPlano.RESERVA_ONLINE)
         );
     }

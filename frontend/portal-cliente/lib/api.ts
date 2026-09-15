@@ -251,13 +251,32 @@ export interface MarketplaceModelo {
   fotoReferenciaUrl?: string;
   empresaNome: string;
   empresaWhatsapp?: string;
-  localizacao: string;
+  /** "Cidade, UF"; ausente quando a loja não cadastrou. */
+  localizacao?: string;
   prioridade: number;
   notaMedia?: number;
   totalAvaliacoes?: number;
+  potenciaHp?: number;
+  incluiCombustivel: boolean;
+  /** Texto livre escrito pela empresa no cadastro do modelo. */
+  descricao?: string;
+  /** Locação mínima em minutos (ausente = sem mínimo). */
+  duracaoMinimaMin?: number;
   /** Loja com o módulo Reserva online; sem ele, o contato é só pelo WhatsApp. */
   reservaOnline: boolean;
   midias: MarketplaceMidia[];
+}
+
+/** Menor duração em horas inteiras que o portal pode oferecer (mínimo 1h). */
+export function horasMinimas(m: MarketplaceModelo): number {
+  return Math.max(1, Math.ceil((m.duracaoMinimaMin ?? 0) / 60));
+}
+
+export function formatDuracaoMin(min: number): string {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const resto = min % 60;
+  return resto ? `${h}h${String(resto).padStart(2, "0")}` : `${h}h`;
 }
 
 export function fotoPrincipal(m: MarketplaceModelo): string | undefined {

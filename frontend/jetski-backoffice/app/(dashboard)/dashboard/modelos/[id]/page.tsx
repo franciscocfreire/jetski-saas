@@ -34,6 +34,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -607,6 +608,8 @@ function EditModeloDialog({
     incluiCombustivel: modelo.incluiCombustivel || false,
     caucao: modelo.caucao || 300,
     exibirNoMarketplace: modelo.exibirNoMarketplace ?? true,
+    descricao: modelo.descricao || '',
+    duracaoMinimaMin: modelo.duracaoMinimaMin ?? 0,
   })
 
   useEffect(() => {
@@ -621,6 +624,8 @@ function EditModeloDialog({
       incluiCombustivel: modelo.incluiCombustivel || false,
       caucao: modelo.caucao || 300,
       exibirNoMarketplace: modelo.exibirNoMarketplace ?? true,
+      descricao: modelo.descricao || '',
+      duracaoMinimaMin: modelo.duracaoMinimaMin ?? 0,
     })
   }, [modelo])
 
@@ -758,6 +763,37 @@ function EditModeloDialog({
                 checked={formData.incluiCombustivel || false}
                 onCheckedChange={(checked) => setFormData({ ...formData, incluiCombustivel: checked })}
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="duracaoMinimaMin">Locação mínima (min)</Label>
+              <Input
+                id="duracaoMinimaMin"
+                type="number"
+                min={0}
+                step={15}
+                value={formData.duracaoMinimaMin || ''}
+                onChange={(e) => setFormData({ ...formData, duracaoMinimaMin: Number(e.target.value) || 0 })}
+                placeholder="Ex: 30"
+              />
+              <p className="text-xs text-muted-foreground">
+                Aparece como &quot;Mínimo&quot; no marketplace e limita a duração da reserva no portal. Vazio = sem mínimo.
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="descricao">Descrição no marketplace</Label>
+              <Textarea
+                id="descricao"
+                value={formData.descricao || ''}
+                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                placeholder="Conte o que o cliente precisa saber: diferenciais do jet, o que está incluso, ponto de saída..."
+                maxLength={2000}
+                rows={4}
+              />
+              <p className="text-xs text-muted-foreground">
+                Aparece em &quot;Sobre&quot; na página pública do modelo. Em branco, usamos um texto padrão.
+              </p>
             </div>
           </div>
 
@@ -1088,6 +1124,10 @@ export default function ModeloDetailsPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Gating por plano (V046): aviso quando os canais públicos não estão no plano */}
+              <p className="text-sm text-muted-foreground">
+                Localização (cidade/UF) e WhatsApp da página pública vêm de Configurações › Dados da
+                empresa. Sem eles, a página esconde a localização e o botão de WhatsApp.
+              </p>
               {currentTenant?.modulos && !currentTenant.modulos.includes('MARKETPLACE') && (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
                   Seu plano não inclui o módulo <strong>Marketplace</strong> — mesmo com a exibição
