@@ -49,6 +49,7 @@ class ModuloPlanoIntegrationTest extends AbstractIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private CacheManager cacheManager;
     @Autowired private MarketplaceService marketplaceService;
+    @Autowired private com.jetski.tenant.internal.PlatformFaturaService platformFaturaService;
 
     @MockBean private OPAAuthorizationService opaAuthorizationService;
     @MockBean private TenantAccessService tenantAccessService;
@@ -357,6 +358,40 @@ class ModuloPlanoIntegrationTest extends AbstractIntegrationTest {
                 .header("X-Tenant-Id", TENANT.toString())
                 .with(jwtAdmin()))
             .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("V078: planos do seed têm a lista explícita = catálogo completo (sem NULL/todos)")
+    void seedComListaExplicitaDoCatalogo() {
+        // Se falhar após criar um módulo: a migration dele precisa decidir quais planos o recebem
+        // e esta lista (V078) não pode ficar para trás para os planos que eram "todos".
+        String modulos = jdbc.queryForObject(
+            "SELECT modulos::text FROM plano WHERE nome = 'Enterprise'", String.class);
+        assertThat(modulos).isNotNull();
+        for (ModuloPlano m : ModuloPlano.values()) {
+            assertThat(modulos).as("Enterprise inclui %s", m).contains("\"" + m.name() + "\"");
+        }
+    }
+
+    @Test
+    @DisplayName("salvarModulos grava a lista explícita: tudo marcado não vira NULL; vazio = só o core")
+    void salvarModulosSempreExplicito() {
+        Integer planoId = jdbc.queryForObject(
+            "SELECT id FROM plano WHERE nome = 'Modulos Teste'", Integer.class);
+        List<String> todos = java.util.Arrays.stream(ModuloPlano.values()).map(Enum::name).toList();
+
+        platformFaturaService.salvarModulos(planoId, todos);
+        assertThat(jdbc.queryForObject(
+            "SELECT modulos IS NULL FROM plano WHERE id = ?", Boolean.class, planoId)).isFalse();
+        assertThat(planoLimiteService.modulosDoPlano(TENANT)).containsExactlyInAnyOrderElementsOf(todos);
+
+        platformFaturaService.salvarModulos(planoId, List.of());
+        limparCache();
+        assertThat(planoLimiteService.modulosDoPlano(TENANT)).isEmpty();
+        assertThat(planoLimiteService.moduloHabilitado(TENANT, ModuloPlano.MANUTENCAO)).isFalse();
+
+        assertThatThrownBy(() -> platformFaturaService.salvarModulos(planoId, List.of("NAO_EXISTE")))
+            .isInstanceOf(BusinessException.class);
     }
 
     @Test

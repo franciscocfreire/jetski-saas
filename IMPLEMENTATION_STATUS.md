@@ -183,7 +183,9 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   com negação de negócio e mensagem de upgrade.
 - **Módulos por plano** (V046, `plano.modulos` jsonb): super admin define a oferta por plano
   (Emissão à Marinha, Comissões, Manutenção, Fechamentos, Relatórios, Despesas, Marketplace,
-  Loja online, Reserva online, Videoaula no balcão — configurável); NULL = todos. `VIDEO_ORIENTACAO` (V063) é
+  Loja online, Reserva online, Videoaula no balcão — configurável, Prévia dos documentos). Desde a
+  V078 todo plano tem a lista EXPLÍCITA (marcar tudo não vira NULL; módulo novo não entra sozinho
+  em nenhum plano — a migration dele decide); NULL só como legado/sem assinatura = todos. `VIDEO_ORIENTACAO` (V063) é
   um módulo "de permissão": assistir a videoaula até o fim é obrigatório por padrão; tê-lo no
   plano libera o toggle em Configurações › Documentos para desligar essa obrigação (PUT sem o
   módulo → 400). O passo Orientações é exibido sempre. `PREVIA_DOCUMENTOS` (V078, Prévia dos
