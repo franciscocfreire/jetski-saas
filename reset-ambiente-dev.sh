@@ -951,6 +951,60 @@ ALTER TABLE public.modelo
 ALTER TABLE public.modelo_midia ADD COLUMN IF NOT EXISTS storage_key varchar(512);
 ALTER TABLE public.modelo_midia ADD COLUMN IF NOT EXISTS tamanho_bytes integer;
 
+-- V075: receita DA PLATAFORMA no read model (faturas pagas + créditos vendidos)
+ALTER TABLE public.plataforma_metrica_diaria
+    ADD COLUMN IF NOT EXISTS receita_faturas  numeric(12,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS receita_creditos numeric(12,2) NOT NULL DEFAULT 0;
+
+-- V076: condição comercial por empresa (isenção/desconto da mensalidade com vigência)
+CREATE TABLE IF NOT EXISTS public.condicao_comercial (
+    id                  uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id           uuid NOT NULL REFERENCES public.tenant(id) ON DELETE CASCADE,
+    tipo                varchar(20) NOT NULL
+                        CHECK (tipo IN ('PILOTO', 'CORTESIA', 'PARCERIA', 'NEGOCIADO')),
+    forma               varchar(20) NOT NULL
+                        CHECK (forma IN ('ISENCAO', 'PERCENTUAL', 'VALOR_FIXO')),
+    valor               numeric(10,2),
+    inicio              date NOT NULL,
+    fim                 date,
+    motivo              varchar(300) NOT NULL,
+    concedida_por       uuid,
+    created_at          timestamptz NOT NULL DEFAULT now(),
+    encerrada_em        timestamptz,
+    encerrada_por       uuid,
+    motivo_encerramento varchar(300),
+    CONSTRAINT condicao_comercial_valor_por_forma CHECK (
+        (forma = 'ISENCAO' AND valor IS NULL)
+        OR (forma = 'PERCENTUAL' AND valor > 0 AND valor <= 100)
+        OR (forma = 'VALOR_FIXO' AND valor >= 0)),
+    CONSTRAINT condicao_comercial_periodo CHECK (fim IS NULL OR fim >= inicio)
+);
+CREATE INDEX IF NOT EXISTS idx_condicao_comercial_tenant_inicio
+    ON public.condicao_comercial (tenant_id, inicio);
+ALTER TABLE public.condicao_comercial ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.condicao_comercial FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_condicao_comercial ON public.condicao_comercial;
+CREATE POLICY tenant_isolation_condicao_comercial ON public.condicao_comercial
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+ALTER TABLE public.plataforma_metrica_diaria
+    ADD COLUMN IF NOT EXISTS mrr_tabela     numeric(12,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS condicao_tipo  varchar(20);
+
+-- V077: crédito de CORTESIA no ledger (+ vínculo lógico com a condição comercial)
+ALTER TABLE public.credito_lancamento DROP CONSTRAINT IF EXISTS credito_lancamento_tipo_check;
+ALTER TABLE public.credito_lancamento
+    ADD CONSTRAINT credito_lancamento_tipo_check
+    CHECK (tipo IN ('ADESAO', 'AJUSTE', 'CORTESIA', 'CONSUMO', 'ESTORNO'));
+ALTER TABLE public.credito_lancamento DROP CONSTRAINT IF EXISTS credito_lancamento_cortesia_positiva;
+ALTER TABLE public.credito_lancamento
+    ADD CONSTRAINT credito_lancamento_cortesia_positiva
+    CHECK (tipo <> 'CORTESIA' OR quantidade > 0);
+ALTER TABLE public.credito_lancamento ADD COLUMN IF NOT EXISTS condicao_id uuid;
+ALTER TABLE public.plataforma_metrica_diaria
+    ADD COLUMN IF NOT EXISTS creditos_cortesia integer NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS creditos_vendidos integer NOT NULL DEFAULT 0;
+
 -- V078: módulo PREVIA_DOCUMENTOS (planos com emissão à Marinha ganham o novo)
 -- e fim do "todos" implícito (modulos NULL vira a lista explícita do catálogo atual)
 UPDATE public.plano

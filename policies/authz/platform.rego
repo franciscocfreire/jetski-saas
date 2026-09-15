@@ -111,6 +111,8 @@ acoes_financeiras := {
 	"platform:faturas:cancelar",
 	"platform:tenants:plano", # trocar plano contratado
 	"platform:tenants:limites:usuarios", # limite de usuários personalizado (PUT)
+	"platform:tenants:condicoes", # conceder isenção/desconto da mensalidade (POST)
+	"platform:tenants:condicoes:encerrar",
 	"platform:planos:modulos", # oferta de módulos por plano
 }
 

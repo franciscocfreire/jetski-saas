@@ -129,6 +129,134 @@ class PlataformaMetricasIntegrationTest extends AbstractIntegrationTest {
         assertThat(r.linhas()).isEqualTo(empresas * 3);
     }
 
+    // ---------------------------------------------------------------- MRR e receita
+
+    private static final UUID EMPRESA_MRR = UUID.fromString("a5000000-0000-0000-0000-0000000000e1");
+
+    private void seedEmpresaPro(String status) {
+        jdbc.update("INSERT INTO tenant (id, slug, razao_social, status) "
+            + "VALUES (?, 'metrica-mrr', 'Métrica MRR Ltda', ?) "
+            + "ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status", EMPRESA_MRR, status);
+        jdbc.update("DELETE FROM fatura WHERE tenant_id = ?", EMPRESA_MRR);
+        jdbc.update("DELETE FROM condicao_comercial WHERE tenant_id = ?", EMPRESA_MRR);
+        jdbc.update("DELETE FROM assinatura WHERE tenant_id = ?", EMPRESA_MRR);
+        jdbc.update("INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, status) "
+            + "SELECT ?, id, 'mensal', CURRENT_DATE - 30, 'ativa' FROM plano WHERE nome = 'Pro'",
+            EMPRESA_MRR);
+    }
+
+    private BigDecimal coluna(String coluna) {
+        return jdbc.queryForObject("SELECT " + coluna + " FROM plataforma_metrica_diaria "
+            + "WHERE tenant_id = ? AND dia = ?", BigDecimal.class, EMPRESA_MRR, hoje);
+    }
+
+    @Test
+    @DisplayName("MRR conta o plano da empresa ativa")
+    void mrrDeEmpresaAtiva() {
+        seedEmpresaPro("ATIVO");
+
+        service.recalcular(hoje, hoje);
+
+        assertThat(coluna("mrr")).isEqualByComparingTo("299.00");
+    }
+
+    @Test
+    @DisplayName("MRR ignora empresa suspensa — plano sem vencimento não é receita recorrente")
+    void mrrIgnoraSuspensa() {
+        // Antes: "soma dos planos vigentes" contava suspensas com o preço cheio.
+        seedEmpresaPro("SUSPENSO");
+
+        service.recalcular(hoje, hoje);
+
+        assertThat(coluna("mrr")).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject("SELECT plano_nome FROM plataforma_metrica_diaria "
+            + "WHERE tenant_id = ? AND dia = ?", String.class, EMPRESA_MRR, hoje)).isEqualTo("Pro");
+    }
+
+    @Test
+    @DisplayName("Troca de plano no dia: vale a assinatura nova, não a que expirou hoje")
+    void trocaDePlanoNoDiaUsaANova() {
+        seedEmpresaPro("ATIVO");
+        jdbc.update("UPDATE assinatura SET status = 'expirada', dt_inicio = CURRENT_DATE, "
+            + "dt_fim = CURRENT_DATE WHERE tenant_id = ?", EMPRESA_MRR);
+        jdbc.update("INSERT INTO assinatura (tenant_id, plano_id, ciclo, dt_inicio, status) "
+            + "SELECT ?, id, 'mensal', CURRENT_DATE, 'ativa' FROM plano WHERE nome = 'Basic'",
+            EMPRESA_MRR);
+
+        service.recalcular(hoje, hoje);
+
+        assertThat(coluna("mrr")).isEqualByComparingTo("99.00");
+    }
+
+    @Test
+    @DisplayName("Condição comercial: MRR contratado com desconto, MRR de tabela cheio")
+    void mrrContratadoComCondicao() {
+        seedEmpresaPro("ATIVO");
+        jdbc.update("INSERT INTO condicao_comercial (tenant_id, tipo, forma, valor, inicio, fim, motivo) "
+            + "VALUES (?, 'NEGOCIADO', 'PERCENTUAL', 50, CURRENT_DATE - 1, NULL, 'teste')", EMPRESA_MRR);
+
+        service.recalcular(hoje, hoje);
+
+        assertThat(coluna("mrr")).isEqualByComparingTo("149.50");
+        assertThat(coluna("mrr_tabela")).isEqualByComparingTo("299.00");
+        assertThat(jdbc.queryForObject("SELECT condicao_tipo FROM plataforma_metrica_diaria "
+            + "WHERE tenant_id = ? AND dia = ?", String.class, EMPRESA_MRR, hoje)).isEqualTo("NEGOCIADO");
+    }
+
+    @Test
+    @DisplayName("Condição encerrada hoje não vale hoje: MRR volta ao plano cheio")
+    void condicaoEncerradaNaoConta() {
+        seedEmpresaPro("ATIVO");
+        jdbc.update("INSERT INTO condicao_comercial (tenant_id, tipo, forma, valor, inicio, fim, motivo, "
+            + "encerrada_em) VALUES (?, 'PILOTO', 'ISENCAO', NULL, CURRENT_DATE - 5, CURRENT_DATE + 30, "
+            + "'teste', now())", EMPRESA_MRR);
+
+        service.recalcular(hoje, hoje);
+
+        assertThat(coluna("mrr")).isEqualByComparingTo("299.00");
+    }
+
+    @Test
+    @DisplayName("Créditos: cortesia (adesão + CORTESIA) separada de vendidos (compra aprovada)")
+    void creditosCortesiaSeparadaDeVendidos() {
+        seedEmpresaPro("ATIVO");
+        jdbc.execute("ALTER TABLE credito_lancamento DISABLE TRIGGER trg_credito_lancamento_append_only");
+        jdbc.update("DELETE FROM credito_lancamento WHERE tenant_id = ?", EMPRESA_MRR);
+        jdbc.execute("ALTER TABLE credito_lancamento ENABLE TRIGGER trg_credito_lancamento_append_only");
+        jdbc.update("DELETE FROM credito_compra WHERE tenant_id = ?", EMPRESA_MRR);
+        jdbc.update("INSERT INTO credito_lancamento (tenant_id, tipo, quantidade, saldo_apos, motivo) "
+            + "VALUES (?, 'ADESAO', 5, 5, 'adesão'), (?, 'CORTESIA', 20, 25, 'piloto'), "
+            + "(?, 'AJUSTE', 10, 35, 'venda')", EMPRESA_MRR, EMPRESA_MRR, EMPRESA_MRR);
+        jdbc.update("INSERT INTO credito_compra (tenant_id, quantidade, status, pix_txid, valor_pago, "
+            + "preco_unitario, decidido_em) VALUES (?, 10, 'APROVADA', 'metrica-tx', 50, 5, now())",
+            EMPRESA_MRR);
+
+        service.recalcular(hoje, hoje);
+
+        var linha = jdbc.queryForMap("SELECT creditos_cortesia, creditos_vendidos, receita_creditos "
+            + "FROM plataforma_metrica_diaria WHERE tenant_id = ? AND dia = ?", EMPRESA_MRR, hoje);
+        assertThat(((Number) linha.get("creditos_cortesia")).intValue()).isEqualTo(25);
+        assertThat(((Number) linha.get("creditos_vendidos")).intValue()).isEqualTo(10);
+        assertThat((BigDecimal) linha.get("receita_creditos")).isEqualByComparingTo("50.00");
+    }
+
+    @Test
+    @DisplayName("Receita da plataforma = fatura PAGA no dia; aberta não conta")
+    void receitaDaPlataformaContaFaturaPaga() {
+        seedEmpresaPro("ATIVO");
+        jdbc.update("INSERT INTO fatura (tenant_id, competencia, plano_nome, valor, status, "
+            + "vencimento, pago_em) VALUES (?, date_trunc('month', CURRENT_DATE), 'Pro', 299, "
+            + "'PAGA', CURRENT_DATE, now())", EMPRESA_MRR);
+        jdbc.update("INSERT INTO fatura (tenant_id, competencia, plano_nome, valor, status, "
+            + "vencimento) VALUES (?, date_trunc('month', CURRENT_DATE) - interval '1 month', "
+            + "'Pro', 299, 'ABERTA', CURRENT_DATE)", EMPRESA_MRR);
+
+        service.recalcular(hoje, hoje);
+
+        assertThat(coluna("receita_faturas")).isEqualByComparingTo("299.00");
+        assertThat(coluna("valor_em_aberto")).isEqualByComparingTo("299.00");
+    }
+
     @Test
     @DisplayName("Empresa sem movimento vira linha zerada, não linha ausente")
     void empresaSemMovimentoTemLinhaZerada() {

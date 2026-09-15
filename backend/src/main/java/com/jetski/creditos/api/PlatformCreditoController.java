@@ -41,13 +41,14 @@ public class PlatformCreditoController {
     }
 
     @PostMapping("/{tenantId}")
-    @Operation(summary = "Lançar créditos (±) para uma empresa — motivo obrigatório, auditado")
+    @Operation(summary = "Lançar créditos para uma empresa — ajuste (±) ou cortesia; motivo obrigatório, auditado")
     public LancamentoResponse lancar(
             @PathVariable UUID tenantId,
             @RequestBody LancarCreditoRequest request) {
-        log.info("POST /v1/platform/creditos/{} quantidade={}", tenantId, request.quantidade());
-        return LancamentoResponse.from(
-            platformCreditoService.lancar(tenantId, request.quantidade(), request.motivo()));
+        log.info("POST /v1/platform/creditos/{} tipo={} quantidade={}",
+            tenantId, request.tipo(), request.quantidade());
+        return LancamentoResponse.from(platformCreditoService.lancar(tenantId,
+            request.quantidade(), request.motivo(), request.tipo(), request.condicaoId()));
     }
 
     @GetMapping("/compras")

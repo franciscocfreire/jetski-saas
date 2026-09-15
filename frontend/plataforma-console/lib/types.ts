@@ -28,6 +28,42 @@ export interface TenantSummary {
   smtpRemetente?: string | null;
   /** Conta que autentica no SMTP próprio; null sem SMTP. */
   smtpUsuario?: string | null;
+  /** Condição comercial vigente hoje (isenção/desconto da mensalidade); null = paga o plano cheio. */
+  condicao?: CondicaoResumo | null;
+}
+
+export type TipoCondicao = "PILOTO" | "CORTESIA" | "PARCERIA" | "NEGOCIADO";
+export type FormaCondicao = "ISENCAO" | "PERCENTUAL" | "VALOR_FIXO";
+
+export interface CondicaoResumo {
+  id: string;
+  tipo: TipoCondicao;
+  forma: FormaCondicao;
+  /** % no PERCENTUAL, R$/mês no VALOR_FIXO, null na ISENCAO. */
+  valor: number | null;
+  inicio: string;
+  /** yyyy-MM-dd; null = sem prazo. */
+  fim: string | null;
+}
+
+/** Linha do histórico de GET /v1/platform/tenants/{id}/condicoes. */
+export interface CondicaoComercial extends CondicaoResumo {
+  motivo: string;
+  concedidaPor: string | null;
+  createdAt: string;
+  encerradaEm: string | null;
+  encerradaPor: string | null;
+  motivoEncerramento: string | null;
+  situacao: "VIGENTE" | "AGENDADA" | "EXPIRADA" | "ENCERRADA";
+}
+
+export interface NovaCondicao {
+  tipo: TipoCondicao;
+  forma: FormaCondicao;
+  valor: number | null;
+  inicio: string;
+  fim: string | null;
+  motivo: string;
 }
 
 /** Resultado de POST /v1/platform/tenants/{id}/smtp/teste. */

@@ -57,6 +57,7 @@ class PlatformNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
     @Autowired private TenantImportService importService;
     @Autowired private PlatformFaturaService faturaService;
     @Autowired private PlatformTenantService platformTenantService;
+    @Autowired private com.jetski.tenant.internal.CondicaoComercialService condicaoService;
     @Autowired private TenantSignupService tenantSignupService;
     @Autowired private com.jetski.usuarios.internal.PlatformMembroService platformMembroService;
     @Autowired private com.jetski.tenant.internal.PlatformCadastroService platformCadastroService;
@@ -94,7 +95,7 @@ class PlatformNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
     @AfterEach
     void tearDown() throws SQLException {
         try (Connection c = superConnection(); Statement st = c.createStatement()) {
-            for (String t : new String[]{"cliente", "modelo", "membro", "tenant_access"}) {
+            for (String t : new String[]{"cliente", "modelo", "membro", "tenant_access", "condicao_comercial"}) {
                 st.execute("DELETE FROM " + t + " WHERE tenant_id = '" + TENANT + "'");
             }
             st.execute("UPDATE assinatura SET status = 'expirada' WHERE tenant_id = '"
@@ -246,6 +247,26 @@ class PlatformNonSuperuserIntegrationTest extends AbstractNonSuperuserIntegratio
         assertThat(aguardarAuditoria("TENANT_PLANO_ALTERADO", 10))
             .as("troca de plano audita (não só loga)")
             .isPositive();
+    }
+
+    @Test
+    @DisplayName("V076: conceder condição comercial sob RLS — grava, aparece na listagem e audita")
+    void condicaoComercialSemTenantNaSessao() throws Exception {
+        condicaoService.conceder(TENANT, new com.jetski.tenant.internal.CondicaoComercialService.NovaCondicao(
+            com.jetski.tenant.internal.CondicaoComercialService.Tipo.PILOTO,
+            com.jetski.tenant.internal.CondicaoComercialService.Forma.ISENCAO, null, null,
+            java.time.LocalDate.now(java.time.ZoneId.of("America/Sao_Paulo")).plusMonths(2),
+            "piloto sob RLS"));
+
+        assertThat(countSuper("SELECT count(*) FROM condicao_comercial WHERE tenant_id = '"
+            + TENANT + "' AND forma = 'ISENCAO'")).isEqualTo(1);
+        // A listagem do console lê a condição empresa a empresa: sem fixar o tenant, a
+        // policy esconderia a linha e a empresa apareceria como "paga cheio".
+        assertThat(platformTenantService.listAll())
+            .filteredOn(s -> s.id().equals(TENANT.toString()))
+            .singleElement()
+            .satisfies(s -> assertThat(s.condicao()).isNotNull());
+        assertThat(aguardarAuditoria("TENANT_CONDICAO_COMERCIAL_CONCEDIDA", 10)).isPositive();
     }
 
     @Test
