@@ -268,7 +268,11 @@ export default function HabilitacaoPage() {
               )}
 
               <div className="mt-4 flex gap-2">
-                <Button variant="outline" onClick={() => setVia(null)}>Voltar</Button>
+                {hab.via === "CHA" ? (
+                  <Button variant="outline" href={`/conta/reservas/${id}`}>Voltar</Button>
+                ) : (
+                  <Button variant="outline" onClick={() => setVia(null)}>Voltar</Button>
+                )}
                 <Button
                   className="flex-1 gap-2"
                   onClick={enviar}
@@ -288,9 +292,17 @@ export default function HabilitacaoPage() {
                 <h2 className="flex items-center gap-2 font-semibold text-ink-900">
                   <LifeBuoy className="text-brand-600" size={20} /> Emissão da CHA-MTA-E
                 </h2>
-                <Button variant="ghost" size="sm" onClick={() => setVia(null)}>
-                  Voltar
-                </Button>
+                {/* Decisão já gravada na reserva (acompanhamento): voltar é ir para a
+                    reserva, não reabrir a triagem como se nada tivesse sido feito. */}
+                {hab.via === "EMA" ? (
+                  <Button variant="ghost" size="sm" href={`/conta/reservas/${id}`}>
+                    Voltar
+                  </Button>
+                ) : (
+                  <Button variant="ghost" size="sm" onClick={() => setVia(null)}>
+                    Voltar
+                  </Button>
+                )}
               </div>
               <p className="mb-4 text-sm text-slate-500">
                 Complete os 4 passos — a demonstração prática de segurança acontece no
