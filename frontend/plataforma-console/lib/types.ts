@@ -24,14 +24,18 @@ export interface TenantSummary {
   vinculoStatus?: string | null;
   /** SMTP próprio completo (host + usuário + senha). Na emissora, sem ele o ofício não sai. */
   smtpCompleto?: boolean;
-  /** "From" do SMTP próprio; null sem SMTP. */
+  /** "From" do SMTP próprio (From configurado ou a conta do SMTP); null sem SMTP. */
   smtpRemetente?: string | null;
+  /** Conta que autentica no SMTP próprio; null sem SMTP. */
+  smtpUsuario?: string | null;
 }
 
 /** Resultado de POST /v1/platform/tenants/{id}/smtp/teste. */
 export interface ResultadoTesteSmtp {
   enviado: boolean;
   de: string;
+  /** Conta que autenticou no SMTP — é por ela que a mensagem sai de fato. */
+  usuario?: string | null;
   para: string;
   servidor: string;
   erro?: string | null;

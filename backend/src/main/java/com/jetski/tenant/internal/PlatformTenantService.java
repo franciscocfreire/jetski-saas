@@ -82,7 +82,8 @@ public class PlatformTenantService {
                     papel.papel().name(), papel.emissoraTenantId(),
                     papel.emissoraTenantId() != null ? nomes.get(papel.emissoraTenantId()) : null,
                     papel.vinculoStatus(),
-                    smtpCompleto(t), smtpCompleto(t) ? smtpRemetente(t) : null);
+                    smtpCompleto(t), smtpCompleto(t) ? smtpRemetente(t) : null,
+                    smtpCompleto(t) ? t.getSmtpUsername().trim() : null);
             })
             .toList();
     }
@@ -92,9 +93,9 @@ public class PlatformTenantService {
         return naoVazio(t.getSmtpHost()) && naoVazio(t.getSmtpUsername()) && naoVazio(t.getSmtpPassword());
     }
 
-    private static String smtpRemetente(Tenant t) {
+    /** Mesmo critério do TenantSmtpResolverImpl: smtp_from ou, vazio, a conta que autentica. */
+    static String smtpRemetente(Tenant t) {
         if (naoVazio(t.getSmtpFrom())) return t.getSmtpFrom().trim();
-        if (naoVazio(t.getEmailRemetente())) return t.getEmailRemetente().trim();
         return t.getSmtpUsername().trim();
     }
 

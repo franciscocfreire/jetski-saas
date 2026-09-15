@@ -60,7 +60,10 @@ public class TenantSmtpResolverImpl implements TenantSmtpResolver {
                 || isBlank(t.getSmtpPassword())) {
             return Optional.empty();
         }
-        String from = firstNonBlank(t.getSmtpFrom(), t.getEmailRemetente(), t.getSmtpUsername());
+        // From = o "From (remetente exibido)" ou, vazio, a PRÓPRIA conta que autentica — como a
+        // tela de Configurações promete. O email_remetente (contato/responder-para da loja) não
+        // entra: não é conta deste SMTP, o Gmail reescreveria o From e outros provedores rejeitam.
+        String from = firstNonBlank(t.getSmtpFrom(), t.getSmtpUsername());
         int port = t.getSmtpPort() != null ? t.getSmtpPort() : 587;
         boolean tls = t.getSmtpStarttls() == null || t.getSmtpStarttls();
         return Optional.of(new SmtpSettings(

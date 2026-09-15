@@ -50,11 +50,12 @@ public class PlatformSmtpTesteService {
     /**
      * @param enviado  o servidor da empresa aceitou a mensagem
      * @param de       remetente usado (o "From" do SMTP da empresa)
+     * @param usuario  conta que autenticou no SMTP — é por ela que a mensagem sai de fato
      * @param para     e-mail da plataforma que deve receber o teste
      * @param servidor host:porta do SMTP da empresa
      * @param erro     causa raiz da falha (null quando enviado)
      */
-    public record ResultadoTeste(boolean enviado, String de, String para, String servidor,
+    public record ResultadoTeste(boolean enviado, String de, String usuario, String para, String servidor,
                                  String erro, Instant em) {}
 
     public ResultadoTeste testar(UUID tenantId) {
@@ -70,20 +71,20 @@ public class PlatformSmtpTesteService {
         try {
             senderFactory.send(senderFactory.build(s), s.from(), s.fromName(), emailPlataforma,
                 "Teste de SMTP — " + t.getRazaoSocial(), corpo(t, s, servidor, agora), null, null, null);
-            log.info("Teste de SMTP ok: tenant={}, servidor={}, from={}, para={}",
-                tenantId, servidor, s.from(), emailPlataforma);
+            log.info("Teste de SMTP ok: tenant={}, servidor={}, conta={}, from={}, para={}",
+                tenantId, servidor, s.username(), s.from(), emailPlataforma);
         } catch (Exception e) {
             erro = causaRaiz(e);
             log.warn("Teste de SMTP falhou: tenant={}, servidor={}, erro={}", tenantId, servidor, erro);
         }
 
         String detalhe = (erro == null ? "enviado" : "falhou: " + erro)
-            + " — de " + s.from() + " via " + servidor + " para " + emailPlataforma;
+            + " — conta " + s.username() + ", de " + s.from() + " via " + servidor + " para " + emailPlataforma;
         eventPublisher.publishEvent(TenantStatusChangedEvent.of(tenantId, ACAO_AUDITORIA,
             t.getStatus().name(), t.getStatus().name(), TenantContext.getUsuarioId(), detalhe,
             t.getRazaoSocial(), t.getSlug()));
 
-        return new ResultadoTeste(erro == null, s.from(), emailPlataforma, servidor, erro, agora);
+        return new ResultadoTeste(erro == null, s.from(), s.username(), emailPlataforma, servidor, erro, agora);
     }
 
     private static String corpo(Tenant t, TenantSmtpResolver.SmtpSettings s, String servidor, Instant agora) {
@@ -91,6 +92,7 @@ public class PlatformSmtpTesteService {
             + "<p>Se esta mensagem chegou, o SMTP próprio de <b>" + HtmlUtils.htmlEscape(t.getRazaoSocial())
             + "</b> está funcionando.</p>"
             + "<ul><li>Servidor: " + HtmlUtils.htmlEscape(servidor) + "</li>"
+            + "<li>Conta do SMTP: " + HtmlUtils.htmlEscape(s.username()) + "</li>"
             + "<li>Remetente: " + HtmlUtils.htmlEscape(s.from()) + "</li>"
             + "<li>Enviado em: " + QUANDO.format(agora) + "</li></ul>";
     }

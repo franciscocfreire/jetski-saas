@@ -63,6 +63,7 @@ class PlatformSmtpTesteServiceTest {
 
         assertThat(r.enviado()).isTrue();
         assertThat(r.de()).isEqualTo("eama@jetsave.com.br");
+        assertThat(r.usuario()).isEqualTo("eama@jetsave.com.br");
         assertThat(r.para()).isEqualTo("meujet.locadora@gmail.com");
         assertThat(r.servidor()).isEqualTo("smtp.jetsave.com.br:587");
         assertThat(r.erro()).isNull();

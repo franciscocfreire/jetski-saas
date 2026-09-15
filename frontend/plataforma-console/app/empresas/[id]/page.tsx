@@ -240,10 +240,20 @@ export default async function Empresa({ params }: { params: Promise<{ id: string
           <div className="mt-5 border-t border-slate-100 pt-4 text-sm" data-testid="console-empresa-smtp">
             <div className="text-xs uppercase tracking-wide text-ink-300">Servidor de e-mail (SMTP)</div>
             {empresa.smtpCompleto ? (
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <Badge tom="ativo">configurado</Badge>
-                {empresa.smtpRemetente && <span className="text-ink-700">{empresa.smtpRemetente}</span>}
-              </div>
+              <>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <Badge tom="ativo">configurado</Badge>
+                  {empresa.smtpRemetente && <span className="text-ink-700">{empresa.smtpRemetente}</span>}
+                </div>
+                {empresa.smtpUsuario &&
+                  empresa.smtpRemetente &&
+                  empresa.smtpUsuario.toLowerCase() !== empresa.smtpRemetente.toLowerCase() && (
+                    <p className="mt-1 text-xs text-amber-700" data-testid="console-smtp-remetente-diverge">
+                      Autentica como {empresa.smtpUsuario}. O Gmail troca o remetente por essa conta, a
+                      menos que {empresa.smtpRemetente} esteja cadastrado nela como &quot;Enviar e-mail como&quot;.
+                    </p>
+                  )}
+              </>
             ) : (
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <Badge tom="atencao">SMTP não cadastrado</Badge>
