@@ -17,6 +17,7 @@ import {
 import { FileUpload } from '@/components/file-upload'
 import { AddressForm, type Address } from '@/components/address-form'
 import { clientesService, habilitacaoService } from '@/lib/api/services'
+import { useObjectUrls } from '@/lib/hooks/use-object-url'
 import type { Cliente } from '@/lib/api/types'
 import type { Atendimento } from '../types'
 
@@ -131,19 +132,21 @@ export function StepDocumentos({
   }>({})
 
   // Pré-carrega as fotos já enviadas do cliente (carrega automático; pode trocar).
-  const { data: anexosUrls } = useQuery({
+  // O cache guarda os Blobs; as object URLs são do componente (ver useObjectUrls).
+  const { data: anexosBlobs } = useQuery({
     queryKey: ['cliente-anexos', c.id],
     queryFn: async () => {
       const lista = await clientesService.listarAnexos(c.id)
-      const urls: Record<string, string> = {}
+      const blobs: Record<string, Blob> = {}
       for (const a of lista) {
         const blob = await clientesService.baixarAnexo(c.id, a.tipo).catch(() => null)
-        if (blob) urls[a.tipo] = URL.createObjectURL(blob)
+        if (blob) blobs[a.tipo] = blob
       }
-      return urls
+      return blobs
     },
     enabled: !!c.id,
   })
+  const anexosUrls = useObjectUrls(anexosBlobs)
 
   const salvarDados = useMutation({
     mutationFn: async () => {

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { FileUpload } from '@/components/file-upload'
 import { PixQrCode } from '@/components/pix-qrcode'
 import { habilitacaoService, clientesService } from '@/lib/api/services'
+import { useObjectUrl } from '@/lib/hooks/use-object-url'
 import { abrirPdfBlob } from '@/lib/pdf'
 import type { Atendimento } from '../types'
 import type { HabilitacaoGruResponse } from '@/lib/api/types'
@@ -49,16 +50,17 @@ export function StepHabilitacao({
   const [comprovante, setComprovante] = useState<string | undefined>(undefined)
 
   // Foto da CHA já enviada (carrega automático, pode trocar).
-  const { data: chaFotoUrl } = useQuery({
+  // O cache guarda o Blob; a object URL é do componente (ver useObjectUrl).
+  const { data: chaFotoBlob } = useQuery({
     queryKey: ['cliente-anexo-cha', clienteId],
     queryFn: async () => {
       const lista = await clientesService.listarAnexos(clienteId)
-      if (!lista.some((a) => a.tipo === 'CHA')) return undefined
-      const blob = await clientesService.baixarAnexo(clienteId, 'CHA').catch(() => null)
-      return blob ? URL.createObjectURL(blob) : undefined
+      if (!lista.some((a) => a.tipo === 'CHA')) return null
+      return clientesService.baixarAnexo(clienteId, 'CHA').catch(() => null)
     },
     enabled: !!clienteId,
   })
+  const chaFotoUrl = useObjectUrl(chaFotoBlob)
 
   // Pré-preenche da habilitação salva (retomada / breadcrumb).
   const { data: habSalva } = useQuery({

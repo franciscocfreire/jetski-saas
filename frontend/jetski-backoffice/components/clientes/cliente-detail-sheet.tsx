@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -29,6 +28,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { clientesService, locacoesService } from '@/lib/api/services'
+import { useObjectUrls } from '@/lib/hooks/use-object-url'
 import { WhatsAppLink } from '@/components/whatsapp-link'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { Cliente, ClienteStatusConta, LocacaoStatus } from '@/lib/api/types'
@@ -108,29 +108,27 @@ export function ClienteDetailSheet({
   })
   const cliente = clienteFull ?? clienteRow
 
-  // Fotos/comprovantes — baixa cada anexo presente como blob e gera object URL.
-  const { data: anexos, isLoading: anexosLoading } = useQuery({
+  // Fotos/comprovantes — o cache guarda os Blobs; as object URLs nascem e morrem no
+  // componente (useObjectUrls). URL criada na queryFn e revogada ao trocar de cliente
+  // voltava do cache já morta: imagem quebrada e blob: com ERR_FILE_NOT_FOUND.
+  const { data: anexosBlobs, isLoading: anexosLoading } = useQuery({
     queryKey: ['cliente-anexos-full', clienteId],
     queryFn: async () => {
       const lista = await clientesService.listarAnexos(clienteId!)
       const presentes = new Set(lista.map((a) => a.tipo))
-      const out: Record<string, string> = {}
+      const out: Record<string, Blob> = {}
       for (const { tipo } of ANEXOS) {
         if (!presentes.has(tipo)) continue
         const blob = await clientesService.baixarAnexo(clienteId!, tipo).catch(() => null)
-        if (blob) out[tipo] = URL.createObjectURL(blob)
+        if (blob) out[tipo] = blob
       }
       return out
     },
     enabled: open && !!clienteId,
   })
-
-  // Libera os object URLs ao trocar de cliente / desmontar.
-  useEffect(() => {
-    return () => {
-      if (anexos) Object.values(anexos).forEach((u) => URL.revokeObjectURL(u))
-    }
-  }, [anexos])
+  const anexos = useObjectUrls(anexosBlobs)
+  // Entre o Blob chegar e a URL ser criada há um render: não pisca "não enviado".
+  const fotosPendentes = !!anexosBlobs && Object.keys(anexosBlobs).some((t) => !anexos[t])
 
   const qc = useQueryClient()
   const apagarAnexo = useMutation({
@@ -236,7 +234,7 @@ export function ClienteDetailSheet({
           <h4 className="flex items-center gap-2 text-sm font-semibold">
             <ImageIcon className="h-4 w-4" /> Fotos &amp; comprovantes
           </h4>
-          {anexosLoading ? (
+          {anexosLoading || fotosPendentes ? (
             <p className="text-sm text-muted-foreground">Carregando anexos…</p>
           ) : (
             <div className="grid grid-cols-2 gap-3">

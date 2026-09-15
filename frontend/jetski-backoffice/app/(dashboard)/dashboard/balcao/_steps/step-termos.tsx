@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SignaturePad } from '@/components/signature-pad'
 import { aceiteService, habilitacaoService } from '@/lib/api/services'
+import { useObjectUrl } from '@/lib/hooks/use-object-url'
 import { formatDateTime } from '@/lib/utils'
 import { rotuloIdioma } from '@/lib/videoaulas'
 import type { Atendimento } from '../types'
@@ -49,14 +50,13 @@ export function StepTermos({
 
   // Imagem da assinatura já registrada — o cliente pode ter assinado pelo portal,
   // então o balcão confere aqui o que foi assinado antes de seguir.
-  const { data: assinaturaUrl } = useQuery({
+  // O cache guarda o Blob; a object URL é do componente (ver useObjectUrl).
+  const { data: assinaturaBlob } = useQuery({
     queryKey: ['aceite-assinatura', atendimento.reserva?.id, aceiteExistente?.aceitoEm],
-    queryFn: async () => {
-      const blob = await aceiteService.baixarAssinatura(atendimento.reserva!.id)
-      return blob ? URL.createObjectURL(blob) : null
-    },
+    queryFn: async () => (await aceiteService.baixarAssinatura(atendimento.reserva!.id)) ?? null,
     enabled: !!atendimento.reserva?.id && !!aceiteExistente,
   })
+  const assinaturaUrl = useObjectUrl(assinaturaBlob)
 
   // Pré-preenche a autodeclaração de saúde da habilitação salva (retomada).
   const { data: habSalva } = useQuery({
