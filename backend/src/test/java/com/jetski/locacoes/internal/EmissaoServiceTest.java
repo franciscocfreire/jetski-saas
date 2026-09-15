@@ -467,4 +467,52 @@ class EmissaoServiceTest {
         verify(email).sendEmailComAnexo(eq("roberto@email.com"), anyString(), anyString(), anyString(),
             any(), anyString(), nullable(String.class), eq(new EmailService.Remetente(tenant, "Jet Save Turismo Náutico LTDA")));
     }
+
+    @Test
+    @DisplayName("Reenvio só ao cliente: não reenvia o ofício e preserva o status e a data de envio à Marinha")
+    void reenvioSoAoCliente() {
+        UUID docId = UUID.randomUUID();
+        java.time.Instant enviadoEm = java.time.Instant.parse("2026-09-10T12:00:00Z");
+        DocumentoEmitido doc = DocumentoEmitido.builder()
+            .id(docId).tenantId(tenant).reservaId(reservaId)
+            .s3Key("t/reserva/r/documento.pdf").hashSha256("abc123hash")
+            .marinhaEnvioStatus(com.jetski.locacoes.domain.EnvioStatus.ENVIADO).marinhaEnviadoEm(enviadoEm)
+            .build();
+        when(docRepo.findById(docId)).thenReturn(Optional.of(doc));
+
+        EmissaoService.ResultadoReenvio r = service.reenviarEmail(docId, EmissaoService.Destino.CLIENTE);
+
+        assertThat(r.isEnviadoCliente()).isTrue();
+        assertThat(r.isEnviadoMarinha()).isFalse();
+        verify(email, org.mockito.Mockito.never()).sendEmailComAnexo(eq("capitania@example.com"),
+            anyString(), anyString(), anyString(), any(), anyString(), nullable(String.class), any());
+        verify(email).sendEmailComAnexo(eq("roberto@email.com"), anyString(), anyString(), anyString(),
+            any(), anyString(), nullable(String.class), any());
+        assertThat(doc.getMarinhaEnvioStatus()).isEqualTo(com.jetski.locacoes.domain.EnvioStatus.ENVIADO);
+        assertThat(doc.getMarinhaEnviadoEm()).isEqualTo(enviadoEm);
+        assertThat(doc.getClienteEnvioStatus()).isEqualTo(com.jetski.locacoes.domain.EnvioStatus.ENVIADO);
+    }
+
+    @Test
+    @DisplayName("Reenvio só à Marinha: não reenvia a via do cliente e preserva o status dela")
+    void reenvioSoAMarinha() {
+        UUID docId = UUID.randomUUID();
+        DocumentoEmitido doc = DocumentoEmitido.builder()
+            .id(docId).tenantId(tenant).reservaId(reservaId)
+            .s3Key("t/reserva/r/documento.pdf").hashSha256("abc123hash")
+            .clienteEnvioStatus(com.jetski.locacoes.domain.EnvioStatus.SEM_DESTINATARIO)
+            .build();
+        when(docRepo.findById(docId)).thenReturn(Optional.of(doc));
+
+        EmissaoService.ResultadoReenvio r = service.reenviarEmail(docId, EmissaoService.Destino.MARINHA);
+
+        assertThat(r.isEnviadoMarinha()).isTrue();
+        assertThat(r.isEnviadoCliente()).isFalse();
+        verify(email).sendEmailComAnexo(eq("capitania@example.com"), anyString(), anyString(), anyString(),
+            any(), anyString(), nullable(String.class), any());
+        verify(email, org.mockito.Mockito.never()).sendEmailComAnexo(eq("roberto@email.com"),
+            anyString(), anyString(), anyString(), any(), anyString(), nullable(String.class), any());
+        assertThat(doc.getClienteEnvioStatus()).isEqualTo(com.jetski.locacoes.domain.EnvioStatus.SEM_DESTINATARIO);
+        assertThat(doc.getMarinhaEnviadoEm()).isNotNull();
+    }
 }

@@ -109,13 +109,18 @@ public class DocumentoController {
 
     @PostMapping("/{id}/reenviar")
     @PreAuthorize("hasAnyRole('ADMIN_TENANT', 'GERENTE', 'OPERADOR', 'FINANCEIRO')")
-    @Operation(summary = "Reenviar por e-mail um documento já emitido (Marinha + cliente)")
+    @Operation(
+        summary = "Reenviar por e-mail um documento já emitido",
+        description = "destino=MARINHA reenvia só o ofício à Capitania; destino=CLIENTE só a via do "
+                    + "cliente; sem destino, os dois. O destino não escolhido mantém o status gravado."
+    )
     public ResponseEntity<EmissaoService.ResultadoReenvio> reenviar(
-        @PathVariable UUID tenantId, @PathVariable UUID id
+        @PathVariable UUID tenantId, @PathVariable UUID id,
+        @org.springframework.web.bind.annotation.RequestParam(required = false) EmissaoService.Destino destino
     ) {
         if (!tenantId.equals(TenantContext.getTenantId())) {
             throw new IllegalArgumentException("Tenant ID mismatch");
         }
-        return ResponseEntity.ok(emissaoService.reenviarEmail(id));
+        return ResponseEntity.ok(emissaoService.reenviarEmail(id, destino));
     }
 }

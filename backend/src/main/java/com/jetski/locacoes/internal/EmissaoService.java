@@ -801,17 +801,27 @@ public class EmissaoService {
      */
     @Transactional
     public ResultadoReenvio reenviarEmail(UUID documentoId) {
-        // Mesmo caminho da emissão e do worker — o reenvio força os dois destinos,
+        return reenviarEmail(documentoId, null);
+    }
+
+    /**
+     * Idem, para um destino só: {@code MARINHA} (ofício à Capitania) ou {@code CLIENTE}
+     * (via do cliente); {@code null} = os dois. O destino não escolhido não é enviado e
+     * mantém o status gravado.
+     */
+    @Transactional
+    public ResultadoReenvio reenviarEmail(UUID documentoId, Destino destino) {
+        // Mesmo caminho da emissão e do worker — o reenvio força o(s) destino(s) escolhido(s),
         // ignorando o status gravado: o operador está afirmando que quer reenviar
         // (ex.: completou as pendências que haviam BLOQUEADO a Marinha).
-        DocumentoEnvioService.EnvioContexto ctx = documentoEnvioService.carregar(documentoId, true);
+        DocumentoEnvioService.EnvioContexto ctx = documentoEnvioService.carregar(documentoId, true, destino);
         DocumentoEnvioService.ResultadoEnvio r = documentoEnvioService.despachar(ctx);
-        documentoEnvioService.persistirStatus(documentoId, r);
-        log.info("Reenvio de documento: docId={}, marinha={}, cliente={}",
-            documentoId, r.marinha(), r.cliente());
+        documentoEnvioService.persistirStatus(documentoId, r, destino);
+        log.info("Reenvio de documento: docId={}, destino={}, marinha={}, cliente={}",
+            documentoId, destino != null ? destino : "AMBOS", r.marinha(), r.cliente());
         return ResultadoReenvio.builder()
-            .enviadoMarinha(r.enviadoMarinha())
-            .enviadoCliente(r.enviadoCliente())
+            .enviadoMarinha(destino != Destino.CLIENTE && r.enviadoMarinha())
+            .enviadoCliente(destino != Destino.MARINHA && r.enviadoCliente())
             .build();
     }
 
