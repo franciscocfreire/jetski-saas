@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { Plus, Search, MoreHorizontal, FileText, Edit, DollarSign, Eye, Globe } from 'lucide-react'
 import { useTenantStore } from '@/lib/store/tenant-store'
-import { modelosService, type ModeloCreateRequest } from '@/lib/api/services/modelos'
+import { modelosService } from '@/lib/api/services/modelos'
+import { ModeloFormDialog } from '@/components/modelos/modelo-form-dialog'
 import type { Modelo } from '@/lib/api/types'
 import { formatCurrency } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -20,228 +21,12 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
-
-function ModeloFormDialog({
-  modelo,
-  open,
-  onOpenChange,
-}: {
-  modelo?: Modelo
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  const queryClient = useQueryClient()
-
-  const [formData, setFormData] = useState<ModeloCreateRequest>({
-    nome: modelo?.nome || '',
-    fabricante: modelo?.fabricante || '',
-    potenciaHp: modelo?.potenciaHp || 90,
-    capacidadePessoas: modelo?.capacidadePessoas || 2,
-    precoBaseHora: modelo?.precoBaseHora || 150,
-    toleranciaMin: modelo?.toleranciaMin || 5,
-    taxaHoraExtra: modelo?.taxaHoraExtra || 50,
-    incluiCombustivel: modelo?.incluiCombustivel || false,
-    caucao: modelo?.caucao || 300,
-    descricao: modelo?.descricao || '',
-    duracaoMinimaMin: modelo?.duracaoMinimaMin ?? 0,
-  })
-
-  const createMutation = useMutation({
-    mutationFn: (data: ModeloCreateRequest) => modelosService.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['modelos'] })
-      onOpenChange(false)
-    },
-  })
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<ModeloCreateRequest> }) =>
-      modelosService.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['modelos'] })
-      onOpenChange(false)
-    },
-  })
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (modelo) {
-      updateMutation.mutate({ id: modelo.id, data: formData })
-    } else {
-      createMutation.mutate(formData)
-    }
-  }
-
-  const isLoading = createMutation.isPending || updateMutation.isPending
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>{modelo ? 'Editar Modelo' : 'Novo Modelo'}</DialogTitle>
-            <DialogDescription>
-              {modelo ? 'Atualize os dados do modelo' : 'Cadastre um novo modelo de jetski'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="nome">Nome *</Label>
-                <Input
-                  id="nome"
-                  value={formData.nome}
-                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  placeholder="Ex: Sea-Doo GTI 130"
-                  required
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="fabricante">Fabricante</Label>
-                <Input
-                  id="fabricante"
-                  value={formData.fabricante || ''}
-                  onChange={(e) => setFormData({ ...formData, fabricante: e.target.value })}
-                  placeholder="Ex: Sea-Doo"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="potenciaHp">Potência (HP)</Label>
-                <Input
-                  id="potenciaHp"
-                  type="number"
-                  value={formData.potenciaHp || 90}
-                  onChange={(e) => setFormData({ ...formData, potenciaHp: Number(e.target.value) })}
-                  min={0}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="capacidadePessoas">Capacidade (pessoas) *</Label>
-                <Input
-                  id="capacidadePessoas"
-                  type="number"
-                  value={formData.capacidadePessoas}
-                  onChange={(e) => setFormData({ ...formData, capacidadePessoas: Number(e.target.value) })}
-                  min={1}
-                  max={4}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="precoBase">Preço/Hora (R$) *</Label>
-                <Input
-                  id="precoBase"
-                  type="number"
-                  value={formData.precoBaseHora}
-                  onChange={(e) => setFormData({ ...formData, precoBaseHora: Number(e.target.value) })}
-                  min={0}
-                  step={10}
-                  required
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="taxaHoraExtra">Taxa Hora Extra (R$)</Label>
-                <Input
-                  id="taxaHoraExtra"
-                  type="number"
-                  value={formData.taxaHoraExtra || 0}
-                  onChange={(e) => setFormData({ ...formData, taxaHoraExtra: Number(e.target.value) })}
-                  min={0}
-                  step={10}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="toleranciaMin">Tolerância (min)</Label>
-                <Input
-                  id="toleranciaMin"
-                  type="number"
-                  value={formData.toleranciaMin || 5}
-                  onChange={(e) => setFormData({ ...formData, toleranciaMin: Number(e.target.value) })}
-                  min={0}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="caucao">Caução (R$)</Label>
-                <Input
-                  id="caucao"
-                  type="number"
-                  value={formData.caucao || 0}
-                  onChange={(e) => setFormData({ ...formData, caucao: Number(e.target.value) })}
-                  min={0}
-                  step={50}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="duracaoMinimaMin">Locação mínima (min)</Label>
-              <Input
-                id="duracaoMinimaMin"
-                type="number"
-                min={0}
-                step={15}
-                value={formData.duracaoMinimaMin || ''}
-                onChange={(e) => setFormData({ ...formData, duracaoMinimaMin: Number(e.target.value) || 0 })}
-                placeholder="Ex: 30 (vazio = sem mínimo)"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="descricao">Descrição no marketplace</Label>
-              <Textarea
-                id="descricao"
-                value={formData.descricao || ''}
-                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                placeholder="Diferenciais do jet, o que está incluso, ponto de saída..."
-                maxLength={2000}
-                rows={3}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Salvando...' : modelo ? 'Salvar' : 'Criar'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 export default function ModelosPage() {
   const { currentTenant } = useTenantStore()
