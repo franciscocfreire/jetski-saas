@@ -82,7 +82,7 @@ public class PlatformTenantService {
                     assinatura != null ? (String) assinatura[0] : null,
                     assinatura != null && assinatura[1] != null
                         ? ((java.sql.Date) assinatura[1]).toLocalDate() : null,
-                    t.getExclusaoAgendadaEm(),
+                    t.getExclusaoAgendadaEm(), t.getExcluidoEm(),
                     Boolean.TRUE.equals(t.getEmissoraHabilitada()), t.getEamaRegistro(),
                     modulos.contains("*") ? null : modulos,
                     papel.papel().name(), papel.emissoraTenantId(),
@@ -202,7 +202,7 @@ public class PlatformTenantService {
      */
     @Transactional
     public com.jetski.tenant.api.dto.EmissoraStatusResult habilitarEmissora(UUID tenantId) {
-        Tenant tenant = require(tenantId);
+        Tenant tenant = com.jetski.tenant.TenantQueryService.exigirViva(require(tenantId));
         if (tenant.getCapitaniaId() == null) {
             throw new com.jetski.shared.exception.BusinessException(
                 "Empresa sem capitania declarada — peça para ela preencher o perfil de emissão antes de habilitar");
@@ -252,7 +252,7 @@ public class PlatformTenantService {
     /** Desabilita a empresa como EAMA emissora (revalidação/irregularidade). */
     @Transactional
     public com.jetski.tenant.api.dto.EmissoraStatusResult desabilitarEmissora(UUID tenantId) {
-        Tenant tenant = require(tenantId);
+        Tenant tenant = com.jetski.tenant.TenantQueryService.exigirViva(require(tenantId));
         tenant.setEmissoraHabilitada(false);
         tenantRepository.save(tenant);
         log.info("[PLATFORM] Emissora desabilitada: tenant={}, por={}", tenantId, actor());

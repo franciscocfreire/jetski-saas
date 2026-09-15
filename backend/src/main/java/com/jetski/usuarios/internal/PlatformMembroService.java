@@ -113,7 +113,7 @@ public class PlatformMembroService {
     @CacheEvict(value = "tenant-access", allEntries = true)
     public void desativar(UUID tenantId, UUID usuarioId, String motivo) {
         String m = exigirMotivo(motivo);
-        Tenant tenant = fixarEmpresa(tenantId);
+        Tenant tenant = fixarEmpresaViva(tenantId);
         String email = emailDoMembro(tenantId, usuarioId);
         memberManagementService.deactivateMember(tenantId, usuarioId);
         auditar(tenant, "TENANT_MEMBRO_DESATIVADO", email + " — " + m);
@@ -124,7 +124,7 @@ public class PlatformMembroService {
     @CacheEvict(value = "tenant-access", allEntries = true)
     public void reativar(UUID tenantId, UUID usuarioId, String motivo) {
         String m = exigirMotivo(motivo);
-        Tenant tenant = fixarEmpresa(tenantId);
+        Tenant tenant = fixarEmpresaViva(tenantId);
         String email = emailDoMembro(tenantId, usuarioId);
         memberManagementService.reactivateMember(tenantId, usuarioId);
         auditar(tenant, "TENANT_MEMBRO_REATIVADO", email + " — " + m);
@@ -141,7 +141,7 @@ public class PlatformMembroService {
     @CacheEvict(value = "tenant-access", allEntries = true)
     public void remover(UUID tenantId, UUID usuarioId, String motivo) {
         String m = exigirMotivo(motivo);
-        Tenant tenant = fixarEmpresa(tenantId);
+        Tenant tenant = fixarEmpresaViva(tenantId);
 
         List<Map<String, Object>> linhas = jdbc.queryForList("""
             SELECT m.id, m.ativo, 'ADMIN_TENANT' = ANY(m.papeis) AS admin, u.email,
@@ -211,7 +211,7 @@ public class PlatformMembroService {
                 throw new BusinessException("Papel inválido: " + p);
             }
         }
-        Tenant tenant = fixarEmpresa(tenantId);
+        Tenant tenant = fixarEmpresaViva(tenantId);
 
         InviteUserRequest request = InviteUserRequest.builder()
             .email(e)
@@ -227,7 +227,7 @@ public class PlatformMembroService {
     @Transactional
     public void cancelarConvite(UUID tenantId, UUID conviteId, String motivo) {
         String m = exigirMotivo(motivo);
-        Tenant tenant = fixarEmpresa(tenantId);
+        Tenant tenant = fixarEmpresaViva(tenantId);
         List<String> emails = jdbc.queryForList(
             "SELECT email FROM convite WHERE id = ? AND tenant_id = ?", String.class, conviteId, tenantId);
         if (emails.isEmpty()) {
@@ -253,6 +253,11 @@ public class PlatformMembroService {
             throw new NotFoundException("Empresa não encontrada: " + tenantId);
         }
         return tenant;
+    }
+
+    /** Escritas: empresa excluída só aceita consulta. */
+    private Tenant fixarEmpresaViva(UUID tenantId) {
+        return TenantQueryService.exigirViva(fixarEmpresa(tenantId));
     }
 
     private String emailDoMembro(UUID tenantId, UUID usuarioId) {

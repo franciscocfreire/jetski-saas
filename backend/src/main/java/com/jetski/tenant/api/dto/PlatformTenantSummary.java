@@ -23,6 +23,8 @@ public record PlatformTenantSummary(
     LocalDate assinaturaFim,
     /** Expurgo agendado (exclusão com carência); null = sem exclusão pendente. */
     java.time.Instant exclusaoAgendadaEm,
+    /** Quando o expurgo rodou (status EXCLUIDO); null = empresa viva. */
+    java.time.Instant excluidoEm,
     /** EAMA emissora validada (V047) — portão cadastral da emissão própria/delegada. */
     boolean emissoraHabilitada,
     /** Registro EAMA declarado pela empresa (null = ainda não preenchido). */
@@ -63,6 +65,7 @@ public record PlatformTenantSummary(
     public static PlatformTenantSummary of(UUID id, String slug, String razaoSocial, String status,
                                            String plano, LocalDate assinaturaFim,
                                            java.time.Instant exclusaoAgendadaEm,
+                                           java.time.Instant excluidoEm,
                                            boolean emissoraHabilitada, String eamaRegistro,
                                            List<String> modulos,
                                            String papelEmissao, UUID emissoraTenantId,
@@ -71,7 +74,7 @@ public record PlatformTenantSummary(
                                            String smtpUsuario, CondicaoResumo condicao) {
         return new PlatformTenantSummary(
             id.toString(), slug, razaoSocial, status, List.of("ADMIN_TENANT"), plano,
-            assinaturaFim, exclusaoAgendadaEm, emissoraHabilitada, eamaRegistro, modulos,
+            assinaturaFim, exclusaoAgendadaEm, excluidoEm, emissoraHabilitada, eamaRegistro, modulos,
             papelEmissao, emissoraTenantId != null ? emissoraTenantId.toString() : null,
             emissoraNome, vinculoStatus, smtpCompleto, smtpRemetente, smtpUsuario, condicao);
     }

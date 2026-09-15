@@ -98,6 +98,7 @@ public class PlatformLimiteService {
         }
         var tenant = tenantRepository.findById(tenantId)
             .orElseThrow(() -> new NotFoundException("Empresa não encontrada: " + tenantId));
+        com.jetski.tenant.TenantQueryService.exigirViva(tenant);
         LimiteUsuarios antes = usuarios(tenantId);
 
         if (maximo == null) {

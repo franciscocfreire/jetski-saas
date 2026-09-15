@@ -29,7 +29,9 @@ export default async function Home() {
     erro = { status: err.status ?? 0, mensagem: err.message ?? "Falha ao consultar" };
   }
 
-  const porStatus = tenants.reduce<Record<string, number>>((acc, t) => {
+  // Excluídas (tombstone) não são empresas da base: ficam fora do indicador.
+  const vivas = tenants.filter((t) => t.status !== "EXCLUIDO");
+  const porStatus = vivas.reduce<Record<string, number>>((acc, t) => {
     acc[t.status] = (acc[t.status] ?? 0) + 1;
     return acc;
   }, {});
@@ -70,7 +72,7 @@ export default async function Home() {
       {dash && (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Indicador titulo="Empresas" valor={String(tenants.length)}
+            <Indicador titulo="Empresas" valor={String(vivas.length)}
               nota={Object.entries(porStatus).map(([s, q]) => `${q} ${s.toLowerCase()}`).join(" · ")} />
             <Indicador titulo="MRR contratado" valor={BRL.format(n("mrr"))}
               nota={`tabela ${BRL.format(n("mrr_tabela"))} · empresas em operação`} />

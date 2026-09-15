@@ -77,6 +77,55 @@ export function ZonaDePerigo({
   );
 }
 
+/**
+ * Empresa excluída: sobra só o arquivamento para baixar (o zip gerado pelo expurgo e os
+ * anteriores, até a retenção de 90 dias). Reset, restauração e exclusão não se aplicam.
+ */
+export function ArquivamentoDaEmpresa({
+  tenantId,
+  exports,
+}: {
+  tenantId: string;
+  exports: TenantExport[];
+}) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white px-5 py-4">
+      <h2 className="font-display text-lg text-ink-900">Arquivamento</h2>
+      <p className="mt-0.5 text-sm text-ink-500">
+        Cópia dos dados e arquivos feita antes do expurgo. Os exports ficam disponíveis por 90 dias.
+      </p>
+      {exports.length > 0 ? (
+        <ListaExports tenantId={tenantId} exports={exports} />
+      ) : (
+        <p className="mt-3 text-sm text-ink-300">Nenhum export disponível.</p>
+      )}
+    </section>
+  );
+}
+
+function ListaExports({ tenantId, exports }: { tenantId: string; exports: TenantExport[] }) {
+  return (
+    <ul className="mt-3 space-y-1 text-sm">
+      {exports.map((e) => (
+        <li key={e.key} className="flex flex-wrap items-center gap-2">
+          <a
+            href={`/api/download?tenantId=${tenantId}&key=${encodeURIComponent(e.key)}`}
+            className="inline-flex items-center gap-1 text-brand-700 hover:underline"
+          >
+            <Download className="h-3.5 w-3.5" />
+            {e.key.split("/").pop()}
+          </a>
+          {e.bytes != null && (
+            <span className="text-xs text-ink-300">
+              {(e.bytes / 1024 / 1024).toFixed(1)} MB · {e.tabelas} tabelas · {e.arquivos} arquivos
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function Exportar({ tenantId, exports }: { tenantId: string; exports: TenantExport[] }) {
   const [pendente, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
@@ -107,26 +156,7 @@ function Exportar({ tenantId, exports }: { tenantId: string; exports: TenantExpo
       </div>
       {erro && <p className="mt-1 text-xs text-red-700">{erro}</p>}
 
-      {lista.length > 0 && (
-        <ul className="mt-3 space-y-1 text-sm">
-          {lista.map((e) => (
-            <li key={e.key} className="flex flex-wrap items-center gap-2">
-              <a
-                href={`/api/download?tenantId=${tenantId}&key=${encodeURIComponent(e.key)}`}
-                className="inline-flex items-center gap-1 text-brand-700 hover:underline"
-              >
-                <Download className="h-3.5 w-3.5" />
-                {e.key.split("/").pop()}
-              </a>
-              {e.bytes != null && (
-                <span className="text-xs text-ink-300">
-                  {(e.bytes / 1024 / 1024).toFixed(1)} MB · {e.tabelas} tabelas · {e.arquivos} arquivos
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      {lista.length > 0 && <ListaExports tenantId={tenantId} exports={lista} />}
     </div>
   );
 }

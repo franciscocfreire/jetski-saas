@@ -69,6 +69,7 @@ public class PlatformCadastroService {
 
     @Transactional
     public CadastroEmpresa alterar(UUID tenantId, AlteracaoCadastro req) {
+        com.jetski.tenant.TenantQueryService.exigirViva(buscar(tenantId));
         if (req == null) {
             throw new BusinessException("Informe os dados do cadastro.");
         }

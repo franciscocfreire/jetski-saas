@@ -8,6 +8,7 @@ import com.jetski.creditos.domain.CreditoLancamento;
 import com.jetski.creditos.domain.TipoLancamento;
 import com.jetski.shared.exception.BusinessException;
 import com.jetski.shared.security.TenantContext;
+import com.jetski.tenant.TenantQueryService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,7 @@ public class PlatformCreditoService {
 
     private final CreditoService creditoService;
     private final EntityManager entityManager;
+    private final TenantQueryService tenantQueryService;
 
     /** Lança créditos (±) para o tenant alvo, com auditoria via evento. */
     @Transactional
@@ -44,6 +46,7 @@ public class PlatformCreditoService {
     @Transactional
     public CreditoLancamento lancar(UUID tenantId, int quantidade, String motivo,
                                     String tipo, UUID condicaoId) {
+        tenantQueryService.exigirNaoExcluida(tenantId);
         UUID actor = actorOrNull();
         setTenant(tenantId);
         CreditoLancamento lanc;
@@ -84,6 +87,7 @@ public class PlatformCreditoService {
     /** Aprova a compra: credita no ledger (auditado) e marca APROVADA. */
     @Transactional
     public CreditoCompra aprovarCompra(UUID tenantId, UUID compraId) {
+        tenantQueryService.exigirNaoExcluida(tenantId);
         setTenant(tenantId);
         CreditoCompra compra = creditoService.aprovarCompra(tenantId, compraId, actorOrNull());
         log.info("[PLATFORM] Compra de créditos aprovada: tenant={}, compra={}, quantidade={}",

@@ -140,8 +140,12 @@ No console, em **Empresas** (detalhe da empresa), além de aprovar/suspender/rea
 - **Resetar** — zera dados em 3 níveis (Operacional / +Frota / Total) com preview de contagens,
   confirmação por slug e export automático prévio. Créditos/metering/auditoria nunca são apagados.
 - **Excluir** — carência de 30 dias (suspende agora, expurga depois, cancelável) ou imediata;
-  expurgo deixa tombstone (slug liberado, dados sensíveis anonimizados). Job diário (05:45)
-  executa expurgos vencidos e remove exports com mais de 90 dias.
+  expurgo deixa tombstone (slug liberado, dados sensíveis anonimizados, habilitação de
+  emissora removida, convites de parceria pendentes revogados). Job diário (05:45)
+  executa expurgos vencidos e remove exports com mais de 90 dias. **Parceria de emissão em
+  vigor bloqueia a exclusão** (EAMA com delegadas ou delegada ativa): revogar antes.
+  Empresa excluída some da lista por padrão ("mostrar excluídas"), o detalhe vira só
+  leitura (histórico + arquivamento) e o backend recusa as escritas do console.
 
 Também no console:
 - **Auditoria** — trilha global da plataforma: concessão/revogação de acesso, sessões de

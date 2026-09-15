@@ -216,6 +216,8 @@ public class PlatformFaturaService {
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = "plano-modulos", allEntries = true)
     public void mudarPlano(UUID tenantId, Integer planoId) {
+        com.jetski.tenant.TenantQueryService.exigirViva(tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new NotFoundException("Empresa não encontrada: " + tenantId)));
         Object nome;
         try {
             nome = entityManager.createNativeQuery(

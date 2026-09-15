@@ -7,6 +7,7 @@ import { PlatformApiError } from "@/lib/api";
 import { FiltroEmpresas } from "./filtro";
 import { ordenarPorRede } from "@/lib/rede";
 import { ROTULO_TIPO, descreverForma } from "@/lib/condicao";
+import type { TenantSummary } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +20,14 @@ export const dynamic = "force-dynamic";
 export default async function Empresas({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; condicao?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; condicao?: string; excluidas?: string }>;
 }) {
   const { session, me } = await operadorAtual();
 
-  const { status: filtroStatus, q, condicao: filtroCondicao } = await searchParams;
+  const { status: filtroStatus, q, condicao: filtroCondicao, excluidas } = await searchParams;
   const soComCondicao = filtroCondicao === "1";
+  // Excluídas (tombstone) ficam fora por padrão: só aparecem pedindo explicitamente.
+  const verExcluidas = excluidas === "1" || filtroStatus === "EXCLUIDO";
 
   let tenants;
   try {
@@ -43,16 +46,19 @@ export default async function Empresas({
     );
   }
 
-  const porStatus = tenants.reduce<Record<string, number>>((acc, t) => {
+  const vivas = tenants.filter((t) => t.status !== "EXCLUIDO");
+  const qtdExcluidas = tenants.length - vivas.length;
+
+  const porStatus = vivas.reduce<Record<string, number>>((acc, t) => {
     acc[t.status] = (acc[t.status] ?? 0) + 1;
     return acc;
   }, {});
 
   const delegadasDe = (emissoraId: string) =>
-    tenants.filter((t) => t.papelEmissao === "DELEGADA" && t.emissoraTenantId === emissoraId).length;
+    vivas.filter((t) => t.papelEmissao === "DELEGADA" && t.emissoraTenantId === emissoraId).length;
 
   const busca = (q ?? "").trim().toLowerCase();
-  const filtradas = tenants.filter((t) => {
+  const filtradas = (verExcluidas ? tenants : vivas).map(semOperacao).filter((t) => {
     if (filtroStatus && t.status !== filtroStatus) return false;
     if (soComCondicao && !t.condicao) return false;
     if (!busca) return true;
@@ -66,16 +72,18 @@ export default async function Empresas({
     <Shell email={session.user?.email} admin={me.admin} papeis={me.papeis}>
       <TituloPagina
         titulo="Empresas"
-        descricao={`${tenants.length} no total · ${porStatus.PENDENTE_APROVACAO ?? 0} aguardando aprovação`}
+        descricao={`${vivas.length} no total · ${porStatus.PENDENTE_APROVACAO ?? 0} aguardando aprovação`}
       />
 
       <FiltroEmpresas
         porStatus={porStatus}
         statusAtual={filtroStatus}
         buscaAtual={q ?? ""}
-        total={tenants.length}
-        comCondicao={tenants.filter((t) => t.condicao).length}
+        total={vivas.length}
+        comCondicao={vivas.filter((t) => t.condicao).length}
         condicaoAtiva={soComCondicao}
+        excluidas={qtdExcluidas}
+        verExcluidas={verExcluidas}
       />
 
       <Card className="mt-4">
@@ -85,7 +93,11 @@ export default async function Empresas({
         >
           {/* Rede de emissão (§8.M): delegadas logo abaixo da EAMA emissora delas. */}
           {ordenarPorRede(filtradas).map(({ empresa: t, nivel }) => (
-            <tr key={t.id} className="hover:bg-slate-50" data-papel={t.papelEmissao ?? "NENHUM"}>
+            <tr
+              key={t.id}
+              className={t.status === "EXCLUIDO" ? "opacity-60 hover:bg-slate-50" : "hover:bg-slate-50"}
+              data-papel={t.papelEmissao ?? "NENHUM"}
+            >
               <Td>
                 <div className={nivel > 0 ? "flex items-start gap-1.5 pl-5" : undefined}>
                   {nivel > 0 && <span className="text-ink-300">↳</span>}
@@ -174,4 +186,25 @@ export default async function Empresas({
       </Card>
     </Shell>
   );
+}
+
+/**
+ * Tombstone não tem operação: o cadastro que sobrou (emissora_habilitada de antes do
+ * expurgo, SMTP zerado) viraria "emissora" e "SMTP não cadastrado" — alerta que ninguém
+ * resolve. Na lista, a empresa excluída mostra só nome, slug e status.
+ */
+function semOperacao(t: TenantSummary): TenantSummary {
+  if (t.status !== "EXCLUIDO") return t;
+  return {
+    ...t,
+    plano: null,
+    assinaturaFim: null,
+    exclusaoAgendadaEm: null,
+    condicao: null,
+    papelEmissao: null,
+    emissoraHabilitada: false,
+    eamaRegistro: null,
+    emissoraTenantId: null,
+    smtpCompleto: true,
+  };
 }

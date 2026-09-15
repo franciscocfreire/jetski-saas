@@ -113,7 +113,7 @@ public class CondicaoComercialService {
 
     @Transactional
     public Condicao conceder(UUID tenantId, NovaCondicao nova) {
-        var tenant = exigirEmpresa(tenantId);
+        var tenant = com.jetski.tenant.TenantQueryService.exigirViva(exigirEmpresa(tenantId));
         if (nova == null || nova.tipo() == null || nova.forma() == null) {
             throw new BusinessException("Informe o tipo e a forma da condição comercial.");
         }
@@ -173,7 +173,7 @@ public class CondicaoComercialService {
     /** Encerra hoje (vigente ou agendada). A linha fica como histórico. */
     @Transactional
     public Condicao encerrar(UUID tenantId, UUID condicaoId, String motivo) {
-        var tenant = exigirEmpresa(tenantId);
+        var tenant = com.jetski.tenant.TenantQueryService.exigirViva(exigirEmpresa(tenantId));
         if (motivo == null || motivo.isBlank()) {
             throw new BusinessException("Informe o motivo do encerramento (fica registrado na auditoria).");
         }

@@ -1,6 +1,9 @@
 package com.jetski.tenant;
 
+import com.jetski.shared.exception.BusinessException;
+import com.jetski.shared.exception.NotFoundException;
 import com.jetski.tenant.domain.Tenant;
+import com.jetski.tenant.domain.TenantStatus;
 import com.jetski.tenant.internal.repository.TenantRepository;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +55,28 @@ public class TenantQueryService {
      */
     public Tenant findById(UUID tenantId) {
         return tenantRepository.findById(tenantId).orElse(null);
+    }
+
+    /**
+     * Trava de escrita das rotas de plataforma: empresa excluída (tombstone) só aceita
+     * consulta — histórico de créditos/faturas/auditoria e download do arquivamento.
+     * O {@code TenantFilter} já barra o uso normal, mas o operador irrestrito passa por
+     * fora dele; cada escrita do console chama esta trava.
+     *
+     * @return o tenant (vivo)
+     */
+    public Tenant exigirNaoExcluida(UUID tenantId) {
+        return exigirViva(tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new NotFoundException("Empresa não encontrada: " + tenantId)));
+    }
+
+    /** Mesma trava para quem já tem o tenant carregado. */
+    public static Tenant exigirViva(Tenant tenant) {
+        if (tenant.getStatus() == TenantStatus.EXCLUIDO) {
+            throw new BusinessException(
+                "Esta empresa foi excluída: os dados foram expurgados e ela fica só para consulta.");
+        }
+        return tenant;
     }
 
     /**
