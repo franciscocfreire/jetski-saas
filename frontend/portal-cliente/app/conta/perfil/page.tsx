@@ -89,6 +89,25 @@ export default function PerfilPage() {
     }
   }
 
+  // Edição pendente = difere do que veio do backend (CPF comparado só pelos dígitos)
+  const orig = self?.identidade ?? {};
+  const digitos = (v?: string) => (v ?? "").replace(/\D/g, "");
+  const alterado =
+    !!self &&
+    (nome !== (self.nome ?? "") ||
+      digitos(ident.cpf) !== digitos(orig.cpf) ||
+      (["dataNascimento", "rg", "orgaoEmissor", "nacionalidade", "naturalidade"] as const).some(
+        (k) => (ident[k] ?? "") !== (orig[k] ?? ""),
+      ) ||
+      !!ident.estrangeiro !== !!orig.estrangeiro);
+
+  useEffect(() => {
+    if (!alterado) return;
+    const avisar = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", avisar);
+    return () => window.removeEventListener("beforeunload", avisar);
+  }, [alterado]);
+
   if (status === "loading" || (carregando && !erro)) {
     return (
       <div className="flex justify-center py-20 text-slate-400">
@@ -117,8 +136,10 @@ export default function PerfilPage() {
         </div>
       )}
 
+      {/* Um card só com um botão no fim: o salvar grava nome E identidade juntos */}
       <Card className="p-6">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <h3 className="font-semibold text-ink-900">Dados pessoais</h3>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <Field label="Nome completo">
             <input
               className={inputCls}
@@ -137,17 +158,8 @@ export default function PerfilPage() {
             </div>
           </Field>
         </div>
-        <div className="mt-4 flex items-center gap-3">
-          <Button onClick={salvar} disabled={salvando || nome.trim().length < 3}>
-            {salvando && <Loader2 size={14} className="animate-spin" />}
-            Salvar alterações
-          </Button>
-          {salvo && <span className="text-sm text-emerald-600">Salvo ✓</span>}
-        </div>
-      </Card>
 
-      <Card className="mt-4 p-6">
-        <h3 className="flex items-center gap-2 font-semibold text-ink-900">
+        <h3 className="mt-6 flex items-center gap-2 border-t border-slate-100 pt-5 font-semibold text-ink-900">
           <IdCard size={18} /> Documento de identidade
         </h3>
         <p className="mt-1 text-sm text-slate-500">
@@ -215,6 +227,17 @@ export default function PerfilPage() {
           />
           Sou estrangeiro(a)
         </label>
+        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-5">
+          <Button onClick={salvar} disabled={salvando || !alterado || nome.trim().length < 3}>
+            {salvando && <Loader2 size={14} className="animate-spin" />}
+            Salvar alterações
+          </Button>
+          {alterado ? (
+            <span className="text-sm text-amber-700">Você tem alterações não salvas</span>
+          ) : (
+            salvo && <span className="text-sm text-emerald-600">Salvo ✓</span>
+          )}
+        </div>
       </Card>
 
       {session?.accessToken && (

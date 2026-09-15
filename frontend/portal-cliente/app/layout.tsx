@@ -28,8 +28,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
-      <body className={`${geistSans.variable} ${playfair.variable}`}>
+    // Variáveis das fontes no <html> (= :root): o @theme resolve --font-sans no
+    // :root; definidas só no <body>, a var fica inválida e tudo cai em serif.
+    <html lang="pt-BR" className={`${geistSans.variable} ${playfair.variable}`}>
+      <body>
         <Providers>
           <ChromeHeader />
           {/* pb extra no mobile: espaço p/ a bottom nav fixa */}
