@@ -67,6 +67,12 @@ server:
   max-http-request-header-size: 64KB
   tomcat:
     max-http-header-size: 64KB
+    # Sem isto o Micrometer NÃO publica as métricas `tomcat.*` — inclusive
+    # tomcat_threads_busy/config_max, que são o sinal de saturação do pool de
+    # threads. A linha de base de 15/set/2026 mostrou que esse sinal era cego:
+    # sob carga, a fila do Tomcat enche antes de qualquer outra coisa aparecer.
+    mbeanregistry:
+      enabled: true
   error:
     include-message: always
     include-binding-errors: always

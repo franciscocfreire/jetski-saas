@@ -67,7 +67,19 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=7d'
-    mem_limit: 512m
+      # Uma consulta cara não pode derrubar o servidor inteiro. Em 15/set/2026
+      # uma subquery de P95 sobre 7 dias levou o anon-rss a 513 MB e o cgroup
+      # matou o processo ("Memory cgroup out of memory: Killed process
+      # (prometheus)"); a monitoração ficou fora do ar no meio de uma coleta.
+      # Com o teto de amostras, a consulta cara recebe erro e o servidor vive.
+      # 10M amostras ≈ 160 MB de pico por consulta (o default são 50M).
+      - '--query.max-samples=10000000'
+      - '--query.timeout=1m'
+    # Subido de 512m: o pico medido bateu em 98,7% do teto antigo e o OOM acima
+    # aconteceu de fato. O uso em repouso é ~95 MB de memória anônima + ~375 MB
+    # de page cache do TSDB (recuperável) — a folga é para o pico de consulta e
+    # para o crescimento de séries quando houver carga real.
+    mem_limit: 1g
     networks:
       - app
 

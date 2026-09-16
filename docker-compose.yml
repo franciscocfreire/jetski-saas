@@ -218,6 +218,23 @@ services:
     ports:
       - "0.0.0.0:8090:8090"
     environment:
+      # Heap e coletor EXPLÍCITOS — sem isto a ergonomia da JVM decide sozinha e
+      # decide mal num container pequeno: com o mem_limit de 1500m de produção
+      # ela escolhia MaxHeapSize=376 MB (25% do limite) e, por o container ficar
+      # abaixo do limiar "server class" de 1792 MB, caía no **SerialGC** —
+      # coletor mono-thread com parada total. Medido em 15/set/2026: pausa
+      # máxima de GC de 1.036 ms com a plataforma OCIOSA (ver LINHA_DE_BASE.md).
+      #
+      # MaxRAMPercentage (e não -Xmx) para o valor acompanhar o mem_limit de cada
+      # ambiente. 50% de 1500m = ~750 MB de heap; sobram ~750 MB para não-heap
+      # (Metaspace+CodeCache medidos em 249 MB), pilhas de thread e buffers.
+      JAVA_OPTS: >-
+        -XX:+UseG1GC
+        -XX:MaxRAMPercentage=50
+        -XX:+ExitOnOutOfMemoryError
+        -XX:+HeapDumpOnOutOfMemoryError
+        -XX:HeapDumpPath=/tmp
+
       SPRING_PROFILES_ACTIVE: dev
 
       # Database (jetski_app user without SUPERUSER/BYPASSRLS for RLS to work)

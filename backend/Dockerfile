@@ -32,4 +32,7 @@ USER appuser
 
 EXPOSE 8090
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# `sh -c` para que JAVA_OPTS (definido no compose) chegue à JVM — a forma exec
+# pura não expande variáveis. O `exec` mantém a JVM como PID 1, preservando o
+# encaminhamento de SIGTERM (parada limpa no `docker compose down`/deploy).
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
