@@ -70,9 +70,10 @@ Levantadas por leitura de configuração; cada uma vira um experimento na Fase 4
 
 > **Veredito da F0 (15/set/2026)** — ver `LINHA_DE_BASE.md` §2:
 > a **#2 se confirmou em produção** (uma query pesada saturou 1 das 2 vCPUs e
-> travou o Prometheus); a **#3 se confirmou e é pior do que o previsto**
-> (`MaxHeapSize` = 376 MB com pico de uso de 399 MB **e SerialGC**, pausa máxima
-> de 1.036 ms); a **#4 não tem evidência de problema** (0 conexões pendentes,
+> o Prometheus foi morto por OOM); a **#3 se confirmou em parte** — o teto de
+> `MaxHeapSize` é mesmo 376 MB, mas o pico de uso é 226 MB, e o que pesa é a
+> JVM ter caído no **SerialGC** (pausa máxima de 1.036 ms, ociosa);
+> a **#4 não tem evidência de problema** (0 conexões pendentes,
 > 0 timeouts) e desce na fila; a **#1 segue de pé** (18 de 100 conexões em uso
 > hoje, mas o Keycloak pode reivindicar 100 sozinho sob carga de login).
 > Dois achados novos entraram na lista: o **Prometheus a 98,7% do seu limite**
@@ -212,10 +213,9 @@ depois, em prod em janela combinada:
 
 Revisado depois da F0:
 
-1. **Preparar os instrumentos antes de qualquer teste de carga** (itens de
-   configuração, meio dia): subir o `mem_limit` do Prometheus (hoje a 98,7% do
-   teto), expor as métricas de thread do Tomcat (hoje inexistentes) e definir
-   heap + `UseG1GC` explícitos no backend. Sem isso o teste mede o medidor.
+1. ~~**Preparar os instrumentos antes de qualquer teste de carga.**~~ ✅ feito —
+   ver `LINHA_DE_BASE.md` §4. Falta **deployar**: 4.2 e 4.3 mudam a imagem do
+   backend (rebuild) e 4.1 recria o container do Prometheus.
 2. **Declarar os SLOs com os sócios** (F1). É decisão, não implementação — e é o
    caminho crítico, porque define o critério de aprovação do teste.
 3. **Decidir o destino dos 11 containers vizinhos** (outline, kroki, drawio,

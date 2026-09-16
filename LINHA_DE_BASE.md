@@ -87,11 +87,18 @@ Pico de memória por container:
 | `shared_buffers` / `work_mem` | 160 MB / 4 MB (defaults) |
 | Hikari: ativas / pool / esperando / timeouts | 5 / 10 / **0** / **0** |
 | **MaxHeapSize do backend** | **376 MB** (25% do limite de 1500 MB, ergonômico) |
-| **Heap usado, pico** | **399 MB** |
-| Não-heap | 497 MB |
-| **Coletor** | **SerialGC** (ergonômico) |
+| Heap usado pelo backend, pico 7d | **226 MB** (60% do teto) |
+| Não-heap do backend | 249 MB (Metaspace 158, code cache 71, class space 20) |
+| RSS do container backend | 566 MB |
+| **Coletor do backend** | **SerialGC** (ergonômico) |
 | Pausa de GC máxima | **1.036 ms** (major) / 415 ms (alloc. failure) |
-| Tempo total em GC, 7d ocioso | 196 s |
+
+> **Correção (mesma sessão).** A primeira versão desta tabela trazia "heap usado
+> 399 MB" e "não-heap 497 MB". Estavam errados: as queries usavam `sum()` sem
+> agrupar por `job`, e o **Keycloak também expõe `jvm_memory_used_bytes`** — os
+> números somavam as duas JVMs. Os valores acima são só do backend. O extrator
+> já foi corrigido para agrupar por `job`; o arquivo bruto de 15/set preserva as
+> linhas originais, sem filtro, como foram coletadas.
 
 ### Autenticação e negócio
 
@@ -129,39 +136,54 @@ O lado bom: sem usuários reais, **prod é hoje um ambiente onde é seguro testa
 Essa janela fecha no primeiro cliente de verdade. É um argumento forte para
 antecipar os testes de carga em vez de esperar o espelho da Fase 2.
 
-### 2.2 O backend está no teto do heap estando ocioso
+### 2.2 A JVM do backend está mal dimensionada — e o coletor é o problema
 
-`MaxHeapSize = 376 MB` (25% do `mem_limit` de 1500 MB, escolha ergonômica da JVM)
-e o **pico de heap usado foi 399 MB**. Ou seja: a aplicação já opera colada no
-limite — sem nenhum usuário.
+`MaxHeapSize = 376 MB`, apenas 25% do `mem_limit` de 1500 MB. Não é escolha de
+ninguém: é a ergonomia da JVM (`MaxRAMPercentage` default de 25%). O pico de uso
+foi de **226 MB (60% do teto)**, então não há exaustão hoje — mas sobram só
+150 MB de folga para toda a carga futura, enquanto **1 GB do container fica
+alocado e sem uso**.
 
-Pior, a JVM escolheu **SerialGC**: um container de 1500 MB fica abaixo do limiar
-de 1792 MB que a JVM usa para classificar a máquina como "server class", então
-ela cai no coletor mono-thread com parada total do mundo. Isso explica a **pausa
-máxima de 1.036 ms** — um segundo de aplicação congelada, ociosa.
+O achado grave é outro: a JVM escolheu **SerialGC**. Um container de 1500 MB fica
+abaixo do limiar de 1792 MB que a JVM usa para classificar a máquina como
+"server class", então ela cai no coletor mono-thread com parada total do mundo.
+Isso explica a **pausa máxima de 1.036 ms** — um segundo de aplicação congelada,
+estando ociosa. Sob carga real, uma pausa dessas sob um pool de 10 conexões é o
+caminho mais curto para timeouts em cascata.
 
-Sob carga real isso degenera em GC thrashing antes de qualquer outro gargalo.
-É o gargalo nº 1 e tem correção barata: heap explícito + `-XX:+UseG1GC`.
+Correção barata, e só de configuração: heap explícito + `-XX:+UseG1GC`.
 
-*(Correção da hipótese §3.3 do plano: eu havia estimado ~375 MB por dedução;
-a medição confirmou 376 MB — mas o achado que importa, o SerialGC, eu não tinha visto.)*
+*(Correção da hipótese §3.3 do plano: a estimativa de ~375 MB estava certa, mas
+o diagnóstico "heap esgotado" não — veio de somar backend e Keycloak na mesma
+query. O que de fato justifica a mudança é o SerialGC, que eu não tinha visto.)*
 
-### 2.3 O instrumento de medição quebra antes do medido
+### 2.3 O instrumento de medição morreu no meio da medição
 
-**Prometheus a 98,7% do seu `mem_limit` de 512 MB.** Carga maior gera mais séries,
-mais séries geram mais memória — ele será morto por OOM exatamente quando for
-mais necessário. Aumentar esse limite é pré-requisito do primeiro teste de carga,
-não consequência dele.
+**Prometheus a 98,7% do seu `mem_limit` de 512 MB** — e não era teoria: durante
+esta coleta ele **foi morto pelo OOM killer**. O kernel registrou
 
-### 2.4 Uma consulta derrubou a monitoração — a hipótese "sem limite de CPU" se confirmou sozinha
+```
+Memory cgroup out of memory: Killed process (prometheus) anon-rss:513908kB
+```
 
-Durante esta própria coleta, uma query de P95 sobre 7 dias saturou uma das
-2 vCPUs e deixou o Prometheus sem responder por minutos (queries triviais
-passaram a estourar 25 s de timeout). Nenhum container tem `cpus:` definido, então
-o Prometheus compete de igual para igual com o backend e o banco.
+às 01:50:57 de 16/set UTC, e o container voltou com `RestartCount=1`. O gatilho
+foi uma consulta minha de P95 sobre 7 dias.
 
-Isso é a hipótese §3.2 do plano se manifestando **sem precisar de teste de carga**.
-O `load average` de pico de **6,37 em 2 vCPUs** conta a mesma história.
+Em repouso o consumo é modesto — ~95 MB de memória anônima mais ~375 MB de page
+cache do TSDB, que é recuperável. O que estoura o teto é o **pico de uma única
+consulta cara**. Duas correções, não uma: mais memória *e* um limite de amostras
+por consulta, para que a consulta cara falhe sozinha em vez de derrubar o servidor.
+
+### 2.4 A hipótese "sem limite de CPU" se confirmou sozinha
+
+O mesmo episódio confirma a §3.2 do plano **sem precisar de teste de carga**: uma
+consulta saturou uma das 2 vCPUs e, como nenhum container tem `cpus:` definido, o
+Prometheus disputa CPU de igual para igual com o backend e o banco. O
+`load average` de pico de **6,37 em 2 vCPUs** (3,2× de sobrecarga) conta a mesma
+história por outro caminho.
+
+*(Correção: durante a coleta eu li a recuperação do Prometheus como "falso
+alarme, voltou a responder". Não foi — ele havia sido morto e reiniciado.)*
 
 ### 2.5 A VM não é só do Meu Jet
 
@@ -201,14 +223,77 @@ do teste de carga, junto com o item 2.3.
 | F3 (carga) | depois do espelho | **pode começar antes**, aproveitando a janela sem clientes |
 | §3.1 (conexões PG↔KC) | risco alto | mantido: 18/100 em uso hoje, mas o Keycloak pode reivindicar 100 sozinho sob carga |
 | §3.2 (sem `cpus:`) | hipótese | **confirmada em produção** durante esta coleta |
-| §3.3 (heap) | hipótese | **confirmada e agravada**: 376 MB + SerialGC + pausa de 1 s |
+| §3.3 (heap) | hipótese | **confirmada em parte**: o teto de 376 MB não está esgotado (pico de 226 MB), mas o **SerialGC com pausa de 1 s** é pior do que a hipótese original |
 | §3.4 (Hikari 10) | hipótese | **sem evidência de problema** (0 pendentes, 0 timeouts) — despriorizar |
 
 ### Pré-requisitos do primeiro teste de carga (antes da F3)
 
-1. Subir o `mem_limit` do Prometheus (§2.3) — senão o medidor morre no meio.
-2. Expor métricas de thread do Tomcat (§2.7) — senão o gargalo mais provável fica invisível.
-3. Definir heap e coletor do backend explicitamente (§2.2) — ou o teste só vai medir SerialGC.
-4. Decidir o destino dos 11 containers vizinhos (§2.5) — ou o número não significa nada.
+| # | Item | Estado |
+|---|---|---|
+| 1 | Subir o `mem_limit` do Prometheus (§2.3) — senão o medidor morre no meio | ✅ feito, §4 |
+| 2 | Expor métricas de thread do Tomcat (§2.7) — senão o gargalo mais provável fica invisível | ✅ feito, §4 |
+| 3 | Definir heap e coletor do backend explicitamente (§2.2) — ou o teste só mede SerialGC | ✅ feito, §4 |
+| 4 | Decidir o destino dos 11 containers vizinhos (§2.5) — ou o número não significa nada | ⬜ decisão pendente |
 
-Os itens 1–3 são de configuração, não de código.
+## 4. Ajustes aplicados (15/set/2026)
+
+Os três itens de configuração, com o antes/depois verificado.
+
+### 4.1 Prometheus: teto de memória e guarda de consulta
+`infra/observability/docker-compose.observability.yml`
+
+- `mem_limit: 512m` → **`1g`**
+- `--query.max-samples=10000000` (default: 50M) e `--query.timeout=1m`
+
+A segunda parte é a que realmente resolve: sem teto de amostras, uma única
+consulta cara volta a levar o processo inteiro junto, com qualquer `mem_limit`.
+Com o teto, quem falha é a consulta. 10M amostras ≈ 160 MB de pico por consulta.
+
+### 4.2 Métricas de thread do Tomcat
+`backend/src/main/resources/application.yml`
+
+```yaml
+server:
+  tomcat:
+    mbeanregistry:
+      enabled: true
+```
+
+O Micrometer só publica os medidores `tomcat.*` com o registro de MBeans ligado.
+Habilita `tomcat_threads_busy_threads` e `tomcat_threads_config_max_threads` —
+o par que mostra a fila de requests enchendo. Vale para todos os perfis.
+
+### 4.3 Heap e coletor do backend
+`backend/Dockerfile` + `docker-compose.yml`
+
+```
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
+```
+```yaml
+JAVA_OPTS: >-
+  -XX:+UseG1GC -XX:MaxRAMPercentage=50
+  -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp
+```
+
+A forma exec pura do `ENTRYPOINT` não expande variáveis, por isso o `sh -c`; o
+`exec` mantém a JVM em PID 1 e preserva o SIGTERM da parada limpa. `MaxRAMPercentage`
+em vez de `-Xmx` para o valor acompanhar o `mem_limit` de cada ambiente.
+
+Verificado com a própria imagem base (`eclipse-temurin:21-jre-alpine`, container
+de 1500 m, reproduzindo prod):
+
+| | MaxHeapSize | Coletor |
+|---|---|---|
+| Antes | 394.264.576 (376 MB) | SerialGC |
+| Depois | 786.432.000 (750 MB) | G1GC |
+
+Sem `JAVA_OPTS` definido o container volta ao comportamento antigo em vez de
+quebrar — a mudança do `ENTRYPOINT` é segura sozinha.
+
+### O que falta para valer em produção
+
+Os três exigem **deploy**: 4.2 e 4.3 mudam a imagem do backend (rebuild), e 4.1
+exige recriar o container do Prometheus. Depois de aplicar, reexecutar
+`infra/observability/linha-de-base.sh` e comparar com o arquivo bruto desta data —
+os sinais a conferir são `tomcat_threads_*` aparecendo, `MaxHeapSize` em 750 MB,
+`UseG1GC` e a pausa máxima de GC caindo da casa do segundo.

@@ -86,10 +86,16 @@ q "Hikari - conexões ativas (pico)" "max_over_time(hikaricp_connections_active[
 q "Hikari - tamanho do pool" "hikaricp_connections_max"
 q "Hikari - threads ESPERANDO (pico)" "max_over_time(hikaricp_connections_pending[$W])"
 q "Hikari - timeouts acumulados" "hikaricp_connections_timeout_total"
-q "Heap usado - pico (MB)" "max_over_time(sum(jvm_memory_used_bytes{area=\"heap\"})[1d:5m]) / 1e6"
-q "Não-heap usado (MB)" "sum(jvm_memory_used_bytes{area=\"nonheap\"})/1e6"
+# GOTCHA — SEMPRE agrupe as métricas de JVM por `job`. O Keycloak também expõe
+# `jvm_memory_used_bytes`; um `sum()` sem agrupamento soma as duas JVMs e dá um
+# número que não existe (na coleta de 15/set/2026 isso inflou o pico de heap do
+# backend de 226 MB para 399 MB e sugeriu, erradamente, heap esgotado).
+q "Heap usado - pico por JVM (MB)" "max_over_time(sum by (job) (jvm_memory_used_bytes{area=\"heap\"})[1d:5m]) / 1e6"
+q "Não-heap usado por JVM (MB)" "sum by (job) (jvm_memory_used_bytes{area=\"nonheap\"})/1e6"
+q "Não-heap do backend por pool (MB)" "sum by (id) (jvm_memory_used_bytes{area=\"nonheap\",job=\"jetski-backend\"})/1e6"
 q "Pausa de GC máxima (ms)" "1000 * max_over_time(jvm_gc_pause_seconds_max[$W])"
-q "Tempo total em GC na janela (s)" "sum(increase(jvm_gc_pause_seconds_sum[$W]))"
+q "Tempo total em GC na janela por JVM (s)" "sum by (job) (increase(jvm_gc_pause_seconds_sum[$W]))"
+q "Threads do Tomcat: ocupadas (pico) / teto" "max_over_time(tomcat_threads_busy_threads[$W]) or tomcat_threads_config_max_threads"
 echo "### Flags efetivas da JVM do backend (fonte da verdade — a métrica jvm_memory_max_bytes soma pools e superestima)"
 docker exec jetski-backend java -XX:+PrintFlagsFinal -version 2>/dev/null \
   | grep -E "MaxHeapSize|UseSerialGC|UseG1GC|UseParallelGC|MaxRAMPercentage" | sed 's/^/  /'
