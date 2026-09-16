@@ -10,6 +10,9 @@
 # ser preenchido.
 # =============================================================================
 set -euo pipefail
+# Todo arquivo que este script cria nasce legível só pelo dono — inclusive o
+# temporário da substituição, que antes do `mv` já carrega o token do túnel.
+umask 077
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MODELO="$RAIZ/infra/espelho/env.espelho.example"
@@ -46,9 +49,29 @@ awk -v dominio="$DOMINIO" '
 ' "$MODELO" > "$DESTINO"
 chmod 600 "$DESTINO"
 
+# Valores que não são segredo gerado, mas vêm de fora: o Terraform os entrega
+# à VM (infra/espelho/terraform), e quem monta à mão pode exportá-los antes de
+# rodar este script. Só substitui o que estiver definido no ambiente.
+for chave in CLOUDFLARE_TUNNEL_TOKEN ESPELHO_TUNNEL_ID PROD_TUNNEL_ID PLATFORM_ADMIN_EMAILS; do
+  valor="${!chave:-}"
+  [ -n "$valor" ] || continue
+  awk -v k="$chave" -v v="$valor" '
+    index($0, k "=") == 1 { print k "=" v; next }
+    { print }
+  ' "$DESTINO" > "$DESTINO.tmp" && mv "$DESTINO.tmp" "$DESTINO"
+  chmod 600 "$DESTINO"
+done
+
 echo "Gerado: $DESTINO (permissão 600)"
 echo
-echo "Falta preencher à mão (o preflight reprova enquanto não fizer):"
-grep -nE '__[A-Z_]+__' "$DESTINO" | grep -vE '^[0-9]+:\s*#' | sed 's/=.*/=…/; s/^/  linha /'
+# `|| true`: com pipefail, grep sem nenhuma linha sai 1 — e "nada falta
+# preencher" é justamente o caso de sucesso quando o Terraform passa tudo.
+faltando=$(grep -nE '__[A-Z_]+__' "$DESTINO" | grep -vE '^[0-9]+:\s*#' || true)
+if [ -n "$faltando" ]; then
+  echo "Falta preencher à mão (o preflight reprova enquanto não fizer):"
+  printf '%s\n' "$faltando" | sed 's/=.*/=…/; s/^/  linha /'
+else
+  echo "Nenhum valor por preencher."
+fi
 echo
 echo "Depois: ./infra/espelho/preflight.sh"

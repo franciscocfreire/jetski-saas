@@ -45,12 +45,17 @@ vai para a fatura. (Há relatos de contas PAYG que mantiveram a cota antiga de
 4 OCPU / 24 GB — se for o caso, a primeira fatura mostra custo zero.) Ordem de
 grandeza — confira na calculadora da Oracle antes:
 
-- ligada 24 h × 7: ~US$ 0,04/h → ~US$ 28/mês
-- **desligada entre rodadas:** a Oracle não cobra OCPU/RAM de instância parada,
-  só o volume de boot (~US$ 1–2/mês) — uma sessão de testes de 8 h sai por centavos
+- **computação**, só enquanto ligada: ~US$ 0,04/h (2 OCPU + 12 GB) → ~US$ 28/mês se
+  ficar 24 h × 7; uma sessão de testes de 8 h sai por ~US$ 0,30
+- **disco**, sempre, ligada ou parada: o volume de boot de **200 GB** — o mesmo de
+  produção, porque na OCI o IOPS e a vazão crescem com o tamanho e um disco menor
+  mediria outro Postgres — fica na casa de **US$ 8–9/mês**
 
-Na região de São Paulo a criação de A1 às vezes falha com *Out of host capacity*;
-insistir em outro horário ou em outro domínio de disponibilidade costuma resolver.
+Então: desligada entre rodadas, o espelho custa ~US$ 9/mês mais as horas de teste;
+destruído ao fim da fase, custa zero.
+
+São Paulo tem um único domínio de disponibilidade, e a criação de A1 às vezes falha
+com *Out of host capacity*; tentar de novo mais tarde costuma resolver.
 
 ## Por que um domínio próprio
 
@@ -76,6 +81,12 @@ este kit.
 
 ## Passo a passo
 
+> **Caminho recomendado: Terraform** ([`terraform/`](terraform/README.md)). Ele
+> cria a VM, a rede, o túnel, o DNS e as regras da zona, e a VM se provisiona
+> sozinha (cloud-init → `provisionar-vm.sh`), executando os passos 3 e 4 abaixo
+> exatamente como descritos. Os passos 2–4 manuais ficam como referência e
+> alternativa. Os passos 5 e 6 são manuais nos dois caminhos.
+
 ### 1. Domínio e código
 
 Feito para o `jetsave.com.br`: zona na Cloudflare, `server_name` do apex,
@@ -83,7 +94,7 @@ Feito para o `jetsave.com.br`: zona na Cloudflare, `server_name` do apex,
 origens no CORS do backend. Para trocar de domínio um dia, é repetir esses quatro
 pontos — o preflight reprova enquanto o nginx não conhecer o domínio.
 
-### 2. VM e túnel
+### 2. VM e túnel *(o Terraform faz)*
 
 1. Crie a VM (shape acima) e rode o bootstrap, igual à produção
    (`infra/prod/server-bootstrap.sh`, ver [`DEPLOY.md`](../../DEPLOY.md) §1).
@@ -93,7 +104,7 @@ pontos — o preflight reprova enquanto o nginx não conhecer o domínio.
    para `http://nginx:80`.
 3. Anote o UUID do túnel novo **e** o do túnel de produção.
 
-### 3. `.env` — gerado, nunca copiado
+### 3. `.env` — gerado, nunca copiado *(o Terraform faz, dentro da VM)*
 
 ```bash
 ./infra/espelho/gerar-env.sh jetsave.com.br
@@ -103,7 +114,7 @@ nano .env     # token do túnel, ESPELHO_TUNNEL_ID, PROD_TUNNEL_ID
 
 `gerar-env.sh` cria segredos novos e se recusa a sobrescrever um `.env` existente.
 
-### 4. Deploy e observabilidade
+### 4. Deploy e observabilidade *(o Terraform faz, dentro da VM)*
 
 ```bash
 git checkout <branch>        # o espelho não recebe CD: deploy é manual
@@ -148,7 +159,8 @@ chega no Mailpit.
 | o espelho tiver **credencial do Gmail** | e-mails de teste consomem a cota de 500/dia da operação | preflight reprova; todo e-mail vai ao Mailpit |
 | o stress derrubar o backend | o alerta "Backend fora do ar" dispara | alertas do espelho vão para o Mailpit, não para quem responde por produção |
 | alguém rodar o `deploy.sh` do espelho **na VM de produção** | — | preflight reprova se encontrar o timer de backup de produção na máquina |
-| o k6 passar pela Cloudflare sem regra | *Bot Fight Mode*/*Browser Integrity Check* bloqueiam o k6 (erro **1010**) | crie uma regra de WAF que pule essas checagens **só nos hostnames do espelho** |
+| o k6 passar pela Cloudflare com as proteções de bot ligadas | *Bot Fight Mode*/*Browser Integrity Check* bloqueiam o k6 (erro **1010**) | o Terraform desliga as duas **na zona `jetsave.com.br` inteira** — seguro porque a zona é só do espelho, e o plano gratuito não pula Bot Fight Mode por hostname |
+| o Terraform acabar gerenciando o **túnel de produção** (ex.: `terraform import` errado) | um `apply` reescreveria as rotas de produção | pré-condição reprova o plano se o túnel do state tiver o UUID de produção; o `.gitignore` e o compartimento próprio limitam o resto |
 
 E dois limites conhecidos, que não afetam o k6:
 
@@ -172,9 +184,16 @@ em máquina isolada, destruída ao final.
 
 ## Ciclo de vida
 
-- **Entre rodadas:** pare a instância no console da Oracle.
-- **Depois de uma rodada destrutiva** (stress, soak): o mais limpo é recriar o
-  banco — `docker compose ... down -v` no espelho e deploy de novo. O espelho não
-  tem nada a preservar.
-- **Ao encerrar a fase de testes:** termine a instância e o volume de boot, apague o
-  túnel e as regras de WAF.
+Com o Terraform (em `infra/espelho/terraform/`):
+
+| Quero… | Comando |
+|---|---|
+| desligar entre rodadas | `terraform apply -var ligada=false` |
+| religar | `terraform apply` |
+| espelho do zero, no mesmo commit de produção | `terraform apply -replace=oci_core_instance.espelho -var git_ref=<commit-de-produção>` |
+| encerrar a fase de testes | `terraform destroy` |
+
+Depois de uma rodada destrutiva (stress, soak), recriar a VM é o jeito mais limpo
+de voltar a um banco vazio — o espelho não tem nada a preservar.
+
+Sem Terraform: pare/termine a instância no console, e apague túnel e DNS no painel.

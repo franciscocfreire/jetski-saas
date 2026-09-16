@@ -1,0 +1,8 @@
+# O repositório é PÚBLICO. O state guarda o segredo e o token do túnel.
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+.terraform/
+crash.log
+*.tfplan
