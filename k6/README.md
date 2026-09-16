@@ -28,16 +28,29 @@ dentro de um **tenant isolado** provisionado pelo fluxo de signup real.
 
 ### 1. Provisionar o tenant isolado
 
+O script é **retomável**: grava o progresso em `k6/.auth/tenant.json` e, a cada
+execução, continua de onde parou — rodar de novo nunca cadastra outra empresa.
+
 ```bash
-BASE_URL=https://www.<dominio-do-espelho>/api ./k6/provisionar-tenant.sh
+export BASE_URL=https://www.<dominio-do-espelho>/api \
+       ISSUER=https://sso.<dominio-do-espelho>/realms/jetski-saas \
+       APP_URL=https://app.<dominio-do-espelho>
+
+./k6/provisionar-tenant.sh                                  # 1. cadastra e para
+APROVADA=sim ./k6/provisionar-tenant.sh                     # 2. depois de aprovar no console
+APROVADA=sim ADMIN_SENHA='...' ./k6/provisionar-tenant.sh   # 3+4. depois de ativar a conta
 ```
 
-O tenant nasce **PENDENTE_APROVACAO** — o portão humano de sempre. Aprove em
-`https://admin.<dominio-do-espelho> → Empresas` (o espelho precisa de um
-operador de plataforma antes; ver o README do espelho, "Primeiro operador"),
-defina a senha do admin pelo link de ativação — no espelho todo e-mail cai no
-Mailpit, via `ssh -L 8025:127.0.0.1:8025` — e rode de novo com `ADMIN_SENHA=...`
-para semear a frota.
+1. O tenant nasce **PENDENTE_APROVACAO** — o portão humano de sempre. Aprove em
+   `https://admin.<dominio-do-espelho> → Empresas` (o espelho precisa de um
+   operador de plataforma antes; ver o README do espelho, "Primeiro operador").
+2. Defina a senha do admin pelo link de ativação — no espelho todo e-mail cai no
+   Mailpit, via `ssh -L 8025:127.0.0.1:8025`.
+3. Com `ADMIN_SENHA`, o script entra como o admin e semeia modelo e frota.
+
+`ISSUER` e `APP_URL` são obrigatórios no último passo (o login usa o
+`auth-setup.sh`, cujos padrões apontam para localhost). Para começar outra empresa
+do zero, apague `k6/.auth/tenant.json`.
 
 > **Dimensione a frota acima do número de VUs.** Cada jornada de balcão ocupa um
 > jetski entre o check-in e o check-out; com frota curta, as VUs disputam a mesma

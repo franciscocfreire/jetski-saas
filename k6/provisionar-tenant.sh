@@ -10,9 +10,17 @@
 # de qualquer empresa entrar em operação. Este script para nesse ponto e diz o
 # que fazer, a menos que você forneça um token de operador de plataforma.
 #
-# Uso (contra o ESPELHO — ver infra/espelho/README.md):
-#   BASE_URL=https://www.<dominio-do-espelho>/api ./k6/provisionar-tenant.sh
-#   BASE_URL=... PLATFORM_TOKEN=<jwt> ./k6/provisionar-tenant.sh   # aprova sozinho
+# Uso (contra o ESPELHO — ver infra/espelho/README.md). Retomável: rode o mesmo
+# comando a cada etapa, acrescentando o que ela pediu.
+#   export BASE_URL=https://www.<dominio>/api \
+#          ISSUER=https://sso.<dominio>/realms/jetski-saas \
+#          APP_URL=https://app.<dominio>
+#   ./k6/provisionar-tenant.sh                             # 1. cadastra e para
+#   APROVADA=sim ./k6/provisionar-tenant.sh                # 2. depois de aprovar no console
+#   APROVADA=sim ADMIN_SENHA=... ./k6/provisionar-tenant.sh  # 3+4. depois de ativar a conta
+#   PLATFORM_TOKEN=<jwt> ./k6/provisionar-tenant.sh        # alternativa: aprova sozinho
+# ISSUER e APP_URL são obrigatórios no passo 4 (login via auth-setup.sh): os
+# padrões apontam para localhost.
 #
 # Saída: k6/.auth/tenant.json com tenantId, slug e credenciais do admin.
 # Limpeza: no espelho, recriar o banco; ver o README do espelho.
@@ -47,45 +55,72 @@ api() { # api <metodo> <caminho> [corpo] [cabecalho-extra...]
   fi
 }
 
-echo "==> 1. Criando a empresa de carga (slug: ${SLUG})"
-RESP=$(api POST /v1/signup/tenant "$(jq -nc \
-  --arg rs "Locadora de Carga ${CARIMBO}" --arg s "$SLUG" --arg e "$ADMIN_EMAIL" \
-  '{razaoSocial:$rs, slug:$s, adminEmail:$e, adminNome:"Admin Carga"}')")
+# O script é RETOMÁVEL: grava o progresso em $SAIDA e, ao rodar de novo, continua
+# de onde parou em vez de cadastrar outra empresa. Antes desta correção ele sempre
+# recomeçava pelo signup — e, sem PLATFORM_TOKEN, sempre parava no passo 2 —, então
+# o fluxo manual (aprovar no console e rodar de novo) nunca chegava ao fim e cada
+# tentativa deixava uma empresa pendente a mais no espelho.
+salvar() { # salvar <etapa>
+  jq -n --arg t "$TENANT_ID" --arg s "$SLUG" --arg e "$ADMIN_EMAIL" --arg etapa "$1" \
+     '{tenantId:$t, slug:$s, adminEmail:$e, etapa:$etapa}' > "$SAIDA"
+  chmod 600 "$SAIDA"
+}
 
-TENANT_ID=$(echo "$RESP" | jq -r '.tenantId // empty')
-if [[ -z "$TENANT_ID" ]]; then
-  echo "ERRO no signup: $RESP" >&2; exit 1
-fi
-echo "    tenantId: ${TENANT_ID}"
-
-echo "==> 2. Aprovação da empresa"
-if [[ -n "${PLATFORM_TOKEN:-}" ]]; then
-  api POST "/v1/platform/tenants/${TENANT_ID}/approve" '{}' \
-      -H "Authorization: Bearer ${PLATFORM_TOKEN}" >/dev/null
-  echo "    aprovada via API de plataforma."
+TENANT_ID=""
+if [[ -f "$SAIDA" ]] && [[ -n "$(jq -r '.tenantId // empty' "$SAIDA")" ]]; then
+  TENANT_ID=$(jq -r '.tenantId' "$SAIDA")
+  SLUG=$(jq -r '.slug' "$SAIDA")
+  ADMIN_EMAIL=$(jq -r '.adminEmail' "$SAIDA")
+  ETAPA=$(jq -r '.etapa // "aguardando-aprovacao"' "$SAIDA")
+  echo "==> Retomando ${SLUG} (${TENANT_ID}) — etapa registrada: ${ETAPA}"
+  echo "    (para começar outra empresa do zero, apague ${SAIDA})"
 else
-  cat <<AVISO
-    PARE AQUI e aprove a empresa no console da plataforma:
-      https://admin.<dominio-do-espelho> → Empresas → "${SLUG}" → Aprovar
+  echo "==> 1. Criando a empresa de carga (slug: ${SLUG})"
+  RESP=$(api POST /v1/signup/tenant "$(jq -nc \
+    --arg rs "Locadora de Carga ${CARIMBO}" --arg s "$SLUG" --arg e "$ADMIN_EMAIL" \
+    '{razaoSocial:$rs, slug:$s, adminEmail:$e, adminNome:"Admin Carga"}')")
+  TENANT_ID=$(echo "$RESP" | jq -r '.tenantId // empty')
+  if [[ -z "$TENANT_ID" ]]; then
+    echo "ERRO no signup: $RESP" >&2; exit 1
+  fi
+  echo "    tenantId: ${TENANT_ID}"
+  ETAPA="aguardando-aprovacao"
+  salvar "$ETAPA"
+fi
 
-    Depois rode de novo com TENANT_ID=${TENANT_ID} para seguir do passo 3,
-    ou forneça PLATFORM_TOKEN para o script aprovar sozinho.
-
-    (O portão é de propósito: nenhuma empresa entra em operação sem alguém dizer sim.)
-AVISO
-  echo "$RESP" | jq --arg slug "$SLUG" --arg email "$ADMIN_EMAIL" \
-      '{tenantId:.tenantId, slug:$slug, adminEmail:$email, aprovado:false}' > "$SAIDA"
+if [[ "$ETAPA" == "pronto" ]]; then
+  echo "==> ${SLUG} já está provisionada (frota semeada). Nada a fazer."
+  echo "    export TENANT_ID=${TENANT_ID} TENANT_SLUG=${SLUG}"
   exit 0
 fi
 
-echo "==> 3. Ativando a conta do admin"
-echo "    O link de ativação vai por e-mail. Em dev, veja no Mailpit (:8025)."
-echo "    Depois de definir a senha, exporte ADMIN_SENHA e rode o passo 4."
+if [[ "$ETAPA" == "aguardando-aprovacao" ]]; then
+  echo "==> 2. Aprovação da empresa"
+  if [[ -n "${PLATFORM_TOKEN:-}" ]]; then
+    api POST "/v1/platform/tenants/${TENANT_ID}/approve" '{}' \
+        -H "Authorization: Bearer ${PLATFORM_TOKEN}" >/dev/null
+    echo "    aprovada via API de plataforma."
+  elif [[ "${APROVADA:-}" != "sim" ]]; then
+    cat <<AVISO
+    PARE AQUI e aprove a empresa no console da plataforma:
+      https://admin.<dominio-do-espelho> → Empresas → "${SLUG}" → Aprovar
+
+    Depois rode de novo com APROVADA=sim — o script retoma daqui, não cria outra.
+    (O portão é de propósito: nenhuma empresa entra em operação sem alguém dizer sim.)
+AVISO
+    exit 0
+  fi
+  ETAPA="aguardando-senha"
+  salvar "$ETAPA"
+fi
 
 if [[ -z "${ADMIN_SENHA:-}" ]]; then
-  jq -n --arg t "$TENANT_ID" --arg s "$SLUG" --arg e "$ADMIN_EMAIL" \
-     '{tenantId:$t, slug:$s, adminEmail:$e, aprovado:true, senhaDefinida:false}' > "$SAIDA"
-  echo "    Gravado parcial em ${SAIDA}. Defina a senha e rode com ADMIN_SENHA=..."
+  cat <<AVISO
+==> 3. Ativação da conta do admin (${ADMIN_EMAIL})
+    O link de ativação vai por e-mail — no espelho, para o Mailpit:
+      ssh -L 8025:127.0.0.1:8025 ubuntu@<ip-do-espelho>  →  http://localhost:8025
+    Defina a senha pelo link e rode de novo com ADMIN_SENHA=...
+AVISO
   exit 0
 fi
 
@@ -129,9 +164,7 @@ for i in $(seq 1 "$JETSKIS"); do
 done
 echo "    jetskis criados: ${criados}/${JETSKIS}"
 
-jq -n --arg t "$TENANT_ID" --arg s "$SLUG" --arg e "$ADMIN_EMAIL" \
-   '{tenantId:$t, slug:$s, adminEmail:$e, aprovado:true, senhaDefinida:true}' > "$SAIDA"
-chmod 600 "$SAIDA"
+salvar "pronto"
 echo "Pronto. ${SAIDA}"
 echo
 echo "Exporte para os cenários:"
