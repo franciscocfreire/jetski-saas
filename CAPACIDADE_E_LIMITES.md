@@ -1,6 +1,7 @@
 # Capacidade, Confiabilidade e Limites — Meu Jet
 
-> **Status:** plano proposto (set/2026), nada executado ainda.
+> **Status:** plano proposto (set/2026). **F0 executada em 15/set/2026** —
+> resultados e correções em [`LINHA_DE_BASE.md`](LINHA_DE_BASE.md).
 > **Objetivo:** saber, com número, quantas locadoras a infra atual comporta,
 > onde ela quebra, e provar periodicamente que o que prometemos é entregue.
 
@@ -67,6 +68,16 @@ alimenta diretamente a decisão de preço que está em aberto.
 
 Levantadas por leitura de configuração; cada uma vira um experimento na Fase 4.
 
+> **Veredito da F0 (15/set/2026)** — ver `LINHA_DE_BASE.md` §2:
+> a **#2 se confirmou em produção** (uma query pesada saturou 1 das 2 vCPUs e
+> travou o Prometheus); a **#3 se confirmou e é pior do que o previsto**
+> (`MaxHeapSize` = 376 MB com pico de uso de 399 MB **e SerialGC**, pausa máxima
+> de 1.036 ms); a **#4 não tem evidência de problema** (0 conexões pendentes,
+> 0 timeouts) e desce na fila; a **#1 segue de pé** (18 de 100 conexões em uso
+> hoje, mas o Keycloak pode reivindicar 100 sozinho sob carga de login).
+> Dois achados novos entraram na lista: o **Prometheus a 98,7% do seu limite**
+> de memória e a **ausência de métricas de thread do Tomcat**.
+
 1. **Postgres é o SPOF e está sem contenção de conexões.**
    `docker-compose.prod.yml` sobe o Postgres só com `listen_addresses` e `hba_file`
    → `max_connections` fica no default **100**. No mesmo banco vivem o app *e o
@@ -99,7 +110,7 @@ Levantadas por leitura de configuração; cada uma vira um experimento na Fase 4
 
 ## 4. Fases
 
-### F0 — Linha de base (≈1 dia)
+### F0 — Linha de base ✅ *executada em 15/set/2026*
 Extrair do Prometheus/Loki o que prod já faz. **Sem isto, nenhum outro número
 tem escala.** Coletar por 7 dias (janela de retenção), destacando o pico de
 sábado:
@@ -112,6 +123,14 @@ sábado:
 
 **Entregável:** tabela de linha de base + o fator de conversão da §1.1, medido
 em cima do tenant mais ativo.
+
+> **Resultado:** extrator repetível em `infra/observability/linha-de-base.sh`,
+> análise em `LINHA_DE_BASE.md`, saída bruta em `docs/capacidade/`.
+> **O fator de conversão não pôde ser medido**: produção tem **zero locações** e
+> 87% do tráfego é auto-monitoração. Ele passa a ser construído por premissas de
+> negócio na F3 e validado com carga sintética — e não extraído da telemetria.
+> Em compensação, **prod hoje é um campo de testes seguro**, janela que fecha no
+> primeiro cliente real.
 
 ### F1 — SLO e alertas de sintoma (≈1,5 dia)
 Decidir com os sócios (é decisão de negócio, não técnica) 4 SLOs de jornada:
@@ -187,14 +206,23 @@ depois, em prod em janela combinada:
 - dashboard "Capacidade" com o consumo por tenant e a projeção de estouro;
 - revisão trimestral da linha de base (a carga cresce, o número envelhece).
 
-## 5. Por onde começar (esta semana)
+## 5. Por onde começar
 
-1. **Extrair a linha de base do Prometheus** (F0). É barato, não depende de
-   ninguém e sem ele todo o resto fica sem escala.
+~~1. Extrair a linha de base do Prometheus (F0).~~ ✅ feito — `LINHA_DE_BASE.md`.
+
+Revisado depois da F0:
+
+1. **Preparar os instrumentos antes de qualquer teste de carga** (itens de
+   configuração, meio dia): subir o `mem_limit` do Prometheus (hoje a 98,7% do
+   teto), expor as métricas de thread do Tomcat (hoje inexistentes) e definir
+   heap + `UseG1GC` explícitos no backend. Sem isso o teste mede o medidor.
 2. **Declarar os SLOs com os sócios** (F1). É decisão, não implementação — e é o
    caminho crítico, porque define o critério de aprovação do teste.
-3. **Confirmar a cota Oracle** para a segunda VM (F2). Se não couber, o plano
-   muda de forma e é melhor saber agora.
+3. **Decidir o destino dos 11 containers vizinhos** (outline, kroki, drawio,
+   vikunja…) que dividem as 2 vCPUs com a plataforma. Enquanto eles estiverem
+   lá, "cabem N locadoras nesta VM" não é uma frase com significado.
+4. **Antecipar a F3 em produção**, aproveitando a janela sem clientes reais, em
+   vez de esperar o espelho da F2 — que passa a ser desejável, não bloqueante.
 
 Em paralelo, independente do plano: **corrigir o pareamento de conexões
 Postgres↔Keycloak** (§3.1). É um risco de indisponibilidade que já existe hoje,

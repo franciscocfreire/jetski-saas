@@ -1,0 +1,330 @@
+==================== 0. CONTEXTO ====================
+  coleta     : 2026-09-15 22:54 -03 (Tue)
+  janela     : 7d
+  uptime     : up 13 weeks, 1 day, 9 hours, 2 minutes
+  vCPUs      : 2
+  memória    : 11927 MB total, 7473 MB disponível
+  disco /    : 193G total, 156G livre (20% usado)
+  retenção   : 1w
+  containers : 29 no total, 18 do Meu Jet
+
+==================== 1. TRÁFEGO HTTP ====================
+### Total de requests na janela
+  - = 180652.73
+
+### Média de req/s
+  - = 0.3
+
+### PICO de req/s (janela de 5m)
+  - = 3.59
+
+### Requests por método
+  GET = 166063.07
+  DELETE = 69.01
+  PATCH = 0
+  POST = 13115.59
+  PUT = 1404.13
+  HEAD = 0
+  OPTIONS = 1
+
+### Top 12 endpoints por volume
+  /metrics = 40253
+  /actuator/prometheus = 40115.99
+  /actuator/health = 20090.55
+  /realms/{realm} = 20073.5
+  /realms/{realm}/protocol/{protocol}/token = 12519.35
+  /realms/{realm}/.well-known/{alias} = 12266.3
+  /health/ready = 12109.89
+  /admin/realms/{realm}/client-session-stats = 10018.25
+  UNKNOWN = 3529.16
+  /admin/realms/{realm}/authentication/flows/{flowAlias}/executions = 1516.04
+  /v1/tenants/{tenantId}/locacoes = 1092.03
+  /v1/suporte/atual = 618.06
+
+### Só endpoints de negócio (/v1/**)
+  /v1/tenants/{tenantId}/locacoes = 1092.03
+  /v1/suporte/atual = 618.06
+  /v1/user/tenants = 329.01
+  /v1/user/me = 316.03
+  /v1/platform/me = 197
+  /v1/tenants/{tenantId}/clientes = 187.01
+  /v1/tenants/{tenantId}/jetskis = 172.01
+  /v1/user/permissions = 154.01
+  /v1/tenants/{tenantId}/config/branding = 154
+  /v1/platform/tenants = 137
+  /v1/tenants/{tenantId}/dashboard/onboarding = 132
+  /v1/frota/metrics = 131
+
+==================== 2. LATÊNCIA ====================
+### P95 global (1h)
+  - = 0.04
+
+### P99 global (1h)
+  - = 0.05
+
+### PICO do P95 nas últimas 24h (passo 10m)
+  - = 0.39
+
+### Latência média por endpoint de negócio (s)
+  /v1/tenants/{tenantId}/pagamentos/historico = 1.7976931348623157e+308
+  /v1/tenants/{tenantId}/manutencoes = 1.7976931348623157e+308
+  /v1/tenants/{tenantId}/fechamentos/dia = 1.7976931348623157e+308
+  /v1/tenants/{tenantId}/despesas-operacionais = 1.7976931348623157e+308
+  /v1/tenants/{tenantId}/dashboard/financeiro/calendario/{ano}/{mes} = 1.7976931348623157e+308
+  /v1/tenants/{tenantId}/dashboard/financeiro/dre/{ano}/{mes} = 1.7976931348623157e+308
+  /v1/tenants/{tenantId}/comissoes/aguardando-pagamento = 1.7976931348623157e+308
+  /v1/tenants/{tenantId}/dashboard/financeiro/pendentes = 1.7976931348623157e+308
+  /v1/tenants/{tenantId}/dashboard/financeiro/receitas-despesas = 1.7976931348623157e+308
+  /v1/tenants/{tenantId}/comissoes/pendentes = 1.7976931348623157e+308
+
+### Latência máxima já observada por endpoint (s)
+  /realms/{realm}/protocol/{protocol}/token = 0.06
+  /actuator/prometheus = 0.04
+  /actuator/health = 0.01
+  /health/ready = 0.01
+  /metrics = 0.01
+  /realms/{realm}/.well-known/{alias} = 0
+  /admin/realms/{realm}/client-session-stats = 0
+  /realms/{realm} = 0
+  /v1/platform/me = 0
+  /v1/platform/tenants = 0
+
+==================== 3. ERROS ====================
+### Requests por desfecho
+  CLIENT_ERROR = 5190.39
+  SUCCESS = 175284.49
+  SERVER_ERROR = 26.05
+  REDIRECTION = 153.01
+
+### 5xx por endpoint
+  /actuator/health = 22.05
+  /realms/jetski-saas/.well-known/openid-configuration = 4
+
+### 4xx por endpoint (top 10)
+  UNKNOWN = 3529.15
+  /realms/{realm}/protocol/{protocol}/token = 771.03
+  /v1/suporte/atual = 330.05
+  /v1/user/me = 166.02
+  /v1/tenants/{tenantId}/locacoes = 127.01
+  /v1/user/tenants = 107
+  /admin/realms/{realm}/roles = 58
+  /v1/tenants/{tenantId}/jetskis = 19
+  /v1/tenants/{tenantId}/clientes = 18
+  /v1/tenants/{tenantId}/config/branding = 18
+
+### Exceções por tipo
+  RequestRejectedException = 1018.08
+  - = 111451.58
+
+==================== 4. HOST (custo de ociosidade) ====================
+### CPU do host - média %
+  - = 10.41
+
+### CPU do host - PICO % (passo 10m, 24h)
+  - = 75.09
+
+### Load average 1m - pico
+  node-exporter:9100 node = 6.37
+
+### RAM disponível agora (GB)
+  node-exporter:9100 node = 7.82
+
+### RAM disponível - MÍNIMO (GB)
+  node-exporter:9100 node = 6.3
+
+### Disco / usado %
+  /dev/sda1 ext4 node-exporter:9100 node / = 19.1
+
+### Disco / livre (GB)
+  /dev/sda1 ext4 node-exporter:9100 node / = 167.38
+
+### Disco: variação na janela (GB; negativo = encheu)
+  /dev/sda1 ext4 node-exporter:9100 node / = -2.16
+
+==================== 5. POR CONTAINER ====================
+### Memória PICO (MB) - top 20
+  jetski-keycloak = 728.34
+  jetski-backend = 592.17
+  jetski-prometheus = 484.65
+  outline = 467.55
+  kroki-mermaid = 306.63
+  drawio = 279.75
+  kroki = 167.24
+  jetski-grafana = 130.85
+  jetski-loki = 121.58
+  jetski-alloy = 114.5
+  jetski-minio = 106.26
+  excalidash-backend = 77.8
+  jetski-postgres = 65.17
+  jetski-telegraf = 63.55
+  jetski-frontend = 59.55
+  jetski-console = 54.42
+  jetski-portal = 44.47
+  outline-postgres = 40.7
+  vikunja = 29.92
+  jetski-cloudflared = 26.17
+
+### Memória PICO / limite (%) - top 15
+  jetski-prometheus = 90.27
+  jetski-keycloak = 57.88
+  drawio = 52.11
+  outline = 43.54
+  jetski-alloy = 42.65
+  jetski-grafana = 39
+  jetski-backend = 37.65
+  jetski-telegraf = 31.56
+  kroki = 31.15
+  kroki-mermaid = 28.56
+  jetski-loki = 22.65
+  jetski-minio = 19.79
+  jetski-cloudflared = 19.49
+  jetski-node-exporter = 17.97
+  outline-postgres = 15.16
+
+### CPU PICO % - top 15
+  jetski-alloy = 1.78
+  kroki-mermaid = 0.78
+  jetski-backend = 0.65
+  outline-redis = 0.56
+  jetski-postgres = 0.54
+  jetski-redis = 0.49
+  jetski-telegraf = 0.37
+  jetski-loki = 0.29
+  outline = 0.27
+  jetski-cloudflared = 0.21
+  jetski-keycloak = 0.1
+  drawio = 0.09
+  kroki = 0.07
+  jetski-minio = 0.03
+  jetski-grafana = 0.02
+
+==================== 6. POOL DE CONEXÕES E JVM ====================
+### Hikari - conexões ativas (pico)
+  jetski-api prod pegaojet-api backend:8090 jetski-backend HikariPool-1 = 5
+
+### Hikari - tamanho do pool
+  jetski-api prod pegaojet-api backend:8090 jetski-backend HikariPool-1 = 10
+
+### Hikari - threads ESPERANDO (pico)
+  jetski-api prod pegaojet-api backend:8090 jetski-backend HikariPool-1 = 0
+
+### Hikari - timeouts acumulados
+  jetski-api prod pegaojet-api backend:8090 jetski-backend HikariPool-1 = 0
+
+### Heap usado - pico (MB)
+  - = 398.75
+
+### Não-heap usado (MB)
+  - = 497.07
+
+### Pausa de GC máxima (ms)
+  end of major GC jetski-api Allocation Failure prod pegaojet-api MarkSweepCompact backend:8090 jetski-backend = 415
+  end of major GC jetski-api CodeCache GC Threshold prod pegaojet-api MarkSweepCompact backend:8090 jetski-backend = 1036
+  end of minor GC jetski-api Allocation Failure prod pegaojet-api Copy backend:8090 jetski-backend = 86
+  end of minor GC CodeCache GC Threshold G1 Young Generation keycloak:9000 keycloak = 84
+  end of minor GC G1 Evacuation Pause G1 Young Generation keycloak:9000 keycloak = 181
+  end of minor GC G1 Humongous Allocation G1 Young Generation keycloak:9000 keycloak = 6
+  end of minor GC GCLocker Initiated GC G1 Young Generation keycloak:9000 keycloak = 42
+  end of minor GC Metadata GC Threshold G1 Young Generation keycloak:9000 keycloak = 174
+
+### Tempo total em GC na janela (s)
+  - = 196.44
+
+### Flags efetivas da JVM do backend (fonte da verdade — a métrica jvm_memory_max_bytes soma pools e superestima)
+     size_t MaxHeapSize                              = 394264576                                 {product} {ergonomic}
+     double MaxRAMPercentage                         = 25.000000                                 {product} {default}
+     size_t SoftMaxHeapSize                          = 394264576                              {manageable} {ergonomic}
+       bool UseG1GC                                  = false                                     {product} {default}
+       bool UseParallelGC                            = false                                     {product} {default}
+       bool UseSerialGC                              = true                                      {product} {ergonomic}
+
+==================== 7. KEYCLOAK ====================
+### Sessões ativas (pico)
+  jetski-api jetski-backoffice prod pegaojet-api backend:8090 jetski-backend = 4
+  jetski-api jetski-customer-portal prod pegaojet-api backend:8090 jetski-backend = 1
+  jetski-api jetski-platform-console prod pegaojet-api backend:8090 jetski-backend = 2
+
+### Eventos de usuário
+  login = 10740.27
+  invalid_token refresh_token = 761.03
+  invalid_user_credentials login = 1
+  session_expired logout = 7.01
+  logout = 14
+  refresh_token = 992.04
+
+### Trocas de contexto de tenant
+  - = 3033.28
+
+==================== 8. CARGA DE NEGÓCIO ====================
+### Locações ativas (pico)
+  jetski-api prod pegaojet-api backend:8090 jetski-backend operacional = 0
+
+### Reservas por evento
+  cancelada = 1
+
+### Emissões por tipo
+  DOCUMENTO = 5
+  GRU = 7
+  PREVIA = 4
+
+### Clientes cadastrados
+  jetski-api prod pegaojet-api backend:8090 jetski-backend = 7
+
+### Taxa de ocupação da frota (pico)
+  (sem dados)
+
+==================== 9. VOLUME DE DADOS (Postgres/MinIO) ====================
+### Tamanho do banco
+  21 MB
+
+### Conexões: em uso de máximo
+  18 de 100
+
+### Conexões por usuário/estado (jetski_app = backend; jetski = Keycloak/admin)
+  jetski_app | idle | 10
+  
+  jetski | idle | 2
+  jetski | - | 1
+  jetski | active | 1
+
+### 12 maiores tabelas
+  auditoria | 232 kB | 304 linhas
+  plataforma_metrica_diaria | 176 kB | 352 linhas
+  reserva | 144 kB | 12 linhas
+  locacao | 144 kB | 0 linhas
+  cliente | 128 kB | 7 linhas
+  tenant_signup | 112 kB | 4 linhas
+  tenant | 112 kB | 11 linhas
+  reserva_habilitacao | 112 kB | 12 linhas
+  convite | 96 kB | 10 linhas
+  plataforma_sessao_suporte | 96 kB | 19 linhas
+  jetski | 88 kB | 8 linhas
+  flyway_schema_history | 80 kB | 79 linhas
+
+### Volume de negócio acumulado
+  tenants ativos: 4
+  tenants total: 11
+  locações: 0
+  locações 30d: 0
+  reservas: 12
+  clientes: 7
+  jetskis: 8
+  usuários: 15
+  documentos emitidos: 9
+  linhas de auditoria: 304
+
+### Ajustes efetivos do Postgres
+  effective_cache_size = 5242888kB
+  max_connections = 100
+  shared_buffers = 163848kB
+  work_mem = 4096kB
+
+### Storage (MinIO)
+  220M	/data
+
+### Disco consumido pelo Docker
+  TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+  Images          36        28        18.13GB   3.316GB (18%)
+  Containers      29        29        761.3MB   0B (0%)
+  Local Volumes   16        15        1.011GB   5.379kB (0%)
+  Build Cache     135       0         11.55GB   10.54GB
