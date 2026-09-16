@@ -54,6 +54,9 @@ grandeza — confira na calculadora da Oracle antes:
 Então: desligada entre rodadas, o espelho custa ~US$ 9/mês mais as horas de teste;
 destruído ao fim da fase, custa zero.
 
+Pode rodar também em **outra conta ou região** — o que muda na leitura dos
+resultados está em [`terraform/README.md`](terraform/README.md#outra-conta-ou-outra-região).
+
 São Paulo tem um único domínio de disponibilidade, e a criação de A1 às vezes falha
 com *Out of host capacity*; tentar de novo mais tarde costuma resolver.
 

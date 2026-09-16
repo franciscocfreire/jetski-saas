@@ -80,6 +80,21 @@ variable "oci_regiao" {
   default     = "sa-saopaulo-1"
 }
 
+variable "ad_indice" {
+  description = <<-EOT
+    Domínio de disponibilidade da VM (0, 1, 2…). São Paulo tem um só; Ashburn
+    tem três. Se a criação falhar com "Out of host capacity" — comum para A1,
+    ainda mais no Free Tier —, tente outro índice.
+  EOT
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.ad_indice >= 0 && floor(var.ad_indice) == var.ad_indice
+    error_message = "ad_indice precisa ser um inteiro a partir de 0."
+  }
+}
+
 variable "oci_perfil" {
   description = "Perfil do ~/.oci/config com a chave de API."
   type        = string

@@ -175,3 +175,21 @@ run "recusa_gerenciar_o_tunel_de_producao" {
 
   expect_failures = [cloudflare_zero_trust_tunnel_cloudflared_config.espelho]
 }
+
+run "recusa_ad_indice_fora_da_regiao" {
+  # O mock tem 1 domínio de disponibilidade; pedir o terceiro tem de reprovar
+  # com a mensagem da pré-condição, não com erro genérico de índice.
+  command = plan
+  variables {
+    ad_indice = 2
+  }
+  expect_failures = [oci_core_instance.espelho]
+}
+
+run "recusa_ad_indice_negativo" {
+  command = plan
+  variables {
+    ad_indice = -1
+  }
+  expect_failures = [var.ad_indice]
+}
