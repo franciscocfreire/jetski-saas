@@ -2,7 +2,7 @@
 # =============================================================================
 # Gera o .env do ESPELHO a partir do modelo, com segredos NOVOS.
 #
-#   ./infra/espelho/gerar-env.sh meujet-carga.com.br
+#   ./infra/espelho/gerar-env.sh jetsave.com.br
 #
 # Existe para que ninguém monte o espelho copiando o .env de produção: cada
 # __GERADO__ vira um valor aleatório próprio, e o que depende de ação humana
@@ -17,7 +17,7 @@ DESTINO="${DESTINO:-$RAIZ/.env}"
 DOMINIO="${1:-}"
 
 if [ -z "$DOMINIO" ]; then
-  echo "uso: $0 <dominio-do-espelho>   (ex.: meujet-carga.com.br)" >&2
+  echo "uso: $0 <dominio-do-espelho>   (ex.: jetsave.com.br)" >&2
   exit 1
 fi
 case "$DOMINIO" in

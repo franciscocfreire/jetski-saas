@@ -315,7 +315,12 @@ public class SecurityConfig {
             "https://pegaojet.com.br",    // Cloudflare tunnel (dev)
             "https://*.pegaojet.com.br",  // Cloudflare tunnel subdomains (dev)
             "https://meujet.com.br",     // Cloudflare tunnel (produção)
-            "https://*.meujet.com.br"    // Cloudflare tunnel subdomains (produção)
+            "https://*.meujet.com.br",   // Cloudflare tunnel subdomains (produção)
+            // Espelho de carga (infra/espelho/README.md). Sem isto, fluxo de
+            // navegador que o backend trate como CORS dá 403 no espelho e passa
+            // em produção — o espelho deixaria de reproduzir produção.
+            "https://jetsave.com.br",
+            "https://*.jetsave.com.br"
         ));
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));

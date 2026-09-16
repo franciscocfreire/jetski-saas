@@ -38,10 +38,12 @@ qualquer container e aborta se algo apontar para produção.
 — a mesma de produção. "Igual" é o ponto: mesmo modelo de CPU (Ampere), mesma
 memória, mesma distância até a Cloudflare.
 
-Isso **não é gratuito.** Desde 15/jun/2026 o Always Free de Ampere A1 é de
-2 OCPU / 12 GB por tenancy, e a produção já consome tudo. É preciso promover a
-tenancy a Pay-As-You-Go (a produção continua gratuita). Ordem de grandeza — confira
-na calculadora da Oracle antes:
+Isso **provavelmente não é gratuito.** Desde 15/jun/2026 o Always Free de Ampere A1
+é de 2 OCPU / 12 GB por tenancy, e a produção já consome tudo. A tenancy já é
+Pay-As-You-Go (desde mar/2022), então a VM pode ser criada direto e o excedente
+vai para a fatura. (Há relatos de contas PAYG que mantiveram a cota antiga de
+4 OCPU / 24 GB — se for o caso, a primeira fatura mostra custo zero.) Ordem de
+grandeza — confira na calculadora da Oracle antes:
 
 - ligada 24 h × 7: ~US$ 0,04/h → ~US$ 28/mês
 - **desligada entre rodadas:** a Oracle não cobra OCPU/RAM de instância parada,
@@ -64,19 +66,22 @@ Não dá para usar subdomínios de `meujet.com.br` (tipo `app-carga.meujet.com.b
    (`*.meujet.com.br`), não dois (`app.carga.meujet.com.br`).
 
 O repositório já tem o precedente: o dev usa `pegaojet.com.br`, listado no
-`nginx.conf` ao lado de `meujet.com.br`. O espelho segue o mesmo desenho — um
-domínio barato (ex.: `meujet-carga.com.br`) com `www.`, `app.`, `cliente.`,
-`admin.` e `sso.`.
+`nginx.conf` ao lado de `meujet.com.br`. O espelho segue o mesmo desenho.
+
+**Domínio escolhido: `jetsave.com.br`** (16/set/2026) — já na conta Cloudflare,
+sem tráfego e fora do túnel de produção (conferido nos logs do cloudflared). Foi o
+domínio original da plataforma, por isso já aparecia no `nginx.conf` e no
+middleware; faltava só o `sso.`, e o CORS do backend, ambos incluídos junto com
+este kit.
 
 ## Passo a passo
 
-### 1. Domínio e código (uma vez)
+### 1. Domínio e código
 
-1. Registre o domínio e adicione a zona na Cloudflare (plano gratuito).
-2. Abra um PR adicionando o domínio a `infra/nginx/nginx.conf` — nos `server_name`
-   de `cliente.`, `admin.` e `sso.` e no do apex, exatamente como está o
-   `pegaojet` — e a `HOST_VITRINE` em `frontend/jetski-backoffice/middleware.ts`.
-   O preflight reprova enquanto o nginx não conhecer o domínio.
+Feito para o `jetsave.com.br`: zona na Cloudflare, `server_name` do apex,
+`cliente.`, `admin.` e `sso.` no `nginx.conf`, `HOST_VITRINE` no middleware e
+origens no CORS do backend. Para trocar de domínio um dia, é repetir esses quatro
+pontos — o preflight reprova enquanto o nginx não conhecer o domínio.
 
 ### 2. VM e túnel
 
@@ -91,7 +96,7 @@ domínio barato (ex.: `meujet-carga.com.br`) com `www.`, `app.`, `cliente.`,
 ### 3. `.env` — gerado, nunca copiado
 
 ```bash
-./infra/espelho/gerar-env.sh meujet-carga.com.br
+./infra/espelho/gerar-env.sh jetsave.com.br
 nano .env     # token do túnel, ESPELHO_TUNNEL_ID, PROD_TUNNEL_ID
 ./infra/espelho/preflight.sh
 ```
