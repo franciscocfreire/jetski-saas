@@ -70,6 +70,12 @@ terraform output -raw status_provisionamento | sh        # provisionado ou FALHO
 Depois: passos 5 e 6 do [`../README.md`](../README.md) (primeiro operador e tenant de
 carga) — o `terraform output` mostra URLs, o túnel para o Mailpit e as variáveis do k6.
 
+> **`terraform destroy` pode parar no túnel** com *"This tunnel has active
+> connections"* (código 1022): a VM some antes de a Cloudflare dar as conexões do
+> `cloudflared` por encerradas. Não é erro de configuração — espere alguns minutos e
+> rode `terraform destroy` de novo; ele só tenta o que sobrou (visto em 16/set/2026:
+> 15 recursos no primeiro, túnel no segundo).
+
 Ciclo de vida (ligar, desligar, recriar num commit, destruir): tabela em
 [`../README.md` → Ciclo de vida](../README.md#ciclo-de-vida).
 
