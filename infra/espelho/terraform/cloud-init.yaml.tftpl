@@ -25,6 +25,14 @@ write_files:
       COMPOSE_VERSAO=${compose_versao}
 
 runcmd:
+  # Numa VCN recém-criada o resolvedor (169.254.169.254) pode levar minutos para
+  # responder. Visto em 16/set/2026 numa conta nova: o DNS falhava 28 s após o
+  # boot, o clone não aconteceu e nada no provisionamento chegou a rodar.
+  # Espera até 10 min pelo DNS antes de seguir.
+  - [bash, -c, "for i in $(seq 1 120); do getent hosts github.com >/dev/null && exit 0; sleep 5; done; echo 'DNS indisponivel apos 10 min' >&2; exit 1"]
   - [runuser, -u, ubuntu, --, git, clone, "${repo_url}", /home/ubuntu/jetski]
   - [runuser, -u, ubuntu, --, git, -C, /home/ubuntu/jetski, checkout, "${git_ref}"]
+  # Sem o repositório, o provisionar-vm.sh nem existe e ninguém grava marcador:
+  # o `terraform output status_provisionamento` ficaria mudo para sempre.
+  - [bash, -c, "test -f /home/ubuntu/jetski/infra/espelho/provisionar-vm.sh || { mkdir -p /var/lib/meujet-espelho && printf 'etapa=clone do repositorio (cloud-init)\\nver=/var/log/cloud-init-output.log\\n' > /var/lib/meujet-espelho/FALHOU; }"]
   - [bash, /home/ubuntu/jetski/infra/espelho/provisionar-vm.sh]
