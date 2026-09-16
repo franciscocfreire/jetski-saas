@@ -1,0 +1,30 @@
+#cloud-config
+# Espelho de carga — gerado pelo Terraform (infra/espelho/terraform).
+# Mínimo de propósito: grava a entrada, clona o repositório no commit pedido e
+# chama infra/espelho/provisionar-vm.sh, que é versionado e testável fora daqui.
+
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+
+write_files:
+  - path: /etc/meujet-espelho/entrada.env
+    owner: root:root
+    permissions: "0600"
+    content: |
+      DOMINIO=${dominio}
+      CLOUDFLARE_TUNNEL_TOKEN=${tunnel_token}
+      ESPELHO_TUNNEL_ID=${tunnel_id}
+      PROD_TUNNEL_ID=${prod_tunnel_id}
+      PLATFORM_ADMIN_EMAILS=${platform_admin_emails}
+      DOCKER_CE_VERSAO=${docker_ce_versao}
+      CONTAINERD_VERSAO=${containerd_versao}
+      BUILDX_VERSAO=${buildx_versao}
+      COMPOSE_VERSAO=${compose_versao}
+
+runcmd:
+  - [runuser, -u, ubuntu, --, git, clone, "${repo_url}", /home/ubuntu/jetski]
+  - [runuser, -u, ubuntu, --, git, -C, /home/ubuntu/jetski, checkout, "${git_ref}"]
+  - [bash, /home/ubuntu/jetski/infra/espelho/provisionar-vm.sh]
