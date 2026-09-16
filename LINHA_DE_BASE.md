@@ -188,12 +188,26 @@ alarme, voltou a responder". Não foi — ele havia sido morto e reiniciado.)*
 ### 2.5 A VM não é só do Meu Jet
 
 Dos 29 containers, **11 não são da plataforma**: outline (+postgres +redis),
-drawio, kroki ×3, excalidash ×2, vikunja, oauth2-proxy. Juntos, mais de **1,4 GB
-de pico de memória** e uma fatia relevante das 2 vCPUs.
+drawio, kroki ×3, excalidash ×2, vikunja, oauth2-proxy.
 
-Qualquer conta de capacidade ("cabem N locadoras nesta VM") é inválida enquanto
-esses vizinhos não forem contabilizados ou movidos. É uma decisão a tomar antes
-da Fase 3, não um detalhe.
+> **Correção (16/set).** A primeira versão dizia que eles tomavam "uma fatia
+> relevante das 2 vCPUs". Medido: somados, **~1,6% de CPU média em 7 dias**
+> (outline 0,14%, drawio 0,10%, kroki-mermaid 0,54%, outline-redis 0,49%).
+> O custo deles é **memória, não CPU**: ~1,3 GB (outline 446 MB, kroki-mermaid
+> 292 MB, drawio 267 MB, kroki 160 MB, excalidash 74 MB, vikunja 29 MB).
+
+Com 7,4 GB livres no host, 1,3 GB de vizinhos **não bloqueia** o teste de carga —
+ao contrário do que esta seção afirmava. Continua valendo contabilizá-los na
+conta final de capacidade, e desligá-los durante a medição é uma precaução
+barata, mas deixou de ser pré-requisito.
+
+### 2.5.1 O deploy satura a CPU da VM
+
+Achado colateral: os containers one-shot do Flyway (`jetski-flyway-run-*`, três
+execuções na janela) rodaram com **92% a 160% de CPU** — de 200% disponíveis nas
+2 vCPUs. Enquanto a migração roda, o deploy consome quase a máquina inteira e
+compete com o backend em produção. Curto, mas não invisível: vale um `cpus:` no
+serviço `flyway` para que o deploy não derrube a latência de quem está usando.
 
 ### 2.6 10.740 logins por semana para 7 sessões
 
@@ -233,7 +247,7 @@ do teste de carga, junto com o item 2.3.
 | 1 | Subir o `mem_limit` do Prometheus (§2.3) — senão o medidor morre no meio | ✅ feito, §4 |
 | 2 | Expor métricas de thread do Tomcat (§2.7) — senão o gargalo mais provável fica invisível | ✅ feito, §4 |
 | 3 | Definir heap e coletor do backend explicitamente (§2.2) — ou o teste só mede SerialGC | ✅ feito, §4 |
-| 4 | Decidir o destino dos 11 containers vizinhos (§2.5) — ou o número não significa nada | ⬜ decisão pendente |
+| 4 | ~~Decidir o destino dos 11 containers vizinhos (§2.5)~~ | ❎ **não é pré-requisito** — medidos em ~1,6% de CPU e 1,3 GB, com 7,4 GB livres (§2.5) |
 
 ## 4. Ajustes aplicados (15/set/2026)
 
@@ -290,10 +304,39 @@ de 1500 m, reproduzindo prod):
 Sem `JAVA_OPTS` definido o container volta ao comportamento antigo em vez de
 quebrar — a mudança do `ENTRYPOINT` é segura sozinha.
 
-### O que falta para valer em produção
+### 4.4 Aplicado e verificado em produção (16/set/2026, 02:37–02:52 UTC)
 
-Os três exigem **deploy**: 4.2 e 4.3 mudam a imagem do backend (rebuild), e 4.1
-exige recriar o container do Prometheus. Depois de aplicar, reexecutar
-`infra/observability/linha-de-base.sh` e comparar com o arquivo bruto desta data —
-os sinais a conferir são `tomcat_threads_*` aparecendo, `MaxHeapSize` em 750 MB,
-`UseG1GC` e a pausa máxima de GC caindo da casa do segundo.
+| Ajuste | Antes | Depois | Como foi verificado |
+|---|---|---|---|
+| Heap do backend | 376 MB | **750 MB** | `jvm_gc_max_data_size_bytes` = 786.432.000 |
+| Coletor | SerialGC | **G1** | rótulo `gc="G1 Young Generation"` |
+| Pausa máxima de GC | 1.036 ms | **21 ms** | `jvm_gc_pause_seconds_max` (provisório: 6 min de uptime) |
+| Métricas do Tomcat | inexistentes | **família `tomcat.*` inteira** | `tomcat_threads_busy`, `connections_*`, `global_request_*`, `servlet_*`, `sessions_*` |
+| `mem_limit` do Prometheus | 512 MiB | **1 GiB** | `HostConfig.Memory` = 1073741824 |
+| Guarda de consulta | ausente | **`--query.max-samples=10000000` + `--query.timeout=1m`** | `Config.Cmd` |
+
+**Teste de regressão do OOM.** A mesma subquery de P95 sobre 7 dias que matou o
+processo às 01:50:57 foi reexecutada depois do ajuste: **completou com sucesso** e
+o container ficou de pé (`RestartCount=0`, `OOMKilled=false`). O pico de memória
+anônima medido logo após foi de **539 MB** — contra o teto anterior de 512 MB.
+Era essa a distância exata entre viver e morrer. O histórico do TSDB sobreviveu
+ao recreate (dados de 6 dias atrás continuam consultáveis).
+
+> **Gotcha de verificação.** `docker exec jetski-backend java -XX:+PrintFlagsFinal`
+> **não serve** para conferir a JVM em execução: inicia um processo novo, sem o
+> `$JAVA_OPTS` que o entrypoint expande, e devolve a ergonomia padrão. Isso produziu
+> um falso negativo ("o deploy não pegou") logo após o CD. Confira pelo que o
+> processo real publica — `jvm_gc_max_data_size_bytes` e o rótulo `gc=` — ou por
+> `docker inspect -f '{{.Config.Env}}'`.
+
+### 4.5 Pendência residual: `tomcat_threads_config_max_threads = -1`
+
+O medidor existe, mas reporta `-1` em vez do teto de threads. Não é virtual
+threads (não estão habilitadas) nem executor customizado (não há nenhum no
+código) — é o Tomcat não expondo o atributo neste arranjo de conector. Na prática
+o denominador é o default de 200, mas fica implícito, e `busy / max` não fecha.
+
+Correção candidata, **ainda não verificada**: fixar `server.tomcat.threads.max: 200`
+no `application.yml`. Pina o valor e provavelmente faz o MBean reportá-lo. Como
+exige um deploy do backend, vale juntar à próxima leva em vez de um ciclo só para
+isso. Até lá, os painéis devem usar 200 como constante.
