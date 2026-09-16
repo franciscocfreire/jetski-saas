@@ -155,9 +155,17 @@ resource "oci_core_instance" "espelho" {
   }
 
   lifecycle {
-    # Uma imagem Ubuntu nova publicada pela Oracle não deve recriar a VM num
-    # `apply` qualquer — recriar é decisão explícita (-replace).
-    ignore_changes = [source_details[0].source_id]
+    # Recriar a VM é SEMPRE decisão explícita (-replace), nunca efeito colateral:
+    # - imagem Ubuntu nova publicada pela Oracle;
+    # - metadata (cloud-init, git_ref, chave SSH): na OCI qualquer mudança aqui
+    #   FORÇA a recriação da instância. Visto em 16/set/2026: só atualizar o
+    #   template no repositório fazia um `apply` destruir o espelho em uso, com
+    #   operador, tenant de carga e dados sintéticos dentro.
+    ignore_changes = [source_details[0].source_id, metadata]
+
+    # A exceção: túnel recriado = token novo. A VM com o token antigo ficaria sem
+    # ingress, então ela é recriada junto.
+    replace_triggered_by = [cloudflare_zero_trust_tunnel_cloudflared.espelho]
 
     precondition {
       condition     = length(data.oci_core_images.ubuntu.images) > 0

@@ -131,8 +131,9 @@ variable "repo_url" {
 variable "git_ref" {
   description = <<-EOT
     Branch, tag ou commit a provisionar. Para comparar com produção, use o
-    mesmo commit que está no ar lá. O cloud-init só roda na CRIAÇÃO da VM:
-    para aplicar um git_ref novo, recrie explicitamente com
+    mesmo commit que está no ar lá. O cloud-init só roda na CRIAÇÃO da VM, e o
+    Terraform ignora mudanças de metadata para não recriar um espelho em uso
+    sem querer: para aplicar um git_ref novo, recrie explicitamente com
     `terraform apply -replace=oci_core_instance.espelho -var git_ref=...`.
   EOT
   type        = string
