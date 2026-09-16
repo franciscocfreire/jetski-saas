@@ -149,6 +149,16 @@ avisa que o cliente está sofrendo, complementando os 9 atuais, que avisam que a
 máquina está sofrendo.
 
 ### F2 — Ambiente-espelho (≈1–2 dias) — *o bloqueio principal*
+
+> **Decidido em 16/set/2026: espelho, e nenhum teste de carga em produção.**
+> Runbook e travas em [`infra/espelho/README.md`](infra/espelho/README.md). Três
+> premissas abaixo caíram na execução e estão corrigidas lá: (1) a VM **não** é
+> gratuita — o Always Free de A1 caiu para 2 OCPU / 12 GB em jun/2026 e a produção
+> já usa tudo; (2) o dataset **não** sai do restore do backup — isso copiaria CPF,
+> documentos e fotos reais para outra máquina; o espelho usa só dado sintético;
+> (3) "sem Cloudflare público" não se sustenta — o espelho precisa de domínio e
+> túnel próprios, porque nginx, vitrine e certificado dependem do hostname.
+
 Não dá para buscar o ponto de ruptura em produção com clientes reais.
 Recomendação: **segunda VM Oracle A1 idêntica** (2 OCPU / 11 GB) — o free tier
 A1 dá 4 OCPU / 24 GB por tenancy e prod usa metade, então em princípio cabe;
@@ -219,12 +229,12 @@ Revisado depois da F0:
    `-1`, então o denominador da saturação de threads é o default 200, implícito.
 2. **Declarar os SLOs com os sócios** (F1). É decisão, não implementação — e é o
    caminho crítico, porque define o critério de aprovação do teste.
-3. **Criar o espelho da F2 agora.** A VM de prod é `VM.Standard.A1.Flex` com
-   2 OCPU / 12 GB em `sa-saopaulo-1`; a cota do free tier A1 é de 4 OCPU / 24 GB
-   por tenancy, então **cabe uma segunda VM idêntica sem custo** (confirmar no
-   console). Ela resolve F2 e o drill de restore da F5 de uma vez.
-4. **Rodar um smoke de carga em produção** enquanto o espelho não sobe,
-   aproveitando a janela sem clientes reais.
+3. **Montar o espelho** (F2) conforme `infra/espelho/README.md`: domínio próprio,
+   VM `VM.Standard.A1.Flex` 2 OCPU / 12 GB em `sa-saopaulo-1` — **paga**, porque o
+   Always Free de A1 caiu para 2 OCPU / 12 GB por tenancy e a produção já o consome
+   inteiro; desligada entre rodadas, custa o volume de boot.
+4. ~~Rodar um smoke de carga em produção.~~ **Descartado em 16/set/2026:** carga
+   não roda em produção. Os scripts do `k6/` recusam `meujet.com.br`.
 
 *(Os 11 containers vizinhos saíram da lista: medidos em ~1,6% de CPU e 1,3 GB de
 RAM, com 7,4 GB livres, eles não bloqueiam nada — ver `LINHA_DE_BASE.md` §2.5.)*

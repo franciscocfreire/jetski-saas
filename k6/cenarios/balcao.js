@@ -86,7 +86,10 @@ export default function (dados) {
 
   // ---- 3. Check-in walk-in -------------------------------------------------
   let locacaoId;
-  const horimetroInicio = horimetro();
+  // O check-out grava o horímetro final no jetski; partir dele mantém a
+  // sequência plausível. A API não valida isto no check-in, mas um horímetro
+  // que anda para trás é dado que nenhuma operação real produziria.
+  const horimetroInicio = Number(jetski.horimetroAtual) > 0 ? Number(jetski.horimetroAtual) : horimetro();
   group('check-in', () => {
     const pedido = {
       jetskiId: jetski.id,

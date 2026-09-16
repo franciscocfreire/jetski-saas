@@ -1,8 +1,9 @@
 # Testes de carga (k6)
 
 Fase 3 de [`CAPACIDADE_E_LIMITES.md`](../CAPACIDADE_E_LIMITES.md). Os cenários
-rodam contra um **tenant isolado**, provisionado pelo fluxo de signup real, e
-nunca tocam em dados de locadora de verdade.
+rodam no **espelho de carga** — uma VM com a mesma stack de produção e só dado
+sintético, montada conforme [`infra/espelho/README.md`](../infra/espelho/README.md) —,
+dentro de um **tenant isolado** provisionado pelo fluxo de signup real.
 
 ## Regras de segurança — leia antes de rodar
 
@@ -17,20 +18,25 @@ nunca tocam em dados de locadora de verdade.
 4. **Dados sintéticos e rastreáveis.** Todo registro criado leva a marca
    `CARGA`, e os e-mails usam `@exemplo.invalid` (domínio reservado pela RFC
    2606, que nunca resolve) — nem por acidente algo chega a uma caixa real.
-5. **Em produção, só fora de horário.** Hoje a janela é confortável (a linha de
-   base mediu zero locações), mas ela fecha no primeiro cliente real.
+5. **Nunca em produção.** Decisão de 16/set/2026: carga roda no espelho. Os
+   cenários, o `auth-setup.sh` e o `provisionar-tenant.sh` **recusam** qualquer
+   alvo em `meujet.com.br`; a liberação exige
+   `PERMITIR_PRODUCAO="sim, é produção"` e existe só para um smoke pontual e
+   consciente.
 
 ## Preparo
 
 ### 1. Provisionar o tenant isolado
 
 ```bash
-BASE_URL=https://www.meujet.com.br/api ./k6/provisionar-tenant.sh
+BASE_URL=https://www.<dominio-do-espelho>/api ./k6/provisionar-tenant.sh
 ```
 
 O tenant nasce **PENDENTE_APROVACAO** — o portão humano de sempre. Aprove em
-`admin.meujet.com.br → Empresas`, defina a senha do admin pelo link de ativação
-(em dev, o e-mail cai no Mailpit em `:8025`) e rode de novo com `ADMIN_SENHA=...`
+`https://admin.<dominio-do-espelho> → Empresas` (o espelho precisa de um
+operador de plataforma antes; ver o README do espelho, "Primeiro operador"),
+defina a senha do admin pelo link de ativação — no espelho todo e-mail cai no
+Mailpit, via `ssh -L 8025:127.0.0.1:8025` — e rode de novo com `ADMIN_SENHA=...`
 para semear a frota.
 
 > **Dimensione a frota acima do número de VUs.** Cada jornada de balcão ocupa um
@@ -41,8 +47,8 @@ para semear a frota.
 ### 2. Obter os tokens
 
 ```bash
-ISSUER=https://sso.meujet.com.br/realms/jetski-saas \
-APP_URL=https://app.meujet.com.br \
+ISSUER=https://sso.<dominio-do-espelho>/realms/jetski-saas \
+APP_URL=https://app.<dominio-do-espelho> \
 USUARIOS="carga.admin.XXXX@exemplo.invalid:senha" \
 ./k6/auth-setup.sh
 ```
@@ -51,16 +57,17 @@ Gera `k6/.auth/tokens.json`, válido por ~12 h (a sessão SSO do realm).
 
 **Por que este passo existe:** nenhum client que a API aceita tem ROPC. Os que
 têm (`jetski-password-check`, `jetski-test`) não estão em
-`jetski.security.jwt.allowed-clients` e devolvem 401 — em produção isso é
-proposital, e reabrir só para o teste desfaria uma correção de segurança. Então
+`jetski.security.jwt.allowed-clients` e devolvem 401 — o espelho roda o mesmo
+perfil `prod`, então tem a mesma restrição, e ela é proposital: reabrir só para o
+teste desfaria uma correção de segurança. Então
 o login de verdade acontece aqui, uma vez; o k6 só troca refresh por access
 token, que é um POST sem HTML para parsear.
 
 ## Rodar
 
 ```bash
-export BASE_URL=https://www.meujet.com.br/api
-export ISSUER=https://sso.meujet.com.br/realms/jetski-saas
+export BASE_URL=https://www.<dominio-do-espelho>/api
+export ISSUER=https://sso.<dominio-do-espelho>/realms/jetski-saas
 export TENANT_ID=... TENANT_SLUG=carga-...
 
 # portão de sanidade — sempre primeiro
@@ -97,7 +104,7 @@ executa o contexto de init e imprime as opções resolvidas.
 
 | Arquivo | O que modela | O que procura |
 |---|---|---|
-| `cenarios/leitura.js` | o dia do operador: controle do dia, agenda, frota, busca de cliente | saturação de pool e de threads sob leitura concorrente |
+| `cenarios/leitura.js` | o dia do operador: controle do dia, agenda, frota, lista de clientes | saturação de pool e de threads sob leitura concorrente |
 | `cenarios/balcao.js` | atendimento presencial: cadastro → check-in walk-in → check-out → extrato | contenção em escrita, custo do cálculo de cobrança (RN01) |
 
 ### Perfis
@@ -119,8 +126,10 @@ resultado esperado, não uma falha de teste.
 
 ## O que olhar enquanto roda
 
-Grafana → **Saúde de Produção**, **Endpoints do Backend** e **Performance do
-Sistema**. Os sinais que a linha de base preparou:
+Grafana **do espelho** (`https://www.<dominio-do-espelho>/grafana`) → **Saúde de
+Produção** (o painel tem esse nome, mas mostra a máquina em que roda),
+**Endpoints do Backend** e **Performance do Sistema**. Os sinais que a linha de
+base preparou:
 
 | Sinal | Métrica | O que significa estourar |
 |---|---|---|
@@ -128,12 +137,14 @@ Sistema**. Os sinais que a linha de base preparou:
 | Espera por conexão | `hikaricp_connections_pending` | o pool de 10 ficou curto |
 | Pressão de heap | `jvm_gc_pause_seconds_max` | o G1 de 750 MB não está dando conta |
 | Conexões do banco | `pg_stat_activity` | lembrar que o Keycloak divide as 100 do Postgres |
+| Latência que só sobe | P95 de `GET /locacoes`, `/clientes`, `/jetskis` | essas listas **não são paginadas** e crescem a cada jornada de balcão — num soak, desconfie delas antes de desconfiar de vazamento |
 
 ## Limpeza
 
-Tudo que o teste cria é escopado ao tenant. A forma limpa de desfazer é
-**excluir a empresa pelo console da plataforma**, que já exporta o arquivamento
-antes de apagar. Não saia apagando linha por SQL: há RLS e ordem de FK.
+No espelho não há nada a preservar: depois de uma rodada destrutiva, o mais
+limpo é recriar o banco (ver o README do espelho, "Ciclo de vida"). Para desfazer
+só um tenant, exclua a empresa pelo console — não saia apagando linha por SQL:
+há RLS e ordem de FK.
 
 ## O que ainda não está aqui
 

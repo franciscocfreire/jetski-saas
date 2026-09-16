@@ -1,12 +1,12 @@
 // Configuração compartilhada dos cenários de carga.
 //
 // Tudo vem de variável de ambiente (`k6 run -e CHAVE=valor`) para que o mesmo
-// script rode contra dev, contra o espelho e contra produção sem edição.
+// script rode contra o dev e contra o espelho de carga sem edição.
 
-/** Base da API. Em produção: https://www.meujet.com.br/api */
+/** Base da API. No espelho: https://www.<dominio-do-espelho>/api (infra/espelho/README.md) */
 export const BASE_URL = (__ENV.BASE_URL || 'http://localhost:8090/api').replace(/\/$/, '');
 
-/** Issuer do Keycloak. Em produção: https://sso.meujet.com.br/realms/jetski-saas */
+/** Issuer do Keycloak. No espelho: https://sso.<dominio-do-espelho>/realms/jetski-saas */
 export const ISSUER = (__ENV.ISSUER || 'http://localhost:8080/realms/jetski-saas').replace(/\/$/, '');
 
 /**
@@ -31,7 +31,27 @@ export const TENANT_ID = __ENV.TENANT_ID || '';
  * Para rodar contra outro tenant (ex.: o de dev), passe -e PERMITIR_TENANT=<id>.
  */
 export const TENANT_SLUG = __ENV.TENANT_SLUG || '';
+
+/**
+ * Decisão de 16/set/2026: teste de carga NÃO roda em produção — roda no espelho
+ * (infra/espelho/README.md). A trava abaixo recusa qualquer alvo em
+ * meujet.com.br. A liberação existe para um smoke pontual e consciente (ex.: o
+ * portão pós-deploy da F6), e exige a frase exata para não sair por reflexo.
+ */
+const LIBERACAO_PRODUCAO = 'sim, é produção';
+function ehProducao(url) {
+  const host = url.replace(/^[a-z]+:\/\//, '').split(/[/:]/)[0];
+  return host === 'meujet.com.br' || host.endsWith('.meujet.com.br');
+}
+
 export function validarAlvo() {
+  if ((ehProducao(BASE_URL) || ehProducao(ISSUER)) && __ENV.PERMITIR_PRODUCAO !== LIBERACAO_PRODUCAO) {
+    throw new Error(
+      `Recusando: ${BASE_URL} é PRODUÇÃO. Teste de carga roda no espelho ` +
+      '(infra/espelho/README.md). Para um smoke consciente em produção, passe ' +
+      `-e PERMITIR_PRODUCAO="${LIBERACAO_PRODUCAO}".`
+    );
+  }
   if (!TENANT_ID) {
     throw new Error('TENANT_ID é obrigatório. Rode ./k6/provisionar-tenant.sh primeiro.');
   }

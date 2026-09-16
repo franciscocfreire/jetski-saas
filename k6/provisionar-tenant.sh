@@ -10,16 +10,25 @@
 # de qualquer empresa entrar em operação. Este script para nesse ponto e diz o
 # que fazer, a menos que você forneça um token de operador de plataforma.
 #
-# Uso:
-#   BASE_URL=https://www.meujet.com.br/api ./k6/provisionar-tenant.sh
+# Uso (contra o ESPELHO — ver infra/espelho/README.md):
+#   BASE_URL=https://www.<dominio-do-espelho>/api ./k6/provisionar-tenant.sh
 #   BASE_URL=... PLATFORM_TOKEN=<jwt> ./k6/provisionar-tenant.sh   # aprova sozinho
 #
 # Saída: k6/.auth/tenant.json com tenantId, slug e credenciais do admin.
-# Limpeza: ver o README (exclusão de empresa pelo console, com arquivamento).
+# Limpeza: no espelho, recriar o banco; ver o README do espelho.
 # =============================================================================
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:8090/api}"
+
+# Decisão de 16/set/2026: carga não roda em produção. Este script CRIA uma
+# empresa — em meujet.com.br só com a frase exata (mesma trava do k6).
+host="${BASE_URL#*://}"; host="${host%%[/:]*}"
+if [[ "$host" == meujet.com.br || "$host" == *.meujet.com.br ]] \
+   && [[ "${PERMITIR_PRODUCAO:-}" != "sim, é produção" ]]; then
+  echo "ERRO: ${BASE_URL} é PRODUÇÃO. Provisione o tenant de carga no espelho (infra/espelho/README.md)." >&2
+  exit 1
+fi
 SAIDA="${SAIDA:-$(dirname "$0")/.auth/tenant.json}"
 CARIMBO=$(date +%Y%m%d-%H%M%S)
 SLUG="${SLUG:-carga-${CARIMBO}}"          # o prefixo `carga-` é a trava do config.js
@@ -57,7 +66,7 @@ if [[ -n "${PLATFORM_TOKEN:-}" ]]; then
 else
   cat <<AVISO
     PARE AQUI e aprove a empresa no console da plataforma:
-      admin.meujet.com.br → Empresas → "${SLUG}" → Aprovar
+      https://admin.<dominio-do-espelho> → Empresas → "${SLUG}" → Aprovar
 
     Depois rode de novo com TENANT_ID=${TENANT_ID} para seguir do passo 3,
     ou forneça PLATFORM_TOKEN para o script aprovar sozinho.
