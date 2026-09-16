@@ -9,5 +9,8 @@ ssh_chave_publica_arquivo = "~/.ssh/id_ed25519.pub"
 
 # Opcionais (os padrões reproduzem produção)
 # git_ref               = "main"       # use o commit que está em produção
+# oci_perfil            = "DEFAULT"    # perfil do ~/.oci/config (outra conta = outro perfil)
+# oci_regiao            = "sa-saopaulo-1"
+# ad_indice             = 0            # "Out of host capacity"? tente 1 ou 2 (regiões com 3 ADs)
 # platform_admin_emails = "voce@exemplo.com"
 # ligada                = true

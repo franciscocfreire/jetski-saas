@@ -111,8 +111,10 @@ resource "oci_core_subnet" "espelho" {
 }
 
 resource "oci_core_instance" "espelho" {
-  compartment_id      = local.compartimento
-  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  compartment_id = local.compartimento
+  # try(): índice fora do intervalo cai na pré-condição abaixo, com mensagem clara,
+  # em vez de um "index out of range" genérico.
+  availability_domain = try(data.oci_identity_availability_domains.ads.availability_domains[var.ad_indice].name, "")
   display_name        = "meujet-espelho"
   shape               = "VM.Standard.A1.Flex"
   state               = var.ligada ? "RUNNING" : "STOPPED"
@@ -160,6 +162,11 @@ resource "oci_core_instance" "espelho" {
     precondition {
       condition     = length(data.oci_core_images.ubuntu.images) > 0
       error_message = "Nenhuma imagem Canonical Ubuntu 24.04 para VM.Standard.A1.Flex nesta região."
+    }
+
+    precondition {
+      condition     = var.ad_indice < length(data.oci_identity_availability_domains.ads.availability_domains)
+      error_message = "ad_indice fora do intervalo: esta região tem ${length(data.oci_identity_availability_domains.ads.availability_domains)} domínio(s) de disponibilidade (índices a partir de 0)."
     }
   }
 

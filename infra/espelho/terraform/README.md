@@ -73,6 +73,28 @@ carga) — o `terraform output` mostra URLs, o túnel para o Mailpit e as variá
 Ciclo de vida (ligar, desligar, recriar num commit, destruir): tabela em
 [`../README.md` → Ciclo de vida](../README.md#ciclo-de-vida).
 
+## Outra conta ou outra região
+
+Nada no código amarra o espelho à tenancy ou à região de produção. Para subir em
+outra conta OCI: um perfil próprio no `~/.oci/config` (`oci setup config`,
+respondendo **Y** para *add a profile*) e, no `terraform.tfvars`, `oci_perfil`,
+`tenancy_ocid` e `oci_regiao`. A parte Cloudflare não muda.
+
+O que muda na **leitura dos resultados** quando a região não é `sa-saopaulo-1`:
+
+- **Latência de rede.** O k6 rodando no Brasil atravessa Cloudflare → região
+  remota → volta; nos EUA isso soma ~100–150 ms por ida e volta que produção não
+  tem. A CPU é a mesma (Ampere A1), então a **capacidade do servidor** segue
+  comparável — mas leia tempos pelo Grafana do espelho (medidos dentro da VM), não
+  pelo P95 que o k6 calcula do lado do cliente.
+- **Mais de um domínio de disponibilidade.** Se o `apply` falhar com *Out of host
+  capacity*, tente `-var ad_indice=1` (ou 2).
+
+Em conta **Always Free**, o espelho ocupa a cota inteira: 2 OCPU / 12 GB de A1 e
+os 200 GB de block storage gratuitos (o disco de boot conta). Instância Always
+Free ociosa pode ser recolhida pela Oracle — destrua ao fim de cada sessão em vez
+de deixar parada.
+
 ## Testes
 
 ```bash
@@ -91,6 +113,9 @@ reprova.
 
 - **O state guarda o segredo e o token do túnel.** Fica local e o `.gitignore` o exclui —
   **o repositório é público**. Nunca force o add.
+- **O Terraform grava o state com permissão 644** (legível por qualquer usuário da
+  máquina). Depois de cada `apply`/`destroy`: `chmod 600 terraform.tfstate*` — ou rode
+  com `umask 077`.
 - Os segredos da aplicação (banco, Keycloak, NextAuth…) **não** passam pelo Terraform:
   são gerados dentro da VM pelo `gerar-env.sh`.
 - O token do túnel vai para a VM pelo `user_data`, que fica legível no metadata da
