@@ -213,9 +213,10 @@ depois, em prod em janela combinada:
 
 Revisado depois da F0:
 
-1. ~~**Preparar os instrumentos antes de qualquer teste de carga.**~~ ✅ feito —
-   ver `LINHA_DE_BASE.md` §4. Falta **deployar**: 4.2 e 4.3 mudam a imagem do
-   backend (rebuild) e 4.1 recria o container do Prometheus.
+1. ~~**Preparar os instrumentos antes de qualquer teste de carga.**~~ ✅ feito
+   **e verificado em produção** em 16/set/2026 — ver `LINHA_DE_BASE.md` §4.4.
+   Resta uma pendência menor (§4.5): `tomcat_threads_config_max_threads` reporta
+   `-1`, então o denominador da saturação de threads é o default 200, implícito.
 2. **Declarar os SLOs com os sócios** (F1). É decisão, não implementação — e é o
    caminho crítico, porque define o critério de aprovação do teste.
 3. **Decidir o destino dos 11 containers vizinhos** (outline, kroki, drawio,

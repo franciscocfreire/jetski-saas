@@ -290,10 +290,39 @@ de 1500 m, reproduzindo prod):
 Sem `JAVA_OPTS` definido o container volta ao comportamento antigo em vez de
 quebrar — a mudança do `ENTRYPOINT` é segura sozinha.
 
-### O que falta para valer em produção
+### 4.4 Aplicado e verificado em produção (16/set/2026, 02:37–02:52 UTC)
 
-Os três exigem **deploy**: 4.2 e 4.3 mudam a imagem do backend (rebuild), e 4.1
-exige recriar o container do Prometheus. Depois de aplicar, reexecutar
-`infra/observability/linha-de-base.sh` e comparar com o arquivo bruto desta data —
-os sinais a conferir são `tomcat_threads_*` aparecendo, `MaxHeapSize` em 750 MB,
-`UseG1GC` e a pausa máxima de GC caindo da casa do segundo.
+| Ajuste | Antes | Depois | Como foi verificado |
+|---|---|---|---|
+| Heap do backend | 376 MB | **750 MB** | `jvm_gc_max_data_size_bytes` = 786.432.000 |
+| Coletor | SerialGC | **G1** | rótulo `gc="G1 Young Generation"` |
+| Pausa máxima de GC | 1.036 ms | **21 ms** | `jvm_gc_pause_seconds_max` (provisório: 6 min de uptime) |
+| Métricas do Tomcat | inexistentes | **família `tomcat.*` inteira** | `tomcat_threads_busy`, `connections_*`, `global_request_*`, `servlet_*`, `sessions_*` |
+| `mem_limit` do Prometheus | 512 MiB | **1 GiB** | `HostConfig.Memory` = 1073741824 |
+| Guarda de consulta | ausente | **`--query.max-samples=10000000` + `--query.timeout=1m`** | `Config.Cmd` |
+
+**Teste de regressão do OOM.** A mesma subquery de P95 sobre 7 dias que matou o
+processo às 01:50:57 foi reexecutada depois do ajuste: **completou com sucesso** e
+o container ficou de pé (`RestartCount=0`, `OOMKilled=false`). O pico de memória
+anônima medido logo após foi de **539 MB** — contra o teto anterior de 512 MB.
+Era essa a distância exata entre viver e morrer. O histórico do TSDB sobreviveu
+ao recreate (dados de 6 dias atrás continuam consultáveis).
+
+> **Gotcha de verificação.** `docker exec jetski-backend java -XX:+PrintFlagsFinal`
+> **não serve** para conferir a JVM em execução: inicia um processo novo, sem o
+> `$JAVA_OPTS` que o entrypoint expande, e devolve a ergonomia padrão. Isso produziu
+> um falso negativo ("o deploy não pegou") logo após o CD. Confira pelo que o
+> processo real publica — `jvm_gc_max_data_size_bytes` e o rótulo `gc=` — ou por
+> `docker inspect -f '{{.Config.Env}}'`.
+
+### 4.5 Pendência residual: `tomcat_threads_config_max_threads = -1`
+
+O medidor existe, mas reporta `-1` em vez do teto de threads. Não é virtual
+threads (não estão habilitadas) nem executor customizado (não há nenhum no
+código) — é o Tomcat não expondo o atributo neste arranjo de conector. Na prática
+o denominador é o default de 200, mas fica implícito, e `busy / max` não fecha.
+
+Correção candidata, **ainda não verificada**: fixar `server.tomcat.threads.max: 200`
+no `application.yml`. Pina o valor e provavelmente faz o MBean reportá-lo. Como
+exige um deploy do backend, vale juntar à próxima leva em vez de um ciclo só para
+isso. Até lá, os painéis devem usar 200 como constante.
