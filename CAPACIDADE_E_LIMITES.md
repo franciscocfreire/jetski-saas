@@ -219,11 +219,15 @@ Revisado depois da F0:
    `-1`, então o denominador da saturação de threads é o default 200, implícito.
 2. **Declarar os SLOs com os sócios** (F1). É decisão, não implementação — e é o
    caminho crítico, porque define o critério de aprovação do teste.
-3. **Decidir o destino dos 11 containers vizinhos** (outline, kroki, drawio,
-   vikunja…) que dividem as 2 vCPUs com a plataforma. Enquanto eles estiverem
-   lá, "cabem N locadoras nesta VM" não é uma frase com significado.
-4. **Antecipar a F3 em produção**, aproveitando a janela sem clientes reais, em
-   vez de esperar o espelho da F2 — que passa a ser desejável, não bloqueante.
+3. **Criar o espelho da F2 agora.** A VM de prod é `VM.Standard.A1.Flex` com
+   2 OCPU / 12 GB em `sa-saopaulo-1`; a cota do free tier A1 é de 4 OCPU / 24 GB
+   por tenancy, então **cabe uma segunda VM idêntica sem custo** (confirmar no
+   console). Ela resolve F2 e o drill de restore da F5 de uma vez.
+4. **Rodar um smoke de carga em produção** enquanto o espelho não sobe,
+   aproveitando a janela sem clientes reais.
+
+*(Os 11 containers vizinhos saíram da lista: medidos em ~1,6% de CPU e 1,3 GB de
+RAM, com 7,4 GB livres, eles não bloqueiam nada — ver `LINHA_DE_BASE.md` §2.5.)*
 
 Em paralelo, independente do plano: **corrigir o pareamento de conexões
 Postgres↔Keycloak** (§3.1). É um risco de indisponibilidade que já existe hoje,
