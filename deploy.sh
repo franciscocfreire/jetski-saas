@@ -72,6 +72,23 @@ set -a; . ./.env; set +a
 : "${PORTAL_PUBLIC_URL:?defina PORTAL_PUBLIC_URL no .env (ex.: https://cliente.meujet.com.br)}"
 : "${CONSOLE_PUBLIC_URL:?defina CONSOLE_PUBLIC_URL no .env (ex.: https://admin.meujet.com.br)}"
 
+# Ambiente. Sem a variável = produção, exatamente como sempre foi.
+# `espelho` é a VM de testes de carga (infra/espelho/README.md): mesma stack,
+# mas o preflight reprova o .env antes de qualquer container subir se algo
+# apontar para o mundo real (túnel, Gmail, backup off-site, hostnames), e a
+# camada docker-compose.espelho.yml desvia todo e-mail para o Mailpit.
+AMBIENTE="${MEUJET_AMBIENTE:-producao}"
+case "$AMBIENTE" in
+  producao) ;;
+  espelho)
+    log "ambiente ESPELHO — rodando o preflight antes de tocar em qualquer container..."
+    bash infra/espelho/preflight.sh || die "preflight do espelho reprovou o .env — nada foi alterado."
+    COMPOSE="$COMPOSE -f docker-compose.espelho.yml"
+    PSQL="$COMPOSE exec -T postgres psql -v ON_ERROR_STOP=1 -U jetski -d jetski_prod"
+    ;;
+  *) die "MEUJET_AMBIENTE inválido: '$AMBIENTE' (use 'producao' ou 'espelho')" ;;
+esac
+
 # Criptografia de segredos (senha SMTP por tenant): se não houver chave, gera uma
 # e grava no .env (uma única vez). NUNCA sobrescreve uma chave já existente —
 # trocar a chave torna os segredos já cifrados indecifráveis.
@@ -224,7 +241,12 @@ done
 # 11. Backup diário via systemd timer (padrão desta VM — não há cron instalado).
 #    Off-site: BACKUP_RCLONE_REMOTE no .env + rclone configurado — ver DEPLOY.md.
 mkdir -p "$HOME/backups/meujet"
-if [ ! -f /etc/systemd/system/meujet-backup.timer ]; then
+if [ "$AMBIENTE" = "espelho" ]; then
+  # Dado sintético e descartável. E o timer é justamente o marcador que o
+  # preflight usa para reconhecer a VM de produção — instalá-lo aqui apagaria
+  # essa proteção.
+  log "espelho: timer de backup NÃO instalado (dados sintéticos, descartáveis)."
+elif [ ! -f /etc/systemd/system/meujet-backup.timer ]; then
   sudo tee /etc/systemd/system/meujet-backup.service > /dev/null <<UNIT
 [Unit]
 Description=Backup diario Meu Jet (Postgres + MinIO, ver DEPLOY.md)

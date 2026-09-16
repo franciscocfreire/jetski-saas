@@ -16,8 +16,8 @@
 # neste realm). Um tokens.json serve para um turno inteiro de testes.
 #
 # Uso:
-#   ISSUER=https://sso.meujet.com.br/realms/jetski-saas \
-#   APP_URL=https://app.meujet.com.br \
+#   ISSUER=https://sso.<dominio-do-espelho>/realms/jetski-saas \
+#   APP_URL=https://app.<dominio-do-espelho> \
 #   USUARIOS="carga1@exemplo.invalid:senha1 carga2@exemplo.invalid:senha2" \
 #   ./k6/auth-setup.sh
 #
@@ -31,6 +31,14 @@ CLIENT_ID="${CLIENT_ID:-jetski-backoffice}"
 # Qualquer caminho sob o host do backoffice serve: o realm registra ${APP_URL}/*
 REDIRECT_URI="${REDIRECT_URI:-${APP_URL}/api/auth/callback/keycloak}"
 SAIDA="${SAIDA:-$(dirname "$0")/.auth/tokens.json}"
+
+# Decisão de 16/set/2026: carga não roda em produção (mesma trava do k6).
+host="${ISSUER#*://}"; host="${host%%[/:]*}"
+if [[ "$host" == meujet.com.br || "$host" == *.meujet.com.br ]] \
+   && [[ "${PERMITIR_PRODUCAO:-}" != "sim, é produção" ]]; then
+  echo "ERRO: ${ISSUER} é o SSO de PRODUÇÃO. Autentique no espelho (infra/espelho/README.md)." >&2
+  exit 1
+fi
 
 if [[ -z "${USUARIOS:-}" ]]; then
   echo "ERRO: defina USUARIOS=\"email:senha email2:senha2\"" >&2

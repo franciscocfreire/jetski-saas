@@ -1,0 +1,35 @@
+# =============================================================================
+# Override do ESPELHO de testes de carga — terceira camada sobre base + prod:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.espelho.yml
+#
+# O deploy.sh aplica esta camada sozinho quando o .env tem MEUJET_AMBIENTE=espelho
+# (e só depois de o infra/espelho/preflight.sh aprovar o .env). Ver
+# infra/espelho/README.md.
+#
+# Princípio: o espelho roda a MESMA stack de produção (perfil prod, mesmos
+# limites de memória, mesmo JVM, mesmo nginx) — só muda o que encosta no mundo
+# real. Qualquer diferença além disso invalida a comparação de capacidade.
+# =============================================================================
+services:
+  # O compose base publica o Mailpit em 0.0.0.0 (é serviço de dev). No espelho
+  # ele passa a receber TODO e-mail da plataforma — inclusive links de ativação
+  # de conta —, então fica só em loopback. Para ver a caixa:
+  #   ssh -L 8025:127.0.0.1:8025 ubuntu@<ip-do-espelho>  →  http://localhost:8025
+  mailpit:
+    ports: !override
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+
+  backend:
+    environment:
+      # O application-prod.yml exige AUTH + STARTTLS (correto para o Gmail). O
+      # Mailpit não tem nenhum dos dois, então o espelho desliga ambos.
+      #
+      # SPRING_APPLICATION_JSON em vez de SPRING_MAIL_PROPERTIES_...: as chaves
+      # do mapa `spring.mail.properties` têm pontos (`mail.smtp.auth`), que não
+      # sobrevivem à conversão de nome de variável de ambiente. Em JSON a chave
+      # vai literal — e esta fonte tem precedência sobre o application-prod.yml.
+      SPRING_APPLICATION_JSON: >-
+        {"spring.mail.properties.mail.smtp.auth":"false",
+         "spring.mail.properties.mail.smtp.starttls.enable":"false",
+         "spring.mail.properties.mail.smtp.starttls.required":"false"}
