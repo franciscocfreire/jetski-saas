@@ -49,8 +49,21 @@ set -a; . "$ENTRADA"; set +a
 
 rm -f "$ESTADO/FALHOU"
 
+# A persona operadora de plataforma (sintetico/catalogo/e3a.json). Entra em
+# PLATFORM_ADMIN_EMAILS desde o primeiro boot: é o próprio mecanismo de bootstrap da
+# plataforma — o boot do backend promove quem está na lista E já tem conta.
+OPERADORA_SINTETICA=$(sed -n '/"operadorPlataforma"/,/}/s/.*"email": *"\([^"]*\)".*/\1/p' "$REPO/sintetico/catalogo/e3a.json" 2>/dev/null | head -1)
+: "${OPERADORA_SINTETICA:?não achei o e-mail da operadora em sintetico/catalogo/e3a.json}"
+NODE_IMAGEM=node:24-alpine   # Node 24 roda TypeScript direto; o semeador não tem dependências
+
+semeador() { # semeador <comando>  — container efêmero, rede do host (Mailpit em 127.0.0.1)
+  docker run --rm --network host \
+    -v "$REPO/sintetico:/app:ro" -v "$ESTADO:/estado" \
+    -e DOMINIO="$DOMINIO" "$NODE_IMAGEM" node /app/src/semeador.ts "$1"
+}
+
 # ---------------------------------------------------------------------------
-etapa "1/6 Docker nas mesmas versões de produção"
+etapa "1/7 Docker nas mesmas versões de produção"
 # Mesma origem do infra/prod/server-bootstrap.sh, mas com versão FIXA: a
 # diferença de versão do Compose entre dev e produção já derrubou o SSO a cada
 # deploy (o digest da imagem mudava e o Keycloak era recriado). Um espelho com
@@ -75,12 +88,12 @@ docker version --format 'engine {{.Server.Version}}'
 docker compose version
 
 # ---------------------------------------------------------------------------
-etapa "2/6 Repositório"
+etapa "2/7 Repositório"
 git config --system --add safe.directory "$REPO"
 git -C "$REPO" log --oneline -1
 
 # ---------------------------------------------------------------------------
-etapa "3/6 .env do espelho (segredos gerados aqui dentro)"
+etapa "3/7 .env do espelho (segredos gerados aqui dentro)"
 # Os segredos nascem na VM e nunca passam pelo Terraform nem pelo state dele.
 # Do lado de fora só chegam o token/UUID do túnel e o UUID do túnel de produção.
 if [ -f "$REPO/.env" ]; then
@@ -90,23 +103,41 @@ else
     CLOUDFLARE_TUNNEL_TOKEN="$CLOUDFLARE_TUNNEL_TOKEN" \
     ESPELHO_TUNNEL_ID="$ESPELHO_TUNNEL_ID" \
     PROD_TUNNEL_ID="$PROD_TUNNEL_ID" \
-    PLATFORM_ADMIN_EMAILS="${PLATFORM_ADMIN_EMAILS:-}" \
+    PLATFORM_ADMIN_EMAILS="${PLATFORM_ADMIN_EMAILS:+$PLATFORM_ADMIN_EMAILS,}$OPERADORA_SINTETICA" \
     bash "$REPO/infra/espelho/gerar-env.sh" "$DOMINIO"
 fi
 
 # ---------------------------------------------------------------------------
-etapa "4/6 Preflight"
+etapa "4/7 Preflight"
 como_ubuntu bash -c "cd '$REPO' && ./infra/espelho/preflight.sh"
 
 # ---------------------------------------------------------------------------
-etapa "5/6 deploy.sh (build das imagens em ARM — demora)"
+etapa "5/7 deploy.sh (build das imagens em ARM — demora)"
 # NO_PULL: o cloud-init já clonou no commit pedido; um pull aqui trocaria o
 # código por baixo do que o Terraform declarou.
 como_ubuntu bash -c "cd '$REPO' && NO_PULL=1 ./deploy.sh"
 
 # ---------------------------------------------------------------------------
-etapa "6/6 Observabilidade (o instrumento do teste)"
+etapa "6/7 Observabilidade (o instrumento do teste)"
 como_ubuntu bash -c "cd '$REPO' && docker compose --env-file .env -f infra/observability/docker-compose.observability.yml up -d"
+
+# ---------------------------------------------------------------------------
+etapa "7/7 Personas sintéticas (operadora de plataforma + empresas de carga)"
+# Tudo pelas APIs reais (ECOSSISTEMA_SINTETICO_SPEC.md, fase E3a). O túnel acabou
+# de subir: espera o endereço público responder antes de começar.
+for i in $(seq 1 60); do
+  [ "$(curl -s -o /dev/null -w '%{http_code}' "https://www.$DOMINIO/api/actuator/health")" = "200" ] && break
+  sleep 5
+done
+semeador bootstrap
+# A operadora agora tem conta; é o BOOT do backend que a promove (PlatformAdminSeeder).
+como_ubuntu bash -c "cd '$REPO' && docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.espelho.yml restart backend"
+for i in $(seq 1 60); do
+  [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8090/api/actuator/health)" = "200" ] && break
+  sleep 5
+done
+semeador semear
+semeador resumo
 
 printf 'commit=%s\nquando=%s\ndominio=%s\n' \
   "$(git -C "$REPO" rev-parse HEAD)" "$(date -Is)" "$DOMINIO" > "$ESTADO/provisionado"

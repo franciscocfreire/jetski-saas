@@ -143,7 +143,7 @@ jornadas pelas APIs, com tempo comprimido (ver §7, decisão 3). Expõe métrica
 (jornadas iniciadas/concluídas/abandonadas por persona).
 
 O **semeador** é idempotente e retomável, com arquivo de estado — a mesma lógica do
-`k6/provisionar-tenant.sh`: rodar de novo nunca cria a persona duas vezes.
+semeador (`sintetico/`): rodar de novo nunca cria a persona duas vezes.
 
 **2FA das personas:** o operador de plataforma configura o TOTP como uma pessoa faria —
 lê a chave na tela de configuração do Keycloak (modo "não consigo escanear") e passa a
@@ -205,8 +205,8 @@ arquivo, e cada rodada registra a semente para ser reproduzível.
 
 | Fase | Entrega | Destrava |
 |---|---|---|
-| **E0** | travas: preflight das bases + sumidouro de DNS | tudo o que vem depois com segurança |
-| **E3a** | semeador mínimo pela API: operador de plataforma (TOTP automatizado) + empresas de carga aprovadas | **fim dos cliques manuais**; smoke do k6 — não depende de fakes nem de SMTP novo |
+| **E0** ✅ | travas: preflight das bases + sumidouro de DNS | tudo o que vem depois com segurança |
+| **E3a** ✅ | semeador mínimo pela API ([`sintetico/`](sintetico/README.md)): operador de plataforma (TOTP automatizado) + empresas de carga aprovadas | **fim dos cliques manuais**; smoke do k6 — não depende de fakes nem de SMTP novo |
 | **E1** | SMTP por configuração (Mailpit aceita AUTH; Keycloak do espelho → Mailpit) | e-mail do Keycloak → persona cliente e login por código |
 | **E2** | `fakes-externos`: Marinha + PagTesouro + `/_controle` + métricas; **teste de contrato**: os HARs reais (`GRU_ANALISE_HAR.md`) reproduzidos contra o fake, incluindo charset das páginas ASP e nomes acentuados | emissão de ponta a ponta no espelho |
 | **E3b** | demais personas: EAMA, delegada + vínculo, instrutores, equipe, clientes | espelho populado a cada `terraform apply` |

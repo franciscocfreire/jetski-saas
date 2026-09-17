@@ -1,0 +1,52 @@
+{
+  "_": "Catálogo de personas da fase E3a (ECOSSISTEMA_SINTETICO_SPEC.md). Dado, não código: editar aqui muda o que o semeador cria. E-mails em @exemplo.invalid (RFC 2606) nunca resolvem; no espelho todo e-mail cai no Mailpit.",
+
+  "operadorPlataforma": {
+    "chave": "operador-plataforma",
+    "email": "operadora.plataforma@exemplo.invalid",
+    "nome": "Olívia Operadora Sintética",
+    "empresa": { "razaoSocial": "Plataforma Sintética LTDA", "slug": "sintetico-plataforma" }
+  },
+
+  "empresasDeCarga": [
+    {
+      "chave": "carga-praia-norte",
+      "slug": "carga-praia-norte",
+      "razaoSocial": "Carga Praia Norte Locações LTDA",
+      "adminEmail": "admin.praia-norte@exemplo.invalid",
+      "adminNome": "Nuno Norte Sintético",
+      "jetskis": 20,
+      "plano": "Enterprise"
+    },
+    {
+      "chave": "carga-enseada-azul",
+      "slug": "carga-enseada-azul",
+      "razaoSocial": "Carga Enseada Azul Jets LTDA",
+      "adminEmail": "admin.enseada-azul@exemplo.invalid",
+      "adminNome": "Ester Enseada Sintética",
+      "jetskis": 20,
+      "plano": "Enterprise"
+    },
+    {
+      "chave": "carga-ponta-sul",
+      "slug": "carga-ponta-sul",
+      "razaoSocial": "Carga Ponta Sul Náutica LTDA",
+      "adminEmail": "admin.ponta-sul@exemplo.invalid",
+      "adminNome": "Paulo Ponta Sintético",
+      "jetskis": 20,
+      "plano": "Enterprise"
+    }
+  ],
+
+  "modelo": {
+    "nome": "Carga GTI 130",
+    "fabricante": "Sintético",
+    "potenciaHp": 130,
+    "capacidadePessoas": 3,
+    "precoBaseHora": 350.0,
+    "toleranciaMin": 10,
+    "incluiCombustivel": false,
+    "duracaoMinimaMin": 30,
+    "descricao": "CARGA — modelo sintético de teste"
+  }
+}

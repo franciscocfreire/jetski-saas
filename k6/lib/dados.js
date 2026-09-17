@@ -54,7 +54,7 @@ export function cliente() {
     // Domínio .invalid é reservado pela RFC 2606: nunca resolve, então nem por
     // acidente um e-mail do teste chega a uma caixa real.
     email: `carga.${id}@exemplo.invalid`,
-    telefone: `11${inteiro(900000000, 999999999)}`,
+    telefone: `+5511${inteiro(900000000, 999999999)}`, // E.164 — a API valida o formato
     dataNascimento: `19${inteiro(70, 99)}-0${inteiro(1, 9)}-1${inteiro(0, 8)}`,
     termoAceite: true,
     observacoes: `${MARCA} — cliente sintético de teste de carga`,
