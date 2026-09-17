@@ -207,7 +207,7 @@ arquivo, e cada rodada registra a semente para ser reproduzível.
 |---|---|---|
 | **E0** ✅ | travas: preflight das bases + sumidouro de DNS | tudo o que vem depois com segurança |
 | **E3a** ✅ | semeador mínimo pela API ([`sintetico/`](sintetico/README.md)): operador de plataforma (TOTP automatizado) + empresas de carga aprovadas | **fim dos cliques manuais**; smoke do k6 — não depende de fakes nem de SMTP novo |
-| **E1** | SMTP por configuração (Mailpit aceita AUTH; Keycloak do espelho → Mailpit) | e-mail do Keycloak → persona cliente e login por código |
+| **E1** ✅ | SMTP por configuração (Mailpit aceita AUTH; Keycloak do espelho → Mailpit) | e-mail do Keycloak → persona cliente e login por código |
 | **E2** | `fakes-externos`: Marinha + PagTesouro + `/_controle` + métricas; **teste de contrato**: os HARs reais (`GRU_ANALISE_HAR.md`) reproduzidos contra o fake, incluindo charset das páginas ASP e nomes acentuados | emissão de ponta a ponta no espelho |
 | **E3b** | demais personas: EAMA, delegada + vínculo, instrutores, equipe, clientes | espelho populado a cada `terraform apply` |
 | **E4** | motor de comportamento: jornadas no tempo com funil calibrável | "um sábado sintético" |

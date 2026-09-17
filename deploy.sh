@@ -224,6 +224,11 @@ if aguardar_keycloak 40; then
   bash infra/prod/configure-keycloak-2fa.sh || warn "config do 2FA (TOTP/WebAuthn) falhou (verifique manualmente)"
   # Depois do client (configure-keycloak-client.sh cria o jetski-platform-console)
   bash infra/prod/configure-keycloak-console-2fa.sh || warn "config do 2FA obrigatório do console falhou (verifique manualmente)"
+  # Espelho: o SMTP do Keycloak vai para o Mailpit (o script de produção acima pulou,
+  # por não haver credencial). É o que faz chegar o código de login do portal.
+  if [ "$AMBIENTE" = "espelho" ]; then
+    bash infra/espelho/configure-keycloak-smtp.sh || warn "config de SMTP do Keycloak (espelho) falhou"
+  fi
 else
   warn "Keycloak realm não respondeu — pulei a config do client/SMTP (rode os scripts em infra/prod/ depois)"
 fi

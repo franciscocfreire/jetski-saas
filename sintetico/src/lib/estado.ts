@@ -24,6 +24,10 @@ export interface EstadoPersona {
   aprovada?: boolean;
   plano?: string;
   jetskis?: number;
+  /** Cliente do portal: e-mail confirmado pelo link do Keycloak. */
+  emailVerificado?: boolean;
+  /** Cliente do portal: já entrou pelo código enviado por e-mail. */
+  entrouPorCodigo?: boolean;
 }
 
 export interface Estado {

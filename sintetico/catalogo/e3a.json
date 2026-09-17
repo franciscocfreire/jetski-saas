@@ -1,13 +1,14 @@
 {
   "_": "Catálogo de personas da fase E3a (ECOSSISTEMA_SINTETICO_SPEC.md). Dado, não código: editar aqui muda o que o semeador cria. E-mails em @exemplo.invalid (RFC 2606) nunca resolvem; no espelho todo e-mail cai no Mailpit.",
-
   "operadorPlataforma": {
     "chave": "operador-plataforma",
     "email": "operadora.plataforma@exemplo.invalid",
     "nome": "Olívia Operadora Sintética",
-    "empresa": { "razaoSocial": "Plataforma Sintética LTDA", "slug": "sintetico-plataforma" }
+    "empresa": {
+      "razaoSocial": "Plataforma Sintética LTDA",
+      "slug": "sintetico-plataforma"
+    }
   },
-
   "empresasDeCarga": [
     {
       "chave": "carga-praia-norte",
@@ -37,7 +38,13 @@
       "plano": "Enterprise"
     }
   ],
-
+  "clientes": [
+    {
+      "chave": "cliente-clara",
+      "email": "clara.cliente@exemplo.invalid",
+      "nome": "Clara Cliente Sintética"
+    }
+  ],
   "modelo": {
     "nome": "Carga GTI 130",
     "fabricante": "Sintético",

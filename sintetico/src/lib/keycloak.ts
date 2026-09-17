@@ -31,6 +31,11 @@ export interface PedidoDeLogin {
   novaSenha?: string;
   /** Segredo TOTP já configurado (texto cru, como o Keycloak o entrega). */
   totpSegredo?: string;
+  /**
+   * Entrar SEM senha, pelo código enviado por e-mail (o caminho do cliente do portal).
+   * Chamada depois de o código ser pedido; devolve os 6 dígitos (lidos no Mailpit).
+   */
+  obterCodigoPorEmail?: (pedidoEm: Date) => Promise<string>;
 }
 
 export interface ResultadoDeLogin {
@@ -101,6 +106,7 @@ export async function login(p: PedidoDeLogin): Promise<ResultadoDeLogin> {
   const saida: Omit<ResultadoDeLogin, 'tokens'> = { telas: [] };
   let segredo = p.totpSegredo;
   let politica = POLITICA_PADRAO;
+  let codigoPedidoEm: Date | undefined;
   let r = await pedir(auth.toString(), { pote });
 
   for (let i = 0; i < MAX_TELAS; i++) {
@@ -125,7 +131,8 @@ export async function login(p: PedidoDeLogin): Promise<ResultadoDeLogin> {
 
     // Mensagem de erro da tela anterior (senha errada, código inválido…).
     const erro = /"type":\s*"error"/.test(r.corpo) ? campoTexto(r.corpo, 'summary') : undefined;
-    if (erro && saida.telas.filter((t) => t === tela).length > 1) {
+    const repeticoesEsperadas = tela === 'email-code-verify' && p.obterCodigoPorEmail ? 2 : 1;
+    if (erro && saida.telas.filter((t) => t === tela).length > repeticoesEsperadas) {
       throw new Error(`Keycloak recusou "${tela}" para ${p.usuario}: ${erro}`);
     }
 
@@ -145,7 +152,15 @@ export async function login(p: PedidoDeLogin): Promise<ResultadoDeLogin> {
         break;
 
       case 'email-code-verify':
-        r = await pedir(acao, { pote, formulario: { mjAction: 'password', password: p.senha } });
+        if (!p.obterCodigoPorEmail) {
+          r = await pedir(acao, { pote, formulario: { mjAction: 'password', password: p.senha } });
+        } else if (!codigoPedidoEm) {
+          // "Entrar sem senha": pede o código; a mesma tela volta, agora esperando os dígitos.
+          codigoPedidoEm = new Date(Date.now() - 30_000); // folga de relógio com o Mailpit
+          r = await pedir(acao, { pote, formulario: { mjAction: 'sendcode' } });
+        } else {
+          r = await pedir(acao, { pote, formulario: { mjAction: 'verify', code: await p.obterCodigoPorEmail(codigoPedidoEm) } });
+        }
         break;
 
       case 'login-update-password': {
@@ -188,6 +203,35 @@ export async function login(p: PedidoDeLogin): Promise<ResultadoDeLogin> {
     }
   }
   throw new Error(`Login de ${p.usuario} não terminou em ${MAX_TELAS} telas: ${saida.telas.join(' → ')}`);
+}
+
+/**
+ * Segue um link de ação enviado por e-mail pelo Keycloak (ex.: verificação de e-mail).
+ * O Keycloak costuma mostrar uma tela "clique para prosseguir" (info + actionUri) antes
+ * de concluir; seguimos como a pessoa faria. Devolve as telas atravessadas.
+ */
+export async function seguirLinkDeAcao(link: string): Promise<string[]> {
+  const pote = new PoteDeCookies();
+  const telas: string[] = [];
+  let r = await pedir(link, { pote });
+  for (let i = 0; i < MAX_TELAS; i++) {
+    if (r.status >= 300 && r.status < 400 && r.location) {
+      // Redirect para fora do Keycloak (de volta ao app) = ação concluída.
+      if (!r.location.includes('/realms/')) return telas;
+      r = await pedir(r.location, { pote });
+      continue;
+    }
+    if (r.status !== 200) throw new ErroHttp('link de ação do Keycloak', r);
+    const tela = telaDe(r.corpo) ?? '?';
+    telas.push(tela);
+    if (/"type":\s*"error"/.test(r.corpo) || tela === 'error') {
+      throw new Error(`Keycloak recusou o link de ação: ${campoTexto(r.corpo, 'summary') ?? tela}`);
+    }
+    const prosseguir = tela === 'info' ? campoTexto(r.corpo, 'actionUri') : undefined;
+    if (!prosseguir) return telas;
+    r = await pedir(prosseguir, { pote });
+  }
+  throw new Error(`Link de ação não terminou em ${MAX_TELAS} telas: ${telas.join(' → ')}`);
 }
 
 async function trocarCodigo(p: PedidoDeLogin, code: string, verifier: string): Promise<Tokens> {

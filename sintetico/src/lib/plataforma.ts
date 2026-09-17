@@ -25,6 +25,17 @@ export class Plataforma {
     return (JSON.parse(r.corpo) as { tenantId: string }).tenantId;
   }
 
+  /** Auto-cadastro do cliente final no portal. O Keycloak envia o e-mail de verificação. */
+  async cadastrarCliente(c: { nome: string; email: string; senha: string }): Promise<void> {
+    const r = await this.chamar('POST', '/v1/public/customers/signup', undefined, c);
+    if (r.status >= 300) throw new ErroHttp(`cadastro do cliente ${c.email}`, r);
+  }
+
+  /** Quem sou eu, no escopo de cliente — prova que o token do portal vale na API. */
+  async clienteLogado(token: string): Promise<Resposta> {
+    return this.chamar('GET', '/v1/customers/self', token);
+  }
+
   async ativarConta(magicToken: string): Promise<void> {
     const r = await this.chamar('POST', '/v1/signup/magic-activate', undefined, { magicToken });
     if (r.status >= 300) throw new ErroHttp('ativação de conta', r);

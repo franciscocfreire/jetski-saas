@@ -203,12 +203,13 @@ e siga [`k6/README.md`](../../k6/README.md).
 | o k6 passar pela Cloudflare com as proteções de bot ligadas | *Bot Fight Mode*/*Browser Integrity Check* bloqueiam o k6 (erro **1010**) | o Terraform desliga as duas **na zona `jetsave.com.br` inteira** — seguro porque a zona é só do espelho, e o plano gratuito não pula Bot Fight Mode por hostname |
 | o Terraform acabar gerenciando o **túnel de produção** (ex.: `terraform import` errado) | um `apply` reescreveria as rotas de produção | pré-condição reprova o plano se o túnel do state tiver o UUID de produção; o `.gitignore` e o compartimento próprio limitam o resto |
 
-E dois limites conhecidos, que não afetam o k6:
+**Todo e-mail do espelho cai no Mailpit** — os do backend, os do **Keycloak** (verificação de
+e-mail, código de login do portal, reset de senha: `infra/espelho/configure-keycloak-smtp.sh`,
+chamado pelo `deploy.sh`) e os das empresas com SMTP próprio (o Mailpit aceita qualquer
+credencial; basta a empresa usar `starttls=false`).
 
-- **E-mails do próprio Keycloak não chegam.** O realm é importado com AUTH e
-  STARTTLS ligados, que o Mailpit não tem — código de login do portal e reset de
-  senha pelo Keycloak não funcionam. O backoffice entra por senha, então o teste
-  não depende disso.
+Um limite conhecido, que não afeta o k6:
+
 - **O alerta "Backup diário não rodou" vai disparar.** Esperado: o espelho não faz
   backup.
 

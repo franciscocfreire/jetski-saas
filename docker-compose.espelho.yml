@@ -19,6 +19,15 @@ services:
     ports: !override
       - "127.0.0.1:1025:1025"
       - "127.0.0.1:8025:8025"
+    environment:
+      # Aceita qualquer usuário/senha SMTP, sem exigir TLS: o SMTP por empresa
+      # (SmtpSenderFactory) tem AUTH fixo, e assim as empresas-persona enviam para cá
+      # sem nenhuma adaptação no código — basta starttls=false na config da empresa.
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      # O padrão guarda só 500 mensagens e descarta as mais antigas: com personas e
+      # carga, um convite podia sumir antes de ser lido.
+      MP_MAX_MESSAGES: "20000"
 
   backend:
     environment:
