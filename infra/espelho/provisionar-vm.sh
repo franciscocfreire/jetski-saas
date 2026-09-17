@@ -137,6 +137,9 @@ for i in $(seq 1 60); do
   sleep 5
 done
 semeador semear
+# Prova de vida dos fakes (E2): uma GRU de ponta a ponta — gerar, pagar, confirmar, boleto.
+# Se a Marinha/PagTesouro sintéticos não estiverem de pé, o espelho não está pronto.
+semeador provar-gru
 semeador resumo
 
 printf 'commit=%s\nquando=%s\ndominio=%s\n' \

@@ -150,6 +150,13 @@ fi
 kc_ctr_antes="$(kc_container_id)"
 log "subindo infra base (postgres/redis/keycloak/opa/minio)..."
 $COMPOSE up -d postgres redis keycloak opa minio mailpit
+if [ "$AMBIENTE" = "espelho" ]; then
+  # Marinha/PagTesouro sintéticos. O backend sobe adiante com --no-deps, então o
+  # depends_on não os traria. --force-recreate: o código vem por volume (sintetico/),
+  # e só um container novo carrega a versão que o git pull acabou de trazer.
+  log "espelho: subindo fakes-externos (Marinha/PagTesouro sintéticos)..."
+  $COMPOSE up -d --force-recreate fakes-externos
+fi
 if [ "$(kc_container_id)" = "$kc_ctr_antes" ] && [ -n "$kc_ctr_antes" ]; then
   log "Keycloak mantido (mesma imagem e config) — SSO não foi interrompido"
 else

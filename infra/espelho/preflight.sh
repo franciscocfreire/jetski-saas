@@ -164,6 +164,20 @@ else
   ok "Marinha/PagTesouro/TSA: bases nos fakes e domínios reais afundados ($origem)"
 fi
 
+# --- 8. O serviço de fakes não pode ficar exposto ------------------------------
+# O /_controle paga GRU e injeta falha sem autenticação: só pode ser publicado em
+# loopback (e nunca entrar no nginx/túnel, o que a checagem 4 já cobre por hostname).
+if grep -q '^  fakes-externos:' "$CAMADA" 2>/dev/null; then
+  expostas=$(awk '/^  fakes-externos:/{f=1;next} f&&/^  [a-z]/{f=0} f&&/^ +- "[^"]*:[0-9]+"/ && !/"127\.0\.0\.1:/' "$CAMADA")
+  if [ -n "$expostas" ]; then
+    reprova "fakes-externos publicado fora do loopback: $(tr -s ' \n' ' ' <<<"$expostas")"
+  else
+    ok "fakes-externos publicado só em 127.0.0.1"
+  fi
+else
+  reprova "docker-compose.espelho.yml sem o serviço fakes-externos — a emissão de GRU não teria para onde ir"
+fi
+
 echo
 if [ "$falhas" -gt 0 ]; then
   echo -e "${VERMELHO}preflight REPROVADO: ${falhas} problema(s). Nada foi alterado.${NC}"

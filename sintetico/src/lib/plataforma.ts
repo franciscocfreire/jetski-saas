@@ -17,6 +17,13 @@ export class Plataforma {
     return pedir(`${this.baseUrl}${caminho}`, { metodo, cabecalhos, json });
   }
 
+  /** Chamada de staff no escopo de uma empresa (`/v1/tenants/{id}/...`); devolve o JSON ou lança. */
+  async naEmpresa<T>(metodo: 'GET' | 'POST', token: string, tenantId: string, caminho: string, json?: unknown): Promise<T> {
+    const r = await this.chamar(metodo, `/v1/tenants/${tenantId}${caminho}`, token, json, tenantId);
+    if (r.status >= 300) throw new ErroHttp(`${metodo} ${caminho}`, r);
+    return (r.corpo ? JSON.parse(r.corpo) : undefined) as T;
+  }
+
   // ---- públicas (cadastro) --------------------------------------------------
 
   async cadastrarEmpresa(e: { razaoSocial: string; slug: string; adminEmail: string; adminNome: string }): Promise<string> {

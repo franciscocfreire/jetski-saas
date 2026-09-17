@@ -179,6 +179,22 @@ traz e-mail e senha dos admins (`.personas["carga-praia-norte"]` etc.) — eles 
 > Tudo isso é dado sintético de um ambiente descartável. **Nunca** reutilize essas senhas,
 > e não copie o `personas.json` para fora da sua máquina.
 
+### GRU no espelho: Marinha e PagTesouro sintéticos
+
+A emissão de GRU funciona de ponta a ponta contra o serviço `fakes-externos`
+([`sintetico/README.md`](../../sintetico/README.md#fase-e2-fakes-externos--a-marinha-e-o-pagtesouro-sintéticos)).
+Um PIX **não se paga sozinho**: quem paga é a persona, pelo `/_controle`, que só escuta no
+loopback da VM:
+
+```bash
+ssh -L 8089:127.0.0.1:8089 ubuntu@<ip-do-espelho>      # em outro terminal
+curl 'http://127.0.0.1:8089/_controle/grus?situacao=PENDENTE'
+curl -X POST http://127.0.0.1:8089/_controle/gru/<idSessao>/pagar
+```
+
+Depois, no balcão, "Verificar pagamento do PIX" passa a responder pago. O mesmo
+`/_controle` injeta falha e latência por etapa (Marinha fora, PagTesouro lento).
+
 ### 6. Testes
 
 ```bash
