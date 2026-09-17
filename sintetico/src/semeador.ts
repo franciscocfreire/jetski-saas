@@ -17,14 +17,15 @@ import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { ArquivoDeEstado, type EstadoPersona } from './lib/estado.ts';
-import { login, type ResultadoDeLogin } from './lib/keycloak.ts';
-import { esperarConvite } from './lib/mailpit.ts';
+import { login, seguirLinkDeAcao, type ResultadoDeLogin } from './lib/keycloak.ts';
+import { esperarConvite, esperarNoEmail, lerCodigo, lerLinkDeVerificacao } from './lib/mailpit.ts';
 import { Plataforma } from './lib/plataforma.ts';
 import { otpauth } from './lib/totp.ts';
 
 interface Catalogo {
   operadorPlataforma: { chave: string; email: string; nome: string; empresa: { razaoSocial: string; slug: string } };
   empresasDeCarga: { chave: string; slug: string; razaoSocial: string; adminEmail: string; adminNome: string; jetskis: number; plano: string }[];
+  clientes?: { chave: string; email: string; nome: string }[];
   modelo: Record<string, unknown> & { nome: string };
 }
 
@@ -164,7 +165,50 @@ async function semear(): Promise<void> {
       log(`${e.slug}: frota de ${e.jetskis} jetskis pronta`);
     }
   }
+  await semearClientes();
   log('semeadura concluída.');
+}
+
+/**
+ * Clientes do portal (fase E1): auto-cadastro público → verificação de e-mail pelo link
+ * que o KEYCLOAK envia → login SEM senha, pelo código de 6 dígitos enviado por e-mail.
+ * Os dois e-mails saem do Keycloak, não do backend — é o que a fase E1 destravou.
+ */
+async function semearClientes(): Promise<void> {
+  for (const c of catalogo.clientes ?? []) {
+    const p = arquivo.persona(c.chave, c.email);
+    if (!p.ativada) {
+      p.senha ??= novaSenha();
+      p.cadastradaEm ??= new Date(Date.now() - 30_000).toISOString();
+      arquivo.salvar();
+      await api.cadastrarCliente({ nome: c.nome, email: c.email, senha: p.senha });
+      p.ativada = true;
+      arquivo.salvar();
+      log(`${c.chave}: conta de cliente criada no portal`);
+    }
+    if (!p.emailVerificado) {
+      const link = await esperarNoEmail(MAILPIT, c.email, new Date(p.cadastradaEm ?? 0), lerLinkDeVerificacao, 'link de verificação de e-mail');
+      const telas = await seguirLinkDeAcao(link);
+      p.emailVerificado = true;
+      arquivo.salvar();
+      log(`${c.chave}: e-mail verificado pelo link do Keycloak (${telas.join(' → ') || 'redirect direto'})`);
+    }
+    if (!p.entrouPorCodigo) {
+      const r = await login({
+        issuer: ISSUER,
+        clientId: 'jetski-customer-portal',
+        redirectUri: `https://cliente.${DOMINIO}/api/auth/callback/keycloak`,
+        usuario: c.email,
+        senha: '',
+        obterCodigoPorEmail: (pedidoEm) => esperarNoEmail(MAILPIT, c.email, pedidoEm, (texto) => lerCodigo(texto), 'código de login'),
+      });
+      const eu = await api.clienteLogado(r.tokens.accessToken);
+      if (eu.status !== 200) throw new Error(`${c.chave}: token do portal recusado pela API (HTTP ${eu.status}): ${eu.corpo.slice(0, 200)}`);
+      p.entrouPorCodigo = true;
+      arquivo.salvar();
+      log(`${c.chave}: entrou no portal pelo código do e-mail (${r.telas.join(' → ')}) e a API a reconhece como cliente`);
+    }
+  }
 }
 
 function resumo(): void {

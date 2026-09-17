@@ -218,6 +218,15 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
 - E-mail transacional dedicado (hoje: Gmail com fallback `PLATFORM_SMTP_*` já preparado —
   trocar de provedor é só configuração).
 - Validação server-side de upload presignado (content-type/tamanho).
+- **Bug — nome com parênteses quebra a ativação de conta** (achado em 17/set/2026 pelo
+  semeador do espelho). `POST /v1/signup/tenant` aceita um nome como "Maria (sócia)", mas a
+  ativação (`/v1/signup/magic-activate`) devolve **500 "Falha ao provisionar usuário no
+  Keycloak"**: o perfil de usuário do Keycloak recusa `( )` e outros caracteres em
+  nome (`error-person-name-invalid-character`), e o `KeycloakAdminService` só loga
+  `status=400`, sem o motivo. O cadastro fica travado (tenant pendente, sem usuário).
+  Correção sugerida: validar o nome **no cadastro**, com a mesma regra do Keycloak e
+  mensagem clara (400); e logar o corpo do erro do Keycloak. Conferir os outros pontos
+  que criam usuário (convite de membro, cadastro de cliente do portal).
 
 **Backlog (v2/estrutural):**
 - Gateway de pagamento (billing hoje é manual assistido); cobrança por metering de emissões.

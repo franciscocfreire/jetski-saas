@@ -41,6 +41,41 @@ export function lerConvite(texto: string, html: string): Convite | undefined {
   return { magicToken: link[1], senhaTemporaria: senha.replace(/^\*+|\*+$/g, '') };
 }
 
+/**
+ * Espera chegar, para `email`, uma mensagem posterior a `desde` da qual `extrair` tire
+ * algo. É o "olhar o celular" das personas: convite, link de verificação, código de login.
+ */
+export async function esperarNoEmail<T>(
+  mailpit: string,
+  email: string,
+  desde: Date,
+  extrair: (texto: string, html: string) => T | undefined,
+  oQue: string,
+  timeoutMs = 60_000,
+): Promise<T> {
+  const limite = Date.now() + timeoutMs;
+  for (;;) {
+    const msg = await ultimaMensagemPara(mailpit, email, desde);
+    const achado = msg && extrair(msg.Text, msg.HTML);
+    if (achado !== undefined) return achado;
+    if (Date.now() > limite) {
+      throw new Error(`${oQue} para ${email} não chegou ao Mailpit em ${timeoutMs / 1000}s` + (msg ? ' (chegou e-mail, mas sem o conteúdo esperado)' : ''));
+    }
+    await new Promise((ok) => setTimeout(ok, 2_000));
+  }
+}
+
+/** Código de 6 dígitos do login por e-mail (SPI meujet-email-code). Exportada para teste. */
+export function lerCodigo(texto: string): string | undefined {
+  return /(?<!\d)(\d{6})(?!\d)/.exec(texto)?.[1];
+}
+
+/** Link de verificação de e-mail enviado pelo Keycloak (action token). Exportada para teste. */
+export function lerLinkDeVerificacao(texto: string, html: string): string | undefined {
+  const m = /https?:\/\/[^\s"<>]+\/login-actions\/action-token\?[^\s"<>]+/.exec(`${texto}\n${html}`);
+  return m?.[0].replace(/&amp;/g, '&');
+}
+
 /** Espera o e-mail de convite chegar (o envio é assíncrono). */
 export async function esperarConvite(mailpit: string, email: string, desde: Date, timeoutMs = 60_000): Promise<Convite> {
   const limite = Date.now() + timeoutMs;

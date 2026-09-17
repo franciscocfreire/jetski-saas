@@ -5,13 +5,14 @@ personas e (nas próximas fases) os sistemas externos simulados do **espelho de 
 TypeScript puro sobre Node 24, **sem dependências** — roda num container `node:24-alpine`
 sem `npm install`, e nada de terceiros fica no caminho das credenciais das personas.
 
-## O que existe hoje — fase E3a: o semeador
+## O que existe hoje — fases E3a e E1: o semeador
 
 Cria, **pelas mesmas APIs de produção**, as personas do [`catalogo/e3a.json`](catalogo/e3a.json):
 
 | Persona | Como nasce e o que faz |
 |---|---|
 | **Operadora de plataforma** | cadastro público → convite lido no Mailpit → ativação → promovida pelo boot do backend (`PLATFORM_ADMIN_EMAILS`, o bootstrap da própria plataforma) → entra no **console** trocando a senha temporária e **configurando o TOTP** → aprova empresas e muda planos |
+| **Cliente do portal** (fase E1) | auto-cadastro público → **verifica o e-mail** pelo link que o Keycloak envia → entra no portal **sem senha**, pelo código de 6 dígitos lido no Mailpit → a API a reconhece como cliente |
 | **3 empresas de carga** (`carga-*`) | cadastro → ativação → **aprovadas pela operadora** → plano **Enterprise** (o Trial limita a 3 jetskis e 50 locações/mês) → o admin entra no backoffice e cria modelo + 20 jetskis |
 
 Nenhum atalho: a trilha de auditoria do espelho mostra a persona operadora como autora de
@@ -59,6 +60,7 @@ mesmos POSTs, atravessando as telas que o Keycloak pedir:
 | Client | Telas |
 |---|---|
 | console (`jetski-platform-console`) | `login` → `login-update-password` → `login-config-totp` (1º acesso) / `login-otp` (depois) |
+| portal (`jetski-customer-portal`) | `email-code-id` → `email-code-verify` (pede o código: `mjAction=sendcode`) → `email-code-verify` (`mjAction=verify` + código do e-mail) |
 | backoffice (`jetski-backoffice`) | `email-code-id` → `email-code-verify` (SPI `meujet-email-code`, identifier-first em dois POSTs) → `login-update-password` |
 
 Tela desconhecida = erro explícito com o caminho percorrido — é assim que uma mudança no

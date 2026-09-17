@@ -144,6 +144,41 @@ Para entrar você mesmo no console (`https://admin.<dominio>`), use as credencia
 persona — senha e `otpauth://` para o seu app autenticador estão em
 `/var/lib/meujet-espelho/personas.json` na VM (ver o README do `sintetico/`).
 
+### Como entrar no console do espelho
+
+O console (`https://admin.<dominio>`) exige 2FA, e o único operador de um espelho novo é
+a **persona operadora sintética**. Você entra com as credenciais dela:
+
+1. **Pegue e-mail, senha e o link do autenticador** (ficam só na VM, arquivo 0600):
+
+   ```bash
+   ssh ubuntu@<ip-do-espelho> 'sudo cat /var/lib/meujet-espelho/personas.json' \
+     | jq '.personas["operador-plataforma"] | {email, senha, otpauth}'
+   ```
+
+2. **Ponha a persona no seu app autenticador** (Google Authenticator, Authy, 1Password…) —
+   uma vez por espelho. O `otpauth://…` é o conteúdo de um QR code:
+
+   ```bash
+   sudo apt install -y qrencode            # se ainda não tiver
+   qrencode -t ansiutf8 '<cole o otpauth aqui>'
+   ```
+
+   Escaneie o QR no terminal. Sem `qrencode`: no app, escolha "inserir chave manualmente" e
+   digite o valor de `secret=` do link (tipo *baseado em tempo*, 6 dígitos, 30 s).
+
+3. **Entre em `https://admin.<dominio>`** com o e-mail e a senha do passo 1, e o código de
+   6 dígitos do app.
+
+O IP do espelho e as URLs saem de `terraform output` (em `infra/espelho/terraform/`).
+A senha e o segredo TOTP **mudam a cada espelho recriado** — repita os passos 1 e 2.
+
+Para entrar num **backoffice** de empresa de carga (`https://app.<dominio>`), o mesmo arquivo
+traz e-mail e senha dos admins (`.personas["carga-praia-norte"]` etc.) — eles não têm 2FA.
+
+> Tudo isso é dado sintético de um ambiente descartável. **Nunca** reutilize essas senhas,
+> e não copie o `personas.json` para fora da sua máquina.
+
 ### 6. Testes
 
 ```bash
@@ -168,12 +203,13 @@ e siga [`k6/README.md`](../../k6/README.md).
 | o k6 passar pela Cloudflare com as proteções de bot ligadas | *Bot Fight Mode*/*Browser Integrity Check* bloqueiam o k6 (erro **1010**) | o Terraform desliga as duas **na zona `jetsave.com.br` inteira** — seguro porque a zona é só do espelho, e o plano gratuito não pula Bot Fight Mode por hostname |
 | o Terraform acabar gerenciando o **túnel de produção** (ex.: `terraform import` errado) | um `apply` reescreveria as rotas de produção | pré-condição reprova o plano se o túnel do state tiver o UUID de produção; o `.gitignore` e o compartimento próprio limitam o resto |
 
-E dois limites conhecidos, que não afetam o k6:
+**Todo e-mail do espelho cai no Mailpit** — os do backend, os do **Keycloak** (verificação de
+e-mail, código de login do portal, reset de senha: `infra/espelho/configure-keycloak-smtp.sh`,
+chamado pelo `deploy.sh`) e os das empresas com SMTP próprio (o Mailpit aceita qualquer
+credencial; basta a empresa usar `starttls=false`).
 
-- **E-mails do próprio Keycloak não chegam.** O realm é importado com AUTH e
-  STARTTLS ligados, que o Mailpit não tem — código de login do portal e reset de
-  senha pelo Keycloak não funcionam. O backoffice entra por senha, então o teste
-  não depende disso.
+Um limite conhecido, que não afeta o k6:
+
 - **O alerta "Backup diário não rodou" vai disparar.** Esperado: o espelho não faz
   backup.
 

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { PoteDeCookies } from '../src/lib/http.ts';
 import { campoTexto, telaDe } from '../src/lib/keycloak.ts';
-import { lerConvite } from '../src/lib/mailpit.ts';
+import { lerCodigo, lerConvite, lerLinkDeVerificacao } from '../src/lib/mailpit.ts';
 import { base32, hotp, otpauth, totp } from '../src/lib/totp.ts';
 
 const CHAVE_RFC = Buffer.from('12345678901234567890', 'ascii');
@@ -59,4 +59,16 @@ test('pote de cookies: caminho, substituição e expiração', () => {
   assert.equal(pote.cabecalho('https://sso.x/realms/r/login'), 'A=9');
   pote.guardar('https://sso.x/realms/r/auth', ['A=; Path=/realms/r/; Max-Age=0']);
   assert.equal(pote.cabecalho('https://sso.x/realms/r/login'), '');
+});
+
+test('código de login: 6 dígitos isolados, não pedaço de número maior', () => {
+  assert.equal(lerCodigo('Seu código de acesso é 048213. Vale por 10 minutos.'), '048213');
+  assert.equal(lerCodigo('Pedido 12345678 sem código'), undefined);
+  assert.equal(lerCodigo('nada aqui'), undefined);
+});
+
+test('link de verificação do Keycloak: action-token, com &amp; decodificado', () => {
+  const html = '<a href="https://sso.x/realms/jetski-saas/login-actions/action-token?key=abc.def&amp;client_id=portal&amp;tab_id=9">Verificar</a>';
+  assert.equal(lerLinkDeVerificacao('', html), 'https://sso.x/realms/jetski-saas/login-actions/action-token?key=abc.def&client_id=portal&tab_id=9');
+  assert.equal(lerLinkDeVerificacao('https://app.x/magic-activate?token=zzz', ''), undefined);
 });
