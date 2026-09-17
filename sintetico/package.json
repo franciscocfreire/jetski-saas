@@ -2,7 +2,7 @@
   "name": "meujet-sintetico",
   "private": true,
   "type": "module",
-  "description": "Ecossistema sintético do espelho: semeador de personas (E3a); motor e fakes nas próximas fases. Ver ECOSSISTEMA_SINTETICO_SPEC.md.",
+  "description": "Ecossistema sintético do espelho: semeador de personas (E3a/E1) e fakes da Marinha/PagTesouro (E2); motor nas próximas fases. Ver ECOSSISTEMA_SINTETICO_SPEC.md.",
   "engines": { "node": ">=24" },
   "scripts": {
     "test": "node --test",

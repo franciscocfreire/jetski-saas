@@ -208,7 +208,7 @@ arquivo, e cada rodada registra a semente para ser reproduzível.
 | **E0** ✅ | travas: preflight das bases + sumidouro de DNS | tudo o que vem depois com segurança |
 | **E3a** ✅ | semeador mínimo pela API ([`sintetico/`](sintetico/README.md)): operador de plataforma (TOTP automatizado) + empresas de carga aprovadas | **fim dos cliques manuais**; smoke do k6 — não depende de fakes nem de SMTP novo |
 | **E1** ✅ | SMTP por configuração (Mailpit aceita AUTH; Keycloak do espelho → Mailpit) | e-mail do Keycloak → persona cliente e login por código |
-| **E2** | `fakes-externos`: Marinha + PagTesouro + `/_controle` + métricas; **teste de contrato**: os HARs reais (`GRU_ANALISE_HAR.md`) reproduzidos contra o fake, incluindo charset das páginas ASP e nomes acentuados | emissão de ponta a ponta no espelho |
+| **E2** ✅ | `fakes-externos` ([`sintetico/src/fakes/`](sintetico/README.md)): Marinha + PagTesouro + `/_controle` + métricas; **teste de contrato** com um robô que repete o `GruClient` (os HARs não foram versionados — CPF real), incluindo nomes acentuados; prova de vida `semeador provar-gru` no provisionamento. Pendente para a E5: scrape do `/metrics` pelo Prometheus do espelho; o charset real das páginas ASP segue na checagem manual | emissão de ponta a ponta no espelho |
 | **E3b** | demais personas: EAMA, delegada + vínculo, instrutores, equipe, clientes | espelho populado a cada `terraform apply` |
 | **E4** | motor de comportamento: jornadas no tempo com funil calibrável | "um sábado sintético" |
 | **E5** | k6 por persona + cenários de falha externa (Marinha fora, PagTesouro lento) | capacidade **e** resiliência |
@@ -230,6 +230,15 @@ os fakes nenhuma persona pode emitir; sem o e-mail do Keycloak o cliente não en
 | 6 | Calibração do funil (§4.2) | Perfil inicial **proposto na implementação** (locadora de praia, pico no fim de semana, taxas conservadoras), em arquivo de dados; os sócios ajustam depois |
 | 7 | Fidelidade do fake da Marinha | **Checagem manual documentada**: roteiro para gerar 1 GRU real e comparar com o contrato, de tempos em tempos ou quando produção falhar; sem automação contra o site do governo |
 | 8 | Contas de seed com senha pública (`admin@acme.com` etc.) | **Ficam como estão** no espelho. Reavaliar quando os fakes e as personas entrarem: hoje nenhuma empresa do espelho emite e nenhum e-mail sai |
+
+### Decisões da E2 (17/set/2026)
+
+| Tema | Decisão |
+|---|---|
+| Pagamento do PIX no fake | **A persona paga** (`POST /_controle/gru/{id}/pagar`); ninguém paga sozinho. `autoPagarAposSeg` existe, desligado |
+| Bloqueio por volume por CPF | **Desligado por padrão** (limite 10 quando ligado); entra nos cenários de falha da E5 |
+| QR e boleto | **QR real e escaneável, sem dependência** (codificador próprio); PDF mínimo aceito pelo pdfbox. Ambos marcados como sintéticos; PIX aponta para `*.invalid` |
+| Alcance | **Só o espelho** nesta fase. O fake é autocontido (um `node servidor.ts`), então oferecê-lo ao dev/CI — onde o e2e ainda gera GRU real — é um PR separado |
 
 ## 8. Fora de escopo
 

@@ -29,7 +29,39 @@ services:
       # carga, um convite podia sumir antes de ser lido.
       MP_MAX_MESSAGES: "20000"
 
+  # A Marinha (SCAM) e o PagTesouro sintéticos — fase E2 do ECOSSISTEMA_SINTETICO_SPEC.md.
+  # Código em sintetico/src/fakes (TypeScript sem dependências: a imagem oficial do Node
+  # roda o fonte direto, sem build nem npm install). Fora do nginx e do túnel: o backend
+  # chega pela rede do compose; o /_controle (pagar GRU, injetar falha) só por loopback
+  # da VM — de fora, `ssh -L 8089:127.0.0.1:8089`. O preflight reprova outra publicação.
+  fakes-externos:
+    image: node:24-alpine
+    container_name: jetski-fakes-externos
+    restart: unless-stopped
+    command: ["node", "/app/src/fakes/servidor.ts"]
+    working_dir: /app
+    user: node
+    read_only: true
+    environment:
+      TZ: America/Sao_Paulo
+      PORTA: "8080"
+    volumes:
+      - ./sintetico:/app:ro
+    ports:
+      - "127.0.0.1:8089:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    mem_limit: 192m
+    networks:
+      - jetski-network
+
   backend:
+    depends_on:
+      fakes-externos:
+        condition: service_started
     environment:
       # O application-prod.yml exige AUTH + STARTTLS (correto para o Gmail). O
       # Mailpit não tem nenhum dos dois, então o espelho desliga ambos.
@@ -40,8 +72,8 @@ services:
       # vai literal — e esta fonte tem precedência sobre o application-prod.yml.
       #
       # As bases da GRU apontam para o serviço de fakes (ECOSSISTEMA_SINTETICO_SPEC.md,
-      # fase E2). Enquanto ele não existir, o nome não resolve e a emissão cai no
-      # fallback manual (MARINHA_INDISPONIVEL) — falha fechada, nunca o site real.
+      # fase E2, serviço `fakes-externos` acima). Se ele estiver fora do ar, a emissão
+      # cai no fallback manual (MARINHA_INDISPONIVEL) — falha fechada, nunca o site real.
       SPRING_APPLICATION_JSON: >-
         {"spring.mail.properties.mail.smtp.auth":"false",
          "spring.mail.properties.mail.smtp.starttls.enable":"false",

@@ -17,6 +17,7 @@ import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { ArquivoDeEstado, type EstadoPersona } from './lib/estado.ts';
+import { ErroHttp, pedir } from './lib/http.ts';
 import { login, seguirLinkDeAcao, type ResultadoDeLogin } from './lib/keycloak.ts';
 import { esperarConvite, esperarNoEmail, lerCodigo, lerLinkDeVerificacao } from './lib/mailpit.ts';
 import { Plataforma } from './lib/plataforma.ts';
@@ -238,12 +239,94 @@ async function gerarTokens(): Promise<void> {
   log(`${usuarios.length} tokens gravados em ${saida} (valem ~12 h).`);
 }
 
+// ---- E2: prova de vida da emissão de GRU ---------------------------------------------------------
+
+function cpfAleatorio(): string {
+  const d = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
+  for (const n of [9, 10]) {
+    const soma = d.slice(0, n).reduce((a, x, i) => a + x * (n + 1 - i), 0);
+    d.push(((soma * 10) % 11) % 10);
+  }
+  return d.join('');
+}
+
+/**
+ * A emissão de ponta a ponta, pelas rotas que o balcão usa: a persona da empresa consulta o
+ * CPF, cadastra o cliente, reserva, gera a GRU (PIX), vê "não pago"; a persona cliente paga
+ * (pelo /_controle do PagTesouro sintético — é o "app do banco" dela); a empresa vê "pago".
+ * Depois, outra reserva pelo caminho do boleto. Falhou um passo = sai 1.
+ */
+async function provarGru(): Promise<void> {
+  const fakes = process.env.FAKES_URL ?? 'http://127.0.0.1:8089';
+  const controle = async <T>(caminho: string, json?: unknown): Promise<T> => {
+    const r = await pedir(`${fakes}/_controle${caminho}`, json === undefined ? {} : { metodo: 'POST', json });
+    if (r.status >= 300) throw new ErroHttp(`/_controle${caminho}`, r);
+    return JSON.parse(r.corpo) as T;
+  };
+  const exigir = (ok: unknown, msg: string) => {
+    if (!ok) throw new Error(`prova da GRU falhou: ${msg}`);
+    log(`  ✓ ${msg}`);
+  };
+
+  const empresa = catalogo.empresasDeCarga[0];
+  const p = arquivo.estado.personas[empresa.chave];
+  if (!p?.senha || !p.tenantId) throw new Error(`${empresa.chave} ainda não foi semeada — rode "semear" antes.`);
+  const token = (await entrar(p, 'backoffice')).tokens.accessToken;
+  const t = p.tenantId;
+
+  const cpf = cpfAleatorio();
+  const nome = 'Patrícia Prova da Conceição'; // com acento, de propósito: atravessa Marinha → PagTesouro
+  await controle('/contribuintes', { cpf, nome: 'PATRICIA PROVA DA CONCEICAO' });
+  const consulta = await api.naEmpresa<{ nome?: string }>('GET', token, t, `/clientes/consulta-marinha?cpf=${cpf}`);
+  exigir(consulta.nome === 'PATRICIA PROVA DA CONCEICAO', `consulta de CPF na Marinha sintética devolveu o nome (${consulta.nome})`);
+
+  const cliente = await api.naEmpresa<{ id: string }>('POST', token, t, '/clientes', {
+    nome,
+    documento: cpf,
+    documentoTipo: 'CPF',
+    email: `prova.gru.${Date.now()}@exemplo.invalid`,
+    telefone: '+5513999990000',
+    dataNascimento: '1990-05-17',
+    termoAceite: true,
+    enderecoJson: JSON.stringify({ cep: '11095460', logradouro: 'Rua Sintética', numero: '10', bairro: 'Centro', cidade: 'Santos', uf: 'SP' }),
+    observacoes: 'SINTETICO — prova de vida da emissão de GRU (E2)',
+  });
+  const modelo = (await api.listarModelos(token, t))[0];
+  const amanha = new Date(Date.now() + 24 * 3600_000).toISOString().slice(0, 10);
+  const reservar = (hora: string, fim: string) =>
+    api.naEmpresa<{ id: string }>('POST', token, t, '/reservas', { modeloId: modelo.id, clienteId: cliente.id, dataInicio: `${amanha}T${hora}:00`, dataFimPrevista: `${amanha}T${fim}:00` });
+
+  // PIX
+  const r1 = await reservar('10:00', '11:00');
+  type Gru = { sucesso: boolean; erroCodigo?: string; erroMensagem?: string } & Record<string, unknown>;
+  const gru = await api.naEmpresa<Gru>('POST', token, t, `/reservas/${r1.id}/habilitacao/gru`);
+  exigir(gru.sucesso, `GRU + PIX gerados pelo backend (${gru.erroCodigo ?? 'sem erro'} ${gru.erroMensagem ?? ''})`);
+  log(`    resposta: ${JSON.stringify({ ...gru, qrPngBase64: undefined, pixQrPngBase64: undefined }).slice(0, 400)}`);
+  type Pagamento = { pago: boolean; situacao: string; comprovanteDisponivel: boolean };
+  const antes = await api.naEmpresa<Pagamento>('POST', token, t, `/reservas/${r1.id}/habilitacao/gru/verificar-pagamento`);
+  exigir(!antes.pago, `antes de a cliente pagar, o backend vê "${antes.situacao}"`);
+
+  const noFake = (await controle<{ idSessao: string; numeroReferencia: string; nome: string }[]>(`/grus?cpf=${cpf}`))[0];
+  exigir(noFake?.nome === nome, `o nome acentuado chegou íntegro à Marinha sintética (${noFake?.nome})`);
+  await controle(`/gru/${noFake.idSessao}/pagar`, {});
+  const depois = await api.naEmpresa<Pagamento>('POST', token, t, `/reservas/${r1.id}/habilitacao/gru/verificar-pagamento`);
+  exigir(depois.pago && depois.comprovanteDisponivel, `depois de a cliente pagar: pago=${depois.pago}, comprovante=${depois.comprovanteDisponivel}`);
+
+  // Boleto
+  const r2 = await reservar('14:00', '15:00');
+  const boleto = await api.naEmpresa<Gru>('POST', token, t, `/reservas/${r2.id}/habilitacao/gru/boleto`);
+  exigir(boleto.sucesso, `boleto gerado e PDF aceito pelo backend (${boleto.erroCodigo ?? 'sem erro'} ${boleto.erroMensagem ?? ''})`);
+  log(`    resposta: ${JSON.stringify(boleto).slice(0, 300)}`);
+  log(`emissão de GRU provada de ponta a ponta em ${empresa.slug} (GRU ${noFake.numeroReferencia}).`);
+}
+
 const comando = process.argv[2];
 if (comando === 'bootstrap') await bootstrap();
 else if (comando === 'semear') await semear();
 else if (comando === 'resumo') resumo();
 else if (comando === 'tokens') await gerarTokens();
+else if (comando === 'provar-gru') await provarGru();
 else {
-  console.error('uso: node src/semeador.ts <bootstrap|semear|resumo|tokens>');
+  console.error('uso: node src/semeador.ts <bootstrap|semear|resumo|tokens|provar-gru>');
   process.exit(2);
 }
