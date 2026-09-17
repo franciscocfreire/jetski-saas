@@ -210,7 +210,7 @@ arquivo, e cada rodada registra a semente para ser reproduzível.
 | **E1** ✅ | SMTP por configuração (Mailpit aceita AUTH; Keycloak do espelho → Mailpit) | e-mail do Keycloak → persona cliente e login por código |
 | **E2** ✅ | `fakes-externos` ([`sintetico/src/fakes/`](sintetico/README.md)): Marinha + PagTesouro + `/_controle` + métricas; **teste de contrato** com um robô que repete o `GruClient` (os HARs não foram versionados — CPF real), incluindo nomes acentuados; prova de vida `semeador provar-gru` no provisionamento. Pendente para a E5: scrape do `/metrics` pelo Prometheus do espelho; o charset real das páginas ASP segue na checagem manual | emissão de ponta a ponta no espelho |
 | **E3b** ✅ | demais personas ([`sintetico/src/emissao.ts`](sintetico/README.md)): EAMA habilitada, 2 delegadas + vínculo, instrutores (link único, aprovação), equipe, créditos comprados, clientes de portal e balcão; prova `semeador provar-emissao` (própria + delegada até o ofício) | espelho populado a cada `terraform apply` |
-| **E4** | motor de comportamento: jornadas no tempo com funil calibrável | "um sábado sintético" |
+| **E4** ✅ | motor de comportamento ([`sintetico/src/motor.ts`](sintetico/README.md), `sintetico/motor.sh`): jornadas de portal, balcão (CHA/EMA), manutenção, telas e fechamento, com relógio 12×, funil em [`catalogo/e4-sabado.json`](sintetico/catalogo/e4-sabado.json), semente e relatório por passo | "um sábado sintético" |
 | **E5** | k6 por persona + cenários de falha externa (Marinha fora, PagTesouro lento) | capacidade **e** resiliência |
 | **E6** | TSA fake; IdP Google fake (opcional) | reforço jurídico e login social no espelho |
 
@@ -248,6 +248,15 @@ os fakes nenhuma persona pode emitir; sem o e-mail do Keycloak o cliente não en
 | Créditos | **Compra com comprovante + aprovação** pela operadora de plataforma; cortesia só como recarga |
 | Documentos do cliente | **Imagens sintéticas geradas** (~200 KB), com todas as exigências da Marinha ligadas |
 | Prova de vida | **Duas emissões completas** (própria e delegada) no provisionamento |
+
+### Decisões da E4 (17/set/2026)
+
+| Tema | Decisão |
+|---|---|
+| Janela de horário do pier em UTC (bug de produto achado no mapeamento) | **Corrigida em PR separado** (#64): a policy usa o relógio da loja |
+| Onde roda o motor | **De fora, por túnel SSH** (`sintetico/motor.sh`), como a §3.3 previa |
+| Compressão | **12×** — o sábado (09h–18h) em ~45 min; fator é parâmetro |
+| Clientes | **Fixos + novos durante o dia** (cadastro no portal e no balcão em plena operação) |
 
 ## 8. Fora de escopo
 

@@ -52,6 +52,51 @@ Ambiente: `DOMINIO` (obrigatório; recusa `meujet.com.br`), `MAILPIT_URL`, `FAKE
 `ESTADO`, `CATALOGO`, `SAIDA`. **Idempotente e retomável:** cada passo concluído vai para o estado, e a
 frota consulta o que já existe antes de criar.
 
+## Fase E4: o motor de comportamento — "um sábado sintético"
+
+[`src/motor.ts`](src/motor.ts) + [`src/motor/`](src/motor/) leem o cenário
+[`catalogo/e4-sabado.json`](catalogo/e4-sabado.json) e fazem um dia de operação acontecer nas
+três lojas de emissão, **pelas APIs reais e com o papel que tem cada poder**:
+
+```bash
+sintetico/motor.sh <ip-do-espelho>                 # o sábado inteiro: 09h–18h em ~45 min (12×)
+CHEGADAS=6 FATOR=36 SEMENTE=7 sintetico/motor.sh <ip>   # dia em miniatura, reproduzível
+```
+
+Roda **de fora da VM** (o gerador não disputa CPU com a aplicação; o tráfego entra pela
+Cloudflare): o `motor.sh` traz uma cópia do estado das personas (0600, apagada na saída) e abre
+túneis SSH para o Mailpit e o `/_controle` dos fakes, em **portas locais próprias (18025/18089)** —
+o dev desta máquina costuma ter outro Mailpit em 8025. Usa o **Node local** (≥ 22.18); container
+só onde `--network host` é o host de verdade (no Docker Desktop/WSL ele não enxerga os túneis).
+
+| Jornada | O que acontece | Quem age |
+|---|---|---|
+| **Portal** | cliente recorrente ou **novo** (cadastro → e-mail verificado → CPF) entra pelo código do e-mail, vê vitrine/modelos/disponibilidade, reserva com sinal; 80% enviam comprovante; a loja confirma; 10% não aparecem (no-show); os demais passeiam e metade avalia | cliente; FINANCEIRO confirma o sinal; OPERADOR confirma, aloca, faz check-in/out |
+| **Balcão** | freguês ou **gente nova** (consulta do CPF na Marinha + ficha + documentos); 35% têm CHA, 65% tiram a EMA: habilitação → termo → GRU → a cliente paga no PagTesouro sintético (15% desistem → reserva cancelada) → documentos à Marinha; 60% com vendedor | OPERADOR; GERENTE cancela (o OPA nega ao operador) |
+| **Manutenção** | OS num jetski parado: fora da frota até concluir (RN06) | GERENTE abre; MECÂNICO inicia e conclui |
+| **Telas** | controle do dia e agenda a cada 20 min simulados | OPERADOR |
+| **Fechamento** | consolida e fecha o dia (reabre antes, se a data já foi fechada por outra rodada) | FINANCEIRO |
+| **Créditos** | saldo < 12 → a loja compra 20 e a operadora de plataforma aprova (login com TOTP) | ADMIN da loja; operadora |
+
+**Tempo comprimido pelos dados** (decisão nº 4): o relógio simulado corre 12×, mas as datas
+enviadas à API são **reais e futuras** — a API exige início no futuro e a duração mínima do
+modelo em minutos reais. Uma reserva declara 60 min; o passeio dura 5 min reais. O check-in por
+reserva não valida janela de horário, então funciona. O que o tempo comprimido **não** alcança:
+expiração de pré-reserva do portal (24 h) e jobs de hora fixa — isso é para o soak da E5.
+
+**O funil é dado, não código.** Os números do cenário são **premissas** (produção ainda não tem
+operação para calibrar) — locadora de praia, pico no fim da manhã e no meio da tarde. Os sócios
+ajustam o JSON. Cada rodada tem **semente**: as mesmas decisões de funil se repetem com
+`SEMENTE=<n>` (cada jornada tem o próprio gerador, então a ordem de execução não muda o sorteio).
+
+**Saída:** desfechos por jornada, contadores (locações, emissões, clientes novos…), latência
+p50/p95 **por passo** e a lista de falhas, em `relatorios/motor-<data>.json` (fora do git), mais
+`http://127.0.0.1:9464/metrics` durante a rodada. Sai com código 1 se houve falha inesperada.
+O jetski **sempre volta**: se uma jornada quebra com ele na água, o pier faz um check-out de resgate.
+
+Limites a lembrar: plano Pro = **500 locações/mês** por loja (um sábado gasta ~10–15 em cada);
+cada EMA emitida debita 1 crédito; cada cliente novo é uma conta real no Keycloak do espelho.
+
 ## Fase E3b: a população de emissão
 
 [`catalogo/e3b.json`](catalogo/e3b.json) + [`src/emissao.ts`](src/emissao.ts), dentro do mesmo `semear`.
@@ -184,6 +229,13 @@ O teste de integração é o próprio espelho: a fase E3a foi validada rodando o
 `us-ashburn-1` e conferindo banco e auditoria.
 
 ## Armadilhas já pagas
+
+- **`@PreAuthorize` mente; o OPA decide por último.** Casos que o motor pisou: GERENTE **não** cria
+  vendedor (`vendedor:create`) nem OPERADOR cancela reserva (`reserva:delete`), apesar da anotação
+  permitir; MECÂNICO não abre OS (só inicia/conclui). O cenário usa o papel que o OPA aceita.
+- **Janela de horário do pier estava em UTC** (check-in/out negados depois das 17h de Brasília) —
+  corrigido no PR #64. Num espelho sem essa correção, rode o motor antes das 17h locais.
+- **Docker Desktop/WSL:** `--network host` não enxerga túneis SSH do WSL → "fetch failed". Node local.
 
 - **Senha temporária pode começar com `*`** (`*x1Z%Yn35bgG` — caso real). No texto puro do
   e-mail `*` também é negrito; o leitor de convite usa o HTML, onde a senha vem sozinha.

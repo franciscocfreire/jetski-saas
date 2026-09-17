@@ -207,11 +207,16 @@ Depois, no balcão, "Verificar pagamento do PIX" passa a responder pago. O mesmo
 
 ### 6. Testes
 
+Duas ferramentas, duas perguntas:
+
 ```bash
-./k6/gerar-tokens.sh <ip-do-espelho>
+sintetico/motor.sh <ip-do-espelho>      # "um sábado sintético": o sistema se comporta direito com gente de verdade?
+./k6/gerar-tokens.sh <ip-do-espelho>    # depois siga k6/README.md: quanto o sistema aguenta?
 ```
 
-e siga [`k6/README.md`](../../k6/README.md).
+O motor ([`sintetico/README.md`](../../sintetico/README.md#fase-e4-o-motor-de-comportamento--um-sábado-sintético))
+simula o dia das três lojas de emissão em ~45 min e grava um relatório por passo; o k6
+([`k6/README.md`](../../k6/README.md)) martela as empresas de carga.
 
 **Rode o k6 de fora do espelho.** Na mesma VM, o gerador de carga disputa as
 2 OCPUs com a aplicação e o resultado não vale nada.
