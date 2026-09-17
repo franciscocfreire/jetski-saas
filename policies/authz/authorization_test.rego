@@ -25,7 +25,7 @@ test_complete_authorization_success if {
             "jetski_id": "jetski-456"
         },
         "context": {
-            "timestamp": "2025-01-20T10:00:00Z", # Monday 10am
+            "timestamp": "2025-01-20T10:00:00-03:00", # Monday 10am
             "ip": "192.168.1.100"
         }
     } with data.jetskis as {
@@ -46,7 +46,7 @@ test_complete_authorization_rbac_deny if {
             "tenant_id": "tenant-abc"
         },
         "context": {
-            "timestamp": "2025-01-20T10:00:00Z"
+            "timestamp": "2025-01-20T10:00:00-03:00"
         }
     }
 }
@@ -65,7 +65,7 @@ test_complete_authorization_context_deny if {
             "tenant_id": "tenant-abc"
         },
         "context": {
-            "timestamp": "2025-01-20T07:00:00Z" # Outside business hours
+            "timestamp": "2025-01-20T07:00:00-03:00" # Outside business hours
         }
     }
 }
@@ -89,7 +89,7 @@ test_authorization_alcada_success if {
             "percentual_desconto": 15 # Within GERENTE limit (25%)
         },
         "context": {
-            "timestamp": "2025-01-20T10:00:00Z"
+            "timestamp": "2025-01-20T10:00:00-03:00"
         }
     }
 }
@@ -112,7 +112,7 @@ test_authorization_business_rule_deny if {
             "jetski_id": "jetski-123"
         },
         "context": {
-            "timestamp": "2025-01-20T10:00:00Z"
+            "timestamp": "2025-01-20T10:00:00-03:00"
         }
     } with data.jetskis as {
         "jetski-123": {"status": "manutencao"} # Cannot reserve jetski in maintenance
@@ -138,7 +138,7 @@ test_platform_admin_sem_sessao_nao_bypassa if {
             "tenant_id": "tenant-abc" # Different tenant
         },
         "context": {
-            "timestamp": "2025-01-20T02:00:00Z" # Outside business hours
+            "timestamp": "2025-01-20T02:00:00-03:00" # Outside business hours
         }
     }
 }
@@ -158,7 +158,7 @@ test_admin_tenant_has_wildcard_rbac if {
             "tenant_id": "tenant-abc"
         },
         "context": {
-            "timestamp": "2025-01-20T10:00:00Z"
+            "timestamp": "2025-01-20T10:00:00-03:00"
         }
     }
 }
@@ -191,7 +191,7 @@ test_scenario_operador_checkin_success if {
             "jetski_id": "jetski-789"
         },
         "context": {
-            "timestamp": "2025-01-20T14:30:00Z",
+            "timestamp": "2025-01-20T14:30:00-03:00",
             "ip": "192.168.1.50",
             "device": "mobile"
         }
@@ -212,7 +212,7 @@ test_scenario_operador_checkin_success if {
             "jetski_id": "jetski-789"
         },
         "context": {
-            "timestamp": "2025-01-20T14:30:00Z",
+            "timestamp": "2025-01-20T14:30:00-03:00",
             "ip": "192.168.1.50",
             "device": "mobile"
         }
@@ -233,7 +233,7 @@ test_scenario_operador_checkin_success if {
             "jetski_id": "jetski-789"
         },
         "context": {
-            "timestamp": "2025-01-20T14:30:00Z",
+            "timestamp": "2025-01-20T14:30:00-03:00",
             "ip": "192.168.1.50",
             "device": "mobile"
         }
@@ -257,7 +257,7 @@ test_scenario_financeiro_monthly_closure if {
             "tenant_id": "550e8400-e29b-41d4-a716-446655440001"
         },
         "context": {
-            "timestamp": "2025-02-01T10:00:00Z" # First day of month
+            "timestamp": "2025-02-01T10:00:00-03:00" # First day of month
         }
     }
 }
