@@ -2,8 +2,10 @@
 //
 // Regra: nada aqui pode parecer dado de pessoa real. Nome, e-mail e telefone
 // são obviamente de teste, e o CPF é gerado com dígito verificador válido
-// porque o backend valida — mas a partir de uma faixa reservada, para não
-// colidir com CPF de gente de verdade.
+// porque o backend valida. ATENÇÃO: NÃO existe faixa de CPF reservada para
+// teste — um CPF gerado aqui pode coincidir com o de uma pessoa real. A
+// proteção é o ISOLAMENTO: estes dados só podem circular num ambiente onde
+// Marinha/PagTesouro são fakes (ver ECOSSISTEMA_SINTETICO_SPEC.md §5).
 
 /** Prefixo em tudo que o teste cria, para a limpeza saber o que apagar. */
 export const MARCA = 'CARGA';
@@ -19,9 +21,11 @@ export function escolher(lista) {
 /**
  * CPF sintético com DV correto.
  *
- * Os 9 primeiros dígitos saem de 900.000.000–999.999.999: essa faixa não é
- * emitida pela Receita para pessoa física, então um CPF daqui é válido na
- * conta mas não pertence a ninguém.
+ * NÃO existe faixa de CPF reservada para teste: os 8 primeiros dígitos são o
+ * número-base e o 9º é a região fiscal (9 = PR/SC); a única regra oficial é que
+ * 11 dígitos iguais nunca são emitidos. Qualquer CPF de DV válido pode ser de
+ * alguém — por isso este dado nunca pode sair do ambiente sintético. A faixa
+ * 9xx é só um MARCADOR, para achar e limpar dado de teste.
  */
 export function cpf() {
   const base = String(inteiro(900000000, 999999999)).padStart(9, '0');
