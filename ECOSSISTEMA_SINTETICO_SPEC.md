@@ -1,6 +1,6 @@
 # Ecossistema sintético do espelho — SPEC
 
-> **Status:** planejamento (17/set/2026), nada implementado.
+> **Status:** decisões tomadas (§7); implementação por fases (§6) em andamento.
 > **Contexto:** o espelho de carga ([`infra/espelho/`](infra/espelho/README.md)) roda a
 > mesma stack de produção. Hoje ele é uma casca: sem ninguém operando, sem Marinha,
 > sem pagamento. Esta spec transforma o espelho num **ecossistema sintético completo** —
@@ -189,9 +189,10 @@ arquivo, e cada rodada registra a semente para ser reproduzível.
 1. **Preflight** (`infra/espelho/preflight.sh`) reprova se `jetski.gru.*-base` não apontar
    para `fakes-externos`, ou se alguma empresa-persona tiver `tsaUrl` fora do fake.
 2. **Sumidouro de DNS no backend do espelho** (`extra_hosts`): `dpc1.marinha.mil.br`,
-   `pagtesouro.tesouro.gov.br` e `freetsa.org` resolvem para o fake. Se a configuração
-   falhar e o código usar o endereço padrão, a chamada bate no fake com certificado errado
-   e **falha** — nunca chega ao sistema real.
+   `pagtesouro.tesouro.gov.br` e `freetsa.org` resolvem para `127.0.0.1` **dentro do
+   container do backend**, onde nada escuta. Se a configuração falhar e o código usar o
+   endereço padrão, a conexão é recusada na hora — nunca chega ao sistema real. (O fake é
+   alcançado pelo nome do serviço, `fakes-externos`, só via configuração explícita.)
 3. **SMTP sem saída:** a única saída SMTP da VM é o Mailpit; nenhuma persona tem
    credencial de provedor real, e endereços de destino são `@exemplo.invalid`.
 4. **CPF sintético só circula com os fakes no lugar.** Como um CPF de DV válido pode ser
@@ -217,23 +218,18 @@ E0 vem primeiro por segurança. **E3a vem logo depois** porque resolve a dor ime
 (aprovar empresa de carga à mão) sem depender de nada. E1–E2 são a fundação do resto: sem
 os fakes nenhuma persona pode emitir; sem o e-mail do Keycloak o cliente não entra no portal.
 
-## 7. Decisões em aberto
+## 7. Decisões (tomadas em 17/set/2026)
 
-1. **Login do operador sintético:** TOTP automatizado pelo fluxo real do console
-   (*recomendado* — exercita o 2FA) ou só senha pelo client do backoffice.
-2. **Tecnologia do `fakes-externos`:** TypeScript/Node (*sugerido*) × Python × Java.
-3. **Tempo:** comprimir **pelos dados** (reservas para daqui a minutos, pagamento
-   agendado no fake) — *recomendado*, sem tocar no backend — ou um relógio controlável
-   no backend (mais fiel, mas é código de produção).
-4. **Calibração do comportamento (§4.2):** quem define as premissas iniciais do funil —
-   decisão de negócio, com os sócios.
-5. **Limites por IP do nginx.** O `/api/` geral não tem limite, mas `/api/v1/public/`
-   (marketplace, portal) tem **120 req/min por IP de origem** — k6 e motor rodando de uma
-   máquina só levam 429 em massa. Opções: aceitar (é o comportamento real, e proteção
-   válida), distribuir a origem, ou afrouxar **só no espelho**.
-6. **Fidelidade contínua do fake da Marinha:** o site real pode mudar e o fake não vai
-   perceber. Opção: uma verificação controlada periódica em produção (1 GRU real,
-   manual) comparando com o contrato.
+| # | Tema | Decisão |
+|---|---|---|
+| 1 | Login do operador sintético | **TOTP automatizado** pelo fluxo real do console — exercita o 2FA |
+| 2 | Tecnologia de semeador, motor e fakes | **TypeScript/Node**, uma stack só |
+| 3 | Onde roda o semeador | **Dentro da VM, no provisionamento** — o `terraform apply` entrega o espelho populado; credenciais das personas em arquivo 0600 na VM |
+| 4 | Tempo | **Comprimir pelos dados** (reservas para daqui a minutos, pagamento agendado no fake); jobs de hora fixa só por soak que atravesse a madrugada |
+| 5 | Limites por IP do nginx | **Afrouxar só no espelho**, para medir a aplicação; um cenário separado, com o limite real, valida a proteção |
+| 6 | Calibração do funil (§4.2) | Perfil inicial **proposto na implementação** (locadora de praia, pico no fim de semana, taxas conservadoras), em arquivo de dados; os sócios ajustam depois |
+| 7 | Fidelidade do fake da Marinha | **Checagem manual documentada**: roteiro para gerar 1 GRU real e comparar com o contrato, de tempos em tempos ou quando produção falhar; sem automação contra o site do governo |
+| 8 | Contas de seed com senha pública (`admin@acme.com` etc.) | **Ficam como estão** no espelho. Reavaliar quando os fakes e as personas entrarem: hoje nenhuma empresa do espelho emite e nenhum e-mail sai |
 
 ## 8. Fora de escopo
 
