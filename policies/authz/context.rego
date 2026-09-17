@@ -29,13 +29,20 @@ critical_operations := {"fechamento:mensal"}
 # Horário Comercial
 # =============================================================================
 
-# Define horário comercial: 8h às 20h
-is_horario_comercial if {
-    # Parse timestamp do contexto
-    timestamp_ns := time.parse_rfc3339_ns(input.context.timestamp)
+# Fuso das regras de horário. O backend manda o timestamp em UTC (Instant.now()); até
+# set/2026 a hora era lida NESSE fuso, e "8h às 20h" valia 05h–16h59 de Brasília: o pier
+# tomava 403 em todo check-out depois das 17h. A hora que importa é a do relógio da loja.
+# `context.timezone` (IANA) é opcional — quando o backend passar a enviar o fuso do tenant,
+# ele vale; sem ele, o fuso da operação é o de Brasília.
+fuso := object.get(object.get(input, "context", {}), "timezone", "America/Sao_Paulo")
 
+# Timestamp do contexto no relógio da loja: [ns, fuso], como time.clock/date/weekday aceitam.
+agora_local := [time.parse_rfc3339_ns(input.context.timestamp), fuso]
+
+# Define horário comercial: 8h às 20h (hora local)
+is_horario_comercial if {
     # Extrai hora (0-23)
-    [hora, _, _] := time.clock(timestamp_ns)
+    [hora, _, _] := time.clock(agora_local)
 
     # Valida se está entre 8h e 20h
     hora >= 8
@@ -44,8 +51,7 @@ is_horario_comercial if {
 
 # Define final de semana
 is_fim_de_semana if {
-    timestamp_ns := time.parse_rfc3339_ns(input.context.timestamp)
-    weekday := time.weekday(timestamp_ns)
+    weekday := time.weekday(agora_local)
     weekday in ["Saturday", "Sunday"]
 }
 
@@ -63,8 +69,7 @@ deny_horario contains msg if {
 # Fechamento diário apenas após 20h
 deny_horario contains msg if {
     input.action == "fechamento:diario"
-    timestamp_ns := time.parse_rfc3339_ns(input.context.timestamp)
-    [hora, _, _] := time.clock(timestamp_ns)
+    [hora, _, _] := time.clock(agora_local)
     hora < 20
     msg := "Fechamento diário permitido apenas após 20h"
 }
@@ -72,8 +77,7 @@ deny_horario contains msg if {
 # Fechamento mensal apenas nos primeiros 5 dias do mês
 deny_horario contains msg if {
     input.action == "fechamento:mensal"
-    timestamp_ns := time.parse_rfc3339_ns(input.context.timestamp)
-    [_, _, dia] := time.date(timestamp_ns)
+    [_, _, dia] := time.date(agora_local)
     dia > 5
     msg := "Fechamento mensal permitido apenas nos primeiros 5 dias do mês"
 }

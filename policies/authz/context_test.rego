@@ -10,37 +10,37 @@ import future.keywords.in
 
 test_horario_comercial_9am if {
     is_horario_comercial with input as {
-        "context": {"timestamp": "2025-01-15T09:00:00Z"}
+        "context": {"timestamp": "2025-01-15T09:00:00-03:00"}
     }
 }
 
 test_horario_comercial_12pm if {
     is_horario_comercial with input as {
-        "context": {"timestamp": "2025-01-15T12:00:00Z"}
+        "context": {"timestamp": "2025-01-15T12:00:00-03:00"}
     }
 }
 
 test_horario_comercial_7pm if {
     is_horario_comercial with input as {
-        "context": {"timestamp": "2025-01-15T19:00:00Z"}
+        "context": {"timestamp": "2025-01-15T19:00:00-03:00"}
     }
 }
 
 test_not_horario_comercial_7am if {
     not is_horario_comercial with input as {
-        "context": {"timestamp": "2025-01-15T07:00:00Z"}
+        "context": {"timestamp": "2025-01-15T07:00:00-03:00"}
     }
 }
 
 test_not_horario_comercial_8pm if {
     not is_horario_comercial with input as {
-        "context": {"timestamp": "2025-01-15T20:00:00Z"}
+        "context": {"timestamp": "2025-01-15T20:00:00-03:00"}
     }
 }
 
 test_not_horario_comercial_midnight if {
     not is_horario_comercial with input as {
-        "context": {"timestamp": "2025-01-15T00:00:00Z"}
+        "context": {"timestamp": "2025-01-15T00:00:00-03:00"}
     }
 }
 
@@ -49,35 +49,35 @@ test_not_horario_comercial_midnight if {
 test_checkin_denied_outside_business_hours if {
     count(deny_horario) > 0 with input as {
         "action": "locacao:checkin",
-        "context": {"timestamp": "2025-01-15T07:00:00Z"}
+        "context": {"timestamp": "2025-01-15T07:00:00-03:00"}
     }
 }
 
 test_checkout_denied_outside_business_hours if {
     count(deny_horario) > 0 with input as {
         "action": "locacao:checkout",
-        "context": {"timestamp": "2025-01-15T21:00:00Z"}
+        "context": {"timestamp": "2025-01-15T21:00:00-03:00"}
     }
 }
 
 test_checkin_allowed_during_business_hours if {
     count(deny_horario) == 0 with input as {
         "action": "locacao:checkin",
-        "context": {"timestamp": "2025-01-15T10:00:00Z"}
+        "context": {"timestamp": "2025-01-15T10:00:00-03:00"}
     }
 }
 
 test_checkout_allowed_during_business_hours if {
     count(deny_horario) == 0 with input as {
         "action": "locacao:checkout",
-        "context": {"timestamp": "2025-01-15T18:00:00Z"}
+        "context": {"timestamp": "2025-01-15T18:00:00-03:00"}
     }
 }
 
 test_other_actions_allowed_outside_business_hours if {
     count(deny_horario) == 0 with input as {
         "action": "locacao:view",
-        "context": {"timestamp": "2025-01-15T23:00:00Z"}
+        "context": {"timestamp": "2025-01-15T23:00:00-03:00"}
     }
 }
 
@@ -87,25 +87,25 @@ test_other_actions_allowed_outside_business_hours if {
 
 # test_is_weekday_monday if {
 #     is_dia_util with input as {
-#         "context": {"timestamp": "2025-01-20T10:00:00Z"} # Monday
+#         "context": {"timestamp": "2025-01-20T10:00:00-03:00"} # Monday
 #     }
 # }
 
 # test_is_weekday_friday if {
 #     is_dia_util with input as {
-#         "context": {"timestamp": "2025-01-24T10:00:00Z"} # Friday
+#         "context": {"timestamp": "2025-01-24T10:00:00-03:00"} # Friday
 #     }
 # }
 
 # test_not_weekday_saturday if {
 #     not is_dia_util with input as {
-#         "context": {"timestamp": "2025-01-18T10:00:00Z"} # Saturday
+#         "context": {"timestamp": "2025-01-18T10:00:00-03:00"} # Saturday
 #     }
 # }
 
 # test_not_weekday_sunday if {
 #     not is_dia_util with input as {
-#         "context": {"timestamp": "2025-01-19T10:00:00Z"} # Sunday
+#         "context": {"timestamp": "2025-01-19T10:00:00-03:00"} # Sunday
 #     }
 # }
 
@@ -116,14 +116,14 @@ test_other_actions_allowed_outside_business_hours if {
 # test_fechamento_denied_on_weekend if {
 #     count(deny_horario) > 0 with input as {
 #         "action": "fechamento:diario",
-#         "context": {"timestamp": "2025-01-18T10:00:00Z"} # Saturday
+#         "context": {"timestamp": "2025-01-18T10:00:00-03:00"} # Saturday
 #     }
 # }
 
 # test_fechamento_allowed_on_weekday if {
 #     count(deny_horario) == 0 with input as {
 #         "action": "fechamento:diario",
-#         "context": {"timestamp": "2025-01-20T10:00:00Z"} # Monday
+#         "context": {"timestamp": "2025-01-20T10:00:00-03:00"} # Monday
 #     }
 # }
 
@@ -302,7 +302,7 @@ test_all_context_rules_pass if {
         "action": "locacao:checkin",
         "user": {"role": "OPERADOR"},
         "context": {
-            "timestamp": "2025-01-20T10:00:00Z", # Monday 10am
+            "timestamp": "2025-01-20T10:00:00-03:00", # Monday 10am
             "ip": "192.168.1.100",
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
             "environment": "production"
@@ -315,7 +315,7 @@ test_context_deny_blocks_rbac_allow if {
         "action": "locacao:checkin",
         "user": {"role": "OPERADOR"}, # RBAC allows
         "context": {
-            "timestamp": "2025-01-20T07:00:00Z", # Outside business hours
+            "timestamp": "2025-01-20T07:00:00-03:00", # Outside business hours
             "ip": "192.168.1.100"
         }
     }
@@ -325,7 +325,7 @@ test_context_deny_blocks_rbac_allow if {
 
 test_timestamp_utc_format if {
     is_horario_comercial with input as {
-        "context": {"timestamp": "2025-01-15T12:00:00Z"}
+        "context": {"timestamp": "2025-01-15T12:00:00-03:00"}
     }
 }
 
@@ -339,25 +339,25 @@ test_timestamp_with_offset if {
 
 test_boundary_8am_is_commercial if {
     is_horario_comercial with input as {
-        "context": {"timestamp": "2025-01-15T08:00:00Z"}
+        "context": {"timestamp": "2025-01-15T08:00:00-03:00"}
     }
 }
 
 test_boundary_7_59am_not_commercial if {
     not is_horario_comercial with input as {
-        "context": {"timestamp": "2025-01-15T07:59:00Z"}
+        "context": {"timestamp": "2025-01-15T07:59:00-03:00"}
     }
 }
 
 test_boundary_8pm_not_commercial if {
     not is_horario_comercial with input as {
-        "context": {"timestamp": "2025-01-15T20:00:00Z"}
+        "context": {"timestamp": "2025-01-15T20:00:00-03:00"}
     }
 }
 
 test_boundary_7_59pm_is_commercial if {
     is_horario_comercial with input as {
-        "context": {"timestamp": "2025-01-15T19:59:00Z"}
+        "context": {"timestamp": "2025-01-15T19:59:00-03:00"}
     }
 }
 
@@ -380,5 +380,46 @@ test_empty_context_denies_pier_operations if {
     count(deny_horario) > 0 with input as {
         "action": "locacao:checkin",  # Pier operation
         "context": {}
+    }
+}
+
+# =============================================================================
+# Fuso: o backend manda o timestamp em UTC; a janela vale no relógio da loja.
+# Regressão do bug de set/2026 — "8h às 20h" era lido em UTC (= 05h–16h59 de Brasília).
+# =============================================================================
+
+test_checkout_18h_brasilia_em_utc_permitido if {
+    # 21:00Z = 18:00 em São Paulo: fim de tarde no pier, tem de passar.
+    count(deny_horario) == 0 with input as {
+        "action": "locacao:checkout",
+        "context": {"timestamp": "2025-01-15T21:00:00Z"}
+    }
+}
+
+test_checkin_07h_brasilia_em_utc_negado if {
+    # 10:00Z = 07:00 em São Paulo: antes de abrir. No relógio UTC antigo isto PASSAVA.
+    count(deny_horario) > 0 with input as {
+        "action": "locacao:checkin",
+        "context": {"timestamp": "2025-01-15T10:00:00Z"}
+    }
+}
+
+test_limite_20h_brasilia_em_utc_negado if {
+    # 23:00Z = 20:00 em São Paulo: fechou.
+    count(deny_horario) > 0 with input as {
+        "action": "locacao:checkout",
+        "context": {"timestamp": "2025-01-15T23:00:00Z"}
+    }
+}
+
+test_fuso_do_tenant_prevalece if {
+    # 23:30Z = 19:30 em Manaus (UTC-4): ainda aberto lá, já fechado em São Paulo.
+    count(deny_horario) == 0 with input as {
+        "action": "locacao:checkout",
+        "context": {"timestamp": "2025-01-15T23:30:00Z", "timezone": "America/Manaus"}
+    }
+    count(deny_horario) > 0 with input as {
+        "action": "locacao:checkout",
+        "context": {"timestamp": "2025-01-15T23:30:00Z"}
     }
 }
