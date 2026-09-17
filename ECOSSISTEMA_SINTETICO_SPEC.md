@@ -209,7 +209,7 @@ arquivo, e cada rodada registra a semente para ser reproduzível.
 | **E3a** ✅ | semeador mínimo pela API ([`sintetico/`](sintetico/README.md)): operador de plataforma (TOTP automatizado) + empresas de carga aprovadas | **fim dos cliques manuais**; smoke do k6 — não depende de fakes nem de SMTP novo |
 | **E1** ✅ | SMTP por configuração (Mailpit aceita AUTH; Keycloak do espelho → Mailpit) | e-mail do Keycloak → persona cliente e login por código |
 | **E2** ✅ | `fakes-externos` ([`sintetico/src/fakes/`](sintetico/README.md)): Marinha + PagTesouro + `/_controle` + métricas; **teste de contrato** com um robô que repete o `GruClient` (os HARs não foram versionados — CPF real), incluindo nomes acentuados; prova de vida `semeador provar-gru` no provisionamento. Pendente para a E5: scrape do `/metrics` pelo Prometheus do espelho; o charset real das páginas ASP segue na checagem manual | emissão de ponta a ponta no espelho |
-| **E3b** | demais personas: EAMA, delegada + vínculo, instrutores, equipe, clientes | espelho populado a cada `terraform apply` |
+| **E3b** ✅ | demais personas ([`sintetico/src/emissao.ts`](sintetico/README.md)): EAMA habilitada, 2 delegadas + vínculo, instrutores (link único, aprovação), equipe, créditos comprados, clientes de portal e balcão; prova `semeador provar-emissao` (própria + delegada até o ofício) | espelho populado a cada `terraform apply` |
 | **E4** | motor de comportamento: jornadas no tempo com funil calibrável | "um sábado sintético" |
 | **E5** | k6 por persona + cenários de falha externa (Marinha fora, PagTesouro lento) | capacidade **e** resiliência |
 | **E6** | TSA fake; IdP Google fake (opcional) | reforço jurídico e login social no espelho |
@@ -239,6 +239,15 @@ os fakes nenhuma persona pode emitir; sem o e-mail do Keycloak o cliente não en
 | Bloqueio por volume por CPF | **Desligado por padrão** (limite 10 quando ligado); entra nos cenários de falha da E5 |
 | QR e boleto | **QR real e escaneável, sem dependência** (codificador próprio); PDF mínimo aceito pelo pdfbox. Ambos marcados como sintéticos; PIX aponta para `*.invalid` |
 | Alcance | **Só o espelho** nesta fase. O fake é autocontido (um `node servidor.ts`), então oferecê-lo ao dev/CI — onde o e2e ainda gera GRU real — é um PR separado |
+
+### Decisões da E3b (17/set/2026)
+
+| Tema | Decisão |
+|---|---|
+| População | **Média**: 1 EAMA + 2 delegadas (a 2ª reservada para kill switch na E5), equipe completa numa delegada, 12 clientes (6 portal, 6 balcão) |
+| Créditos | **Compra com comprovante + aprovação** pela operadora de plataforma; cortesia só como recarga |
+| Documentos do cliente | **Imagens sintéticas geradas** (~200 KB), com todas as exigências da Marinha ligadas |
+| Prova de vida | **Duas emissões completas** (própria e delegada) no provisionamento |
 
 ## 8. Fora de escopo
 

@@ -26,19 +26,30 @@ async function ultimaMensagemPara(mailpit: string, email: string, desde: Date): 
   return JSON.parse(r.corpo) as { Text: string; HTML: string };
 }
 
+export interface Cabecalho { ID: string; Subject: string; Created: string; From: { Address: string; Name: string }; Attachments: number }
+
+/** Cabeçalhos das mensagens para `email` posteriores a `desde`, da mais recente para a mais antiga. */
+export async function mensagensPara(mailpit: string, email: string, desde: Date): Promise<Cabecalho[]> {
+  const busca = await pedir(`${mailpit}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`);
+  if (busca.status !== 200) throw new ErroHttp('busca no Mailpit', busca);
+  return (JSON.parse(busca.corpo) as { messages: Cabecalho[] }).messages.filter((m) => new Date(m.Created) >= desde);
+}
+
 /** Extrai link mágico e senha temporária do e-mail de convite. Exportada para teste. */
 export function lerConvite(texto: string, html: string): Convite | undefined {
   const link = /magic-activate\?token=([A-Za-z0-9._-]+)/.exec(`${texto}\n${html}`);
-  // No texto: uma linha "*Senha temporária:*" e a senha na primeira linha não vazia depois dela.
-  const linhas = texto.split(/\r?\n/).map((l) => l.trim());
-  const i = linhas.findIndex((l) => /senha tempor[áa]ria:/i.test(l));
-  let senha: string | undefined;
-  if (i >= 0) {
-    const naMesmaLinha = linhas[i].replace(/^.*senha tempor[áa]ria:\**\s*/i, '').replace(/\*+$/, '');
-    senha = naMesmaLinha || linhas.slice(i + 1).find((l) => l !== '');
+  // A senha é aleatória e PODE começar ou terminar com '*' (já aconteceu: "*x1Z%Yn35bgG").
+  // No HTML ela vem sozinha num parágrafo, sem ambiguidade; o texto puro, onde '*' também é
+  // marca de negrito, fica só como reserva — e sem aparar asteriscos da linha da senha.
+  const noHtml = /senha tempor[áa]ria:\s*<\/strong>\s*<\/p>\s*<p[^>]*>\s*([^<]+?)\s*<\/p>/i.exec(html);
+  let senha = noHtml?.[1].replace(/&(amp|lt|gt|quot|#39);/g, (_m, e: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[e] as string);
+  if (!senha) {
+    const linhas = texto.split(/\r?\n/).map((l) => l.trim());
+    const i = linhas.findIndex((l) => /senha tempor[áa]ria:/i.test(l));
+    if (i >= 0) senha = linhas[i].replace(/^.*senha tempor[áa]ria:\*{0,2}\s*/i, '') || linhas.slice(i + 1).find((l) => l !== '');
   }
   if (!link || !senha) return undefined;
-  return { magicToken: link[1], senhaTemporaria: senha.replace(/^\*+|\*+$/g, '') };
+  return { magicToken: link[1], senhaTemporaria: senha };
 }
 
 /**

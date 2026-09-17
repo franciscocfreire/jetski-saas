@@ -45,11 +45,38 @@ node src/semeador.ts semear      # operadora entra, aprova, muda plano; empresas
 node src/semeador.ts resumo      # o que existe (sem segredos)
 node src/semeador.ts tokens      # tokens.json do k6 — use ../k6/gerar-tokens.sh
 node src/semeador.ts provar-gru  # E2: GRU de ponta a ponta (gera, persona paga, confirma, boleto)
+node src/semeador.ts provar-emissao  # E3b: emissão própria + delegada, até o ofício à Capitania
 ```
 
 Ambiente: `DOMINIO` (obrigatório; recusa `meujet.com.br`), `MAILPIT_URL`, `FAKES_URL`,
 `ESTADO`, `CATALOGO`, `SAIDA`. **Idempotente e retomável:** cada passo concluído vai para o estado, e a
 frota consulta o que já existe antes de criar.
+
+## Fase E3b: a população de emissão
+
+[`catalogo/e3b.json`](catalogo/e3b.json) + [`src/emissao.ts`](src/emissao.ts), dentro do mesmo `semear`.
+Cada linha é uma sequência de chamadas às rotas reais, **pela persona que de fato tem aquele poder**:
+
+| Quem | Faz o quê |
+|---|---|
+| **EAMA emissora** (`sintetico-eama-marlin`) | declara capitania + registro (`config/emissora`), identidade e **SMTP próprio → Mailpit** (`config/geral`); cadastra 2 instrutores |
+| **Operadora de plataforma** | **habilita a emissora** (portão cadastral) e **aprova as compras de créditos** |
+| **Instrutores** | assinam pelo **link único**, na rota pública, sem conta — PNG gerado |
+| **2 operadoras delegadas** (`-atol`, `-baia`) | **pedem o vínculo**; a EAMA aceita o termo e **designa** instrutores. A Atol tem instrutor próprio: pede aprovação, a EAMA aprova. A Baía fica de reserva para os cenários de kill switch (E5) |
+| **Equipe** | gerente, operador, vendedor, mecânico e financeiro (Atol) + operador (Baía): convite do admin → ativação pelo e-mail → primeiro login trocando a senha |
+| **Créditos** | a empresa vê o PIX, envia **comprovante sintético** e a plataforma aprova (30 / 20 / 10). O aceite do vínculo **estorna o bônus de adesão** da delegada — o saldo dela é só o comprado |
+| **6 clientes do portal** | cadastro → e-mail verificado → login por código → **CPF no perfil** |
+| **6 clientes de balcão** | ficha completa + identidade, selfie e comprovante de residência (PNGs de ~200 KB, [`lib/imagem.ts`](src/lib/imagem.ts)) — cadastrados pelo **OPERADOR** da loja, não pelo admin |
+
+Empresas de emissão ficam no plano **Pro** (o Trial só comporta 2 usuários). CPFs não estão no
+catálogo: o semeador sorteia um de DV válido por pessoa, guarda no estado da VM e o registra
+na Marinha sintética com o nome dela (re-registrado a cada execução — o fake vive em memória).
+
+`provar-emissao` fecha o ciclo com **duas emissões completas** — própria na EAMA, delegada na
+Atol: reserva → habilitação EMA (videoaula, anexos, instrutor) → termo assinado → GRU paga no
+PagTesouro sintético → `emitir-documentos` → **1 crédito debitado** → **ofício à Capitania no
+Mailpit, remetido pelo SMTP da EAMA nos dois casos**, com anexo → painel de emissões delegadas.
+Cada execução emite de verdade (debita 2 créditos).
 
 ## Fase E2: `fakes-externos` — a Marinha e o PagTesouro sintéticos
 
@@ -157,6 +184,13 @@ O teste de integração é o próprio espelho: a fase E3a foi validada rodando o
 `us-ashburn-1` e conferindo banco e auditoria.
 
 ## Armadilhas já pagas
+
+- **Senha temporária pode começar com `*`** (`*x1Z%Yn35bgG` — caso real). No texto puro do
+  e-mail `*` também é negrito; o leitor de convite usa o HTML, onde a senha vem sozinha.
+- **Convite de membro ≠ convite de empresa:** o link é igual (`/magic-activate?token=`), mas a
+  API é `POST /v1/auth/magic-activate`; a de empresa é `/v1/signup/magic-activate` (dá 404 trocada).
+- `GET /v1/capitanias` é catálogo global, mas o filtro de tenant exige `X-Tenant-Id`.
+- Provas que leem o Mailpit têm de casar o **id da reserva** no assunto, não só o horário.
 
 - **Parênteses no nome quebram a ativação.** O perfil de usuário do Keycloak recusa
   `( )` em nome (`error-person-name-invalid-character`); o cadastro aceita, e a ativação

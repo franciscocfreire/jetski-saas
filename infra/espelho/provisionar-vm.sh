@@ -122,7 +122,7 @@ etapa "6/7 Observabilidade (o instrumento do teste)"
 como_ubuntu bash -c "cd '$REPO' && docker compose --env-file .env -f infra/observability/docker-compose.observability.yml up -d"
 
 # ---------------------------------------------------------------------------
-etapa "7/7 Personas sintéticas (operadora de plataforma + empresas de carga)"
+etapa "7/7 Personas sintéticas (plataforma, empresas de carga, EAMA + delegadas, equipe, clientes)"
 # Tudo pelas APIs reais (ECOSSISTEMA_SINTETICO_SPEC.md, fase E3a). O túnel acabou
 # de subir: espera o endereço público responder antes de começar.
 for i in $(seq 1 60); do
@@ -140,6 +140,8 @@ semeador semear
 # Prova de vida dos fakes (E2): uma GRU de ponta a ponta — gerar, pagar, confirmar, boleto.
 # Se a Marinha/PagTesouro sintéticos não estiverem de pé, o espelho não está pronto.
 semeador provar-gru
+# Prova da E3b: uma emissão PRÓPRIA (EAMA) e uma DELEGADA, até o ofício à Capitania no Mailpit.
+semeador provar-emissao
 semeador resumo
 
 printf 'commit=%s\nquando=%s\ndominio=%s\n' \

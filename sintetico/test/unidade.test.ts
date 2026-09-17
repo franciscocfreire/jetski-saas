@@ -50,6 +50,14 @@ test('convite: link mágico + senha temporária na linha seguinte ao rótulo', (
   assert.equal(lerConvite('sem nada', ''), undefined);
 });
 
+test('convite: senha que começa com "*" não é confundida com negrito (caso real da E3b)', () => {
+  const link = '<a href="https://app.exemplo/magic-activate?token=eyJh.bGci.OiJI-_z">ativar</a>';
+  const html = `${link}<p style="margin: 5px 0;"><strong>Senha temporária:</strong></p>\r\n  <p style="font-family: 'Courier New'">\r\n      *x1Z%Yn35&amp;gG*\r\n  </p>`;
+  assert.equal(lerConvite('*Senha temporária:*\n\n*x1Z%Yn35&gG*', html)?.senhaTemporaria, '*x1Z%Yn35&gG*');
+  // Sem HTML, o texto puro também preserva os asteriscos da senha.
+  assert.equal(lerConvite('*Senha temporária:*\n\n*x1Z%Yn35bgG\n\nhttps://a/magic-activate?token=t.t.t', '')?.senhaTemporaria, '*x1Z%Yn35bgG');
+});
+
 test('pote de cookies: caminho, substituição e expiração', () => {
   const pote = new PoteDeCookies();
   pote.guardar('https://sso.x/realms/r/auth', ['A=1; Path=/realms/r/; HttpOnly', 'B=2; Path=/outro/']);

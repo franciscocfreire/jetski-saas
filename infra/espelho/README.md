@@ -179,6 +179,16 @@ traz e-mail e senha dos admins (`.personas["carga-praia-norte"]` etc.) — eles 
 > Tudo isso é dado sintético de um ambiente descartável. **Nunca** reutilize essas senhas,
 > e não copie o `personas.json` para fora da sua máquina.
 
+### Quem existe num espelho recém-criado
+
+Além da operadora de plataforma e das 3 empresas de carga, o provisionamento entrega o cenário
+de **emissão** pronto ([`sintetico/README.md`](../../sintetico/README.md#fase-e3b-a-população-de-emissão)):
+EAMA `sintetico-eama-marlin` (habilitada, 2 instrutores, SMTP → Mailpit), delegadas
+`sintetico-delegada-atol` (equipe completa, instrutor próprio aprovado) e `sintetico-delegada-baia`,
+créditos comprados, 6 clientes do portal e 6 de balcão com documentos. Para entrar como qualquer
+um deles, as credenciais estão no mesmo `personas.json` (chaves `eama-marlin`, `atol-gerente`,
+`atol-operador`…); os ofícios "à Capitania" caem no Mailpit, em `capitania.sintetica@exemplo.invalid`.
+
 ### GRU no espelho: Marinha e PagTesouro sintéticos
 
 A emissão de GRU funciona de ponta a ponta contra o serviço `fakes-externos`
