@@ -37,3 +37,6 @@ nohup.out
 # Capturas de tela da apresentação à Capitania (PNG 3840x2160, geradas por
 # frontend/jetski-backoffice/e2e/capturas/capturar.mjs)
 capturas-apresentacao/
+
+# Relatórios das rodadas do motor de personas (fase E4)
+sintetico/relatorios/

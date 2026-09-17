@@ -10,7 +10,7 @@ export class Plataforma {
     this.baseUrl = baseUrl;
   }
 
-  private async chamar(metodo: 'GET' | 'POST' | 'PUT', caminho: string, token?: string, json?: unknown, tenantId?: string): Promise<Resposta> {
+  private async chamar(metodo: 'GET' | 'POST' | 'PUT' | 'DELETE', caminho: string, token?: string, json?: unknown, tenantId?: string): Promise<Resposta> {
     const cabecalhos: Record<string, string> = { Accept: 'application/json' };
     if (token) cabecalhos.Authorization = `Bearer ${token}`;
     if (tenantId) cabecalhos['X-Tenant-Id'] = tenantId;
@@ -18,7 +18,7 @@ export class Plataforma {
   }
 
   /** Chamada de staff no escopo de uma empresa (`/v1/tenants/{id}/...`); devolve o JSON ou lança. */
-  async naEmpresa<T>(metodo: 'GET' | 'POST' | 'PUT', token: string, tenantId: string, caminho: string, json?: unknown): Promise<T> {
+  async naEmpresa<T>(metodo: 'GET' | 'POST' | 'PUT' | 'DELETE', token: string, tenantId: string, caminho: string, json?: unknown): Promise<T> {
     const r = await this.chamar(metodo, `/v1/tenants/${tenantId}${caminho}`, token, json, tenantId);
     if (r.status >= 300) throw new ErroHttp(`${metodo} ${caminho}`, r);
     return (r.corpo ? JSON.parse(r.corpo) : undefined) as T;

@@ -1,0 +1,58 @@
+{
+  "_": "Cenário 'um sábado sintético' do motor de comportamento (fase E4). Dado, não código: os números abaixo são PREMISSAS de negócio (produção ainda não tem operação real para calibrar) — locadora de praia, pico no fim da manhã e no meio da tarde, taxas conservadoras. Ajuste aqui; cada rodada registra a semente para ser reproduzível.",
+  "dia": { "abre": "09:00", "fecha": "18:00", "fator": 12 },
+  "chegadas": 42,
+  "curvaPorHora": { "9": 0.06, "10": 0.12, "11": 0.16, "12": 0.12, "13": 0.10, "14": 0.15, "15": 0.15, "16": 0.10, "17": 0.04 },
+  "canal": { "portal": 0.45, "balcao": 0.55 },
+  "portal": {
+    "clienteNovo": 0.5,
+    "antecedenciaMin": [45, 150],
+    "pagaSinal": 0.8,
+    "demoraParaPagarMin": [2, 25],
+    "lojaConfirmaEmMin": [5, 20],
+    "naoComparece": 0.1,
+    "avalia": 0.5,
+    "notas": { "5": 0.55, "4": 0.3, "3": 0.1, "2": 0.03, "1": 0.02 }
+  },
+  "balcao": {
+    "clienteNovo": 0.7,
+    "temCha": 0.35,
+    "pagaGru": 0.85,
+    "demoraParaPagarGruMin": [1, 8],
+    "comVendedor": 0.6,
+    "esperaAteSairMin": [10, 30]
+  },
+  "passeio": {
+    "duracaoMin": { "30": 0.3, "60": 0.55, "120": 0.15 },
+    "atrasaDevolucao": 0.15,
+    "atrasoMin": [10, 25],
+    "formaDePagamento": { "PIX": 0.5, "CARTAO_CREDITO": 0.3, "CARTAO_DEBITO": 0.12, "DINHEIRO": 0.08 }
+  },
+  "semJetski": { "tentativas": 3, "esperaMin": 10 },
+  "manutencao": { "chancePorLoja": 0.5, "janela": ["10:00", "15:00"], "duracaoMin": [60, 120] },
+  "telas": { "aCadaMin": 20 },
+  "creditos": { "minimo": 12, "compra": 20 },
+  "operadorPlataforma": "operador-plataforma",
+  "lojas": [
+    {
+      "chave": "eama-marlin",
+      "peso": 0.3,
+      "papeis": { "admin": "eama-marlin", "gerente": "eama-marlin", "atendente": "eama-marlin", "financeiro": "eama-marlin", "mecanico": "eama-marlin" },
+      "vendedores": ["Valter Vendedor Sintético", "Vilma Vendedora Sintética"]
+    },
+    {
+      "chave": "delegada-atol",
+      "peso": 0.4,
+      "papeis": { "admin": "delegada-atol", "gerente": "atol-gerente", "atendente": "atol-operador", "financeiro": "atol-financeiro", "mecanico": "atol-mecanico" },
+      "vendedores": ["Vera Vendedora Sintética", "Vitor Vendedor Sintético"]
+    },
+    {
+      "chave": "delegada-baia",
+      "peso": 0.3,
+      "papeis": { "admin": "delegada-baia", "gerente": "delegada-baia", "atendente": "baia-operador", "financeiro": "delegada-baia", "mecanico": "delegada-baia" },
+      "vendedores": ["Vasco Vendedor Sintético"]
+    }
+  ],
+  "nomes": ["Aline", "Bruno", "Camila", "Diego", "Elisa", "Fábio", "Gabriela", "Heitor", "Isabela", "João", "Karina", "Leandro", "Marina", "Nelson", "Olívia", "Pedro", "Quitéria", "Rafael", "Sofia", "Tiago", "Úrsula", "Vinícius", "Yasmin", "Zeca"],
+  "sobrenomes": ["Almeida", "Barros", "Cardoso", "Duarte", "Esteves", "Farias", "Guimarães", "Lacerda", "Moura", "Nogueira", "Pacheco", "Queiroz", "Ramos", "Siqueira", "Tavares", "Viana"]
+}

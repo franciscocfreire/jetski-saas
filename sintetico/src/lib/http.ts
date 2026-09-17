@@ -111,7 +111,11 @@ export async function pedir(url: string, opcoes: OpcoesPedido = {}): Promise<Res
 
 /** Erro com contexto suficiente para diagnosticar sem reexecutar. */
 export class ErroHttp extends Error {
+  /** A resposta que causou o erro — quem chama pode tratar um 404 esperado, por exemplo. */
+  readonly resposta: Resposta;
+
   constructor(oQue: string, r: Resposta) {
     super(`${oQue}: HTTP ${r.status} em ${r.url}\n${r.corpo.slice(0, 400)}`);
+    this.resposta = r;
   }
 }
