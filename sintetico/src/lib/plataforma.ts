@@ -10,7 +10,7 @@ export class Plataforma {
     this.baseUrl = baseUrl;
   }
 
-  private async chamar(metodo: 'GET' | 'POST', caminho: string, token?: string, json?: unknown, tenantId?: string): Promise<Resposta> {
+  private async chamar(metodo: 'GET' | 'POST' | 'PUT', caminho: string, token?: string, json?: unknown, tenantId?: string): Promise<Resposta> {
     const cabecalhos: Record<string, string> = { Accept: 'application/json' };
     if (token) cabecalhos.Authorization = `Bearer ${token}`;
     if (tenantId) cabecalhos['X-Tenant-Id'] = tenantId;
@@ -18,8 +18,27 @@ export class Plataforma {
   }
 
   /** Chamada de staff no escopo de uma empresa (`/v1/tenants/{id}/...`); devolve o JSON ou lança. */
-  async naEmpresa<T>(metodo: 'GET' | 'POST', token: string, tenantId: string, caminho: string, json?: unknown): Promise<T> {
+  async naEmpresa<T>(metodo: 'GET' | 'POST' | 'PUT', token: string, tenantId: string, caminho: string, json?: unknown): Promise<T> {
     const r = await this.chamar(metodo, `/v1/tenants/${tenantId}${caminho}`, token, json, tenantId);
+    if (r.status >= 300) throw new ErroHttp(`${metodo} ${caminho}`, r);
+    return (r.corpo ? JSON.parse(r.corpo) : undefined) as T;
+  }
+
+  /** Rota de plataforma (`/v1/platform/...`): sem X-Tenant-Id — o alvo vai no caminho. */
+  async plataforma<T>(metodo: 'GET' | 'POST', token: string, caminho: string, json?: unknown): Promise<T> {
+    return this.global<T>(metodo, token, `/v1/platform${caminho}`, json);
+  }
+
+  /** Rota autenticada sem escopo de empresa (catálogos globais, `/v1/customers/**`). */
+  async global<T>(metodo: 'GET' | 'POST' | 'PUT', token: string, caminho: string, json?: unknown, tenantId?: string): Promise<T> {
+    const r = await this.chamar(metodo, caminho, token, json, tenantId);
+    if (r.status >= 300) throw new ErroHttp(`${metodo} ${caminho}`, r);
+    return (r.corpo ? JSON.parse(r.corpo) : undefined) as T;
+  }
+
+  /** Rota pública, sem login — o que alguém só com um link consegue fazer. */
+  async publica<T>(metodo: 'GET' | 'POST', caminho: string, json?: unknown): Promise<T> {
+    const r = await this.chamar(metodo, caminho, undefined, json);
     if (r.status >= 300) throw new ErroHttp(`${metodo} ${caminho}`, r);
     return (r.corpo ? JSON.parse(r.corpo) : undefined) as T;
   }
@@ -41,6 +60,12 @@ export class Plataforma {
   /** Quem sou eu, no escopo de cliente — prova que o token do portal vale na API. */
   async clienteLogado(token: string): Promise<Resposta> {
     return this.chamar('GET', '/v1/customers/self', token);
+  }
+
+  /** Ativação do convite de MEMBRO de equipe — rota diferente da do cadastro de empresa. */
+  async ativarConvite(magicToken: string): Promise<void> {
+    const r = await this.chamar('POST', '/v1/auth/magic-activate', undefined, { magicToken });
+    if (r.status >= 300) throw new ErroHttp('ativação do convite de membro', r);
   }
 
   async ativarConta(magicToken: string): Promise<void> {

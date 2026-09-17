@@ -28,6 +28,22 @@ export interface EstadoPersona {
   emailVerificado?: boolean;
   /** Cliente do portal: já entrou pelo código enviado por e-mail. */
   entrouPorCodigo?: boolean;
+  // ---- fase E3b: emissão ----
+  /** CPF sorteado (DV válido) da pessoa; registrado na Marinha sintética com o nome dela. */
+  cpf?: string;
+  papeis?: string[];
+  geralConfigurada?: boolean;
+  emissoraConfigurada?: boolean;
+  emissoraHabilitada?: boolean;
+  instrutores?: Record<string, { id?: string; cpf?: string; assinou?: boolean; aprovado?: boolean }>;
+  vinculoId?: string;
+  vinculoAtivo?: boolean;
+  instrutoresDesignados?: boolean;
+  creditosComprados?: number;
+  perfilCompleto?: boolean;
+  /** Cliente de balcão: id da ficha na empresa e se os documentos já foram enviados. */
+  clienteId?: string;
+  anexos?: boolean;
 }
 
 export interface Estado {

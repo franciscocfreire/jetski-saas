@@ -10,12 +10,15 @@
 //   node src/semeador.ts semear      operador entra (TOTP), aprova; empresas ganham frota
 //   node src/semeador.ts resumo      mostra o que existe, sem segredos
 //   node src/semeador.ts tokens      gera o tokens.json do k6 (admins das empresas de carga)
+//   node src/semeador.ts provar-gru      E2: uma GRU de ponta a ponta contra os fakes
+//   node src/semeador.ts provar-emissao  E3b: emissão própria (EAMA) e delegada, até o ofício
 //
 // Ambiente: DOMINIO (obrigatório), MAILPIT_URL, ESTADO, CATALOGO, SAIDA (tokens).
 
 import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { cpfAleatorio, provarEmissao, semearEmissao, type Contexto } from './emissao.ts';
 import { ArquivoDeEstado, type EstadoPersona } from './lib/estado.ts';
 import { ErroHttp, pedir } from './lib/http.ts';
 import { login, seguirLinkDeAcao, type ResultadoDeLogin } from './lib/keycloak.ts';
@@ -38,6 +41,7 @@ if (/(^|\.)meujet\.com\.br$/.test(DOMINIO)) throw new Error(`${DOMINIO} é PRODU
 const BASE = `https://www.${DOMINIO}/api`;
 const ISSUER = `https://sso.${DOMINIO}/realms/jetski-saas`;
 const MAILPIT = process.env.MAILPIT_URL ?? 'http://127.0.0.1:8025';
+const FAKES = process.env.FAKES_URL ?? 'http://127.0.0.1:8089';
 const catalogo = JSON.parse(readFileSync(process.env.CATALOGO ?? new URL('../catalogo/e3a.json', import.meta.url), 'utf8')) as Catalogo;
 const arquivo = new ArquivoDeEstado(process.env.ESTADO ?? '/estado/personas.json', DOMINIO);
 const api = new Plataforma(BASE);
@@ -125,7 +129,19 @@ async function semear(): Promise<void> {
     arquivo.salvar();
   }
 
-  for (const e of catalogo.empresasDeCarga) {
+  for (const e of catalogo.empresasDeCarga) await garantirEmpresa(e, tokenOperador, catalogo.modelo);
+  await semearClientes();
+  await semearEmissao(contexto, tokenOperador);
+  log('semeadura concluída.');
+}
+
+/** Cadastro → ativação → aprovação pela operadora → plano → frota. Cada passo só roda uma vez. */
+async function garantirEmpresa(
+  e: { chave: string; slug: string; razaoSocial: string; adminEmail: string; adminNome: string; jetskis: number; plano: string },
+  tokenOperador: string,
+  modeloDoCatalogo: Record<string, unknown> & { nome: string },
+): Promise<EstadoPersona> {
+  {
     const p = arquivo.persona(e.chave, e.adminEmail);
     await cadastrarEAtivar(p, e);
 
@@ -153,7 +169,7 @@ async function semear(): Promise<void> {
       // Consulta o que JÁ existe antes de criar: o estado pode ter ficado para trás
       // se o processo morreu entre a criação e a gravação.
       const modelos = await api.listarModelos(t, p.tenantId!);
-      const modeloId = modelos.find((m) => m.nome === catalogo.modelo.nome)?.id ?? (await api.criarModelo(t, p.tenantId!, catalogo.modelo));
+      const modeloId = modelos.find((m) => m.nome === modeloDoCatalogo.nome)?.id ?? (await api.criarModelo(t, p.tenantId!, modeloDoCatalogo));
       const existentes = new Set((await api.listarJetskis(t, p.tenantId!)).map((j) => j.serie));
       for (let i = 1; i <= e.jetskis; i++) {
         const serie = `${e.slug.toUpperCase()}-${String(i).padStart(3, '0')}`;
@@ -165,9 +181,8 @@ async function semear(): Promise<void> {
       arquivo.salvar();
       log(`${e.slug}: frota de ${e.jetskis} jetskis pronta`);
     }
+    return p;
   }
-  await semearClientes();
-  log('semeadura concluída.');
 }
 
 /**
@@ -176,7 +191,12 @@ async function semear(): Promise<void> {
  * Os dois e-mails saem do Keycloak, não do backend — é o que a fase E1 destravou.
  */
 async function semearClientes(): Promise<void> {
-  for (const c of catalogo.clientes ?? []) {
+  for (const c of catalogo.clientes ?? []) await garantirClienteDoPortal(c);
+}
+
+/** Devolve o token do portal; o login por código só se repete quando alguém precisa do token. */
+async function garantirClienteDoPortal(c: { chave: string; email: string; nome: string }, exigirToken = false): Promise<string | undefined> {
+  {
     const p = arquivo.persona(c.chave, c.email);
     if (!p.ativada) {
       p.senha ??= novaSenha();
@@ -194,7 +214,7 @@ async function semearClientes(): Promise<void> {
       arquivo.salvar();
       log(`${c.chave}: e-mail verificado pelo link do Keycloak (${telas.join(' → ') || 'redirect direto'})`);
     }
-    if (!p.entrouPorCodigo) {
+    if (!p.entrouPorCodigo || exigirToken) {
       const r = await login({
         issuer: ISSUER,
         clientId: 'jetski-customer-portal',
@@ -208,9 +228,22 @@ async function semearClientes(): Promise<void> {
       p.entrouPorCodigo = true;
       arquivo.salvar();
       log(`${c.chave}: entrou no portal pelo código do e-mail (${r.telas.join(' → ')}) e a API a reconhece como cliente`);
+      return r.tokens.accessToken;
     }
+    return undefined;
   }
 }
+
+const contexto: Contexto = {
+  api,
+  arquivo,
+  mailpit: MAILPIT,
+  fakes: FAKES,
+  log,
+  entrar,
+  garantirEmpresa,
+  garantirClienteDoPortal: async (c) => (await garantirClienteDoPortal(c, true)) as string,
+};
 
 function resumo(): void {
   for (const [chave, p] of Object.entries(arquivo.estado.personas)) {
@@ -241,15 +274,6 @@ async function gerarTokens(): Promise<void> {
 
 // ---- E2: prova de vida da emissão de GRU ---------------------------------------------------------
 
-function cpfAleatorio(): string {
-  const d = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
-  for (const n of [9, 10]) {
-    const soma = d.slice(0, n).reduce((a, x, i) => a + x * (n + 1 - i), 0);
-    d.push(((soma * 10) % 11) % 10);
-  }
-  return d.join('');
-}
-
 /**
  * A emissão de ponta a ponta, pelas rotas que o balcão usa: a persona da empresa consulta o
  * CPF, cadastra o cliente, reserva, gera a GRU (PIX), vê "não pago"; a persona cliente paga
@@ -257,7 +281,7 @@ function cpfAleatorio(): string {
  * Depois, outra reserva pelo caminho do boleto. Falhou um passo = sai 1.
  */
 async function provarGru(): Promise<void> {
-  const fakes = process.env.FAKES_URL ?? 'http://127.0.0.1:8089';
+  const fakes = FAKES;
   const controle = async <T>(caminho: string, json?: unknown): Promise<T> => {
     const r = await pedir(`${fakes}/_controle${caminho}`, json === undefined ? {} : { metodo: 'POST', json });
     if (r.status >= 300) throw new ErroHttp(`/_controle${caminho}`, r);
@@ -326,7 +350,8 @@ else if (comando === 'semear') await semear();
 else if (comando === 'resumo') resumo();
 else if (comando === 'tokens') await gerarTokens();
 else if (comando === 'provar-gru') await provarGru();
+else if (comando === 'provar-emissao') await provarEmissao(contexto);
 else {
-  console.error('uso: node src/semeador.ts <bootstrap|semear|resumo|tokens|provar-gru>');
+  console.error('uso: node src/semeador.ts <bootstrap|semear|resumo|tokens|provar-gru|provar-emissao>');
   process.exit(2);
 }
