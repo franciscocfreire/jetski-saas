@@ -20,7 +20,7 @@
 import http from 'k6/http';
 import { check, group, fail } from 'k6';
 import { Trend, Counter } from 'k6/metrics';
-import { BASE_URL, TENANT_ID, headers, validarAlvo, LIMITES } from '../lib/config.js';
+import { BASE_URL, headers, tenantDe, validarAlvo, LIMITES } from '../lib/config.js';
 import { carregarCredenciais, credencialDaVU, tokenDe } from '../lib/auth.js';
 import { perfil, limitesDoPerfil, PERFIL } from '../perfis.js';
 import { cliente, horimetro, duracaoPrevista, checklist, inteiro } from '../lib/dados.js';
@@ -39,15 +39,18 @@ export const options = {
 };
 
 export function setup() {
-  validarAlvo();
-  return { base: `${BASE_URL}/v1/tenants/${TENANT_ID}` };
+  validarAlvo(CREDENCIAIS);
+  return {};
 }
 
-export default function (dados) {
+export default function () {
   const credencial = credencialDaVU(CREDENCIAIS);
   const token = tokenDe(credencial);
-  const params = { headers: headers(token), tags: { tipo: 'escrita' } };
-  const leitura = { headers: headers(token), tags: { tipo: 'leitura' } };
+  // Cada VU opera a SUA empresa: a carga se espalha pelos tenants do tokens.json.
+  const tenant = tenantDe(credencial);
+  const dados = { base: `${BASE_URL}/v1/tenants/${tenant}` };
+  const params = { headers: headers(token, tenant), tags: { tipo: 'escrita' } };
+  const leitura = { headers: headers(token, tenant), tags: { tipo: 'leitura' } };
 
   const comecou = Date.now();
 

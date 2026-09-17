@@ -19,13 +19,17 @@ export const ISSUER = (__ENV.ISSUER || 'http://localhost:8080/realms/jetski-saas
  */
 export const CLIENT_ID = __ENV.CLIENT_ID || 'jetski-backoffice';
 
-/** Tenant alvo. Sem ele o teste nem começa (ver a trava abaixo). */
+/**
+ * Tenant alvo — só para quando o tokens.json não traz o tenant de cada usuário.
+ * O `semeador tokens` (sintetico/) grava tenantId e tenantSlug por credencial, e
+ * aí a carga se espalha por VÁRIAS empresas — que é como o SaaS opera de verdade.
+ */
 export const TENANT_ID = __ENV.TENANT_ID || '';
 
 /**
  * Trava de segurança. Um teste de carga cria clientes, reservas e locações de
  * mentira; rodar contra o tenant de uma locadora real suja a operação dela e a
- * cobrança. O slug do tenant provisionado por `provisionar-tenant.sh` começa
+ * cobrança. O slug das empresas criadas pelo semeador (sintetico/) começa
  * com `carga-`, e exigimos que quem roda confirme isso explicitamente.
  *
  * Para rodar contra outro tenant (ex.: o de dev), passe -e PERMITIR_TENANT=<id>.
@@ -44,7 +48,7 @@ function ehProducao(url) {
   return host === 'meujet.com.br' || host.endsWith('.meujet.com.br');
 }
 
-export function validarAlvo() {
+export function validarAlvo(credenciais) {
   if ((ehProducao(BASE_URL) || ehProducao(ISSUER)) && __ENV.PERMITIR_PRODUCAO !== LIBERACAO_PRODUCAO) {
     throw new Error(
       `Recusando: ${BASE_URL} é PRODUÇÃO. Teste de carga roda no espelho ` +
@@ -52,18 +56,29 @@ export function validarAlvo() {
       `-e PERMITIR_PRODUCAO="${LIBERACAO_PRODUCAO}".`
     );
   }
-  if (!TENANT_ID) {
-    throw new Error('TENANT_ID é obrigatório. Rode ./k6/provisionar-tenant.sh primeiro.');
+  // Cada credencial é conferida: todas têm de apontar para tenant de carga.
+  const alvos = (credenciais ? credenciais.usuarios : [{}]).map((u) => ({
+    id: u.tenantId || TENANT_ID,
+    slug: u.tenantSlug || TENANT_SLUG,
+  }));
+  for (const alvo of alvos) {
+    if (!alvo.id) {
+      throw new Error('Sem tenant: gere o tokens.json com o semeador (sintetico/README.md) ou passe -e TENANT_ID.');
+    }
+    const liberado = __ENV.PERMITIR_TENANT === alvo.id;
+    if (!alvo.slug.startsWith('carga-') && !liberado) {
+      throw new Error(
+        `Recusando rodar contra o tenant ${alvo.id} (slug "${alvo.slug}"): ` +
+        'não parece ser um tenant de carga. Se for intencional, passe ' +
+        `-e PERMITIR_TENANT=${alvo.id}.`
+      );
+    }
   }
-  const liberado = __ENV.PERMITIR_TENANT === TENANT_ID;
-  const ehTenantDeCarga = TENANT_SLUG.startsWith('carga-');
-  if (!ehTenantDeCarga && !liberado) {
-    throw new Error(
-      `Recusando rodar contra o tenant ${TENANT_ID} (slug "${TENANT_SLUG}"): ` +
-      'não parece ser um tenant de carga. Se for intencional, passe ' +
-      `-e PERMITIR_TENANT=${TENANT_ID}.`
-    );
-  }
+}
+
+/** Tenant da credencial (ou o do ambiente, no formato antigo do tokens.json). */
+export function tenantDe(credencial) {
+  return credencial.tenantId || TENANT_ID;
 }
 
 /**
@@ -89,10 +104,10 @@ export const LIMITES = {
 };
 
 /** Cabeçalhos padrão de uma chamada autenticada ao backoffice. */
-export function headers(token) {
+export function headers(token, tenantId) {
   return {
     Authorization: `Bearer ${token}`,
-    'X-Tenant-Id': TENANT_ID,
+    'X-Tenant-Id': tenantId || TENANT_ID,
     'Content-Type': 'application/json',
   };
 }

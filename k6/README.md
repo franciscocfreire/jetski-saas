@@ -19,69 +19,42 @@ dentro de um **tenant isolado** provisionado pelo fluxo de signup real.
    `CARGA`, e os e-mails usam `@exemplo.invalid` (domínio reservado pela RFC
    2606, que nunca resolve) — nem por acidente algo chega a uma caixa real.
 5. **Nunca em produção.** Decisão de 16/set/2026: carga roda no espelho. Os
-   cenários, o `auth-setup.sh` e o `provisionar-tenant.sh` **recusam** qualquer
+   cenários, o `gerar-tokens.sh` e o semeador **recusam** qualquer
    alvo em `meujet.com.br`; a liberação exige
    `PERMITIR_PRODUCAO="sim, é produção"` e existe só para um smoke pontual e
    consciente.
 
 ## Preparo
 
-### 1. Provisionar o tenant isolado
+As empresas de carga, seus admins e a frota **já existem** quando o espelho sobe: o
+semeador de personas ([`sintetico/`](../sintetico/README.md)) cria tudo pelas APIs reais,
+no provisionamento — inclusive a aprovação, feita pela persona operadora de plataforma.
+Não há passo manual.
 
-O script é **retomável**: grava o progresso em `k6/.auth/tenant.json` e, a cada
-execução, continua de onde parou — rodar de novo nunca cadastra outra empresa.
-
-```bash
-export BASE_URL=https://www.<dominio-do-espelho>/api \
-       ISSUER=https://sso.<dominio-do-espelho>/realms/jetski-saas \
-       APP_URL=https://app.<dominio-do-espelho>
-
-./k6/provisionar-tenant.sh                                  # 1. cadastra e para
-APROVADA=sim ./k6/provisionar-tenant.sh                     # 2. depois de aprovar no console
-APROVADA=sim ADMIN_SENHA='...' ./k6/provisionar-tenant.sh   # 3+4. depois de ativar a conta
-```
-
-1. O tenant nasce **PENDENTE_APROVACAO** — o portão humano de sempre. Aprove em
-   `https://admin.<dominio-do-espelho> → Empresas` (o espelho precisa de um
-   operador de plataforma antes; ver o README do espelho, "Primeiro operador").
-2. Defina a senha do admin pelo link de ativação — no espelho todo e-mail cai no
-   Mailpit, via `ssh -L 8025:127.0.0.1:8025`.
-3. Com `ADMIN_SENHA`, o script entra como o admin e semeia modelo e frota.
-
-`ISSUER` e `APP_URL` são obrigatórios no último passo (o login usa o
-`auth-setup.sh`, cujos padrões apontam para localhost). Para começar outra empresa
-do zero, apague `k6/.auth/tenant.json`.
-
-> **Dimensione a frota acima do número de VUs.** Cada jornada de balcão ocupa um
-> jetski entre o check-in e o check-out; com frota curta, as VUs disputam a mesma
-> máquina e o teste mede contenção artificial. O contador
-> `jornadas_abortadas_sem_jetski` acusa isso.
-
-### 2. Obter os tokens
+Só falta obter os tokens:
 
 ```bash
-ISSUER=https://sso.<dominio-do-espelho>/realms/jetski-saas \
-APP_URL=https://app.<dominio-do-espelho> \
-USUARIOS="carga.admin.XXXX@exemplo.invalid:senha" \
-./k6/auth-setup.sh
+./k6/gerar-tokens.sh <ip-do-espelho>          # gera k6/.auth/tokens.json (~12 h de validade)
 ```
 
-Gera `k6/.auth/tokens.json`, válido por ~12 h (a sessão SSO do realm).
+O arquivo traz um refresh token por admin **e o tenant de cada um**: a carga se espalha
+por várias empresas ao mesmo tempo, que é como o SaaS opera de verdade (cada VU opera a
+sua). `lib/config.js` confere que **todas** são `carga-*` antes de começar.
 
-**Por que este passo existe:** nenhum client que a API aceita tem ROPC. Os que
-têm (`jetski-password-check`, `jetski-test`) não estão em
-`jetski.security.jwt.allowed-clients` e devolvem 401 — o espelho roda o mesmo
-perfil `prod`, então tem a mesma restrição, e ela é proposital: reabrir só para o
-teste desfaria uma correção de segurança. Então
-o login de verdade acontece aqui, uma vez; o k6 só troca refresh por access
-token, que é um POST sem HTML para parsear.
+**Por que o login não é um simples POST:** nenhum client que a API aceita tem ROPC, e a
+tela de login é React (sem `<form>` no HTML). O login de verdade — authorization_code +
+PKCE, lendo o `kcContext` da página — está em `sintetico/src/lib/keycloak.ts`; o k6 só
+troca refresh por access token.
+
+> **Dimensione a frota acima do número de VUs por empresa.** Cada jornada de balcão ocupa
+> um jetski entre o check-in e o check-out. O catálogo cria 20 por empresa; o contador
+> `jornadas_abortadas_sem_jetski` acusa quando falta.
 
 ## Rodar
 
 ```bash
 export BASE_URL=https://www.<dominio-do-espelho>/api
 export ISSUER=https://sso.<dominio-do-espelho>/realms/jetski-saas
-export TENANT_ID=... TENANT_SLUG=carga-...
 
 # portão de sanidade — sempre primeiro
 k6 run -e PERFIL=smoke k6/cenarios/leitura.js
@@ -102,7 +75,7 @@ A imagem oficial resolve, e foi com ela que estes cenários foram validados:
 
 ```bash
 docker run --rm -v "$PWD:/src" -w /src grafana/k6:latest \
-  run -e PERFIL=smoke -e BASE_URL=... -e TENANT_ID=... -e TENANT_SLUG=carga-... \
+  run -e PERFIL=smoke -e BASE_URL=... -e ISSUER=... \
   k6/cenarios/leitura.js
 ```
 

@@ -12,7 +12,7 @@
 //
 // A saída é separar o que é frágil do que é quente:
 //
-//   1. `auth-setup.sh` faz o login de verdade UMA vez por usuário — o fluxo
+//   1. `gerar-tokens.sh` (via sintetico/) faz o login de verdade UMA vez por usuário — o fluxo
 //      authorization_code + PKCE com o formulário de dois passos do tema meujet
 //      (identifier → senha) — e guarda o REFRESH TOKEN em tokens.json.
 //   2. Este módulo só troca refresh por access token, que é um POST simples,
@@ -68,7 +68,7 @@ export function tokenDe(credencial) {
     fail(
       `Falha ao renovar token de ${credencial.usuario}: ${res.status} ${res.body}\n` +
       'Se for "invalid_grant", o tokens.json expirou (sessão SSO de 12 h) — ' +
-      'rode ./k6/auth-setup.sh de novo.'
+      'rode ./k6/gerar-tokens.sh de novo.'
     );
   }
 
@@ -84,7 +84,7 @@ export function tokenDe(credencial) {
 }
 
 /**
- * Carrega o tokens.json produzido pelo auth-setup.sh.
+ * Carrega o tokens.json produzido pelo gerar-tokens.sh.
  *
  * ATENÇÃO: chame no escopo de MÓDULO do cenário (contexto de init), nunca de
  * dentro de `setup()` nem do loop. O `open()` do k6 só existe no init — em
@@ -100,7 +100,7 @@ export function carregarCredenciais() {
   try {
     bruto = open(caminho);
   } catch (e) {
-    fail(`Não achei ${caminho}. Rode ./k6/auth-setup.sh antes do teste. (${e})`);
+    fail(`Não achei ${caminho}. Rode ./k6/gerar-tokens.sh <ip-do-espelho> antes do teste. (${e})`);
   }
   const dados = JSON.parse(bruto);
   if (!dados.usuarios || dados.usuarios.length === 0) {

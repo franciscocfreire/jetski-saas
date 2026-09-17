@@ -88,7 +88,7 @@ este kit.
 > cria a VM, a rede, o túnel, o DNS e as regras da zona, e a VM se provisiona
 > sozinha (cloud-init → `provisionar-vm.sh`), executando os passos 3 e 4 abaixo
 > exatamente como descritos. Os passos 2–4 manuais ficam como referência e
-> alternativa. Os passos 5 e 6 são manuais nos dois caminhos.
+> alternativa.
 
 ### 1. Domínio e código
 
@@ -132,23 +132,25 @@ métricas `tomcat_threads_*` presentes e Prometheus com `mem_limit` de 1 GiB.
 **Não use `docker exec ... java -XX:+PrintFlagsFinal` para isso** — ele sobe uma
 JVM nova sem o `$JAVA_OPTS` e mostra a ergonomia padrão.
 
-### 5. Primeiro operador de plataforma
+### 5. Personas *(o provisionamento faz)*
 
-O tenant de carga nasce pendente de aprovação, e um espelho novo não tem ninguém
-que aprove. Pelo caminho real:
+A etapa 7 do `provisionar-vm.sh` roda o semeador ([`sintetico/`](../../sintetico/README.md)):
+a **operadora de plataforma sintética** nasce pelo cadastro público, é promovida pelo boot
+do backend, entra no console configurando TOTP e **aprova as empresas de carga pela API** —
+sem nenhum clique. O espelho sobe já com 3 empresas `carga-*` no plano Enterprise, 20
+jetskis cada.
 
-1. Cadastre uma empresa qualquer com o seu e-mail em `https://www.<dominio>`.
-2. Abra o Mailpit — `ssh -L 8025:127.0.0.1:8025 ubuntu@<ip-do-espelho>` e
-   `http://localhost:8025` — e siga o link de ativação.
-3. Ponha o e-mail em `PLATFORM_ADMIN_EMAILS` no `.env` e rode `./deploy.sh` de novo
-   (ou só recrie o backend): o boot promove o usuário a operador.
+Para entrar você mesmo no console (`https://admin.<dominio>`), use as credenciais da
+persona — senha e `otpauth://` para o seu app autenticador estão em
+`/var/lib/meujet-espelho/personas.json` na VM (ver o README do `sintetico/`).
 
-### 6. Tenant de carga e testes
+### 6. Testes
 
-Siga [`k6/README.md`](../../k6/README.md) apontando para o espelho
-(`BASE_URL=https://www.<dominio>/api`, `ISSUER=https://sso.<dominio>/realms/jetski-saas`).
-A aprovação acontece em `https://admin.<dominio>`; o link de ativação do admin
-chega no Mailpit.
+```bash
+./k6/gerar-tokens.sh <ip-do-espelho>
+```
+
+e siga [`k6/README.md`](../../k6/README.md).
 
 **Rode o k6 de fora do espelho.** Na mesma VM, o gerador de carga disputa as
 2 OCPUs com a aplicação e o resultado não vale nada.

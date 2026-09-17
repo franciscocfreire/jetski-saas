@@ -12,7 +12,7 @@
 
 import http from 'k6/http';
 import { check, group, sleep } from 'k6';
-import { BASE_URL, TENANT_ID, headers, validarAlvo, LIMITES } from '../lib/config.js';
+import { BASE_URL, headers, tenantDe, validarAlvo, LIMITES } from '../lib/config.js';
 import { carregarCredenciais, credencialDaVU, tokenDe } from '../lib/auth.js';
 import { perfil, limitesDoPerfil, PERFIL } from '../perfis.js';
 
@@ -27,8 +27,8 @@ export const options = {
 };
 
 export function setup() {
-  validarAlvo();
-  return { base: `${BASE_URL}/v1/tenants/${TENANT_ID}` };
+  validarAlvo(CREDENCIAIS);
+  return {};
 }
 
 /**
@@ -40,10 +40,13 @@ function hojeEmSaoPaulo() {
   return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
-export default function (dados) {
+export default function () {
   const credencial = credencialDaVU(CREDENCIAIS);
   const token = tokenDe(credencial);
-  const params = { headers: headers(token), tags: { tipo: 'leitura' } };
+  // Cada VU opera a SUA empresa: a carga se espalha pelos tenants do tokens.json.
+  const tenant = tenantDe(credencial);
+  const dados = { base: `${BASE_URL}/v1/tenants/${tenant}` };
+  const params = { headers: headers(token, tenant), tags: { tipo: 'leitura' } };
   const hoje = hojeEmSaoPaulo();
 
   group('abrir o dia', () => {
