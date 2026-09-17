@@ -1,6 +1,6 @@
 # Ecossistema sintético do espelho — SPEC
 
-> **Status:** planejamento (17/set/2026), nada implementado.
+> **Status:** decisões tomadas (§7); implementação por fases (§6) em andamento.
 > **Contexto:** o espelho de carga ([`infra/espelho/`](infra/espelho/README.md)) roda a
 > mesma stack de produção. Hoje ele é uma casca: sem ninguém operando, sem Marinha,
 > sem pagamento. Esta spec transforma o espelho num **ecossistema sintético completo** —
@@ -21,8 +21,12 @@
    por CPF e indisponibilidade — porque é isso que o código precisa aguentar.
 4. **Falha fechada.** Uma configuração errada no espelho nunca pode alcançar a Marinha,
    o Tesouro ou uma caixa de e-mail real (ver §5).
-5. **Dado 100% sintético.** CPF na faixa 9xx (DV válido, não emitido a pessoa física),
-   e-mails em `@exemplo.invalid` (RFC 2606), nomes de persona inconfundíveis.
+5. **Dado 100% sintético — e isolado.** E-mails em `@exemplo.invalid` (RFC 2606), nomes
+   de persona inconfundíveis. **CPF: não existe faixa reservada para teste** (os 8
+   primeiros dígitos são o número-base e o 9º é a região fiscal; a única regra oficial é
+   que 11 dígitos iguais nunca são emitidos) — um CPF sintético de DV válido **pode
+   coincidir com o de uma pessoa real**. A proteção não é a faixa, é o isolamento: o dado
+   nunca sai do espelho (§5). A faixa 9xx fica só como marcador de dado de teste.
 
 ## 2. Inventário: o que a plataforma fala com o mundo
 
@@ -85,12 +89,17 @@ estrutura**, marcado como sintético, QR PNG real do texto), `pix-stn/sonda` com
 **TSA** — responde RFC 3161 com token assinado por uma CA sintética (ex.: `openssl ts`).
 Só é chamado por empresas-persona configuradas com `tsaUrl` apontando para o fake.
 
-**`/_controle`** — a alavanca dos cenários, usada pelo motor de personas e pelo k6:
+**`/_controle`** — a alavanca dos cenários, usada pelo motor de personas e pelo k6.
+**Nunca exposta**: o espelho é público, então `/_controle` escuta só em `127.0.0.1` da VM,
+fora do nginx e do túnel; quem roda de fora chega por túnel SSH (como o Mailpit).
+Operações:
 - `POST /_controle/gru/{idSessao}/pagar` (ou pagamento automático após N minutos);
 - falhas por etapa com a mesma taxonomia do `GruClient`: `MARINHA_INDISPONIVEL`,
   `BRIDGE_FALHOU`, `PAGTESOURO_FALHOU`;
 - latência por endpoint; **bloqueio por volume por CPF/dia** (padrão: o observado, ~8–10);
-- `GET /_controle/eventos` para asserções; `POST /_controle/reset`.
+- `GET /_controle/eventos` para asserções; `POST /_controle/reset`;
+- `GET /metrics` (Prometheus): chamadas por etapa, falhas e **latência injetada** — para
+  o Grafana do espelho separar "lentidão que o cenário pediu" de "lentidão do backend".
 
 **Tecnologia sugerida:** serviço pequeno em TypeScript/Node. WireMock foi considerado e
 preterido: sessão single-use, tokens encadeados entre passos e máquina de estados com
@@ -103,11 +112,17 @@ conversar com o Mailpit. Isso é uma diferença de produção e **não cobre** o
 empresas (AUTH fixo em `SmtpSenderFactory`) nem o do Keycloak — por isso o código de login
 do portal não chega hoje no espelho.
 
-Proposta: o Mailpit passa a **se comportar como provedor real** — aceita qualquer
-credencial (`MP_SMTP_AUTH_ACCEPT_ANY`) e oferece STARTTLS com certificado de uma CA
-sintética, confiada pelo backend e pelo Keycloak **só no espelho**. Resultado: o override
-sai do backend, e plataforma, empresas e Keycloak enviam sem nenhuma adaptação.
-*A validar:* confiança da CA sintética no truststore da JVM do backend e do Keycloak.
+Proposta em dois degraus:
+
+- **E1 (só configuração, sem CA):** o Mailpit aceita qualquer credencial sem exigir TLS
+  (`MP_SMTP_AUTH_ACCEPT_ANY` + `MP_SMTP_AUTH_ALLOW_INSECURE`). As empresas-persona usam
+  `starttls=false` (já é por empresa; o AUTH fixo do `SmtpSenderFactory` passa a ser
+  aceito). O Keycloak do espelho ganha um script próprio de SMTP — o
+  `configure-keycloak-smtp.sh` tem AUTH/STARTTLS fixos e pula sem credencial. O override
+  do backend (`SPRING_APPLICATION_JSON`) continua: é configuração, não código.
+- **Refinamento opcional:** STARTTLS com certificado de CA sintética confiada só no
+  espelho, para tirar também o override. Custo: truststore da JVM do backend e do
+  Keycloak. Só vale se a diferença de TLS se mostrar relevante.
 
 A API do Mailpit é também o "celular" das personas: links de ativação, códigos de login
 do portal, OTP de aceite.
@@ -124,7 +139,15 @@ do portal, OTP de aceite.
 | Onde roda | fora da VM | fora da VM (gerador não disputa CPU com a aplicação) |
 
 O motor lê um **catálogo declarativo** de personas e comportamentos (§4) e executa as
-jornadas pelas APIs, com tempo comprimido (ver §7, decisão 3).
+jornadas pelas APIs, com tempo comprimido (ver §7, decisão 3). Expõe métricas Prometheus
+(jornadas iniciadas/concluídas/abandonadas por persona).
+
+O **semeador** é idempotente e retomável, com arquivo de estado — a mesma lógica do
+`k6/provisionar-tenant.sh`: rodar de novo nunca cria a persona duas vezes.
+
+**2FA das personas:** o operador de plataforma configura o TOTP como uma pessoa faria —
+lê a chave na tela de configuração do Keycloak (modo "não consigo escanear") e passa a
+gerar os códigos. O segredo fica no arquivo de estado (0600), nunca no repositório.
 
 ## 4. Personas
 
@@ -152,6 +175,12 @@ nascem de **premissas de negócio** e se ajustam depois com dado real:
 - Marinha: taxa de indisponibilidade; CPF que bate no bloqueio por volume;
 - operação: jetski que entra em manutenção no meio do dia; fechamento diário.
 
+**O que o tempo comprimido NÃO alcança:** a reserva só exige início no futuro e o job de
+expiração roda a cada 5 min — comprimir pelos dados funciona. Mas há jobs de **hora
+fixa**: fim de trial (05:15), exclusão agendada (05:45), faturamento (06:00), manutenção
+preventiva (06:00), métricas da plataforma (04:15). Só uma rodada que **atravesse a
+madrugada** (soak) os exercita.
+
 O catálogo é **dado**, não código: adicionar uma persona ou mudar um funil é editar o
 arquivo, e cada rodada registra a semente para ser reproduzível.
 
@@ -160,12 +189,16 @@ arquivo, e cada rodada registra a semente para ser reproduzível.
 1. **Preflight** (`infra/espelho/preflight.sh`) reprova se `jetski.gru.*-base` não apontar
    para `fakes-externos`, ou se alguma empresa-persona tiver `tsaUrl` fora do fake.
 2. **Sumidouro de DNS no backend do espelho** (`extra_hosts`): `dpc1.marinha.mil.br`,
-   `pagtesouro.tesouro.gov.br` e `freetsa.org` resolvem para o fake. Se a configuração
-   falhar e o código usar o endereço padrão, a chamada bate no fake com certificado errado
-   e **falha** — nunca chega ao sistema real.
+   `pagtesouro.tesouro.gov.br` e `freetsa.org` resolvem para `127.0.0.1` **dentro do
+   container do backend**, onde nada escuta. Se a configuração falhar e o código usar o
+   endereço padrão, a conexão é recusada na hora — nunca chega ao sistema real. (O fake é
+   alcançado pelo nome do serviço, `fakes-externos`, só via configuração explícita.)
 3. **SMTP sem saída:** a única saída SMTP da VM é o Mailpit; nenhuma persona tem
    credencial de provedor real, e endereços de destino são `@exemplo.invalid`.
-4. **CPF sintético obrigatório** no motor (faixa 9xx), com recusa explícita fora dela.
+4. **CPF sintético só circula com os fakes no lugar.** Como um CPF de DV válido pode ser
+   de alguém real (§1.5), o motor de personas e o semeador **recusam rodar** se o preflight
+   não confirmar que Marinha/PagTesouro apontam para `fakes-externos`. A faixa 9xx é
+   marcador para limpeza, não proteção.
 5. As travas já existentes continuam: k6 e scripts recusam `meujet.com.br`.
 
 ## 6. Fases
@@ -173,29 +206,30 @@ arquivo, e cada rodada registra a semente para ser reproduzível.
 | Fase | Entrega | Destrava |
 |---|---|---|
 | **E0** | travas: preflight das bases + sumidouro de DNS | tudo o que vem depois com segurança |
-| **E1** | SMTP realista (Mailpit com AUTH/STARTTLS), fim do override no backend | e-mail do Keycloak → persona cliente e login por código |
-| **E2** | `fakes-externos`: Marinha + PagTesouro + `/_controle`; **teste de contrato** do `GruClient` contra o fake | emissão de ponta a ponta no espelho |
-| **E3** | semeador de personas pela API: plataforma (login com TOTP automatizado), EAMA, delegada + vínculo, instrutores, equipe, clientes, carga | espelho populado a cada `terraform apply` |
+| **E3a** | semeador mínimo pela API: operador de plataforma (TOTP automatizado) + empresas de carga aprovadas | **fim dos cliques manuais**; smoke do k6 — não depende de fakes nem de SMTP novo |
+| **E1** | SMTP por configuração (Mailpit aceita AUTH; Keycloak do espelho → Mailpit) | e-mail do Keycloak → persona cliente e login por código |
+| **E2** | `fakes-externos`: Marinha + PagTesouro + `/_controle` + métricas; **teste de contrato**: os HARs reais (`GRU_ANALISE_HAR.md`) reproduzidos contra o fake, incluindo charset das páginas ASP e nomes acentuados | emissão de ponta a ponta no espelho |
+| **E3b** | demais personas: EAMA, delegada + vínculo, instrutores, equipe, clientes | espelho populado a cada `terraform apply` |
 | **E4** | motor de comportamento: jornadas no tempo com funil calibrável | "um sábado sintético" |
 | **E5** | k6 por persona + cenários de falha externa (Marinha fora, PagTesouro lento) | capacidade **e** resiliência |
 | **E6** | TSA fake; IdP Google fake (opcional) | reforço jurídico e login social no espelho |
 
-E0–E2 são a fundação: sem os fakes, nenhuma persona pode emitir; sem o SMTP realista, o
-cliente não entra no portal.
+E0 vem primeiro por segurança. **E3a vem logo depois** porque resolve a dor imediata
+(aprovar empresa de carga à mão) sem depender de nada. E1–E2 são a fundação do resto: sem
+os fakes nenhuma persona pode emitir; sem o e-mail do Keycloak o cliente não entra no portal.
 
-## 7. Decisões em aberto
+## 7. Decisões (tomadas em 17/set/2026)
 
-1. **Login do operador sintético:** TOTP automatizado pelo fluxo real do console
-   (*recomendado* — exercita o 2FA) ou só senha pelo client do backoffice.
-2. **Tecnologia do `fakes-externos`:** TypeScript/Node (*sugerido*) × Python × Java.
-3. **Tempo:** comprimir **pelos dados** (reservas para daqui a minutos, pagamento
-   agendado no fake) — *recomendado*, sem tocar no backend — ou um relógio controlável
-   no backend (mais fiel, mas é código de produção).
-4. **Calibração do comportamento (§4.2):** quem define as premissas iniciais do funil —
-   decisão de negócio, com os sócios.
-5. **Fidelidade contínua do fake da Marinha:** o site real pode mudar e o fake não vai
-   perceber. Opção: uma verificação controlada periódica em produção (1 GRU real,
-   manual) comparando com o contrato.
+| # | Tema | Decisão |
+|---|---|---|
+| 1 | Login do operador sintético | **TOTP automatizado** pelo fluxo real do console — exercita o 2FA |
+| 2 | Tecnologia de semeador, motor e fakes | **TypeScript/Node**, uma stack só |
+| 3 | Onde roda o semeador | **Dentro da VM, no provisionamento** — o `terraform apply` entrega o espelho populado; credenciais das personas em arquivo 0600 na VM |
+| 4 | Tempo | **Comprimir pelos dados** (reservas para daqui a minutos, pagamento agendado no fake); jobs de hora fixa só por soak que atravesse a madrugada |
+| 5 | Limites por IP do nginx | **Afrouxar só no espelho**, para medir a aplicação; um cenário separado, com o limite real, valida a proteção |
+| 6 | Calibração do funil (§4.2) | Perfil inicial **proposto na implementação** (locadora de praia, pico no fim de semana, taxas conservadoras), em arquivo de dados; os sócios ajustam depois |
+| 7 | Fidelidade do fake da Marinha | **Checagem manual documentada**: roteiro para gerar 1 GRU real e comparar com o contrato, de tempos em tempos ou quando produção falhar; sem automação contra o site do governo |
+| 8 | Contas de seed com senha pública (`admin@acme.com` etc.) | **Ficam como estão** no espelho. Reavaliar quando os fakes e as personas entrarem: hoje nenhuma empresa do espelho emite e nenhum e-mail sai |
 
 ## 8. Fora de escopo
 
