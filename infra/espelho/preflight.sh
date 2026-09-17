@@ -135,6 +135,35 @@ else
   ok "login Google desligado"
 fi
 
+# --- 7. Sistemas externos: fakes + sumidouro de DNS ---------------------------
+# Um CPF sintético de DV válido pode ser de uma pessoa real (não existe faixa de
+# teste). Ele não pode chegar à Marinha nem ao Tesouro: as bases da GRU têm de
+# apontar para o serviço de fakes E os domínios reais têm de estar afundados.
+# Confere o compose RENDERIZADO quando há docker (é o que vai rodar de fato);
+# sem docker, cai para o texto da camada do espelho.
+CAMADA="$RAIZ/docker-compose.espelho.yml"
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+  alvo=$(cd "$RAIZ" && docker compose --env-file "$ENV_FILE" -f docker-compose.yml \
+         -f docker-compose.prod.yml -f docker-compose.espelho.yml config 2>/dev/null \
+         | awk '/^  backend:/{f=1;next} f&&/^  [a-z]/{f=0} f')
+  origem="compose renderizado"
+else
+  alvo=$(cat "$CAMADA" 2>/dev/null)
+  origem="docker-compose.espelho.yml (sem docker para renderizar)"
+fi
+faltam=()
+for dominio_real in dpc1.marinha.mil.br pagtesouro.tesouro.gov.br freetsa.org; do
+  grep -qE "${dominio_real//./\\.}[=:]127\.0\.0\.1" <<<"$alvo" || faltam+=("sumidouro de $dominio_real")
+done
+for base in marinha-base pagtesouro-base; do
+  grep -qE "jetski\.gru\.${base}[\\\\\"]*:[\\\\\"]*http://fakes-externos[:/]" <<<"$alvo" || faltam+=("jetski.gru.$base → fakes-externos")
+done
+if [ ${#faltam[@]} -gt 0 ]; then
+  reprova "proteção dos sistemas externos incompleta no backend ($origem): ${faltam[*]}"
+else
+  ok "Marinha/PagTesouro/TSA: bases nos fakes e domínios reais afundados ($origem)"
+fi
+
 echo
 if [ "$falhas" -gt 0 ]; then
   echo -e "${VERMELHO}preflight REPROVADO: ${falhas} problema(s). Nada foi alterado.${NC}"

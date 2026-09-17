@@ -29,7 +29,21 @@ services:
       # do mapa `spring.mail.properties` têm pontos (`mail.smtp.auth`), que não
       # sobrevivem à conversão de nome de variável de ambiente. Em JSON a chave
       # vai literal — e esta fonte tem precedência sobre o application-prod.yml.
+      #
+      # As bases da GRU apontam para o serviço de fakes (ECOSSISTEMA_SINTETICO_SPEC.md,
+      # fase E2). Enquanto ele não existir, o nome não resolve e a emissão cai no
+      # fallback manual (MARINHA_INDISPONIVEL) — falha fechada, nunca o site real.
       SPRING_APPLICATION_JSON: >-
         {"spring.mail.properties.mail.smtp.auth":"false",
          "spring.mail.properties.mail.smtp.starttls.enable":"false",
-         "spring.mail.properties.mail.smtp.starttls.required":"false"}
+         "spring.mail.properties.mail.smtp.starttls.required":"false",
+         "jetski.gru.marinha-base":"http://fakes-externos:8080/marinha",
+         "jetski.gru.pagtesouro-base":"http://fakes-externos:8080/pagtesouro"}
+    # Sumidouro de DNS — segunda camada. Se a configuração acima se perder e o código
+    # usar o endereço padrão, os domínios REAIS resolvem para o loopback do próprio
+    # container, onde nada escuta: conexão recusada na hora. Um CPF sintético de DV
+    # válido pode ser de uma pessoa real; ele não pode chegar à Marinha nem ao Tesouro.
+    extra_hosts:
+      - "dpc1.marinha.mil.br:127.0.0.1"
+      - "pagtesouro.tesouro.gov.br:127.0.0.1"
+      - "freetsa.org:127.0.0.1"
