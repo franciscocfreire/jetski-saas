@@ -81,6 +81,12 @@ export function lerCodigo(texto: string): string | undefined {
   return /(?<!\d)(\d{6})(?!\d)/.exec(texto)?.[1];
 }
 
+/** Código de 6 dígitos num e-mail SÓ HTML (o OTP de unificação de CPF do backend não tem parte texto). */
+export function lerCodigoNoHtml(html: string): string | undefined {
+  const texto = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ');
+  return /(?<!\d)(\d{6})(?!\d)/.exec(texto)?.[1];
+}
+
 /** Link de verificação de e-mail enviado pelo Keycloak (action token). Exportada para teste. */
 export function lerLinkDeVerificacao(texto: string, html: string): string | undefined {
   const m = /https?:\/\/[^\s"<>]+\/login-actions\/action-token\?[^\s"<>]+/.exec(`${texto}\n${html}`);

@@ -228,6 +228,13 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   lista. O WARN loga só `e.getMessage()` (`null` numa `ConnectException`) — logar a classe da
   exceção (idem em `PadesSignatureService`). Também: o `@timestamp` do log JSON é hora local com
   sufixo `Z` (encoder sem fuso) — confunde qualquer cruzamento com o Prometheus.
+- **Bug — unificação de contas por CPF (OTP) respondia 500 no caso feliz** (achado em 18/set/2026
+  na E7, primeira vez que o fluxo rodou de ponta a ponta fora do teste de integração): o
+  `DELETE` JPA do perfil da duplicata ficava pendente enquanto o descarte da pessoa ia por JDBC
+  (`DELETE FROM usuario`) → FK `customer_profile.usuario_id`; a identidade Google já tinha sido
+  transferida no Keycloak (fora da transação), a duplicata ficava órfã e a trilha
+  `CONTA_CPF_MERGE` não era escrita. Correção (`flush()`) + teste que força o ramo DELETE no
+  PR #71. Lição: o teste existente só cobria o ramo tombstone (pessoa com trilha).
 - **Risco — o cliente de TSA do PAdES não tem timeout** (achado em 18/set/2026 na revisão da E6).
   `PadesSignatureService` usa `new TSAClientBouncyCastle(tsaUrl)` do OpenPDF 1.3.35, cujo
   `getTSAResponse` abre `URLConnection` sem `setConnectTimeout`/`setReadTimeout`, e o `JAVA_OPTS`

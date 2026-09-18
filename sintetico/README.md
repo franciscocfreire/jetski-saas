@@ -151,6 +151,48 @@ Uma rodada smoke do k6 `emissao` com a TSA ligada (1 VU, 60 s): 27 emissões/min
 2,3 s. Não é comparável com a rodada da E5 (outro momento da VM); o custo do carimbo em si só
 sai de um A/B na mesma condição (`carimboTempo.ativo=false` × fake), que fica para a F4.
 
+## Fase E7: o "Google" sintético — login social
+
+O provider `google` do Keycloak tem endpoints fixos (accounts.google.com); um fake exige um IdP
+OIDC genérico com o **mesmo alias `google`** — é o alias que o portal (`kc_idp_hint=google`), o
+backoffice, o tema de login e a unificação de CPF (`portal.google-idp-alias`) consomem. O
+provedor externo é o **próprio Keycloak do espelho**: um segundo realm, `google-sintetico`
+(tema padrão, sem tema meujet, de propósito), faz o papel do Google. Para o realm `jetski-saas`
+é um provedor OIDC qualquer — exercita os mesmos flows do Google real (first broker login,
+vínculo de conta existente por e-mail, post-broker 2FA), de forma determinística.
+
+- **Configuração:** [`infra/espelho/configure-keycloak-google-fake.sh`](../infra/espelho/configure-keycloak-google-fake.sh),
+  chamado pelo `deploy.sh` só com `MEUJET_AMBIENTE=espelho` (travas: SSO fora de produção,
+  `GOOGLE_CLIENT_ID` vazio, sem timer de backup, dois segredos no `.env`). Idempotente.
+  `ROLLBACK=1` apaga o realm sintético e devolve o alias `google` ao estado do import (nativo,
+  desabilitado) — apaga também as contas "Google" e os vínculos; ao religar, o Keycloak refaz o
+  vínculo por e-mail na próxima entrada (provado).
+- **Contas "Google":** o semeador as cria pela Admin API do realm sintético, com o client de
+  serviço `semeador-contas` — só `manage-users`/`view-users` **desse** realm, nunca a senha
+  master nem o realm da aplicação ([`src/lib/keycloakAdmin.ts`](src/lib/keycloakAdmin.ts)).
+- **Walker:** `login({ idp: { alias: 'google', usuario, senha, obterLinkDeVinculo } })` põe
+  `kc_idp_hint` na URL de autorização (o que o botão "Entrar com Google" faz), preenche o
+  `<form id="kc-form-login">` do realm sintético e volta pelo broker. Trava: qualquer redirect
+  para fora do host do SSO do espelho é erro — um alias `google` apontando para o Google real
+  pararia ali, sem mandar nada para fora.
+- **Prova** (`semeador provar-google`; precisa de `KEYCLOAK_URL` da porta interna e de
+  `GOOGLE_SINTETICO_SEMEADOR_SECRET`):
+  - **A — cliente novo pelo Google no portal:** conta criada pelo broker com papel `CLIENTE`
+    (mapper), perfil nasce **sem CPF** (gate), `PUT /v1/customers/self` define, 2º login é o
+    mesmo `sub`.
+  - **B — colisão de CPF → unificação por OTP:** identidade Google nova informa o CPF de uma
+    cliente existente → `409 CPF_EM_USO` → `cpf-merge/enviar` → código no e-mail da dona (só
+    HTML, `lerCodigoNoHtml`) → `cpf-merge/verificar` → o próximo login pelo Google **é a dona**
+    (`sub` igual, CPF dela). Foi esta prova que achou o 500 da FK (PR #71).
+  - **C1 — vendedor existente entra no backoffice pelo Google** (mesmo e-mail): `login-idp-link-confirm`
+    → `login-idp-link-email` (link de confirmação aberto no MESMO pote de cookies) → mesmo `sub`;
+    `/v1/user/me` já o vê `idpFederado=true`.
+  - **C2 — operadora de plataforma no console:** idem, e o post-broker exige o **TOTP**
+    (`login-otp`); `/v1/platform/me` reconhece `PLATFORM_ADMIN`.
+
+  A e B usam contas novas por rodada (a unificação é irreversível); C é idempotente ("vínculo já
+  existia" nas rodadas seguintes).
+
 ## Fase E2: `fakes-externos` — a Marinha e o PagTesouro sintéticos
 
 Serviço `fakes-externos` da camada `docker-compose.espelho.yml` (código em
@@ -234,6 +276,7 @@ mesmos POSTs, atravessando as telas que o Keycloak pedir:
 | console (`jetski-platform-console`) | `login` → `login-update-password` → `login-config-totp` (1º acesso) / `login-otp` (depois) |
 | portal (`jetski-customer-portal`) | `email-code-id` → `email-code-verify` (pede o código: `mjAction=sendcode`) → `email-code-verify` (`mjAction=verify` + código do e-mail) |
 | backoffice (`jetski-backoffice`) | `email-code-id` → `email-code-verify` (SPI `meujet-email-code`, identifier-first em dois POSTs) → `login-update-password` |
+| **pelo Google** (qualquer client, `kc_idp_hint=google`) | `google-sintetico:login` (form do tema padrão, no realm do provedor) → *conta nova:* volta direto · *e-mail já existe:* `login-idp-link-confirm` → `login-idp-link-email` (link do e-mail, mesmo pote) · *com fator:* `login-otp` (post-broker) · *se aparecer:* `trusted-device-enroll` (a prova não confia), `idp-review-user-profile` |
 
 Tela desconhecida = erro explícito com o caminho percorrido — é assim que uma mudança no
 fluxo de login aparece.
@@ -258,6 +301,22 @@ O teste de integração é o próprio espelho: a fase E3a foi validada rodando o
 `us-ashburn-1` e conferindo banco e auditoria.
 
 ## Armadilhas já pagas
+
+- **O Keycloak recusa REUSAR um código TOTP no mesmo período** (≥ 21, `otpPolicyCodeReusable=false`).
+  Dois logins seguidos da mesma persona (o de referência e o pelo Google) davam "código inválido";
+  o walker guarda o período usado por segredo e espera o próximo (`codigoTotpInedito`).
+- **O link de vínculo por e-mail tem de ser aberto no MESMO pote de cookies.** É um action token
+  preso à sessão de autenticação; noutro "navegador" o Keycloak responde "volte ao navegador
+  original". Aberto no mesmo pote, o flow continuou direto (sem página de aviso) nas rodadas do
+  espelho; o walker prevê ainda o desfecho "conta atualizada" (sessão encerrada → reinicia o
+  login, já vinculado), não observado até aqui.
+- **`hideOnLogin` nulo no IdP derruba TODO login do realm** (NPE no KC 26.7) — o script manda `false`.
+- **O provider `google` nativo não aceita endpoints** — só o `providerId: oidc` com o mesmo alias.
+  Trocar o providerId exige DELETE + POST (o PUT não troca); apagar o IdP apaga as identidades
+  federadas dele.
+- **O e-mail do código de unificação de CPF é SÓ HTML** (sem parte texto): `lerCodigo` no `Text`
+  do Mailpit acha nada; `lerCodigoNoHtml` tira as tags.
+- **`PUT /v1/customers/self` exige `nome`** (`@NotBlank`) mesmo para só definir o CPF.
 
 - **DER não sobrevive a UTF-8.** O servidor dos fakes convertia todo corpo para texto; o
   `TimeStampReq` chegava corrompido e o backend degradava para âncora interna **sem erro**. O

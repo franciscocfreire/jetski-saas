@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { PoteDeCookies } from '../src/lib/http.ts';
-import { campoTexto, telaDe } from '../src/lib/keycloak.ts';
-import { lerCodigo, lerConvite, lerLinkDeVerificacao } from '../src/lib/mailpit.ts';
+import { acaoDoFormPadrao, campoTexto, codigoTotpInedito, telaDe } from '../src/lib/keycloak.ts';
+import { payloadDoToken } from '../src/lib/keycloakAdmin.ts';
+import { lerCodigo, lerCodigoNoHtml, lerConvite, lerLinkDeVerificacao } from '../src/lib/mailpit.ts';
 import { base32, hotp, otpauth, totp } from '../src/lib/totp.ts';
 
 const CHAVE_RFC = Buffer.from('12345678901234567890', 'ascii');
@@ -79,4 +80,43 @@ test('link de verificação do Keycloak: action-token, com &amp; decodificado', 
   const html = '<a href="https://sso.x/realms/jetski-saas/login-actions/action-token?key=abc.def&amp;client_id=portal&amp;tab_id=9">Verificar</a>';
   assert.equal(lerLinkDeVerificacao('', html), 'https://sso.x/realms/jetski-saas/login-actions/action-token?key=abc.def&client_id=portal&tab_id=9');
   assert.equal(lerLinkDeVerificacao('https://app.x/magic-activate?token=zzz', ''), undefined);
+});
+
+// ---------------------------------------------------------------- fase E7: login social
+
+test('E7: form de login do tema padrão do Keycloak (realm do Google sintético): action com &amp; decodificado', () => {
+  const html = '<div id="kc-form"><div id="kc-form-wrapper"><form id="kc-form-login" onsubmit="login.disabled = true; return true;" '
+    + 'action="https://sso.jetsave.com.br/realms/google-sintetico/login-actions/authenticate?session_code=abc&amp;execution=def&amp;client_id=jetski-broker&amp;tab_id=xyz" method="post">'
+    + '<input id="username" name="username"><input id="password" name="password"></form></div></div>';
+  assert.equal(acaoDoFormPadrao(html), 'https://sso.jetsave.com.br/realms/google-sintetico/login-actions/authenticate?session_code=abc&execution=def&client_id=jetski-broker&tab_id=xyz');
+  // a página do tema meujet (kcContext, sem <form id="kc-form-login">) NÃO é confundida com o provedor
+  assert.equal(acaoDoFormPadrao(readFileSync(new URL('./fixtures/login.html', import.meta.url), 'utf8')), undefined);
+  assert.equal(acaoDoFormPadrao('<form action="x" id="outro">'), undefined);
+});
+
+test('E7: código de unificação de CPF num e-mail SÓ HTML (o do backend), sem parte texto', () => {
+  const html = '<p>Olá.</p><p>Alguém entrou no <b>Meu Jet</b> com o Google e informou o seu CPF. Se foi você, use o código abaixo para unificar as contas:</p>'
+    + '<p style="font-size:24px;font-weight:bold;letter-spacing:3px">048213</p><p>Válido por 10 minutos. Se não reconhece esta solicitação, ignore este e-mail — nada será alterado.</p>';
+  assert.equal(lerCodigoNoHtml(html), '048213');
+  assert.equal(lerCodigo(''), undefined); // o Mailpit devolve Text vazio para esse e-mail → cai no HTML
+  assert.equal(lerCodigoNoHtml('<p>pedido 1234567 (7 dígitos) não é código</p>'), undefined);
+  assert.equal(lerCodigoNoHtml('<p>a&nbsp;123456&nbsp;b</p>'), '123456');
+});
+
+test('E7: payload do JWT (base64url, sem verificar) traz sub e papéis do realm', () => {
+  const payload = Buffer.from(JSON.stringify({ sub: '49024d26-c249-4af7-b8d9-22712dc0973d', email: 'x@y', realm_access: { roles: ['CLIENTE', 'offline_access'] } })).toString('base64url');
+  const jwt = `eyJhbGciOiJSUzI1NiJ9.${payload}.assinatura`;
+  const p = payloadDoToken(jwt);
+  assert.equal(p.sub, '49024d26-c249-4af7-b8d9-22712dc0973d');
+  assert.deepEqual(p.realm_access?.roles, ['CLIENTE', 'offline_access']);
+});
+
+test('E7: o guarda de TOTP nunca entrega o mesmo código duas vezes no mesmo período (o Keycloak recusa reuso)', async () => {
+  const politica = { algoritmo: 'sha1' as const, digitos: 6, periodoSegundos: 1 };
+  const antes = Date.now();
+  const a = await codigoTotpInedito('segredo-e7', politica);
+  const b = await codigoTotpInedito('segredo-e7', politica);
+  assert.notEqual(a, b);
+  assert.ok(Date.now() - antes >= 500, 'a 2ª chamada esperou o próximo período');
+  assert.ok(Date.now() - antes < 3_000);
 });

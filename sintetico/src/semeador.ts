@@ -12,8 +12,11 @@
 //   node src/semeador.ts tokens      gera o tokens.json do k6 (admins das empresas de carga)
 //   node src/semeador.ts provar-gru      E2: uma GRU de ponta a ponta contra os fakes
 //   node src/semeador.ts provar-emissao  E3b: emissão própria (EAMA) e delegada, até o ofício
+//   node src/semeador.ts provar-google   E7: login social pelo "Google" sintético (gate de CPF,
+//                                        unificação por OTP, staff com e sem 2º fator)
 //
-// Ambiente: DOMINIO (obrigatório), MAILPIT_URL, ESTADO, CATALOGO, SAIDA (tokens).
+// Ambiente: DOMINIO (obrigatório), MAILPIT_URL, ESTADO, CATALOGO, SAIDA (tokens);
+// provar-google: KEYCLOAK_URL (admin do realm sintético, loopback) e GOOGLE_SINTETICO_SEMEADOR_SECRET.
 
 import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -25,6 +28,7 @@ import { login, seguirLinkDeAcao, type ResultadoDeLogin } from './lib/keycloak.t
 import { esperarConvite, esperarNoEmail, lerCodigo, lerLinkDeVerificacao } from './lib/mailpit.ts';
 import { Plataforma } from './lib/plataforma.ts';
 import { otpauth } from './lib/totp.ts';
+import { provarGoogle, type ContextoSocial } from './social.ts';
 
 interface Catalogo {
   operadorPlataforma: { chave: string; email: string; nome: string; empresa: { razaoSocial: string; slug: string } };
@@ -245,6 +249,15 @@ const contexto: Contexto = {
   garantirClienteDoPortal: async (c) => (await garantirClienteDoPortal(c, true)) as string,
 };
 
+/** E7: o Google sintético é administrado pela porta de loopback do Keycloak, com um client de serviço só dele. */
+function contextoSocial(): ContextoSocial {
+  const segredo = process.env.GOOGLE_SINTETICO_SEMEADOR_SECRET ?? '';
+  if (!segredo || segredo === '__GERADO__') throw new Error('Defina GOOGLE_SINTETICO_SEMEADOR_SECRET (o .env do espelho tem o valor gerado pelo deploy).');
+  const keycloakUrl = process.env.KEYCLOAK_URL ?? 'http://127.0.0.1:8080';
+  if (!/^http:\/\/(127\.0\.0\.1|localhost|keycloak)(:\d+)?\/?$/.test(keycloakUrl)) throw new Error(`KEYCLOAK_URL tem de ser a porta interna do Keycloak do espelho, não ${keycloakUrl}.`);
+  return { ...contexto, dominio: DOMINIO, keycloakUrl, segredoSemeadorContas: segredo };
+}
+
 function resumo(): void {
   for (const [chave, p] of Object.entries(arquivo.estado.personas)) {
     const marcas = [p.ativada && 'ativada', p.aprovada && 'aprovada', p.totpSegredo && '2FA', p.jetskis && `${p.jetskis} jetskis`].filter(Boolean);
@@ -432,7 +445,8 @@ else if (comando === 'resumo') resumo();
 else if (comando === 'tokens') await gerarTokens();
 else if (comando === 'provar-gru') await provarGru();
 else if (comando === 'provar-emissao') await provarEmissao(contexto);
+else if (comando === 'provar-google') await provarGoogle(contextoSocial());
 else {
-  console.error('uso: node src/semeador.ts <bootstrap|semear|resumo|tokens|provar-gru|provar-emissao>');
+  console.error('uso: node src/semeador.ts <bootstrap|semear|resumo|tokens|provar-gru|provar-emissao|provar-google>');
   process.exit(2);
 }
