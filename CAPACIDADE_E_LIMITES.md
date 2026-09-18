@@ -217,6 +217,160 @@ depois, em prod em janela combinada:
 - dashboard "Capacidade" com o consumo por tenant e a projeção de estouro;
 - revisão trimestral da linha de base (a carga cresce, o número envelhece).
 
+## 6. Limites medidos no espelho (17/set/2026)
+
+Fase E5 do ecossistema sintético: k6 de fora da VM contra o espelho (`us-ashburn-1`, A1.Flex
+2 OCPU / 12 GB, a mesma stack de produção, limites por IP do nginx afrouxados). Cada número
+diz de onde veio: **k6** (resumos em `k6/resultados/`) ou **Prometheus** do espelho (por minuto,
+por container, por rota). Esta seção foi revisada de forma adversarial (26 achados) antes de
+entrar; o que era inferência virou medida ou virou "hipótese".
+
+### 6.1 O joelho da curva: ~100 req/s, e é CPU do host
+
+| Cenário (stress, rampa até 150 it/s) | Abaixo do joelho | No joelho | Platô |
+|---|---|---|---|
+| **Balcão** (cadastro → check-in → check-out → extrato) | 95 req/s, p95 **120 ms**, CPU 88% | 107 req/s, p95 1,2 s, CPU 99,7% | ~120 req/s, p95 3,8–4,0 s |
+| **Portal** (vitrine pública + reserva online + comprovante) | 114 req/s, p95 **156 ms**, CPU 88% | 124 req/s, p95 2,0 s, CPU 99,7% | ~135 req/s, p95 3,6 s |
+
+*(req/s e p95 do backend pelo Prometheus, 1 min; CPU = host.)* O que acontece no joelho, nos
+dois casos e na mesma ordem: a **CPU do host chega a 100%**, o **pool do Hikari (10) vira
+fila** (~190 conexões esperando), as **200 threads do Tomcat ocupam** e a latência sobe uma
+ordem de grandeza sem a vazão subir junto.
+
+**Quem gasta a CPU** (Prometheus, `docker_container_cpu_usage_percent`, média na janela do
+platô; 200% = 2 OCPU):
+
+| container | stress balcão | stress portal | sábado sintético (E4) |
+|---|---|---|---|
+| backend | **72%** | **79%** | 1,2% |
+| postgres | 24% | 37% | 1,3% |
+| alloy (logs) | 25% | 15% | 1,1% |
+| opa | 24% | 9% | — |
+| cloudflared | 20% | 25% | — |
+| nginx | 6% | 7% | — |
+| keycloak | 1,5% | 3% | 0,7% |
+
+Leituras: (1) o backend é a maior fatia, mas **observabilidade + OPA custam o mesmo que o
+Postgres** — alloy a 25% num host de 2 OCPU é o primeiro candidato a `cpus:`; (2) o Keycloak
+não aparece (os cenários renovam token uma vez a cada 5 min); (3) a heap nunca passou de
+390 MB (teto 750 MB) e não houve pausa de GC relevante — a hipótese nº 3 da §3 **não se
+confirma**; a nº 2 (sem `cpus:`, tudo disputa as 2 OCPUs) **se confirma com a tabela acima**;
+a nº 1/nº 4 (pool) é **sintoma**: com a CPU saturada, aumentar o pool só muda onde a fila se
+forma (a testar na F4, depois de limitar CPU).
+
+**Sobre "locações por segundo":** no platô do balcão o k6 concluiu 12 jornadas/s, mas **52%
+dos check-ins receberam 400 por jetski ocupado** (13.082 de 25.040 iterações; `http_req_failed`
+13%) — a frota das três empresas de carga tem 60 jetskis, e a jornada segura o jetski por
+segundos. **12/s é o teto da frota nesta configuração, não do servidor.** O número de
+capacidade é o de req/s; para medir locações/s é preciso repetir o stress com um jetski por VU.
+
+**Folga em relação a hoje** (Prometheus de produção, só `/v1/*` do backend, 7 dias): média
+**0,010 req/s**, pico de 1 min **3,5 req/s**. O "sábado sintético" de três lojas (motor da E4)
+custa 0,3 req/s e 6% de CPU. O joelho está **~30× acima do pico** atual e quatro ordens de
+grandeza acima da média. Na VM atual cabem, em ordem de grandeza, **dezenas de lojas operando
+ao mesmo tempo** antes de a latência sair da meta — o número exato depende do mix (§6.2) e
+é o que a F4 vai afinar.
+
+### 6.2 Emissão: o caminho caro
+
+| rodada (k6) | o que | resultado |
+|---|---|---|
+| `emissao` smoke, 1 VU, 60 s | ficha com **3 documentos** de 230 KB + habilitação + termo + GRU + PIX + PDF + e-mail | 20 emissões/min; jornada p95 **3,2 s**; p95 por request 499 ms |
+| `resiliencia` controle, 4 VUs de emissão (**1 documento**) + 6 VUs de leitura, 3 min | idem, um anexo só | 293 emissões (1,6/s), jornada p95 2,9 s; **CPU do host 81–97%** |
+
+A emissão é o cenário que dimensiona a VM se a emissão delegada crescer: com 4 VUs ela leva
+o host perto da saturação. Quanto custa **uma** emissão em CPU não foi isolado (a rodada
+misturou emissão e leitura) — perfilar na F4: PDF, carimbo de tempo e base64 são os suspeitos.
+Nota: no espelho, o carimbo de tempo RFC 3161 **não** foi exercido (o `tsaUrl` padrão é a
+freetsa.org, afundada pelo sumidouro; a E6 põe a TSA sintética) — a emissão real custa mais.
+
+### 6.3 Resiliência: a Marinha caída não derruba o resto
+
+`k6/cenarios/resiliencia.js` — 4 VUs emitindo + 6 VUs de "tráfego inocente" (outras
+empresas, telas do balcão), 3 min por modo, falha injetada no `/_controle` dos fakes:
+
+| Modo | Emissão | Tráfego inocente (meta p95 < 800 ms) |
+|---|---|---|
+| controle (sem falha) | 293 concluídas, jornada p95 2,9 s | p95 **253 ms** |
+| **Marinha fora** (503 em tudo) | 619 caíram no **fluxo manual**, 0 concluídas, **0 × 5xx** | p95 **200 ms** |
+| **PagTesouro lento** (8 s por chamada) | 28 concluídas, jornada 26 s | p95 **404 ms** |
+| **PagTesouro pendurado** (timeout de 20 s) | 36 fallbacks | p95 **194 ms** |
+
+Veredito: nesta intensidade o monolito **não** deixa a integração externa contaminar quem
+não depende dela. Em volume maior isso muda (200 threads / 20 s = 10 emissões/s presas
+bastam para esgotar o Tomcat); um pool ou timeout dedicado à GRU é o endurecimento óbvio.
+
+### 6.4 Defeitos que só a carga mostrou
+
+1. **Reserva do portal respondia 500 sob saturação** — `TaskRejectedException` do executor
+   `@Async` (fila de 500, `AbortPolicy`): uma métrica assíncrona derrubava a reserva.
+   9.540 × 500 no stress do portal (k6 e Prometheus concordam). **Corrigido no PR #66**
+   (`CallerRunsPolicy`).
+2. **500 no check-in concorrente do mesmo jetski** — 137 × HTTP 500 no backend (136 no k6 +
+   1 EOF) com `deadlock detected … while locking tuple in relation "jetski"`. A **causa exata é
+   hipótese**: o log do Postgres do espelho não guarda o `DETAIL` com as duas queries (a
+   explicação "lock compartilhado do FK × UPDATE" não fecha com a matriz de locks do Postgres,
+   porque o `UPDATE` não muda coluna de chave). Próximo passo registrado nas pendências:
+   ligar `log_lock_waits`, reproduzir com dois walk-ins simultâneos no mesmo jetski e provar
+   que um lock pessimista na validação elimina o 500 (o segundo tem de receber o 400 de
+   negócio).
+3. **Check-in/check-out chegam ao OPA como `locacao:create`** (rotas com hífen não casam com
+   o `ActionExtractor`): o RBAC fino do pier e a janela de horário do `context.rego` (PR #64)
+   são letra morta. Pendência registrada.
+
+### 6.5 Soak (1 h): motor em tempo real + k6 leve
+
+`k6/soak.sh <ip> 60 3`: o motor de personas em tempo real (5 chegadas/h, com emissão, GRU,
+manutenção) + 3 VUs do cenário `leitura` por 60 min, logo depois dos dois stress.
+
+| JVM do backend (Prometheus) | antes | depois |
+|---|---|---|
+| heap usada (instantânea) | 170 MB | 144 MB |
+| threads | 48 | 49 |
+| Hikari ativas / esperando | 0 / 0 | 0 / 0 |
+| pausa de GC (5 min) | 0 | 0 |
+
+**Sem sinal de vazamento** — com a ressalva de que a fotografia "depois" foi tirada ~1 h após
+o k6 acabar e mede heap usada, não heap viva; o `soak.sh` agora tira a foto no fim do k6, usa
+`jvm_gc_live_data_size_bytes` e o máximo de conexões pendentes na janela (a madrugada
+inteira, com os jobs de hora fixa, ainda não foi rodada).
+
+O que o soak achou de verdade é **o limite que chega primeiro na vida real, e ele não é
+req/s: listas sem paginação crescendo com os dados**. Depois do stress, cada empresa de carga
+tinha ~8.400 clientes e ~4.000 locações, e o cenário `leitura` abre as telas que devolvem
+**tudo**:
+
+| rota (GET) | p95 no servidor (Prometheus) | n |
+|---|---|---|
+| `/locacoes` | **9,9 s** (máx. 12,9 s) | 651 |
+| `/clientes` | 534 ms | 650 |
+| `/locacoes/controle-do-dia` | 523 ms | 658 |
+| `/reservas/agenda`, `/jetskis` | 46 ms, 39 ms | ~658 |
+
+No k6: p95 total 8,9 s, dos quais **8,5 s esperando a primeira resposta** (`http_req_waiting`)
+e 0,5 s recebendo — é tempo de servidor (serialização de 4.000 locações), não de rede. Foram
+**8,2 GB** (7,6 GiB) em 3.430 requests, 2,3 MB de média e vários MB por lista pesada. Uma loja
+movimentada acumula esse volume em meses de operação. Pendência registrada: paginar (ou
+filtrar por padrão) `GET /locacoes` e `GET /clientes`; `controle-do-dia` só pesou porque o
+stress fez 4.000 check-ins no mesmo dia. Os SLOs de leitura precisam ser medidos com volume de
+dados realista, não só com tráfego.
+
+O motor achou ainda um defeito **do próprio motor**: a jornada do portal guardava o access
+token e o reutilizava após esperas de até 25 min reais (401) — corrigido (token pedido a cada
+uso).
+
+### 6.6 O que fazer com isso (entra na F4)
+
+1. `cpus:` por container — começando por **alloy** e **opa**, que juntos custam o mesmo que o
+   Postgres no stress — e medir de novo.
+2. Repetir o stress com Hikari 20 e 30 **depois** de tratar a CPU; hoje o pool é sintoma.
+3. Paginar `GET /locacoes` e `GET /clientes` (§6.5) — é o limite que a primeira loja real vai
+   sentir.
+4. Provar a causa do deadlock e corrigir; corrigir o `ActionExtractor` e reavaliar a janela de
+   horário do pier quando ela passar a valer.
+5. Pool/timeout dedicado às chamadas de GRU (§6.3) antes de a emissão delegada escalar.
+6. Isolar o custo de CPU de uma emissão (§6.2), com a TSA sintética ligada (E6).
+
 ## 5. Por onde começar
 
 ~~1. Extrair a linha de base do Prometheus (F0).~~ ✅ feito — `LINHA_DE_BASE.md`.

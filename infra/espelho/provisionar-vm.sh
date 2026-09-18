@@ -119,7 +119,7 @@ como_ubuntu bash -c "cd '$REPO' && NO_PULL=1 ./deploy.sh"
 
 # ---------------------------------------------------------------------------
 etapa "6/7 Observabilidade (o instrumento do teste)"
-como_ubuntu bash -c "cd '$REPO' && docker compose --env-file .env -f infra/observability/docker-compose.observability.yml up -d"
+como_ubuntu bash -c "cd '$REPO' && docker compose --env-file .env -f infra/observability/docker-compose.observability.yml -f infra/observability/docker-compose.observability.espelho.yml up -d"
 
 # ---------------------------------------------------------------------------
 etapa "7/7 Personas sintéticas (plataforma, empresas de carga, EAMA + delegadas, equipe, clientes)"

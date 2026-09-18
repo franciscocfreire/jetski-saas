@@ -26,6 +26,7 @@ import { perfil, limitesDoPerfil, PERFIL } from '../perfis.js';
 import { cliente, horimetro, duracaoPrevista, checklist, inteiro } from '../lib/dados.js';
 
 const CREDENCIAIS = carregarCredenciais();
+validarAlvo(CREDENCIAIS); // no init: `--no-setup` não pula a trava
 
 /** Tempo da jornada inteira — é o número que interessa ao negócio, não o do request. */
 const jornada = new Trend('jornada_balcao_completa', true);

@@ -178,6 +178,23 @@ else
   reprova "docker-compose.espelho.yml sem o serviço fakes-externos — a emissão de GRU não teria para onde ir"
 fi
 
+# --- 9. nginx do espelho vem do arquivo GERADO (limites por IP) --------------
+# A camada monta infra/espelho/nginx.espelho.conf, que o deploy.sh gera a partir do
+# nginx.conf de produção (nginx-limites.sh). Se a montagem sumir, o espelho volta a
+# medir o nginx em vez da aplicação.
+case "${ESPELHO_LIMITES:-frouxos}" in
+  frouxos|reais) ;;
+  *) reprova "ESPELHO_LIMITES='${ESPELHO_LIMITES}' — use frouxos ou reais" ;;
+esac
+if [ -d "$RAIZ/infra/espelho/nginx.espelho.conf" ]; then
+  # Um `up` antes do nginx-limites.sh faz o Docker criar um DIRETÓRIO no lugar do arquivo.
+  reprova "infra/espelho/nginx.espelho.conf é um diretório (nginx subiu antes de gerar o arquivo) — rmdir e rode o deploy de novo"
+elif grep -q 'infra/espelho/nginx.espelho.conf:/etc/nginx/nginx.conf' "$CAMADA" 2>/dev/null && [ -x "$RAIZ/infra/espelho/nginx-limites.sh" ]; then
+  ok "nginx do espelho montado do arquivo gerado (limites: ${ESPELHO_LIMITES:-frouxos})"
+else
+  reprova "docker-compose.espelho.yml não monta infra/espelho/nginx.espelho.conf (ou falta nginx-limites.sh)"
+fi
+
 echo
 if [ "$falhas" -gt 0 ]; then
   echo -e "${VERMELHO}preflight REPROVADO: ${falhas} problema(s). Nada foi alterado.${NC}"

@@ -40,3 +40,6 @@ capturas-apresentacao/
 
 # Relatórios das rodadas do motor de personas (fase E4)
 sintetico/relatorios/
+
+# Gerado por infra/espelho/nginx-limites.sh (limites por IP do espelho)
+infra/espelho/nginx.espelho.conf

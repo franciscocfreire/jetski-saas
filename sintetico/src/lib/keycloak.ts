@@ -107,6 +107,7 @@ export async function login(p: PedidoDeLogin): Promise<ResultadoDeLogin> {
   let segredo = p.totpSegredo;
   let politica = POLITICA_PADRAO;
   let codigoPedidoEm: Date | undefined;
+  let reenviou = false;
   let r = await pedir(auth.toString(), { pote });
 
   for (let i = 0; i < MAX_TELAS; i++) {
@@ -131,7 +132,7 @@ export async function login(p: PedidoDeLogin): Promise<ResultadoDeLogin> {
 
     // Mensagem de erro da tela anterior (senha errada, código inválido…).
     const erro = /"type":\s*"error"/.test(r.corpo) ? campoTexto(r.corpo, 'summary') : undefined;
-    const repeticoesEsperadas = tela === 'email-code-verify' && p.obterCodigoPorEmail ? 2 : 1;
+    const repeticoesEsperadas = tela === 'email-code-verify' && p.obterCodigoPorEmail ? 3 : 1; // pedir, (reenviar), verificar
     if (erro && saida.telas.filter((t) => t === tela).length > repeticoesEsperadas) {
       throw new Error(`Keycloak recusou "${tela}" para ${p.usuario}: ${erro}`);
     }
@@ -156,10 +157,24 @@ export async function login(p: PedidoDeLogin): Promise<ResultadoDeLogin> {
           r = await pedir(acao, { pote, formulario: { mjAction: 'password', password: p.senha } });
         } else if (!codigoPedidoEm) {
           // "Entrar sem senha": pede o código; a mesma tela volta, agora esperando os dígitos.
-          codigoPedidoEm = new Date(Date.now() - 30_000); // folga de relógio com o Mailpit
+          // Folga de relógio pequena: uma janela larga pega o código da ÚLTIMA entrada, já usado.
+          codigoPedidoEm = new Date(Date.now() - 5_000);
           r = await pedir(acao, { pote, formulario: { mjAction: 'sendcode' } });
         } else {
-          r = await pedir(acao, { pote, formulario: { mjAction: 'verify', code: await p.obterCodigoPorEmail(codigoPedidoEm) } });
+          let codigo: string | undefined;
+          try {
+            codigo = await p.obterCodigoPorEmail(codigoPedidoEm);
+          } catch (e) {
+            // O SPI tem cooldown de 60 s por usuário: quem entrou há menos de um minuto não recebe
+            // código novo (e o anterior é de uso único). A pessoa espera e clica em "reenviar".
+            if (reenviou) throw e;
+            reenviou = true;
+            await new Promise((ok) => setTimeout(ok, Math.max(0, 62_000 - (Date.now() - (codigoPedidoEm as Date).getTime()))));
+            codigoPedidoEm = new Date(Date.now() - 5_000);
+            r = await pedir(acao, { pote, formulario: { mjAction: 'resend' } });
+            break;
+          }
+          r = await pedir(acao, { pote, formulario: { mjAction: 'verify', code: codigo } });
         }
         break;
 

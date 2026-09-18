@@ -12,6 +12,16 @@ global:
 # (não há Alertmanager) e ainda polui a UI de Alerting com "firing" fantasma.
 
 scrape_configs:
+  # Alvos EXTRAS por arquivo, num diretório que EXISTE na imagem (/etc/prometheus): em produção
+  # o glob não casa nada e o job fica sem alvos, sem erro no log (um diretório inexistente
+  # geraria um erro por minuto). No espelho, docker-compose.observability.espelho.yml monta
+  # os fakes (Marinha/PagTesouro sintéticos) como alvos-extras-fakes.json — para o Grafana
+  # separar latência injetada de latência do backend.
+  - job_name: 'extras'
+    file_sd_configs:
+      - files: ['/etc/prometheus/alvos-extras-*.json']
+        refresh_interval: 1m
+
   - job_name: 'jetski-backend'
     metrics_path: /api/actuator/prometheus
     static_configs:

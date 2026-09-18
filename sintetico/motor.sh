@@ -60,6 +60,7 @@ else
     -v "$AQUI":/app:ro -v "$AQUI/relatorios":/relatorios -v "$TMP/personas.json":/estado/personas.json \
     -e DOMINIO -e ESTADO=/estado/personas.json -e MAILPIT_URL -e FAKES_URL \
     -e RELATORIO="/relatorios/$(basename "$RELATORIO")" \
-    ${SEMENTE:+-e SEMENTE} ${CHEGADAS:+-e CHEGADAS} ${FATOR:+-e FATOR} ${CENARIO:+-e CENARIO} ${PRAIA_URL:+-e PRAIA_URL} ${PRAIA_TOKEN:+-e PRAIA_TOKEN} \
+    ${SEMENTE:+-e SEMENTE} ${CHEGADAS:+-e CHEGADAS} ${FATOR:+-e FATOR} ${CENARIO:+-v "$CENARIO":/cenario.json:ro -e CENARIO=/cenario.json} \
+    ${PRAIA_URL:+-e PRAIA_URL} ${PRAIA_TOKEN:+-e PRAIA_TOKEN} \
     node:24-alpine node /app/src/motor.ts dia
 fi

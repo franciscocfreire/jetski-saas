@@ -211,6 +211,9 @@ $COMPOSE restart opa
 # nginx SEMPRE recriado: o bind mount de arquivo único prende o inode — após
 # um git pull que troque o nginx.conf, restart/reload continuam servindo o
 # arquivo ANTIGO silenciosamente (mordeu no cutover do subdomínio do portal).
+if [ "$AMBIENTE" = "espelho" ]; then
+  bash infra/espelho/nginx-limites.sh || die "não consegui gerar o nginx.espelho.conf"
+fi
 $COMPOSE up -d --force-recreate --no-deps nginx
 $COMPOSE up -d cloudflared
 

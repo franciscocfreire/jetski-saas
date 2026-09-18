@@ -1,0 +1,6 @@
+[
+  {
+    "targets": ["fakes-externos:8080"],
+    "labels": { "job": "fakes-externos", "ambiente": "espelho" }
+  }
+]

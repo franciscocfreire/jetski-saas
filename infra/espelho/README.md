@@ -122,7 +122,8 @@ nano .env     # token do túnel, ESPELHO_TUNNEL_ID, PROD_TUNNEL_ID
 ```bash
 git checkout <branch>        # o espelho não recebe CD: deploy é manual
 ./deploy.sh
-docker compose --env-file .env -f infra/observability/docker-compose.observability.yml up -d
+docker compose --env-file .env -f infra/observability/docker-compose.observability.yml \
+  -f infra/observability/docker-compose.observability.espelho.yml up -d   # + alvo dos fakes no Prometheus
 ```
 
 Confirme que o espelho é mesmo igual à produção nos pontos que o teste mede

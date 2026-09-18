@@ -53,7 +53,7 @@ export function tokenDe(credencial) {
 
   const corpo = {
     grant_type: 'refresh_token',
-    client_id: CLIENT_ID,
+    client_id: credencial.clientId || CLIENT_ID, // portal e console têm clients próprios
     refresh_token: emCache ? emCache.refreshToken : credencial.refreshToken,
   };
 
@@ -98,7 +98,7 @@ export function carregarCredenciais() {
   const caminho = __ENV.TOKENS || '../.auth/tokens.json';
   let bruto;
   try {
-    bruto = open(caminho);
+    bruto = open(caminho.startsWith('/') ? caminho : import.meta.resolve(caminho)); // pelo módulo, não pela pasta do cenário
   } catch (e) {
     fail(`Não achei ${caminho}. Rode ./k6/gerar-tokens.sh <ip-do-espelho> antes do teste. (${e})`);
   }
@@ -109,7 +109,19 @@ export function carregarCredenciais() {
   return dados;
 }
 
-/** Distribui os usuários entre as VUs, para não ser sempre o mesmo. */
-export function credencialDaVU(credenciais) {
-  return credenciais.usuarios[(__VU - 1) % credenciais.usuarios.length];
+/**
+ * Distribui os usuários entre as VUs, para não ser sempre o mesmo. `tipo` escolhe a persona
+ * (carga | emissao | portal | plataforma); sem tipo, vale o formato antigo (todas de carga).
+ */
+export function credencialDaVU(credenciais, tipo) {
+  const lista = credenciaisDoTipo(credenciais, tipo || 'carga');
+  return lista[(__VU - 1) % lista.length];
+}
+
+export function credenciaisDoTipo(credenciais, tipo) {
+  const lista = credenciais.usuarios.filter((u) => (u.tipo || 'carga') === (tipo || 'carga'));
+  if (lista.length === 0) {
+    fail(`tokens.json não tem credenciais do tipo "${tipo}" — rode ./k6/gerar-tokens.sh de novo (semeador atualizado).`);
+  }
+  return lista;
 }

@@ -256,7 +256,10 @@ export class JornadaPortal extends Jornada {
     this.lojaAtual = loja;
     if (recorrente) this.comoCliente(recorrente.email, undefined, loja);
     const email = recorrente?.email ?? (await this.cadastrarNoPortal(loja));
-    const token = await this.passo('login do cliente (código por e-mail)', () => this.d.sessoes.cliente(email));
+    // Token pedido a cada uso, nunca guardado: entre um ato e o próximo há esperas de até 25 min
+    // (em tempo real), mais que os 5 min do access token — o soak achou 401 aqui.
+    const token = () => this.d.sessoes.cliente(email);
+    await this.passo('login do cliente (código por e-mail)', token);
 
     // 2. Navega como o portal: a loja, os modelos, a disponibilidade.
     await this.passo('vitrine da loja', () => api.publica('GET', `/v1/public/lojas/${loja.slug}`));
@@ -268,8 +271,8 @@ export class JornadaPortal extends Jornada {
     await this.passo('disponibilidade', () => api.publica('GET', `/v1/public/lojas/${loja.slug}/disponibilidade?modeloId=${loja.modeloId}&${janela}`));
 
     // 3. Reserva com sinal.
-    const reserva = await this.passo('reservar no portal', () =>
-      api.global<{ id: string }>('POST', token, '/v1/customers/reservas', {
+    const reserva = await this.passo('reservar no portal', async () =>
+      api.global<{ id: string }>('POST', await token(), '/v1/customers/reservas', {
         lojaSlug: loja.slug, modeloId: loja.modeloId, dataInicio: horaLocal(inicio), dataFimPrevista: horaLocal(fim),
         pagamentoTipo: 'SINAL', telefone: '+5513977770000', possuiCha: true, observacoes: `SINTETICO — motor ${this.d.rodada}`,
       }),
@@ -279,10 +282,10 @@ export class JornadaPortal extends Jornada {
     // 4. Paga o sinal? Quem não paga some — a pré-reserva fica para o job de expiração.
     if (!this.a.chance(c.pagaSinal)) return 'abandonou-sem-pagar-sinal';
     await this.esperar(c.demoraParaPagarMin);
-    const detalhe = await this.passo('ver PIX do sinal', () => api.global<Record<string, unknown>>('GET', token, `/v1/customers/reservas/${reserva.id}`));
+    const detalhe = await this.passo('ver PIX do sinal', async () => api.global<Record<string, unknown>>('GET', await token(), `/v1/customers/reservas/${reserva.id}`));
     const sinal = Number(detalhe.valorSinal ?? detalhe.sinalValor ?? (detalhe.pix as { valor?: number } | undefined)?.valor ?? 0) || 100;
-    await this.passo('enviar comprovante do sinal', () =>
-      api.global('POST', token, `/v1/customers/reservas/${reserva.id}/comprovante`, { tipo: 'SINAL', valorInformado: sinal, contentType: 'image/png', dataBase64: fotoSintetica(`comprovante-${reserva.id}`, 240, 320).toString('base64') }),
+    await this.passo('enviar comprovante do sinal', async () =>
+      api.global('POST', await token(), `/v1/customers/reservas/${reserva.id}/comprovante`, { tipo: 'SINAL', valorInformado: sinal, contentType: 'image/png', dataBase64: fotoSintetica(`comprovante-${reserva.id}`, 240, 320).toString('base64') }),
     );
 
     // 5. A loja confere: o FINANCEIRO confirma o sinal, o atendente confirma a reserva.
