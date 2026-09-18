@@ -11,6 +11,8 @@ export interface Quem { id: string; nome: string; papel: string; empresa?: strin
 export interface EventoPraia {
   tipo: 'passo' | 'desfecho' | 'nota';
   ts: string;
+  /** Hora SIMULADA do dia ("HH:MM") — o relógio comprimido do motor; `ts` continua sendo o instante real. */
+  horaSim?: string;
   rodada: string;
   jornada: string;
   passo?: string;
@@ -34,6 +36,8 @@ export class Praia {
   private readonly enviar: Enviar;
   /** Quantos eventos já foram aceitos (relatório e testes). */
   enviados = 0;
+  /** De onde vem a hora simulada (o motor liga ao `Relogio` quando o dia abre). */
+  horaSim?: () => string;
 
   constructor(url: string | undefined, opcoes: { intervaloMs?: number; token?: string; enviar?: Enviar } = {}) {
     this.url = url?.replace(/\/+$/, '') || undefined;
@@ -57,7 +61,7 @@ export class Praia {
 
   emitir(ev: Omit<EventoPraia, 'ts'> & { ts?: string }): void {
     if (!this.url) return;
-    this.fila.push({ ts: new Date().toISOString(), ...ev });
+    this.fila.push({ ts: new Date().toISOString(), horaSim: this.horaSim?.(), ...ev });
     if (!this.timer) this.timer = setTimeout(() => void this.despachar(), this.intervaloMs);
   }
 

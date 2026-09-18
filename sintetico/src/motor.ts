@@ -91,6 +91,11 @@ async function prepararLoja(d: Dia, def: Cenario['lojas'][number]): Promise<Loja
     d.praia.emitir({ tipo: 'passo', rodada: d.rodada, jornada: `preparo:${loja.slug}`, passo: 'aprovar compra de créditos', quem: operadora, loja: loja.slug, resultado: 'OK', detalhes: { empresa: loja.slug, quantidade: cenario.creditos.compra } });
     log(`${loja.slug}: saldo ${saldo} → comprou ${cenario.creditos.compra} créditos (aprovados pela operadora de plataforma)`);
   }
+  // A praia desenha a frota REAL da loja (séries e estado), em vez de inventar jetskis.
+  if (d.praia.ligada) {
+    const frota = await api.naEmpresa<{ serie: string; status: string; modeloId: string }[]>('GET', gerente, t, '/jetskis');
+    d.praia.emitir({ tipo: 'nota', rodada: d.rodada, jornada: `preparo:${loja.slug}`, passo: 'frota da loja', quem: { id: papeis.gerente.email, nome: loja.nomes.gerente ?? papeis.gerente.email, papel: 'gerente', empresa: loja.chave }, loja: loja.slug, resultado: 'OK', detalhes: { frota: frota.map((j) => ({ serie: j.serie, status: j.status })) } });
+  }
   log(`${loja.slug}: pronta — ${loja.vendedores.length} vendedores, ${loja.recorrentes.length} fregueses, créditos ${saldo}`);
   return loja;
 }
@@ -149,6 +154,7 @@ async function rodarDia(): Promise<void> {
   d.clientesDoPortal = emissao.clientesPortal.map((c) => arquivo.estado.personas[c.chave]).filter((p): p is EstadoPersona => Boolean(p?.perfilCompleto));
 
   relogio = d.relogio = new Relogio(abre, cenario.dia.fator);
+  praia.horaSim = () => d.relogio.hora();
   log(`lojas abertas: ${d.lojas.map((l) => l.slug).join(', ')}`);
 
   const pesosDeLoja = Object.fromEntries(cenario.lojas.map((l, i) => [String(i), l.peso]));

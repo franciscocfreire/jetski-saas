@@ -100,6 +100,8 @@ class Jornada {
   private quemDoPasso?: Quem;
   private ultimoStaff?: Quem;
   protected lojaAtual?: Loja;
+  /** O que a praia precisa saber em cada ato da jornada: série do jetski, ids da reserva/locação/OS. */
+  protected readonly contexto: Record<string, unknown> = {};
 
   constructor(d: Dia, tipo: string, n: number) {
     this.d = d;
@@ -126,7 +128,10 @@ class Jornada {
     } finally {
       const ms = performance.now() - t0;
       this.d.medidas.latencia(nome, ms);
-      this.d.praia.emitir({ tipo: 'passo', rodada: this.d.rodada, jornada: this.id, passo: nome, quem: this.quemDoPasso ?? this.quem, loja: this.lojaAtual?.slug, resultado: erro ? 'FALHOU' : 'OK', ms: Math.round(ms), erro });
+      const quem = this.quemDoPasso ?? this.quem;
+      // Quando a equipe age numa jornada de cliente, a praia precisa saber de QUEM é o ato (o piloto no check-in).
+      const cliente = this.quem.papel === 'cliente' && quem !== this.quem ? this.quem.nome : undefined;
+      this.d.praia.emitir({ tipo: 'passo', rodada: this.d.rodada, jornada: this.id, passo: nome, quem, loja: this.lojaAtual?.slug, resultado: erro ? 'FALHOU' : 'OK', ms: Math.round(ms), erro, detalhes: { ...this.contexto, cliente, clienteId: cliente ? this.quem.id : undefined } });
       this.quemDoPasso = undefined;
     }
   }
@@ -196,11 +201,13 @@ class Jornada {
       const livre = frota.find((j) => j.status === 'DISPONIVEL' && j.modeloId === loja.modeloId && !loja.emUso.has(j.id));
       if (livre) {
         loja.emUso.add(livre.id);
+        Object.assign(this.contexto, { jetski: livre.serie, reservaId });
         try {
           await this.naLoja(loja, 'atendente', 'alocar jetski', 'POST', `/reservas/${reservaId}/alocar-jetski`, { jetskiId: livre.id });
           return livre;
         } catch (e) {
           loja.emUso.delete(livre.id);
+          delete this.contexto.jetski;
           throw e;
         }
       }
@@ -217,9 +224,10 @@ class Jornada {
     try {
       const locacao = await this.naLoja<{ id: string }>(loja, 'atendente', 'check-in', 'POST', '/locacoes/check-in/reserva', { reservaId, horimetroInicio: jetski.horimetroAtual ?? 0 });
       locacaoId = locacao.id;
+      this.contexto.locacaoId = locacao.id;
       const duracao = Number(this.a.ponderado(c.duracaoMin)) + (this.a.chance(c.atrasaDevolucao) ? this.a.entre(c.atrasoMin[0], c.atrasoMin[1]) : 0);
       // Não é um passo medido (é uma espera), mas é o momento mais visível do dia: o cliente no mar.
-      this.d.praia.emitir({ tipo: 'passo', rodada: this.d.rodada, jornada: this.id, passo: 'passeio', quem: this.quem, loja: loja.slug, resultado: 'OK', detalhes: { jetski: jetski.serie, duracaoMin: Math.round(duracao) } });
+      this.d.praia.emitir({ tipo: 'passo', rodada: this.d.rodada, jornada: this.id, passo: 'passeio', quem: this.quem, loja: loja.slug, resultado: 'OK', detalhes: { ...this.contexto, jetski: jetski.serie, duracaoMin: Math.round(duracao), horimetro: jetski.horimetroAtual ?? 0 } });
       await this.d.relogio.esperar(duracao);
       const saida = await this.naLoja<{ valorTotal?: number }>(loja, 'atendente', 'check-out', 'POST', `/locacoes/${locacaoId}/check-out`, {
         horimetroFim: Number(((jetski.horimetroAtual ?? 0) + duracao / 60).toFixed(1)),
@@ -436,8 +444,10 @@ export class RotinaDaLoja extends Jornada {
     const alvo = frota.find((j) => j.status === 'DISPONIVEL' && !loja.emUso.has(j.id));
     if (!alvo) return 'sem-jetski-parado';
     loja.emUso.add(alvo.id);
+    Object.assign(this.contexto, { jetski: alvo.serie, tipo: 'CORRETIVA', problema: 'ruído na turbina relatado por cliente' });
     try {
       const os = await this.naLoja<{ id: string }>(loja, 'gerente', 'abrir OS', 'POST', '/manutencoes', { jetskiId: alvo.id, tipo: 'CORRETIVA', prioridade: 'MEDIA', descricaoProblema: 'SINTETICO — ruído na turbina relatado por cliente', horimetroAbertura: alvo.horimetroAtual ?? 0 });
+      this.contexto.osId = os.id;
       await this.d.relogio.esperar(this.a.entre(5, 20));
       await this.naLoja(loja, 'mecanico', 'iniciar OS', 'POST', `/manutencoes/${os.id}/start`);
       await this.esperar(m.duracaoMin);
