@@ -185,9 +185,16 @@ public class CustomerCpfMergeService {
         }
 
         // Perfil global da duplicata (criado no gate, sem CPF) não serve mais.
+        // flush(): o descarte da pessoa logo abaixo é JDBC (DELETE FROM usuario) —
+        // o DELETE do perfil, pendente no contexto de persistência, tem de chegar ao
+        // banco ANTES, senão a FK customer_profile.usuario_id derruba o merge (500)
+        // com a identidade Google JÁ transferida no provedor (achado do espelho, E7).
         identityProviderMappingService.tryResolveUsuarioId(PROVIDER, sub)
             .flatMap(repository::findByUsuarioId)
-            .ifPresent(repository::delete);
+            .ifPresent(perfil -> {
+                repository.delete(perfil);
+                repository.flush();
+            });
 
         // Identidade única (F3/D7): descarta a PESSOA da duplicata (usuario +
         // mapping) — sem isto o e-mail dela ficaria ocupado por um usuario

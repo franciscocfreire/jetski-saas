@@ -264,6 +264,38 @@ class CustomerCpfMergeIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("merge apaga a PESSOA da duplicata com o perfil do gate ainda pendente (FK customer_profile.usuario_id)")
+    void testMergeDescartaPessoaComPerfilDoGate() throws Exception {
+        // Achado do espelho (E7, login pelo Google sintético): a duplicata tem o perfil global
+        // criado no gate de CPF; o descarte da pessoa é JDBC (DELETE FROM usuario) e rodava
+        // com o DELETE JPA do perfil ainda pendente → violação de FK → 500, com a identidade
+        // Google já transferida no provedor. Aqui a pessoa NÃO tem trilha, para o descarte
+        // seguir pelo DELETE (e não pelo tombstone), como acontece no portal.
+        enviarElegivel();
+        when(provisioning.transferFederatedIdentity(SUB_GOOGLE, SUB_OWNER, "google")).thenReturn(true);
+        when(provisioning.deleteUser(SUB_GOOGLE)).thenReturn(true);
+
+        UUID dupUsuario = jdbc.queryForObject(
+            "SELECT usuario_id FROM usuario_identity_provider WHERE provider = 'keycloak' AND provider_user_id = ?",
+            UUID.class, SUB_GOOGLE);
+        jdbc.update("DELETE FROM auditoria WHERE usuario_id = ?", dupUsuario);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM customer_profile WHERE usuario_id = ?",
+            Integer.class, dupUsuario)).as("perfil do gate existe antes do merge").isEqualTo(1);
+
+        mockMvc.perform(post("/v1/customers/self/cpf-merge/verificar")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"cpf\":\"" + CPF_OWNER + "\",\"codigo\":\"" + codigoNoRedis() + "\"}")
+                .with(cliente(SUB_GOOGLE, "merge-dup@test.com")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.mergeConcluido").value(true));
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM customer_profile WHERE usuario_id = ?",
+            Integer.class, dupUsuario)).as("perfil da duplicata").isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM usuario WHERE id = ?",
+            Integer.class, dupUsuario)).as("pessoa da duplicata (apagada, não tombstone)").isZero();
+    }
+
+    @Test
     @DisplayName("reserva do portal com CPF de outra conta → 409 CPF_EM_USO")
     void testReservaComCpfDeOutraConta() throws Exception {
         // Seed na MARINA-BAY (não no ACME): jetski/modelo extras no ACME poluem
