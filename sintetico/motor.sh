@@ -10,7 +10,8 @@
 # /_controle dos fakes (a cliente "paga" a GRU) — ambos só existem no loopback da VM —,
 # e roda `node src/motor.ts dia` num container node:24-alpine.
 #
-# Variáveis que passam adiante: SEMENTE, CHEGADAS, FATOR, CENARIO. Relatórios em
+# Variáveis que passam adiante: SEMENTE, CHEGADAS, FATOR, CENARIO e PRAIA_URL (opcional:
+# cada passo vai para a Praia Sintética, a visualização em forma de jogo). Relatórios em
 # sintetico/relatorios/ (fora do git). Métricas Prometheus em http://127.0.0.1:9464/metrics.
 # =============================================================================
 set -euo pipefail
@@ -60,5 +61,6 @@ else
     -e DOMINIO -e ESTADO=/estado/personas.json -e MAILPIT_URL -e FAKES_URL \
     -e RELATORIO="/relatorios/$(basename "$RELATORIO")" \
     ${SEMENTE:+-e SEMENTE} ${CHEGADAS:+-e CHEGADAS} ${FATOR:+-e FATOR} ${CENARIO:+-v "$CENARIO":/cenario.json:ro -e CENARIO=/cenario.json} \
+    ${PRAIA_URL:+-e PRAIA_URL} ${PRAIA_TOKEN:+-e PRAIA_TOKEN} \
     node:24-alpine node /app/src/motor.ts dia
 fi

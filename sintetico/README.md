@@ -97,6 +97,23 @@ O jetski **sempre volta**: se uma jornada quebra com ele na água, o pier faz um
 Limites a lembrar: plano Pro = **500 locações/mês** por loja (um sábado gasta ~10–15 em cada);
 cada EMA emitida debita 1 crédito; cada cliente novo é uma conta real no Keycloak do espelho.
 
+### Ver a rodada como um jogo: a Praia Sintética
+
+A **Praia Sintética** (projeto separado, `~/repos/praia-sintetica`) é uma visualização estilo
+"Habbo na praia": cada persona é um boneco que anda pelo mapa (areia/portal, quiosque, píer,
+oficina, EAMA, Capitania fake, Mailpit, torre da plataforma) e diz em balões o que está fazendo;
+clicar nele abre a ficha com a linha do tempo de cada ato. O motor alimenta a praia por um gancho
+**opcional** ([`src/lib/praia.ts`](src/lib/praia.ts)): com `PRAIA_URL` definida, cada `passo`
+e cada desfecho são enviados em lote por HTTP com **quem** agiu (nome do catálogo, papel,
+empresa), a jornada (`portal#17`), o resultado e a latência. Sem a variável nada é enviado;
+praia fora do ar, o motor avisa uma vez e segue.
+
+```bash
+# terminal 1, no projeto da praia:  npm run dev   → http://localhost:5173
+# terminal 2:
+PRAIA_URL=http://localhost:7331 CHEGADAS=12 FATOR=24 sintetico/motor.sh <ip-do-espelho>
+```
+
 ## Fase E3b: a população de emissão
 
 [`catalogo/e3b.json`](catalogo/e3b.json) + [`src/emissao.ts`](src/emissao.ts), dentro do mesmo `semear`.

@@ -278,7 +278,7 @@ async function gerarTokens(): Promise<void> {
     if (!p?.senha || !p.tenantId) throw new Error(`${chave} ainda não foi semeada — rode "semear" no espelho.`);
     return p;
   };
-  type Credencial = { tipo: 'carga' | 'emissao' | 'portal' | 'plataforma'; usuario: string; clientId: string; refreshToken: string; tenantId?: string; tenantSlug?: string; instrutorId?: string };
+  type Credencial = { tipo: 'carga' | 'emissao' | 'portal' | 'plataforma' | 'trilha'; usuario: string; clientId: string; refreshToken: string; tenantId?: string; tenantSlug?: string; instrutorId?: string };
   const usuarios: Credencial[] = [];
 
   // Empresas de carga: os admins, para `leitura` e `balcao`.
@@ -302,6 +302,15 @@ async function gerarTokens(): Promise<void> {
       instrutor = (elegiveis.find((i) => i.origem === 'EAMA') ?? elegiveis[0])?.id;
     }
     usuarios.push({ tipo: 'emissao', usuario: p.email, clientId: 'jetski-backoffice', refreshToken: tokens.refreshToken, tenantId: p.tenantId, tenantSlug: p.slug, instrutorId: instrutor });
+  }
+
+  // Trilha: a auditoria de cada empresa só abre para ADMIN_TENANT/GERENTE. Nas delegadas a credencial de
+  // emissão é o OPERADOR (403 na trilha), então a Praia Sintética ganha a do admin — só leitura; o k6
+  // filtra por tipo e ignora estas.
+  for (const d of emissao.delegadas) {
+    const p = persona(d.chave);
+    const { tokens } = await entrar(p, 'backoffice');
+    usuarios.push({ tipo: 'trilha', usuario: p.email, clientId: 'jetski-backoffice', refreshToken: tokens.refreshToken, tenantId: p.tenantId, tenantSlug: p.slug });
   }
 
   // Portal: os clientes recorrentes entram pelo código do e-mail (client do portal).

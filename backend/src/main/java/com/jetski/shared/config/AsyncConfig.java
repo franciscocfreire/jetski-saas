@@ -33,7 +33,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  * <ul>
  *   <li>Core pool: 2 threads (minimum always available)</li>
  *   <li>Max pool: 10 threads (scales up under load)</li>
- *   <li>Queue capacity: 500 (buffer before rejecting)</li>
+ *   <li>Queue capacity: 500; fila cheia → CallerRunsPolicy (nunca 500 no request)</li>
  *   <li>Thread prefix: "async-audit-" (for easy identification in logs)</li>
  * </ul>
  *
@@ -55,6 +55,14 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setMaxPoolSize(10);
         executor.setQueueCapacity(500);
         executor.setThreadNamePrefix("async-audit-");
+
+        // CallerRunsPolicy, não o AbortPolicy default. Com a fila cheia, o Abort faz o
+        // proxy @Async lançar TaskRejectedException SÍNCRONA em quem chamou — e o
+        // request morre com 500 por causa de um efeito colateral (auditoria, métrica)
+        // que não deveria decidir nada. Visto no espelho (17/set/2026): stress do
+        // portal a ~120 req/s, 9.540 reservas online respondidas com 500 por isto.
+        // Rodar na thread chamadora degrada a latência daquele request; o negócio segue.
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
 
         // Wait for tasks to complete on shutdown
         executor.setWaitForTasksToCompleteOnShutdown(true);

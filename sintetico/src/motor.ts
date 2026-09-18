@@ -9,7 +9,8 @@
 //
 // Ambiente: DOMINIO (obrigatório), ESTADO (cópia local do personas.json), MAILPIT_URL,
 // FAKES_URL, CENARIO, SEMENTE, CHEGADAS e FATOR (sobrepõem o cenário), RELATORIO (arquivo),
-// METRICAS_PORTA (padrão 9464; 0 desliga).
+// METRICAS_PORTA (padrão 9464; 0 desliga), PRAIA_URL (opcional: manda cada passo à Praia
+// Sintética, a visualização em forma de jogo — ver src/lib/praia.ts).
 
 import { createServer } from 'node:http';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -21,6 +22,7 @@ import { Plataforma } from './lib/plataforma.ts';
 import { Acaso, Medidas, Relogio, minutosDoDia, sortearChegadas } from './motor/base.ts';
 import { JornadaBalcao, JornadaPortal, Loja, RotinaDaLoja, type Cenario, type Dia } from './motor/jornadas.ts';
 import { Sessoes } from './motor/sessoes.ts';
+import { Praia } from './lib/praia.ts';
 
 const DOMINIO = process.env.DOMINIO ?? '';
 if (!DOMINIO) throw new Error('Defina DOMINIO (ex.: jetsave.com.br).');
@@ -39,6 +41,10 @@ async function prepararLoja(d: Dia, def: Cenario['lojas'][number]): Promise<Loja
   };
   const papeis = Object.fromEntries(Object.entries(def.papeis).map(([papel, chave]) => [papel, persona(chave)]));
   const loja = new Loja(def.chave, persona(def.chave), papeis);
+  for (const [papel, p] of Object.entries(papeis)) {
+    const nome = d.nomes.get(p.email);
+    if (nome) loja.nomes[papel] = nome;
+  }
   const gerente = await sessoes.staff(papeis.gerente.email, papeis.gerente.senha as string);
   const t = loja.tenantId;
 
@@ -65,7 +71,10 @@ async function prepararLoja(d: Dia, def: Cenario['lojas'][number]): Promise<Loja
 
   for (const c of emissao.clientesBalcao.filter((x) => x.empresa === def.chave)) {
     const p = arquivo.estado.personas[c.chave];
-    if (p?.clienteId && p.cpf) loja.recorrentes.push(p);
+    if (p?.clienteId && p.cpf) {
+      loja.recorrentes.push(p);
+      loja.nomes[p.clienteId] = c.nome;
+    }
   }
 
   // Créditos: cada EMA consome um. Saldo baixo → a empresa compra e a operadora de plataforma aprova.
@@ -73,12 +82,38 @@ async function prepararLoja(d: Dia, def: Cenario['lojas'][number]): Promise<Loja
   if (saldo < cenario.creditos.minimo) {
     const op = persona(cenario.operadorPlataforma);
     const compra = await api.naEmpresa<{ id: string }>('POST', admin, t, '/creditos/compras', { quantidade: cenario.creditos.compra, comprovanteBase64: dataUrl(fotoSintetica(`compra-${d.rodada}-${def.chave}`, 240, 320)) });
+    const adminDaLoja = { id: papeis.admin.email, nome: loja.nomes.admin ?? papeis.admin.email, papel: 'admin', empresa: loja.chave };
+    const operadora = { id: op.email, nome: d.nomes.get(op.email) ?? op.email, papel: 'plataforma' };
+    d.praia.emitir({ tipo: 'passo', rodada: d.rodada, jornada: `preparo:${loja.slug}`, passo: 'comprar créditos', quem: adminDaLoja, loja: loja.slug, resultado: 'OK', detalhes: { saldo, quantidade: cenario.creditos.compra } });
     const tokenOp = await sessoes.console(op.email, op.senha as string, op.totpSegredo as string);
+    d.praia.emitir({ tipo: 'passo', rodada: d.rodada, jornada: `preparo:${loja.slug}`, passo: 'login no console (TOTP)', quem: operadora, resultado: 'OK' });
     await api.plataforma('POST', tokenOp, `/creditos/compras/${t}/${compra.id}/aprovar`);
+    d.praia.emitir({ tipo: 'passo', rodada: d.rodada, jornada: `preparo:${loja.slug}`, passo: 'aprovar compra de créditos', quem: operadora, loja: loja.slug, resultado: 'OK', detalhes: { empresa: loja.slug, quantidade: cenario.creditos.compra } });
     log(`${loja.slug}: saldo ${saldo} → comprou ${cenario.creditos.compra} créditos (aprovados pela operadora de plataforma)`);
+  }
+  // A praia desenha a frota REAL da loja (séries e estado), em vez de inventar jetskis.
+  if (d.praia.ligada) {
+    const frota = await api.naEmpresa<{ serie: string; status: string; modeloId: string }[]>('GET', gerente, t, '/jetskis');
+    d.praia.emitir({ tipo: 'nota', rodada: d.rodada, jornada: `preparo:${loja.slug}`, passo: 'frota da loja', quem: { id: papeis.gerente.email, nome: loja.nomes.gerente ?? papeis.gerente.email, papel: 'gerente', empresa: loja.chave }, loja: loja.slug, resultado: 'OK', detalhes: { frota: frota.map((j) => ({ serie: j.serie, status: j.status })) } });
   }
   log(`${loja.slug}: pronta — ${loja.vendedores.length} vendedores, ${loja.recorrentes.length} fregueses, créditos ${saldo}`);
   return loja;
+}
+
+/** e-mail → nome de exibição, dos catálogos E3a/E3b (a praia mostra nomes, não e-mails). */
+function nomesDosCatalogos(): Map<string, string> {
+  const nomes = new Map<string, string>();
+  const e3a = JSON.parse(readFileSync(new URL('../catalogo/e3a.json', import.meta.url), 'utf8')) as { operadorPlataforma: { email: string; nome: string }; empresasDeCarga: { adminEmail: string; adminNome: string }[] };
+  nomes.set(e3a.operadorPlataforma.email, e3a.operadorPlataforma.nome);
+  for (const e of e3a.empresasDeCarga) nomes.set(e.adminEmail, e.adminNome);
+  const e3b = lerCatalogoEmissao();
+  nomes.set(e3b.eama.adminEmail, e3b.eama.adminNome);
+  for (const del of e3b.delegadas) {
+    nomes.set(del.adminEmail, del.adminNome);
+    for (const m of (del as { equipe?: { email: string; nome: string }[] }).equipe ?? []) nomes.set(m.email, m.nome);
+  }
+  for (const c of e3b.clientesPortal) nomes.set(c.email, c.nome);
+  return nomes;
 }
 
 async function rodarDia(): Promise<void> {
@@ -92,8 +127,10 @@ async function rodarDia(): Promise<void> {
   const arquivo = new ArquivoDeEstado(process.env.ESTADO ?? './personas.json', DOMINIO);
   const medidas = new Medidas();
   const acaso = new Acaso(semente);
+  const praia = new Praia(process.env.PRAIA_URL, { token: process.env.PRAIA_TOKEN });
+  if (praia.ligada) console.log(`[motor] praia sintética em ${praia.url}`);
   const d: Dia = {
-    cenario, arquivo, medidas, acaso, rodada, mailpit, log,
+    cenario, arquivo, medidas, acaso, rodada, mailpit, log, praia, nomes: nomesDosCatalogos(),
     api: new Plataforma(`https://www.${DOMINIO}/api`),
     sessoes: new Sessoes({ dominio: DOMINIO, mailpit }),
     relogio: undefined as unknown as Relogio,
@@ -117,6 +154,7 @@ async function rodarDia(): Promise<void> {
   d.clientesDoPortal = emissao.clientesPortal.map((c) => arquivo.estado.personas[c.chave]).filter((p): p is EstadoPersona => Boolean(p?.perfilCompleto));
 
   relogio = d.relogio = new Relogio(abre, cenario.dia.fator);
+  praia.horaSim = () => d.relogio.hora();
   log(`lojas abertas: ${d.lojas.map((l) => l.slug).join(', ')}`);
 
   const pesosDeLoja = Object.fromEntries(cenario.lojas.map((l, i) => [String(i), l.peso]));
@@ -147,6 +185,8 @@ async function rodarDia(): Promise<void> {
     }),
   );
 
+  d.praia.emitir({ tipo: 'nota', rodada, jornada: 'motor', passo: `rodada ${rodada} terminou: ${medidas.falhas.length} falhas`, quem: { id: 'motor', nome: 'Motor sintético', papel: 'motor' } });
+  await d.praia.encerrar();
   const relatorio = { rodada, dominio: DOMINIO, semente, cenario: { chegadas: cenario.chegadas, fator: cenario.dia.fator }, terminouEm: new Date().toISOString(), loginsNoKeycloak: d.sessoes.logins, ...medidas.relatorio() };
   const saida = process.env.RELATORIO ?? `./relatorios/motor-${rodada}.json`;
   mkdirSync(dirname(saida), { recursive: true });
