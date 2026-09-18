@@ -219,12 +219,14 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   trocar de provedor é só configuração).
 - Validação server-side de upload presignado (content-type/tamanho).
 - **Capacidade — listas sem paginação crescem com os dados** (achado em 17/set/2026 no soak
-  do espelho). `GET /v1/tenants/{t}/clientes` e `GET .../locacoes/controle-do-dia` devolvem
-  todos os registros: com 8.400 clientes e 4.000 locações por empresa, cada abertura de tela
-  baixa ~2,3 MB e leva 9 s pelo túnel (o servidor gasta ~300 ms). É o limite que uma loja
-  movimentada atinge em meses, antes de qualquer limite de req/s. Correção: paginação
-  server-side (page/size + busca) nas duas rotas e nos frontends que as consomem; a agenda e
-  a lista de jetskis (20–40 ms) não têm o problema. Ver CAPACIDADE_E_LIMITES.md §6.5.
+  do espelho). `GET /v1/tenants/{t}/locacoes` e `GET /v1/tenants/{t}/clientes` devolvem todos
+  os registros: com ~4.000 locações e ~8.400 clientes por empresa, `/locacoes` levou **p95 de
+  9,9 s no servidor** (serialização; `http_req_waiting` 8,5 s no k6) e as respostas passam de
+  vários MB. É o limite que uma loja movimentada atinge em meses, antes de qualquer limite de
+  req/s. Correção: paginação server-side (page/size + busca/filtro por padrão) nas duas rotas
+  e nos frontends que as consomem. `controle-do-dia` é filtrado por dia (523 ms só porque o
+  stress fez 4.000 check-ins num dia); agenda e jetskis (≤ 50 ms) não têm o problema. Ver
+  CAPACIDADE_E_LIMITES.md §6.5.
 - **Autorização — check-in/check-out viram `locacao:create` no OPA** (achado em 17/set/2026
   no espelho, pelo log do backend: 36.861 × `action=locacao:create`, zero `locacao:checkin`).
   O `ActionExtractor` reconhece `checkin`/`checkout` sem hífen, mas as rotas reais são
@@ -234,16 +236,19 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   `context.rego` (PR #64) nunca se aplicou ao tráfego real. Correção: mapear `check-in`,
   `check-out` (e `walk-in`/`reserva` sob `check-in`) para `checkin`/`checkout` no extractor,
   com teste; depois decidir se a janela de horário deve mesmo existir (ela passaria a valer).
-- **Bug — deadlock no check-in concorrente do mesmo jetski → 500** (achado em 17/set/2026 pelo
+- **Bug — 500 no check-in concorrente do mesmo jetski (deadlock)** (achado em 17/set/2026 pelo
   stress do balcão no espelho: 137 × HTTP 500 em `POST .../locacoes/check-in/walk-in`,
-  `CannotAcquireLockException: deadlock detected … while locking tuple in relation "jetski"`).
-  Duas transações fazem check-in do mesmo jetski: a validação de disponibilidade lê sem
-  travar, as duas inserem a `locacao` (o FK toma lock compartilhado na linha do jetski) e as
-  duas tentam o `UPDATE jetski SET status` — cada uma espera a outra; o Postgres mata uma e o
-  operador vê 500 em vez de "jetski indisponível". Correção sugerida: travar a linha do
-  jetski ao validar (`SELECT … FOR UPDATE` / `@Lock(PESSIMISTIC_WRITE)` no `findById` do
-  check-in, walk-in e por reserva) — a segunda transação enxerga `LOCADO` e recebe o 400
-  de negócio. Mesmo padrão em `alocar-jetski`.
+  `CannotAcquireLockException: deadlock detected … while locking tuple in relation "jetski"`,
+  sempre no `UPDATE jetski SET …` do check-in). O sintoma é certo: duas transações fazendo
+  check-in do mesmo jetski ao mesmo tempo (a validação de disponibilidade lê sem travar) e o
+  operador vê 500 em vez de "jetski indisponível". A **causa exata é hipótese** — o log do
+  Postgres não guardou o `DETAIL` com as duas queries (a leitura "lock compartilhado do FK ×
+  UPDATE" não fecha com a matriz de locks, já que o UPDATE não altera coluna de chave). Próximo
+  passo: ligar `log_lock_waits`/`deadlock_timeout` curto no espelho, reproduzir com dois
+  walk-ins simultâneos no mesmo jetski (teste de integração com duas threads) e provar que
+  travar a linha do jetski na validação (`SELECT … FOR UPDATE` / `@Lock(PESSIMISTIC_WRITE)` no
+  check-in walk-in, por reserva e em `alocar-jetski`) elimina o 500 — o segundo tem de
+  receber o 400 de negócio.
 - **Bug — nome com parênteses quebra a ativação de conta** (achado em 17/set/2026 pelo
   semeador do espelho). `POST /v1/signup/tenant` aceita um nome como "Maria (sócia)", mas a
   ativação (`/v1/signup/magic-activate`) devolve **500 "Falha ao provisionar usuário no

@@ -8,7 +8,7 @@
 # muda —, com os limites:
 #
 #   ESPELHO_LIMITES=frouxos  (padrão)  rate ×50 e burst ×10: mede a aplicação
-#   ESPELHO_LIMITES=reais              cópia fiel: o cenário `limites` valida a proteção
+#   ESPELHO_LIMITES=reais              cópia fiel: `./k6/rodar.sh <ip> portal` mostra o 429 (contador respostas_429)
 #
 # A camada docker-compose.espelho.yml monta o arquivo gerado no lugar do de produção; o
 # deploy.sh chama este script antes de subir o nginx. Só os números de rate/burst mudam —
@@ -19,6 +19,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 MODO="${ESPELHO_LIMITES:-frouxos}"
 ORIGEM=infra/nginx/nginx.conf
 DESTINO=infra/espelho/nginx.espelho.conf
+if [ -d "$DESTINO" ]; then
+  echo "ERRO: $DESTINO é um DIRETÓRIO — o nginx subiu antes deste script e o Docker criou a montagem vazia. Remova (rmdir $DESTINO) e rode de novo." >&2; exit 1
+fi
 
 case "$MODO" in
   reais)

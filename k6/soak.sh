@@ -26,10 +26,13 @@ CARIMBO="$(date +%Y%m%d-%H%M%S)"
 jvm() { # jvm <rótulo>  — fotografia da JVM do backend pelo Prometheus da VM
   ssh -o BatchMode=yes "ubuntu@$IP" '
     q() { curl -s --data-urlencode "query=$1" http://127.0.0.1:9090/api/v1/query | python3 -c "import sys,json;r=json.load(sys.stdin)[\"data\"][\"result\"];print(round(float(r[0][\"value\"][1]),1) if r else \"-\")"; }
-    printf "heap_apos_gc_mb=%s " "$(q "sum(jvm_memory_used_bytes{job=\"jetski-backend\",area=\"heap\"})/1048576")"
+    # heap VIVA (o que sobra depois da coleta da old gen), não a usada instantânea — que inclui o lixo do Eden.
+    printf "heap_viva_mb=%s " "$(q "jvm_gc_live_data_size_bytes{job=\"jetski-backend\"}/1048576")"
+    printf "heap_usada_min10m_mb=%s " "$(q "min_over_time(sum(jvm_memory_used_bytes{job=\"jetski-backend\",area=\"heap\"})[10m:15s])/1048576")"
     printf "threads=%s " "$(q "jvm_threads_live_threads{job=\"jetski-backend\"}")"
     printf "hikari_ativas=%s " "$(q "sum(hikaricp_connections_active{job=\"jetski-backend\"})")"
     printf "hikari_pendentes=%s " "$(q "sum(hikaricp_connections_pending{job=\"jetski-backend\"})")"
+    printf "hikari_pendentes_max1h=%s " "$(q "max_over_time(sum(hikaricp_connections_pending{job=\"jetski-backend\"})[60m:15s])")"
     printf "tomcat_ocupadas=%s " "$(q "sum(tomcat_threads_busy_threads{job=\"jetski-backend\"})")"
     printf "gc_pausa_s_5m=%s\n" "$(q "sum(rate(jvm_gc_pause_seconds_sum{job=\"jetski-backend\"}[5m]))")"'
 }
@@ -55,27 +58,30 @@ json.dump(c, open(sys.argv[2], "w"), ensure_ascii=False)
 print(f"   motor: {c['chegadas']} chegadas em tempo real, {c['dia']['abre']}–{c['dia']['fecha']}")
 PY
 
-( cd "$RAIZ" && CENARIO="$T/cenario-soak.json" bash sintetico/motor.sh "$IP" > "$RAIZ/k6/resultados/soak-motor-$CARIMBO.log" 2>&1 ) &
+# setsid: o motor (bash → node) vira um grupo de processos próprio, para o encerramento forçado
+# matar o grupo inteiro — matar só o bash deixaria o node órfão gerando carga.
+setsid bash -c "cd '$RAIZ' && CENARIO='$T/cenario-soak.json' exec bash sintetico/motor.sh '$IP'" > "$RAIZ/k6/resultados/soak-motor-$CARIMBO.log" 2>&1 &
 MOTOR=$!
 ( cd "$RAIZ" && VUS="$VUS" DURACAO="${MIN}m" bash k6/rodar.sh "$IP" leitura soak > "$RAIZ/k6/resultados/soak-k6-$CARIMBO.log" 2>&1 ) &
 K6=$!
 echo ">> motor (pid $MOTOR) e k6 leitura/soak com $VUS VUs (pid $K6) rodando; logs em k6/resultados/soak-*-$CARIMBO.log"
 wait "$K6"   || echo "!! k6 saiu com código != 0 (threshold estourado ou erro — veja o log)"
+# A fotografia "depois" é tirada AQUI, com a carga ainda quente — não depois de o motor esvaziar.
+echo ">> JVM depois (fim do k6):"; DEPOIS="$(jvm)"; echo "   $DEPOIS"
 # O motor pode ter gente na água depois que o k6 acaba; dá 15 min e então encerra o dia à força.
 for _ in $(seq 1 90); do kill -0 "$MOTOR" 2>/dev/null || break; sleep 10; done
-if kill -0 "$MOTOR" 2>/dev/null; then echo ">> motor ainda com jornadas em curso 15 min após o k6 — encerrando"; pkill -P "$MOTOR" 2>/dev/null; kill "$MOTOR" 2>/dev/null; fi
+if kill -0 "$MOTOR" 2>/dev/null; then echo ">> motor ainda com jornadas em curso 15 min após o k6 — encerrando o grupo"; kill -- -"$MOTOR" 2>/dev/null || kill "$MOTOR" 2>/dev/null; fi
 wait "$MOTOR" 2>/dev/null || echo "!! motor saiu com código != 0 (veja o log)"
 
-echo ">> JVM depois:"; DEPOIS="$(jvm)"; echo "   $DEPOIS"
 python3 - "$ANTES" "$DEPOIS" <<'PY'
 import sys
 a = dict(x.split("=") for x in sys.argv[1].split()); d = dict(x.split("=") for x in sys.argv[2].split())
 def n(v): return float(v) if v not in ("-", "") else None
-heap = (n(a["heap_apos_gc_mb"]), n(d["heap_apos_gc_mb"])); thr = (n(a["threads"]), n(d["threads"])); pend = n(d["hikari_pendentes"])
+heap = (n(a["heap_viva_mb"]) or n(a["heap_usada_min10m_mb"]), n(d["heap_viva_mb"]) or n(d["heap_usada_min10m_mb"])); thr = (n(a["threads"]), n(d["threads"])); pend = n(d["hikari_pendentes_max1h"])
 alerta = []
-if heap[0] and heap[1] and heap[1] > heap[0] * 1.5 and heap[1] - heap[0] > 100: alerta.append(f"heap subiu {heap[0]}→{heap[1]} MB")
+if heap[0] and heap[1] and heap[1] > heap[0] * 1.5 and heap[1] - heap[0] > 100: alerta.append(f"heap viva subiu {heap[0]}→{heap[1]} MB")
 if thr[0] and thr[1] and thr[1] > thr[0] + 20: alerta.append(f"threads subiram {thr[0]}→{thr[1]}")
-if pend and pend > 0: alerta.append(f"{pend} conexões esperando no Hikari")
+if pend and pend > 0: alerta.append(f"até {pend} conexões esperando no Hikari durante a rodada")
 print("veredito:", "ATENÇÃO — " + "; ".join(alerta) if alerta else "sem sinal de vazamento (heap/threads/pool estáveis)")
 PY
 grep -E "=== desfechos|^portal|^balcao|^falhas" "$RAIZ/k6/resultados/soak-motor-$CARIMBO.log" || true

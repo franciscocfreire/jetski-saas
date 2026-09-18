@@ -19,9 +19,12 @@ import { Counter, Trend } from 'k6/metrics';
 import { fail } from 'k6';
 import { LIMITES, validarAlvo } from '../lib/config.js';
 import { carregarCredenciais, credencialDaVU, tokenDe } from '../lib/auth.js';
-import { emissaoCompleta, leiturasDoBalcao, modeloDe } from '../lib/jornadas.js';
+import { emissaoCompleta, leiturasDoBalcao, modeloDe, recarregarCreditos } from '../lib/jornadas.js';
 
 const CREDENCIAIS = carregarCredenciais();
+// Os dois tipos de persona do cenário passam pela trava, e no init (`--no-setup` não a pula).
+validarAlvo(CREDENCIAIS, 'emissao');
+validarAlvo(CREDENCIAIS, 'carga');
 const MODO = __ENV.MODO || 'nenhum';
 const DURACAO = __ENV.DURACAO || '4m';
 
@@ -49,7 +52,9 @@ export const options = {
 
 export function setup() {
   validarAlvo(CREDENCIAIS, 'emissao');
+  validarAlvo(CREDENCIAIS, 'carga');
   if (CREDENCIAIS.fakesVerificados !== true) fail('tokens.json sem fakesVerificados — resiliência só roda com a Marinha sintética provada.');
+  recarregarCreditos(CREDENCIAIS, 'load'); // 4 VUs emitindo por minutos: a recarga do smoke não basta
   console.log(`modo de falha: ${MODO} (injetado pelo runner via /_controle)`);
   return {};
 }

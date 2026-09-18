@@ -98,7 +98,7 @@ export function carregarCredenciais() {
   const caminho = __ENV.TOKENS || '../.auth/tokens.json';
   let bruto;
   try {
-    bruto = open(caminho);
+    bruto = open(caminho.startsWith('/') ? caminho : import.meta.resolve(caminho)); // pelo módulo, não pela pasta do cenário
   } catch (e) {
     fail(`Não achei ${caminho}. Rode ./k6/gerar-tokens.sh <ip-do-espelho> antes do teste. (${e})`);
   }

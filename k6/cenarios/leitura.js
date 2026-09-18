@@ -18,6 +18,7 @@ import { perfil, limitesDoPerfil, PERFIL } from '../perfis.js';
 
 // Contexto de init: é aqui que `open()` pode ser chamado.
 const CREDENCIAIS = carregarCredenciais();
+validarAlvo(CREDENCIAIS); // no init: `--no-setup` não pula a trava
 
 export const options = {
   scenarios: { leitura: perfil() },

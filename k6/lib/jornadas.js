@@ -3,14 +3,16 @@
 // exerçam EXATAMENTE os mesmos passos — o que muda é a intensidade e o que se mede.
 
 import http from 'k6/http';
-import { check } from 'k6';
+import { check, fail } from 'k6';
 import encoding from 'k6/encoding';
 import { BASE_URL, headers, tenantDe } from './config.js';
+import { credenciaisDoTipo, tokenDe } from './auth.js';
 import { cliente as clienteDeCarga, inteiro } from './dados.js';
 
-// Fixtures binárias no init (open() só existe aqui); base64 uma vez por VU.
-const FOTO = encoding.b64encode(open('./fixtures/foto-sintetica.png', 'b'));
-const ASSINATURA = encoding.b64encode(open('./fixtures/assinatura-sintetica.png', 'b'));
+// Fixtures binárias no init (open() só existe aqui); base64 uma vez por VU. import.meta.resolve
+// resolve pelo MÓDULO em qualquer versão do k6 (o open() puro resolvia pela pasta do cenário).
+const FOTO = encoding.b64encode(open(import.meta.resolve('./fixtures/foto-sintetica.png'), 'b'));
+const ASSINATURA = encoding.b64encode(open(import.meta.resolve('./fixtures/assinatura-sintetica.png'), 'b'));
 export const FOTO_DATA_URL = `data:image/png;base64,${FOTO}`;
 const ASSINATURA_DATA_URL = `data:image/png;base64,${ASSINATURA}`;
 
@@ -103,6 +105,32 @@ export function leiturasDoBalcao(credencial, token, tag) {
     ok = check(r, { [`${nome} 200`]: (x) => x.status === 200 }) && ok;
   }
   return ok;
+}
+
+/**
+ * Recarga de créditos pela operadora de plataforma (cortesia), dimensionada pelo perfil: um smoke
+ * gasta dezenas; load/stress/soak gastam milhares. Sem isto o crédito vira um limite oculto e o
+ * cenário mede 'abortadas por saldo' como se fosse comportamento da aplicação.
+ */
+export function recarregarCreditos(credenciais, perfil) {
+  const minimo = Number(__ENV.CREDITOS_MINIMO || (perfil === 'smoke' ? 300 : 5000));
+  const operadora = credenciaisDoTipo(credenciais, 'plataforma')[0];
+  const tokenOp = tokenDe(operadora);
+  for (const c of credenciaisDoTipo(credenciais, 'emissao')) {
+    const rSaldos = http.get(`${BASE_URL}/v1/platform/creditos`, { headers: { Authorization: `Bearer ${tokenOp}` }, tags: { tipo: 'setup' } });
+    if (rSaldos.status !== 200) fail(`saldos de créditos: HTTP ${rSaldos.status}`);
+    const saldos = rSaldos.json();
+    const atual = (Array.isArray(saldos) ? saldos : saldos.content || []).find((s) => s.tenantId === c.tenantId);
+    const saldo = atual ? Number(atual.saldo) : 0;
+    if (saldo >= minimo) continue;
+    const r = http.post(
+      `${BASE_URL}/v1/platform/creditos/${c.tenantId}`,
+      JSON.stringify({ quantidade: minimo, motivo: `CARGA — recarga para o k6 (${perfil}) no espelho`, tipo: 'CORTESIA' }),
+      { headers: { Authorization: `Bearer ${tokenOp}`, 'Content-Type': 'application/json' }, tags: { tipo: 'setup' } },
+    );
+    if (r.status < 200 || r.status >= 300) fail(`recarga de créditos de ${c.tenantSlug} falhou: ${r.status} ${r.body}`);
+    console.log(`${c.tenantSlug}: saldo ${saldo} → +${minimo} créditos (cortesia da operadora de plataforma)`);
+  }
 }
 
 /** Primeiro modelo da empresa — uma vez por VU. */

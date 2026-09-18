@@ -45,7 +45,14 @@ controle() { # controle <json de config>  — POST /_controle/config no espelho
 PADRAO='{"autoPagarAposSeg":null,"falhas":{"marinha":{"taxa":0},"bridge":{"taxa":0},"pagtesouro":{"taxa":0}},"latenciaMs":{"marinha":0,"bridge":0,"pagtesouro":0}}'
 
 case "$CENARIO" in
-  emissao|resiliencia)
+  emissao)
+    [ "$MODO" = "nenhum" ] || { echo "ERRO: --modo só vale para resiliencia" >&2; exit 1; }
+    CFG='{"autoPagarAposSeg":0}'
+    echo ">> fakes: $CFG"
+    controle "$CFG"
+    trap 'echo ">> fakes: restaurando a configuração padrão"; controle "$PADRAO" || true' EXIT
+    ;;
+  resiliencia)
     case "$MODO" in
       nenhum)               CFG='{"autoPagarAposSeg":0}' ;;
       marinha-fora)         CFG='{"autoPagarAposSeg":0,"falhas":{"marinha":{"taxa":1,"modo":"erro"}}}' ;;
@@ -65,5 +72,5 @@ echo ">> k6 $CENARIO/$PERFIL contra https://www.$DOMINIO (resumo em $SAIDA)"
 docker run --rm -i -u "$(id -u):$(id -g)" -v "$RAIZ:/src" -w /src grafana/k6:latest run \
   -e BASE_URL="https://www.$DOMINIO/api" -e ISSUER="https://sso.$DOMINIO/realms/jetski-saas" \
   -e PERFIL="$PERFIL" -e MODO="$MODO" \
-  ${VUS:+-e VUS="$VUS"} ${MAX_VUS:+-e MAX_VUS="$MAX_VUS"} ${DURACAO:+-e DURACAO="$DURACAO"} ${PICO:+-e PICO="$PICO"} \
+  ${VUS:+-e VUS="$VUS"} ${MAX_VUS:+-e MAX_VUS="$MAX_VUS"} ${DURACAO:+-e DURACAO="$DURACAO"} ${PICO:+-e PICO="$PICO"} ${CREDITOS_MINIMO:+-e CREDITOS_MINIMO="$CREDITOS_MINIMO"} \
   --summary-export "/src/$SAIDA" "${EXTRAS[@]}" "k6/cenarios/$CENARIO.js"

@@ -16,6 +16,7 @@ import { carregarCredenciais, credencialDaVU, tokenDe } from '../lib/auth.js';
 import { perfil, limitesDoPerfil, PERFIL } from '../perfis.js';
 
 const CREDENCIAIS = carregarCredenciais();
+validarAlvo(CREDENCIAIS, 'plataforma'); // no init: `--no-setup` não pula a trava
 
 export const options = {
   scenarios: { plataforma: perfil() },

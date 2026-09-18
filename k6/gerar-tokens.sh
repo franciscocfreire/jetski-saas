@@ -26,11 +26,17 @@ esac
 
 umask 077
 mkdir -p "$RAIZ/k6/.auth"
+# Na VM: o arquivo com os refresh tokens de TODAS as personas nunca sobrevive ao script (trap),
+# nem de rodadas anteriores. Aqui: escreve num .tmp e só troca o tokens.json se tudo deu certo.
 ssh -o BatchMode=yes "ubuntu@$IP" "set -e
+  trap 'sudo rm -f /var/lib/meujet-espelho/tokens.json' EXIT
+  sudo rm -f /var/lib/meujet-espelho/tokens.json
   sudo docker run --rm --network host -v /home/ubuntu/jetski/sintetico:/app:ro -v /var/lib/meujet-espelho:/estado \
     -e DOMINIO='$DOMINIO' -e ESTADO=/estado/personas.json -e SAIDA=/estado/tokens.json \
     node:24-alpine node /app/src/semeador.ts tokens >&2
-  sudo cat /var/lib/meujet-espelho/tokens.json && sudo rm -f /var/lib/meujet-espelho/tokens.json" > "$RAIZ/k6/.auth/tokens.json"
+  sudo cat /var/lib/meujet-espelho/tokens.json" > "$RAIZ/k6/.auth/tokens.json.tmp"
+python3 -c 'import json,sys; json.load(open(sys.argv[1]))["usuarios"]' "$RAIZ/k6/.auth/tokens.json.tmp"
+mv "$RAIZ/k6/.auth/tokens.json.tmp" "$RAIZ/k6/.auth/tokens.json"
 
 python3 - "$RAIZ/k6/.auth/tokens.json" <<'PY'
 import json, sys, collections

@@ -24,6 +24,7 @@ import { inteiro } from '../lib/dados.js';
 import { perfil, limitesDoPerfil, PERFIL } from '../perfis.js';
 
 const CREDENCIAIS = carregarCredenciais();
+validarAlvo(CREDENCIAIS, 'portal'); // no init, não só no setup(): `--no-setup` não pode pular a trava
 const jornada = new Trend('jornada_portal_completa', true);
 const reservas = new Counter('reservas_online');
 const limitadas = new Counter('respostas_429');
@@ -73,12 +74,13 @@ export default function () {
     JSON.stringify({ lojaSlug: loja, modeloId, dataInicio: horaLocal(inicio), dataFimPrevista: horaLocal(fim), pagamentoTipo: 'SINAL', possuiCha: true, observacoes: 'CARGA — reserva sintética do k6' }),
     auth('POST /customers/reservas'),
   );
-  if (!check(rReserva, { 'reserva 2xx': (r) => r.status < 300 })) return;
+  // >= 200: um request sem resposta (EOF, timeout) tem status 0 — e 0 < 300 passaria no check.
+  if (!check(rReserva, { 'reserva 2xx': (r) => r.status >= 200 && r.status < 300 })) return;
   const reservaId = rReserva.json('id');
   reservas.add(1);
 
   const rDetalhe = http.get(`${BASE_URL}/v1/customers/reservas/${reservaId}`, { ...auth('GET /customers/reservas/{id}'), tags: { tipo: 'leitura', name: 'GET /customers/reservas/{id}' } });
-  check(rDetalhe, { 'detalhe 200': (r) => r.status === 200 });
+  if (!check(rDetalhe, { 'detalhe 200': (r) => r.status === 200 })) return;
 
   // Metade envia o comprovante na hora; a outra metade "vai pagar depois".
   if (inteiro(0, 1) === 1) {
@@ -88,7 +90,7 @@ export default function () {
       JSON.stringify({ tipo: 'SINAL', valorInformado: valor, contentType: 'image/png', dataBase64: FOTO_DATA_URL.split(',')[1] }),
       auth('POST /customers/reservas/{id}/comprovante'),
     );
-    check(rComp, { 'comprovante 2xx': (r) => r.status < 300 });
+    check(rComp, { 'comprovante 2xx': (r) => r.status >= 200 && r.status < 300 });
   }
   jornada.add(Date.now() - comecou);
 }
