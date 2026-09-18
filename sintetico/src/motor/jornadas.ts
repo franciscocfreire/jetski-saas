@@ -15,6 +15,7 @@ import { esperarNoEmail, lerLinkDeVerificacao } from '../lib/mailpit.ts';
 import type { Plataforma } from '../lib/plataforma.ts';
 import { Acaso, Medidas, Relogio, minutosDoDia } from './base.ts';
 import type { Sessoes } from './sessoes.ts';
+import { nomePeloEmail, type Praia, type Quem } from '../lib/praia.ts';
 
 type Faixa = [number, number];
 export interface Cenario {
@@ -49,6 +50,8 @@ export class Loja {
   /** Jetskis que uma jornada já pegou para si — evita duas alocarem o mesmo no mesmo instante. */
   readonly emUso = new Set<string>();
   readonly recorrentes: EstadoPersona[] = [];
+  /** Nomes de exibição (catálogo) por papel da equipe e por id de cliente recorrente — só para a praia. */
+  readonly nomes: Record<string, string> = {};
 
   constructor(chave: string, empresa: EstadoPersona, papeis: Record<string, EstadoPersona>) {
     this.chave = chave;
@@ -72,6 +75,10 @@ export interface Dia {
   fakes: string;
   rodada: string;
   log: (msg: string) => void;
+  /** Gancho da Praia Sintética (opcional, PRAIA_URL). Sem URL, `emitir` é um no-op. */
+  praia: Praia;
+  /** e-mail → nome de exibição, dos catálogos. */
+  nomes: Map<string, string>;
 }
 
 const nomeNaMarinha = (nome: string) => nome.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase();
@@ -88,22 +95,46 @@ class Jornada {
   protected readonly tipo: string;
   protected readonly id: string;
   private passoAtual = 'início';
+  /** A pessoa "dona" da jornada (o cliente); quem executa o passo corrente pode ser outra (o staff do `naLoja`). */
+  protected quem: Quem;
+  private quemDoPasso?: Quem;
+  private ultimoStaff?: Quem;
+  protected lojaAtual?: Loja;
 
   constructor(d: Dia, tipo: string, n: number) {
     this.d = d;
     this.a = d.acaso.filho();
     this.tipo = tipo;
     this.id = `${tipo}#${n}`;
+    this.quem = { id: this.id, nome: this.id, papel: 'sistema' };
+  }
+
+  /** A jornada passa a ser de um cliente com nome — é ele quem aparece na praia. */
+  protected comoCliente(id: string, nome: string | undefined, loja?: Loja): void {
+    this.quem = { id, nome: nome ?? this.d.nomes.get(id) ?? nomePeloEmail(id), papel: 'cliente', empresa: loja?.chave };
   }
 
   protected async passo<T>(nome: string, fn: () => Promise<T>): Promise<T> {
     this.passoAtual = nome;
     const t0 = performance.now();
+    let erro: string | undefined;
     try {
       return await fn();
+    } catch (e) {
+      erro = e instanceof Error ? e.message.split('\n')[0].slice(0, 300) : String(e);
+      throw e;
     } finally {
-      this.d.medidas.latencia(nome, performance.now() - t0);
+      const ms = performance.now() - t0;
+      this.d.medidas.latencia(nome, ms);
+      this.d.praia.emitir({ tipo: 'passo', rodada: this.d.rodada, jornada: this.id, passo: nome, quem: this.quemDoPasso ?? this.quem, loja: this.lojaAtual?.slug, resultado: erro ? 'FALHOU' : 'OK', ms: Math.round(ms), erro });
+      this.quemDoPasso = undefined;
     }
+  }
+
+  /** Quem da equipe faz um passo (para a praia). */
+  protected staff(loja: Loja, papel: string): Quem {
+    const p = loja.papeis[papel];
+    return { id: p.email, nome: loja.nomes[papel] ?? this.d.nomes.get(p.email) ?? nomePeloEmail(p.email), papel, empresa: loja.chave };
   }
 
   protected token(loja: Loja, papel: string): Promise<string> {
@@ -114,6 +145,8 @@ class Jornada {
   /** Chamada de staff: `papel` decide QUEM da loja faz. */
   protected async naLoja<T>(loja: Loja, papel: string, passo: string, metodo: 'GET' | 'POST' | 'PUT' | 'DELETE', caminho: string, json?: unknown): Promise<T> {
     const token = await this.token(loja, papel);
+    this.lojaAtual = loja;
+    this.quemDoPasso = this.ultimoStaff = this.staff(loja, papel);
     return this.passo(passo, () => this.d.api.naEmpresa<T>(metodo, token, loja.tenantId, caminho, json));
   }
 
@@ -148,6 +181,9 @@ class Jornada {
     }
     this.d.medidas.desfecho(this.tipo, desfecho);
     this.d.log(`${this.id}: ${desfecho}`);
+    // Rotinas da loja não têm cliente: o desfecho é de quem agiu por último.
+    const quem = this.quem.papel === 'sistema' && this.ultimoStaff ? this.ultimoStaff : this.quem;
+    this.d.praia.emitir({ tipo: 'desfecho', rodada: this.d.rodada, jornada: this.id, desfecho, quem, loja: this.lojaAtual?.slug });
   }
 
   // ---- atos comuns no pier -------------------------------------------------------------------
@@ -182,6 +218,8 @@ class Jornada {
       const locacao = await this.naLoja<{ id: string }>(loja, 'atendente', 'check-in', 'POST', '/locacoes/check-in/reserva', { reservaId, horimetroInicio: jetski.horimetroAtual ?? 0 });
       locacaoId = locacao.id;
       const duracao = Number(this.a.ponderado(c.duracaoMin)) + (this.a.chance(c.atrasaDevolucao) ? this.a.entre(c.atrasoMin[0], c.atrasoMin[1]) : 0);
+      // Não é um passo medido (é uma espera), mas é o momento mais visível do dia: o cliente no mar.
+      this.d.praia.emitir({ tipo: 'passo', rodada: this.d.rodada, jornada: this.id, passo: 'passeio', quem: this.quem, loja: loja.slug, resultado: 'OK', detalhes: { jetski: jetski.serie, duracaoMin: Math.round(duracao) } });
       await this.d.relogio.esperar(duracao);
       const saida = await this.naLoja<{ valorTotal?: number }>(loja, 'atendente', 'check-out', 'POST', `/locacoes/${locacaoId}/check-out`, {
         horimetroFim: Number(((jetski.horimetroAtual ?? 0) + duracao / 60).toFixed(1)),
@@ -215,7 +253,9 @@ export class JornadaPortal extends Jornada {
 
     // 1. Quem é: alguém que já tem conta, ou gente nova que se cadastra agora.
     const recorrente = this.a.chance(c.clienteNovo) ? undefined : this.d.clientesDoPortal.shift();
-    const email = recorrente?.email ?? (await this.cadastrarNoPortal());
+    this.lojaAtual = loja;
+    if (recorrente) this.comoCliente(recorrente.email, undefined, loja);
+    const email = recorrente?.email ?? (await this.cadastrarNoPortal(loja));
     // Token pedido a cada uso, nunca guardado: entre um ato e o próximo há esperas de até 25 min
     // (em tempo real), mais que os 5 min do access token — o soak achou 401 aqui.
     const token = () => this.d.sessoes.cliente(email);
@@ -274,10 +314,11 @@ export class JornadaPortal extends Jornada {
   }
 
   /** Cadastro no portal, do zero: conta → link de verificação do Keycloak → CPF no perfil. */
-  private async cadastrarNoPortal(): Promise<string> {
+  private async cadastrarNoPortal(loja: Loja): Promise<string> {
     const { api, mailpit } = this.d;
     const nome = this.nomeNovo();
     const email = `motor.${this.d.rodada}.${this.id.replace('#', '-')}@exemplo.invalid`;
+    this.comoCliente(email, nome, loja);
     const desde = new Date(Date.now() - 30_000);
     await this.passo('cadastro no portal', () => api.cadastrarCliente({ nome, email, senha: `S1nt3tico!${this.a.inteiro(100000, 999999)}aZ` }));
     const link = await this.passo('e-mail de verificação chega', () => esperarNoEmail(mailpit, email, desde, lerLinkDeVerificacao, 'link de verificação de e-mail'));
@@ -300,6 +341,8 @@ export class JornadaBalcao extends Jornada {
     // 1. Quem é: freguês da loja ou alguém que nunca veio (consulta do CPF na Marinha + ficha).
     const recorrente = this.a.chance(c.clienteNovo) ? undefined : loja.recorrentes.shift();
     const temCha = this.a.chance(c.temCha);
+    this.lojaAtual = loja;
+    if (recorrente) this.comoCliente(recorrente.clienteId as string, loja.nomes[recorrente.clienteId as string], loja);
     const cliente = recorrente ? { id: recorrente.clienteId as string, cpf: recorrente.cpf as string } : await this.cadastrarNoBalcao(loja, !temCha);
 
     // 2. Reserva de balcão para daqui a pouco, às vezes com vendedor.
@@ -362,6 +405,7 @@ export class JornadaBalcao extends Jornada {
   private async cadastrarNoBalcao(loja: Loja, comDocumentos: boolean): Promise<{ id: string; cpf: string }> {
     const nome = this.nomeNovo();
     const cpf = cpfAleatorio();
+    this.comoCliente(`motor.${this.d.rodada}.${this.id.replace('#', '-')}@exemplo.invalid`, nome, loja);
     await this.controle('/contribuintes', { cpf, nome: nomeNaMarinha(nome) });
     await this.naLoja(loja, 'atendente', 'consultar CPF na Marinha', 'GET', `/clientes/consulta-marinha?cpf=${cpf}`);
     const cliente = await this.naLoja<{ id: string }>(loja, 'atendente', 'cadastrar cliente', 'POST', '/clientes', {
