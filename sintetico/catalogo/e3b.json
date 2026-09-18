@@ -1,5 +1,5 @@
 {
-  "_": "Catálogo da fase E3b (ECOSSISTEMA_SINTETICO_SPEC.md): a população de EMISSÃO — uma EAMA emissora, duas operadoras delegadas, instrutores, equipe e clientes. Dado, não código. Nomes sem parênteses (bug conhecido da ativação). CPFs não ficam aqui: o semeador sorteia um de DV válido por persona e o guarda no estado da VM.",
+  "_": "Catálogo da fase E3b (ECOSSISTEMA_SINTETICO_SPEC.md): a população de EMISSÃO — uma EAMA emissora, duas operadoras delegadas, instrutores, equipe e clientes. Dado, não código. Nomes sem parênteses (bug conhecido da ativação). CPFs não ficam aqui: o semeador sorteia um de DV válido por persona e o guarda no estado da VM. A chave `assinatura` de cada empresa aponta o carimbo de tempo para a TSA sintética do espelho (fase E6) — o padrão do produto seria a freetsa.org, afundada pelo sumidouro.",
   "capitaniaContem": "PAULO",
   "plano": "Pro",
   "modelo": {
@@ -40,9 +40,39 @@
       "smtpStarttls": false
     },
     "instrutores": [
-      { "chave": "instrutor-ivo", "nome": "Ivo Instrutor Sintético", "rg": "111111111", "orgaoEmissor": "SSP/SP", "cha": "SINT-MTA-0001", "dataEmissao": "2020-03-10" },
-      { "chave": "instrutor-iara", "nome": "Iara Instrutora Sintética", "rg": "222222222", "orgaoEmissor": "SSP/SP", "cha": "SINT-MTA-0002", "dataEmissao": "2021-08-22" }
-    ]
+      {
+        "chave": "instrutor-ivo",
+        "nome": "Ivo Instrutor Sintético",
+        "rg": "111111111",
+        "orgaoEmissor": "SSP/SP",
+        "cha": "SINT-MTA-0001",
+        "dataEmissao": "2020-03-10"
+      },
+      {
+        "chave": "instrutor-iara",
+        "nome": "Iara Instrutora Sintética",
+        "rg": "222222222",
+        "orgaoEmissor": "SSP/SP",
+        "cha": "SINT-MTA-0002",
+        "dataEmissao": "2021-08-22"
+      }
+    ],
+    "assinatura": {
+      "_": "Carimbo RFC 3161 na TSA SINTÉTICA (E6). PAdES-T ligado só no PDF do cliente: exercita o segundo cliente de TSA do backend (OpenPDF, SHA-1); as delegadas ficam sem PAdES, como grupo de controle.",
+      "paginaAuditoria": true,
+      "carimboTempo": {
+        "ativo": true,
+        "tsaUrl": "http://fakes-externos:8080/tsa"
+      },
+      "otp": {
+        "ativo": false,
+        "canal": "EMAIL"
+      },
+      "pades": {
+        "cliente": true,
+        "marinha": false
+      }
+    }
   },
   "delegadas": [
     {
@@ -53,15 +83,79 @@
       "adminNome": "Aldo Atol Sintético",
       "jetskis": 4,
       "creditos": 20,
-      "geral": { "cidade": "Guarujá", "uf": "SP", "telefone": "+551333330002", "whatsapp": "+5513999990002", "responsavelNome": "Aldo Atol Sintético", "pixChave": "pix.delegada-atol@exemplo.invalid" },
-      "instrutorProprio": { "chave": "instrutor-otto", "nome": "Otto Instrutor Sintético", "rg": "333333333", "orgaoEmissor": "SSP/SP", "cha": "SINT-MTA-0003", "dataEmissao": "2019-11-05" },
+      "geral": {
+        "cidade": "Guarujá",
+        "uf": "SP",
+        "telefone": "+551333330002",
+        "whatsapp": "+5513999990002",
+        "responsavelNome": "Aldo Atol Sintético",
+        "pixChave": "pix.delegada-atol@exemplo.invalid"
+      },
+      "instrutorProprio": {
+        "chave": "instrutor-otto",
+        "nome": "Otto Instrutor Sintético",
+        "rg": "333333333",
+        "orgaoEmissor": "SSP/SP",
+        "cha": "SINT-MTA-0003",
+        "dataEmissao": "2019-11-05"
+      },
       "equipe": [
-        { "chave": "atol-gerente", "email": "gerente.delegada-atol@exemplo.invalid", "nome": "Gilda Gerente Sintética", "papeis": ["GERENTE"] },
-        { "chave": "atol-operador", "email": "operador.delegada-atol@exemplo.invalid", "nome": "Oscar Operador Sintético", "papeis": ["OPERADOR"] },
-        { "chave": "atol-vendedor", "email": "vendedor.delegada-atol@exemplo.invalid", "nome": "Vera Vendedora Sintética", "papeis": ["VENDEDOR"] },
-        { "chave": "atol-mecanico", "email": "mecanico.delegada-atol@exemplo.invalid", "nome": "Mauro Mecânico Sintético", "papeis": ["MECANICO"] },
-        { "chave": "atol-financeiro", "email": "financeiro.delegada-atol@exemplo.invalid", "nome": "Flora Financeira Sintética", "papeis": ["FINANCEIRO"] }
-      ]
+        {
+          "chave": "atol-gerente",
+          "email": "gerente.delegada-atol@exemplo.invalid",
+          "nome": "Gilda Gerente Sintética",
+          "papeis": [
+            "GERENTE"
+          ]
+        },
+        {
+          "chave": "atol-operador",
+          "email": "operador.delegada-atol@exemplo.invalid",
+          "nome": "Oscar Operador Sintético",
+          "papeis": [
+            "OPERADOR"
+          ]
+        },
+        {
+          "chave": "atol-vendedor",
+          "email": "vendedor.delegada-atol@exemplo.invalid",
+          "nome": "Vera Vendedora Sintética",
+          "papeis": [
+            "VENDEDOR"
+          ]
+        },
+        {
+          "chave": "atol-mecanico",
+          "email": "mecanico.delegada-atol@exemplo.invalid",
+          "nome": "Mauro Mecânico Sintético",
+          "papeis": [
+            "MECANICO"
+          ]
+        },
+        {
+          "chave": "atol-financeiro",
+          "email": "financeiro.delegada-atol@exemplo.invalid",
+          "nome": "Flora Financeira Sintética",
+          "papeis": [
+            "FINANCEIRO"
+          ]
+        }
+      ],
+      "assinatura": {
+        "paginaAuditoria": true,
+        "carimboTempo": {
+          "ativo": true,
+          "tsaUrl": "http://fakes-externos:8080/tsa"
+        },
+        "otp": {
+          "ativo": false,
+          "canal": "EMAIL"
+        },
+        "pades": {
+          "cliente": false,
+          "marinha": false
+        }
+      }
     },
     {
       "chave": "delegada-baia",
@@ -71,26 +165,133 @@
       "adminNome": "Bento Baía Sintético",
       "jetskis": 4,
       "creditos": 10,
-      "geral": { "cidade": "Bertioga", "uf": "SP", "telefone": "+551333330003", "whatsapp": "+5513999990003", "responsavelNome": "Bento Baía Sintético", "pixChave": "pix.delegada-baia@exemplo.invalid" },
+      "geral": {
+        "cidade": "Bertioga",
+        "uf": "SP",
+        "telefone": "+551333330003",
+        "whatsapp": "+5513999990003",
+        "responsavelNome": "Bento Baía Sintético",
+        "pixChave": "pix.delegada-baia@exemplo.invalid"
+      },
       "equipe": [
-        { "chave": "baia-operador", "email": "operador.delegada-baia@exemplo.invalid", "nome": "Olga Operadora Sintética", "papeis": ["OPERADOR"] }
-      ]
+        {
+          "chave": "baia-operador",
+          "email": "operador.delegada-baia@exemplo.invalid",
+          "nome": "Olga Operadora Sintética",
+          "papeis": [
+            "OPERADOR"
+          ]
+        }
+      ],
+      "assinatura": {
+        "paginaAuditoria": true,
+        "carimboTempo": {
+          "ativo": true,
+          "tsaUrl": "http://fakes-externos:8080/tsa"
+        },
+        "otp": {
+          "ativo": false,
+          "canal": "EMAIL"
+        },
+        "pades": {
+          "cliente": false,
+          "marinha": false
+        }
+      }
     }
   ],
   "clientesPortal": [
-    { "chave": "cliente-caio", "email": "caio.cliente@exemplo.invalid", "nome": "Caio Cliente Sintético", "dataNascimento": "1991-02-14", "naturalidade": "Santos/SP" },
-    { "chave": "cliente-cecilia", "email": "cecilia.cliente@exemplo.invalid", "nome": "Cecília Cliente Sintética", "dataNascimento": "1988-07-30", "naturalidade": "São Paulo/SP" },
-    { "chave": "cliente-ciro", "email": "ciro.cliente@exemplo.invalid", "nome": "Ciro Cliente Sintético", "dataNascimento": "1995-11-02", "naturalidade": "Campinas/SP" },
-    { "chave": "cliente-celia", "email": "celia.cliente@exemplo.invalid", "nome": "Célia Cliente Sintética", "dataNascimento": "1979-04-19", "naturalidade": "Curitiba/PR" },
-    { "chave": "cliente-cosme", "email": "cosme.cliente@exemplo.invalid", "nome": "Cosme Cliente Sintético", "dataNascimento": "2000-09-08", "naturalidade": "Recife/PE" },
-    { "chave": "cliente-carla", "email": "carla.cliente@exemplo.invalid", "nome": "Carla Cliente Sintética", "dataNascimento": "1993-12-25", "naturalidade": "Niterói/RJ" }
+    {
+      "chave": "cliente-caio",
+      "email": "caio.cliente@exemplo.invalid",
+      "nome": "Caio Cliente Sintético",
+      "dataNascimento": "1991-02-14",
+      "naturalidade": "Santos/SP"
+    },
+    {
+      "chave": "cliente-cecilia",
+      "email": "cecilia.cliente@exemplo.invalid",
+      "nome": "Cecília Cliente Sintética",
+      "dataNascimento": "1988-07-30",
+      "naturalidade": "São Paulo/SP"
+    },
+    {
+      "chave": "cliente-ciro",
+      "email": "ciro.cliente@exemplo.invalid",
+      "nome": "Ciro Cliente Sintético",
+      "dataNascimento": "1995-11-02",
+      "naturalidade": "Campinas/SP"
+    },
+    {
+      "chave": "cliente-celia",
+      "email": "celia.cliente@exemplo.invalid",
+      "nome": "Célia Cliente Sintética",
+      "dataNascimento": "1979-04-19",
+      "naturalidade": "Curitiba/PR"
+    },
+    {
+      "chave": "cliente-cosme",
+      "email": "cosme.cliente@exemplo.invalid",
+      "nome": "Cosme Cliente Sintético",
+      "dataNascimento": "2000-09-08",
+      "naturalidade": "Recife/PE"
+    },
+    {
+      "chave": "cliente-carla",
+      "email": "carla.cliente@exemplo.invalid",
+      "nome": "Carla Cliente Sintética",
+      "dataNascimento": "1993-12-25",
+      "naturalidade": "Niterói/RJ"
+    }
   ],
   "clientesBalcao": [
-    { "chave": "balcao-breno", "empresa": "eama-marlin", "nome": "Breno Balcão Sintético", "dataNascimento": "1985-01-20", "naturalidade": "Santos/SP", "genero": "M" },
-    { "chave": "balcao-bianca", "empresa": "eama-marlin", "nome": "Bianca Balcão Sintética", "dataNascimento": "1992-06-11", "naturalidade": "Praia Grande/SP", "genero": "F" },
-    { "chave": "balcao-beto", "empresa": "delegada-atol", "nome": "Beto Balcão da Conceição Sintético", "dataNascimento": "1990-03-03", "naturalidade": "Guarujá/SP", "genero": "M" },
-    { "chave": "balcao-berta", "empresa": "delegada-atol", "nome": "Berta Balcão Sintética", "dataNascimento": "1983-10-17", "naturalidade": "São Vicente/SP", "genero": "F" },
-    { "chave": "balcao-bruna", "empresa": "delegada-baia", "nome": "Bruna Balcão Sintética", "dataNascimento": "1998-08-09", "naturalidade": "Bertioga/SP", "genero": "F" },
-    { "chave": "balcao-boris", "empresa": "delegada-baia", "nome": "Boris Balcão Sintético", "dataNascimento": "1976-05-27", "naturalidade": "Cubatão/SP", "genero": "M" }
+    {
+      "chave": "balcao-breno",
+      "empresa": "eama-marlin",
+      "nome": "Breno Balcão Sintético",
+      "dataNascimento": "1985-01-20",
+      "naturalidade": "Santos/SP",
+      "genero": "M"
+    },
+    {
+      "chave": "balcao-bianca",
+      "empresa": "eama-marlin",
+      "nome": "Bianca Balcão Sintética",
+      "dataNascimento": "1992-06-11",
+      "naturalidade": "Praia Grande/SP",
+      "genero": "F"
+    },
+    {
+      "chave": "balcao-beto",
+      "empresa": "delegada-atol",
+      "nome": "Beto Balcão da Conceição Sintético",
+      "dataNascimento": "1990-03-03",
+      "naturalidade": "Guarujá/SP",
+      "genero": "M"
+    },
+    {
+      "chave": "balcao-berta",
+      "empresa": "delegada-atol",
+      "nome": "Berta Balcão Sintética",
+      "dataNascimento": "1983-10-17",
+      "naturalidade": "São Vicente/SP",
+      "genero": "F"
+    },
+    {
+      "chave": "balcao-bruna",
+      "empresa": "delegada-baia",
+      "nome": "Bruna Balcão Sintética",
+      "dataNascimento": "1998-08-09",
+      "naturalidade": "Bertioga/SP",
+      "genero": "F"
+    },
+    {
+      "chave": "balcao-boris",
+      "empresa": "delegada-baia",
+      "nome": "Boris Balcão Sintético",
+      "dataNascimento": "1976-05-27",
+      "naturalidade": "Cubatão/SP",
+      "genero": "M"
+    }
   ]
 }

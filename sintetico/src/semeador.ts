@@ -327,6 +327,17 @@ async function gerarTokens(): Promise<void> {
   } catch (e) {
     log(`fakes NÃO verificados: ${e instanceof Error ? e.message.split('\n')[0] : e}`);
   }
+  // Trava da E6 (spec §5.1): nenhuma empresa-persona pode carimbar fora da TSA sintética. O
+  // padrão do produto é a freetsa.org; um tsaUrl estranho aqui derruba a prova dos fakes.
+  for (const e of [emissao.eama, ...emissao.delegadas]) {
+    const p = persona(e.chave);
+    const cfg = await api.naEmpresa<{ carimboTempo?: { ativo?: boolean; tsaUrl?: string } }>('GET', (await entrar(p, 'backoffice')).tokens.accessToken, p.tenantId!, '/config/assinatura');
+    const url = cfg.carimboTempo?.tsaUrl ?? '';
+    if (cfg.carimboTempo?.ativo !== false && !url.startsWith('http://fakes-externos:')) {
+      log(`${e.slug}: tsaUrl='${url}' NÃO é a TSA sintética — fakes marcados como não verificados`);
+      fakesVerificados = false;
+    }
+  }
 
   mkdirSync(dirname(saida), { recursive: true });
   writeFileSync(saida, `${JSON.stringify({ geradoEm: new Date().toISOString(), issuer: ISSUER, ambiente: 'espelho', dominio: DOMINIO, fakesVerificados, clientId: 'jetski-backoffice', usuarios }, null, 2)}\n`, { mode: 0o600 });

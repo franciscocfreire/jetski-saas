@@ -7,9 +7,10 @@
  * "o site da Marinha perdeu as sessões" — as GRUs pendentes passam a responder como expiradas.
  */
 import { randomUUID, randomBytes } from 'node:crypto';
+import { Tsa } from './tsa.ts';
 
-export type Etapa = 'marinha' | 'bridge' | 'pagtesouro';
-export const ETAPAS: Etapa[] = ['marinha', 'bridge', 'pagtesouro'];
+export type Etapa = 'marinha' | 'bridge' | 'pagtesouro' | 'tsa';
+export const ETAPAS: Etapa[] = ['marinha', 'bridge', 'pagtesouro', 'tsa'];
 
 export interface Falha {
   /** 0 a 1: fração das chamadas da etapa que falham. */
@@ -30,8 +31,8 @@ export interface Config {
 
 export function configPadrao(): Config {
   return {
-    falhas: { marinha: { taxa: 0, modo: 'erro' }, bridge: { taxa: 0, modo: 'erro' }, pagtesouro: { taxa: 0, modo: 'erro' } },
-    latenciaMs: { marinha: 0, bridge: 0, pagtesouro: 0 },
+    falhas: { marinha: { taxa: 0, modo: 'erro' }, bridge: { taxa: 0, modo: 'erro' }, pagtesouro: { taxa: 0, modo: 'erro' }, tsa: { taxa: 0, modo: 'erro' } },
+    latenciaMs: { marinha: 0, bridge: 0, pagtesouro: 0, tsa: 0 },
     bloqueioCpf: { ligado: false, limite: 10 },
     autoPagarAposSeg: null,
     pixValidadeMin: 30,
@@ -102,6 +103,8 @@ export class Mundo {
   readonly contribuintes = new Map<string, string | null>();
   readonly eventos: Evento[] = [];
   readonly contadores = new Map<string, number>();
+  /** A TSA sintética (RFC 3161): chave e certificado nascem com o mundo e sobrevivem ao reset. */
+  readonly tsa = new Tsa();
   // Parte do relógio: um restart do fake não volta a emitir números de GRU já entregues.
   private seqGru = 9_000_000 + (Math.floor(Date.now() / 1000) % 900_000);
   private seqEvento = 0;

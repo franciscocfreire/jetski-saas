@@ -218,6 +218,14 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
 - E-mail transacional dedicado (hoje: Gmail com fallback `PLATFORM_SMTP_*` já preparado —
   trocar de provedor é só configuração).
 - Validação server-side de upload presignado (content-type/tamanho).
+- **Doc/código — `tsaUrl` vazio NÃO é HMAC** (achado em 18/set/2026 na E6). O comentário de
+  `AssinaturaConfig.CarimboTempo` ("tsaUrl vazio → usa âncora própria (HMAC), sem custo") e a
+  spec do ecossistema diziam isso; o código (`tsaUrlOrDefault`, `padrao()`) cai na
+  `https://freetsa.org/tsr` com o carimbo **ativo** por padrão. Toda emissão de toda empresa vai
+  à freetsa, e sem rede ela degrada para "âncora interna" só com um WARN — a tela não mostra
+  qual foi. Corrigir o comentário; considerar expor na tela de Configurações qual âncora foi usada
+  no último documento. Também: o `@timestamp` do log JSON é hora local com sufixo `Z` (encoder
+  sem fuso) — confunde qualquer cruzamento com o Prometheus.
 - **Capacidade — listas sem paginação crescem com os dados** (achado em 17/set/2026 no soak
   do espelho). `GET /v1/tenants/{t}/locacoes` e `GET /v1/tenants/{t}/clientes` devolvem todos
   os registros: com ~4.000 locações e ~8.400 clientes por empresa, `/locacoes` levou **p95 de
