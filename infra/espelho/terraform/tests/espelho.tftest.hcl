@@ -69,8 +69,8 @@ run "caminho_feliz_reproduz_producao" {
   }
 
   assert {
-    condition     = length(cloudflare_dns_record.espelho) == 5 && !contains(keys(cloudflare_dns_record.espelho), "jetsave.com.br")
-    error_message = "São 5 subdomínios e nenhum registro no apex (que tem MX nulo e SPF)."
+    condition     = length(cloudflare_dns_record.espelho) == 6 && contains(keys(cloudflare_dns_record.espelho), "praia.jetsave.com.br") && !contains(keys(cloudflare_dns_record.espelho), "jetsave.com.br")
+    error_message = "São 6 subdomínios (5 do nginx + a praia) e nenhum registro no apex (que tem MX nulo e SPF)."
   }
 
   assert {
@@ -79,8 +79,13 @@ run "caminho_feliz_reproduz_producao" {
   }
 
   assert {
-    condition     = length(cloudflare_zero_trust_tunnel_cloudflared_config.espelho.config.ingress) == 6 && cloudflare_zero_trust_tunnel_cloudflared_config.espelho.config.ingress[5].service == "http_status:404"
-    error_message = "Ingress: 5 hostnames para o nginx e um 404 no fim."
+    condition     = length(cloudflare_zero_trust_tunnel_cloudflared_config.espelho.config.ingress) == 7 && cloudflare_zero_trust_tunnel_cloudflared_config.espelho.config.ingress[6].service == "http_status:404"
+    error_message = "Ingress: 5 hostnames para o nginx, a praia e um 404 no fim."
+  }
+
+  assert {
+    condition     = cloudflare_zero_trust_tunnel_cloudflared_config.espelho.config.ingress[5].hostname == "praia.jetsave.com.br" && cloudflare_zero_trust_tunnel_cloudflared_config.espelho.config.ingress[5].service == "http://praia:7331"
+    error_message = "A praia vai direto ao container dela (fora do nginx), antes do 404."
   }
 
   assert {
