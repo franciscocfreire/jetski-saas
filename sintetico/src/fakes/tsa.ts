@@ -53,12 +53,26 @@ const nome = (cn: string) =>
     set(seq(oid(OID.cn), utf8(cn))),
   );
 
+/** Bits de PKIFailureInfo (RFC 3161 §2.4.2). */
+export const FALHA = { badAlg: 0, badRequest: 2, badDataFormat: 5, unacceptedPolicy: 8, systemFailure: 25 } as const;
+
+/** Pedido inválido, com o bit de failInfo que a resposta de rejeição deve carregar. */
+export class PedidoInvalido extends Error {
+  readonly bit: number;
+  constructor(msg: string, bit: number) {
+    super(msg);
+    this.bit = bit;
+  }
+}
+
 export interface Pedido {
   hashOid: string;
   hash: Buffer;
-  nonce?: Buffer;
+  /** messageImprint, nonce e reqPolicy são ECOADOS byte a byte (TLV como veio) — como uma TSA real. */
+  imprintDer: Buffer;
+  nonceDer?: Buffer;
+  politicaDer?: Buffer;
   certReq: boolean;
-  politica?: string;
 }
 
 export interface Carimbo {
@@ -111,22 +125,30 @@ export class Tsa {
 
   /** Lê o TimeStampReq. Lança com mensagem legível em pedido malformado. */
   static lerPedido(der: Buffer): Pedido {
-    const [req] = decodificar(der);
-    if (!req || req.tag !== TAG.SEQUENCE) throw new Error('TimeStampReq não é uma SEQUENCE');
+    let nos;
+    try {
+      nos = decodificar(der);
+    } catch (e) {
+      throw new PedidoInvalido(e instanceof Error ? e.message : 'DER inválido', FALHA.badDataFormat);
+    }
+    const [req, sobra] = nos;
+    if (!req || req.tag !== TAG.SEQUENCE || sobra) throw new PedidoInvalido('TimeStampReq não é uma SEQUENCE única', FALHA.badDataFormat);
     const [versao, imprint, ...resto] = req.filhos;
-    if (versao?.tag !== TAG.INTEGER || versao.conteudo[versao.conteudo.length - 1] !== 1) throw new Error('version deve ser 1');
-    if (imprint?.tag !== TAG.SEQUENCE) throw new Error('messageImprint ausente');
+    if (versao?.tag !== TAG.INTEGER || versao.conteudo.length !== 1 || versao.conteudo[0] !== 1) throw new PedidoInvalido('version deve ser 1', FALHA.badRequest);
+    if (imprint?.tag !== TAG.SEQUENCE) throw new PedidoInvalido('messageImprint ausente', FALHA.badDataFormat);
     const [alg, hash] = imprint.filhos;
-    const hashOid = oidParaTexto(alg?.filhos[0]?.conteudo ?? Buffer.alloc(0));
+    if (alg?.tag !== TAG.SEQUENCE || alg.filhos[0]?.tag !== TAG.OID) throw new PedidoInvalido('hashAlgorithm malformado', FALHA.badDataFormat);
+    const hashOid = oidParaTexto(alg.filhos[0].conteudo);
     const h = HASHES[hashOid];
-    if (!h) throw new Error(`algoritmo de hash não suportado: ${hashOid}`);
-    if (hash?.tag !== TAG.OCTET_STRING || hash.conteudo.length !== h.bytes) throw new Error(`hashedMessage deve ter ${h.bytes} bytes para ${h.nome}`);
-    const p: Pedido = { hashOid, hash: Buffer.from(hash.conteudo), certReq: false };
+    if (!h) throw new PedidoInvalido(`algoritmo de hash não suportado: ${hashOid}`, FALHA.badAlg);
+    if (hash?.tag !== TAG.OCTET_STRING || hash.conteudo.length !== h.bytes) throw new PedidoInvalido(`hashedMessage deve ter ${h.bytes} bytes para ${h.nome}`, FALHA.badDataFormat);
+    const p: Pedido = { hashOid, hash: Buffer.from(hash.conteudo), imprintDer: Buffer.from(imprint.bruto), certReq: false };
+    // Campos opcionais, na ordem do RFC: reqPolicy (OID), nonce (INTEGER), certReq (BOOLEAN), [0] extensions.
     for (const n of resto) {
-      if (n.tag === TAG.OID) p.politica = oidParaTexto(n.conteudo);
-      else if (n.tag === TAG.INTEGER) p.nonce = Buffer.from(n.conteudo);
+      if (n.tag === TAG.OID) p.politicaDer = Buffer.from(n.bruto);
+      else if (n.tag === TAG.INTEGER) p.nonceDer = Buffer.from(n.bruto);
       else if (n.tag === TAG.BOOLEAN) p.certReq = n.conteudo[0] !== 0;
-      // [0] extensions: ignoradas
+      else if (n.tag !== 0xa0) throw new PedidoInvalido(`campo inesperado no TimeStampReq (tag 0x${n.tag.toString(16)})`, FALHA.badDataFormat);
     }
     return p;
   }
@@ -142,12 +164,12 @@ export class Tsa {
     const serial = ++this.serial;
     const tstInfo = seq(
       inteiro(1),
-      oid(pedido.politica ?? OID.politica),
-      seq(algId(pedido.hashOid), octetos(pedido.hash)),
+      pedido.politicaDer ?? oid(OID.politica),
+      pedido.imprintDer, // o mesmo AlgorithmIdentifier que veio (o BC manda sha256 SEM parâmetros; sha1 com NULL)
       inteiro(serial),
       generalizedTime(agora),
       seq(inteiro(1)), // accuracy: 1 s
-      ...(pedido.nonce ? [inteiroDeBytes(pedido.nonce)] : []),
+      ...(pedido.nonceDer ? [pedido.nonceDer] : []),
     );
     // SET OF em DER: elementos ordenados pelos bytes. A assinatura cobre o SET (tag 0x31); no
     // SignerInfo o mesmo conteúdo vai com a tag [0] IMPLICIT (0xa0).
@@ -191,9 +213,13 @@ export class Tsa {
   }
 }
 
-/** Auxiliar de testes: monta um TimeStampReq como o BouncyCastle/OpenPDF montam. */
+/**
+ * Auxiliar de testes: monta um TimeStampReq como o BouncyCastle 1.76 monta — SHA-2 com parâmetros
+ * AUSENTES e SHA-1 com NULL (DefaultDigestAlgorithmIdentifierFinder); nonce em DER (com sinal).
+ */
 export function montarPedido(hash: Buffer, hashOid: string, nonce?: Buffer, certReq = true): Buffer {
-  return seq(inteiro(1), seq(algId(hashOid), octetos(hash)), ...(nonce ? [inteiroDeBytes(nonce)] : []), ...(certReq ? [booleano(true)] : []));
+  const alg = hashOid === OID.sha1 ? algId(hashOid) : seq(oid(hashOid));
+  return seq(inteiro(1), seq(alg, octetos(hash)), ...(nonce ? [inteiroDeBytes(nonce)] : []), ...(certReq ? [booleano(true)] : []));
 }
 
 export { OID as OID_TSA };

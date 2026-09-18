@@ -101,11 +101,16 @@ function ehConstruido(tag: number): boolean {
   return (tag & 0x20) !== 0;
 }
 
-/** Lê uma sequência de TLVs a partir de `b`. Lança em DER malformado. */
-export function decodificar(b: Buffer): No[] {
+/** Limites do decodificador: um corpo de 1 MB de SEQUENCEs aninhadas não pode virar 170 MB de heap. */
+export const LIMITES = { nos: 4_096, profundidade: 32 };
+
+/** Lê uma sequência de TLVs a partir de `b`. Lança em DER malformado ou grande demais. */
+export function decodificar(b: Buffer, orcamento = { nos: LIMITES.nos }, profundidade = 0): No[] {
+  if (profundidade > LIMITES.profundidade) throw new Error(`DER aninhado além de ${LIMITES.profundidade} níveis`);
   const nos: No[] = [];
   let i = 0;
   while (i < b.length) {
+    if (--orcamento.nos < 0) throw new Error(`DER com mais de ${LIMITES.nos} nós`);
     const inicio = i;
     const tag = b[i++];
     if ((tag & 0x1f) === 0x1f) throw new Error('tag longa não suportada');
@@ -114,12 +119,13 @@ export function decodificar(b: Buffer): No[] {
     if (len & 0x80) {
       const n = len & 0x7f;
       if (n === 0 || n > 4) throw new Error('comprimento indefinido ou grande demais');
+      if (i + n > b.length) throw new Error('DER truncado (comprimento longo)');
       len = 0;
       for (let k = 0; k < n; k++) len = len * 256 + b[i++];
     }
     if (i + len > b.length) throw new Error('DER truncado (conteúdo)');
     const conteudo = b.subarray(i, i + len);
-    nos.push({ tag, conteudo, bruto: b.subarray(inicio, i + len), filhos: ehConstruido(tag) ? decodificar(conteudo) : [] });
+    nos.push({ tag, conteudo, bruto: b.subarray(inicio, i + len), filhos: ehConstruido(tag) ? decodificar(conteudo, orcamento, profundidade + 1) : [] });
     i += len;
   }
   return nos;

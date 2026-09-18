@@ -442,9 +442,14 @@ async function emitir(s: Semeadura, c: Contexto, cat: CatalogoEmissao, chaveEmpr
   // "âncora interna" em silêncio — a prova tem de exigir o carimbo, não só a emissão.
   const cfg = (chaveEmpresa === cat.eama.chave ? cat.eama : cat.delegadas.find((d) => d.chave === chaveEmpresa))!.assinatura;
   const esperados = 2 + (cfg.pades.cliente ? 1 : 0) + (cfg.pades.marinha ? 1 : 0);
-  const carimbos = await s.controle<{ seq: number; detalhe?: string }[]>(`/eventos?tipo=CARIMBO&desde=${seqAntes}`);
-  exigir(carimbos.length >= esperados, `${carimbos.length} carimbo(s) na TSA sintética (esperados ${esperados}): ${carimbos.map((c) => c.detalhe?.split(' ')[0]).join(', ')}`);
-  if (cfg.pades.cliente) exigir(carimbos.some((c) => c.detalhe?.includes('hash=sha1')), 'o PAdES pediu carimbo com SHA-1 (o cliente de TSA do OpenPDF)');
+  // Os eventos do fake são globais: a prova exige o espelho QUIETO (sem motor/k6) e conta exato.
+  const janela = await s.controle<{ seq: number; tipo: string; detalhe?: string }[]>(`/eventos?desde=${seqAntes}`);
+  const estranhos = janela.filter((e) => !['CARIMBO', 'CONSULTA_CPF', 'GRU_CRIADA', 'SESSAO_PAGTESOURO', 'PIX_GERADO', 'PAGAMENTO'].includes(e.tipo));
+  exigir(estranhos.length === 0, `nenhum evento estranho na janela da prova (${estranhos.map((e) => e.tipo).join(', ') || 'ok'}) — se houver, há outro cliente usando o fake`);
+  const carimbos = janela.filter((e) => e.tipo === 'CARIMBO');
+  const sha1 = carimbos.filter((c) => c.detalhe?.includes('hash=sha1')).length;
+  const sha256 = carimbos.filter((c) => c.detalhe?.includes('hash=sha256')).length;
+  exigir(carimbos.length === esperados && sha256 === 2 && sha1 === esperados - 2, `exatamente ${esperados} carimbo(s) na TSA sintética — ${sha256} sha256 + ${sha1} sha1: ${carimbos.map((c) => c.detalhe?.split(' ')[0]).join(', ')}`);
 
   const documentos = await api.naEmpresa<Documento[]>('GET', token, t, `/documentos?clienteId=${cliente.clienteId}`);
   exigir(documentos.length > 0, `${documentos.length} documento(s) emitido(s) na ficha da cliente`);

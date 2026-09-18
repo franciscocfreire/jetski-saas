@@ -282,9 +282,10 @@ A emissão é o cenário que dimensiona a VM se a emissão delegada crescer: com
 o host perto da saturação. Quanto custa **uma** emissão em CPU não foi isolado (a rodada
 misturou emissão e leitura) — perfilar na F4: PDF, carimbo de tempo e base64 são os suspeitos.
 Nota: nas rodadas acima o carimbo de tempo RFC 3161 **não** foi exercido (o `tsaUrl` padrão é a
-freetsa.org, afundada pelo sumidouro). Com a **TSA sintética da E6** ligada (2 carimbos por emissão,
-3 com PAdES): 27 emissões/min a 1 VU, jornada p95 **2,3 s** — o carimbo custa pouco; o que pesa
-é PDF + base64. Repetir o stress de emissão com a TSA ligada fica para a F4.
+freetsa.org, afundada pelo sumidouro). Uma rodada smoke com a **TSA sintética da E6** ligada
+(2 carimbos por emissão, 3 com PAdES): 27 emissões/min a 1 VU, jornada p95 2,3 s — **não
+comparável** com a rodada da E5 (outro momento). O custo do carimbo só sai de um A/B na mesma
+condição; o stress de emissão com a TSA ligada fica para a F4.
 
 ### 6.3 Resiliência: a Marinha caída não derruba o resto
 

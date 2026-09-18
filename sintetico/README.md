@@ -135,6 +135,8 @@ e os números da E5 foram medidos assim. Agora:
   chave `assinatura`): carimbo na TSA sintética; **PAdES-T ligado só na EAMA** (exercita o segundo
   cliente de TSA do backend, o OpenPDF com SHA-1) e desligado nas delegadas (grupo de controle).
   Confere o valor vivo e só grava se divergir.
+- **Pré-condição da prova:** espelho **quieto** (sem motor nem k6): os eventos do fake são globais, e a
+  prova exige a contagem **exata** de carimbos na janela e nenhum evento de outro cliente.
 - **Trava:** `semeador tokens` lê o `config/assinatura` de cada empresa de emissão e só grava
   `fakesVerificados: true` se todas apontarem para `http://fakes-externos:…/tsa`.
 - **Prova:** `provar-emissao` exige os eventos `CARIMBO` — 3 na EAMA (auditoria do PDF do cliente,
@@ -142,11 +144,12 @@ e os números da E5 foram medidos assim. Agora:
   despercebida: o backend degrada em silêncio.
 - **Verificação por fora:** `test/tsa.test.ts` roda `openssl ts -verify` e `openssl cms -verify
   -purpose timestampsign` contra o certificado do fake quando há `openssl` na máquina (verify OK,
-  documento adulterado FAILED). O token com certificado tem ~1,7 KB — abaixo do limite de 4 KB
-  que o PAdES do OpenPDF reserva.
+  documento adulterado FAILED). O token com certificado tem ~1,7 KB; o OpenPDF reserva
+  8192 + 4096 (estimativa do token) + 2048 bytes para o CMS inteiro da assinatura — com folga.
 
-Medido com a TSA ligada (k6 `emissao` smoke, 1 VU): 27 emissões/min, jornada p95 **2,3 s** — o
-carimbo custa pouco; o que pesa na emissão é PDF + base64.
+Uma rodada smoke do k6 `emissao` com a TSA ligada (1 VU, 60 s): 27 emissões/min, jornada p95
+2,3 s. Não é comparável com a rodada da E5 (outro momento da VM); o custo do carimbo em si só
+sai de um A/B na mesma condição (`carimboTempo.ativo=false` × fake), que fica para a F4.
 
 ## Fase E2: `fakes-externos` — a Marinha e o PagTesouro sintéticos
 
@@ -193,7 +196,7 @@ curl -X POST $C/config -d '{
 
 | Chave | Padrão | Efeito |
 |---|---|---|
-| `falhas.<etapa>` | taxa 0 | etapas `marinha` (→ 503, `MARINHA_INDISPONIVEL`), `bridge` (→ página de autenticação, `BRIDGE_FALHOU`), `pagtesouro` (→ 500, `PAGTESOURO_FALHOU`), `tsa` (→ 200 com `status=2` + `failInfo`, fiel ao RFC: o backend degrada para "âncora interna"). `modo: "pendurar"` segura a conexão até o timeout do backend (20 s na GRU, 8 s na TSA) |
+| `falhas.<etapa>` | taxa 0 | etapas `marinha` (→ 503, `MARINHA_INDISPONIVEL`), `bridge` (→ página de autenticação, `BRIDGE_FALHOU`), `pagtesouro` (→ 500, `PAGTESOURO_FALHOU`), `tsa` (→ 200 com `status=2` + `failInfo`, fiel ao RFC: a página de auditoria degrada para "âncora interna"; o PAdES assina sem carimbo). `modo: "pendurar"` segura a conexão: na GRU até o timeout do backend (20 s, o fake solta aos 120 s); na TSA o fake solta aos **30 s** — a página de auditoria desiste aos 8 s, mas o cliente de TSA do PAdES (OpenPDF) **não tem timeout** e ficaria preso até o fake soltar |
 | `latenciaMs.<etapa>` | 0 | atraso fixo por chamada da etapa |
 | `bloqueioCpf` | **desligado**, limite 10 | o bloqueio por volume do site real (~8–10 GRUs/dia por CPF → bridge recusa só aquele CPF). Desligado por padrão (decisão da E2); ligar nos cenários de falha da E5 |
 | `autoPagarAposSeg` | `null` | se definido, todo PIX vira pago sozinho após N s — atalho para carga pura |
@@ -259,9 +262,14 @@ O teste de integração é o próprio espelho: a fase E3a foi validada rodando o
 - **DER não sobrevive a UTF-8.** O servidor dos fakes convertia todo corpo para texto; o
   `TimeStampReq` chegava corrompido e o backend degradava para âncora interna **sem erro**. O
   `Pedido` tem `corpoBytes`, e a prova exige os eventos `CARIMBO`.
-- **Config do tenant tem cache no backend:** duas emissões ~1 min depois de trocar o `tsaUrl`
-  ainda foram à freetsa (hipótese: TTL do cache de `Tenant`); a prova repetida teve zero. Trocou a
-  config? Espere um minuto antes de medir.
+- **Duas emissões foram à freetsa logo depois do `semear` — causa não identificada.** Não existe
+  cache de `Tenant` no backend (verificado). Eram de um motor esquecido rodando ao lado, na
+  delegada; a prova repetida com o espelho quieto teve zero avisos. Hipótese a checar se voltar:
+  emissão em voo iniciada antes do `PUT /config/assinatura`. Regra prática: rode a prova sem
+  motor/k6 e olhe o `tenant_id` do WARN.
+- **`Carimbo TSA falhou (…): null`** — o `null` é a mensagem de uma `ConnectException` (sumidouro,
+  conexão recusada); o log não mostra a classe da exceção, então não dá para distinguir de uma
+  rejeição do BouncyCastle sem olhar o fake. Pendência de produto registrada.
 - **`@timestamp` do log do backend é hora local com sufixo Z** (`05:45Z` = 08:45 UTC): ao cruzar
   com o Prometheus (UTC de verdade), some 3 h.
 

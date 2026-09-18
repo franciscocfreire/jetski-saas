@@ -38,7 +38,7 @@ Levantado no código em 17/set/2026 (chamadas HTTP de saída, SMTP, navegador).
 |---|---|---|---|---|
 | **Marinha — SCAM** (`dpc1.marinha.mil.br`) | `GruClient` | gerar GRU (PIX e boleto), consultar nome por CPF | ✅ `jetski.gru.marinha-base` | **GRU real emitida**; bloqueio da Marinha por volume (~8–10/dia/CPF) |
 | **Tesouro — PagTesouro** (`pagtesouro.tesouro.gov.br`) | `GruClient` | dados do pagamento, gerar PIX, sondar pagamento | ✅ `jetski.gru.pagtesouro-base` | cobrança PIX real |
-| **Carimbo de tempo RFC 3161** (padrão `https://freetsa.org/tsr`) | `CarimboTempoService` (página de auditoria, BouncyCastle) e `PadesSignatureService` (PAdES-T, OpenPDF) | carimbar cada PDF emitido | ✅ por empresa (`AssinaturaConfig.carimboTempo.tsaUrl`). **Atenção:** `tsaUrl` vazio **não** é HMAC — cai no padrão freetsa.org, e o carimbo nasce ativo (`AssinaturaConfig.padrao()`); só `ativo=false` desliga (então âncora interna). Corrigido aqui em 18/set/2026 (E6) própria, sem chamada | carimbo real em TSA de terceiro |
+| **Carimbo de tempo RFC 3161** (padrão `https://freetsa.org/tsr`) | `CarimboTempoService` (página de auditoria, BouncyCastle) e `PadesSignatureService` (PAdES-T, OpenPDF) | carimbar cada PDF emitido | ✅ por empresa (`AssinaturaConfig.carimboTempo.tsaUrl`). **Atenção:** `tsaUrl` vazio **não** é HMAC — cai no padrão freetsa.org, e o carimbo nasce ativo (`AssinaturaConfig.padrao()`); só `ativo=false` desliga (então âncora interna). Corrigido aqui em 18/set/2026 (E6) | carimbo real em TSA de terceiro |
 | **SMTP da plataforma** | `SmtpEmailService` (15 serviços) | convite, aprovação, fatura, OTP de aceite, PIX de reserva, claim… | ✅ `PLATFORM_SMTP_*` | e-mail real a cliente |
 | **SMTP da empresa emissora** | `SmtpSenderFactory` | **ofício à Capitania** (anexo com dados do cliente) | ✅ por empresa; **AUTH sempre ligado**, STARTTLS por empresa | ofício real a uma Capitania |
 | **SMTP do Keycloak** | realm + SPI `meujet-email-code` | código de login do portal, reset de senha | ✅ realm | e-mail real |
@@ -88,7 +88,9 @@ estrutura**, marcado como sintético, QR PNG real do texto), `pix-stn/sonda` com
 
 **TSA** — `POST /tsa` responde RFC 3161 com um token CMS de verdade (TSTInfo, `signingCertificateV2`,
 certificado X.509 com EKU timeStamping e assinatura RSA-2048 real via `node:crypto` — a imagem
-`node:24-alpine` não tem `openssl`); chave e certificado nascem a cada boot e nunca saem da VM;
+`node:24-alpine` não tem `openssl`); a chave privada nasce a cada boot e nunca sai do processo do
+fake; o certificado vai dentro de cada token (e em `/tsa/cert.pem`), por isso tokens de boots
+anteriores continuam verificáveis;
 `/tsa/cert.pem` permite conferir o carimbo por fora (`openssl ts -verify`). O semeador aponta o
 `tsaUrl` das empresas-persona para o fake — sem isso o padrão do produto é a freetsa.org, que o
 sumidouro afunda e a emissão degrada para "âncora interna" em silêncio.

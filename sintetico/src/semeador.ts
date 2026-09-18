@@ -333,7 +333,14 @@ async function gerarTokens(): Promise<void> {
     const p = persona(e.chave);
     const cfg = await api.naEmpresa<{ carimboTempo?: { ativo?: boolean; tsaUrl?: string } }>('GET', (await entrar(p, 'backoffice')).tokens.accessToken, p.tenantId!, '/config/assinatura');
     const url = cfg.carimboTempo?.tsaUrl ?? '';
-    if (cfg.carimboTempo?.ativo !== false && !url.startsWith('http://fakes-externos:')) {
+    let ehFake = false;
+    try {
+      const u = new URL(url);
+      ehFake = u.protocol === 'http:' && u.username === '' && u.hostname === 'fakes-externos' && u.port === '8080' && u.pathname === '/tsa';
+    } catch {
+      ehFake = false;
+    }
+    if (cfg.carimboTempo?.ativo !== false && !ehFake) {
       log(`${e.slug}: tsaUrl='${url}' NÃO é a TSA sintética — fakes marcados como não verificados`);
       fakesVerificados = false;
     }

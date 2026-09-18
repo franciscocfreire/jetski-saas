@@ -11,8 +11,8 @@ import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { criarServidor } from '../src/fakes/servidor.ts';
 import { Mundo } from '../src/fakes/mundo.ts';
-import { Tsa, montarPedido, OID_TSA } from '../src/fakes/tsa.ts';
-import { decodificar, inteiroDeBytes, oidParaTexto, TAG } from '../src/fakes/der.ts';
+import { Tsa, montarPedido, OID_TSA, FALHA } from '../src/fakes/tsa.ts';
+import { decodificar, inteiroDeBytes, oidParaTexto, oid, octetos, seq, inteiro, booleano, tlv, TAG } from '../src/fakes/der.ts';
 
 const mundo = new Mundo();
 const servidor = criarServidor(mundo);
@@ -70,7 +70,17 @@ test('TimeStampReq como o BouncyCastle manda (sha256, nonce, certReq) → token 
   assert.match(await (await fetch(`${raiz}/metrics`)).text(), /fakes_carimbos_total\{hash="sha256",cert="true"\} 1/);
 });
 
-test('o pedido do PAdES (OpenPDF): sha1, sem nonce → aceito com o mesmo algoritmo no imprint', async () => {
+test('o pedido do PAdES (OpenPDF): sha1 + nonce = currentTimeMillis + certReq → imprint (com NULL) e nonce ecoados', async () => {
+  const hash = createHash('sha1').update('pdf').digest();
+  const nonce = Buffer.from(Date.now().toString(16).padStart(12, '0'), 'hex');
+  const { corpo } = await carimbar(montarPedido(hash, OID_TSA.sha1, nonce, true));
+  assert.equal(statusDe(corpo), 0);
+  const tst = tstInfoDe(corpo);
+  assert.ok(tst.some((n) => n.bruto.equals(inteiroDeBytes(nonce))), 'nonce ecoado');
+  assert.ok(tst.some((n) => n.tag === TAG.NULL), 'sha1 vem com parâmetros NULL e o TSTInfo devolve o mesmo AlgorithmIdentifier');
+});
+
+test('sha1 sem nonce (como `openssl ts -query -no_nonce`) → aceito; o TSTInfo só tem version, serial e accuracy como inteiros', async () => {
   const hash = createHash('sha1').update('pdf').digest();
   const { corpo } = await carimbar(montarPedido(hash, OID_TSA.sha1, undefined, true));
   assert.equal(statusDe(corpo), 0);
@@ -78,6 +88,45 @@ test('o pedido do PAdES (OpenPDF): sha1, sem nonce → aceito com o mesmo algori
   assert.ok(tst.some((n) => n.tag === TAG.OCTET_STRING && n.conteudo.equals(hash)));
   assert.ok(tst.filter((n) => n.tag === TAG.OID).map((n) => oidParaTexto(n.conteudo)).includes(OID_TSA.sha1));
   assert.equal(tst.filter((n) => n.tag === TAG.INTEGER).length, 3, 'sem nonce, o TSTInfo só tem os inteiros version, serial e accuracy');
+});
+
+test('o eco é byte a byte: imprint sha256 SEM parâmetros (como o BouncyCastle manda) e nonce NEGATIVO voltam iguais', async () => {
+  const hash = createHash('sha256').update('bc').digest();
+  const imprint = seq(seq(oid(OID_TSA.sha256)), octetos(hash)); // sem NULL
+  const nonceNegativo = tlv(TAG.INTEGER, Buffer.from([0xff, 0x12, 0x34])); // INTEGER negativo
+  const { corpo } = await carimbar(seq(inteiro(1), imprint, nonceNegativo, booleano(true)));
+  assert.equal(statusDe(corpo), 0);
+  const tst = tstInfoDe(corpo);
+  assert.ok(tst.some((n) => n.bruto.equals(imprint)), 'messageImprint idêntico ao pedido (sem NULL inventado)');
+  assert.ok(tst.some((n) => n.bruto.equals(nonceNegativo)), 'nonce negativo idêntico ao pedido');
+});
+
+test('rejeições com o failInfo certo: badAlg para hash desconhecido, badRequest para version ≠ 1, badDataFormat para corpo grande', async () => {
+  const bit = (corpo: Buffer) => {
+    const bits = todos(corpo).find((n) => n.tag === TAG.BIT_STRING) as { conteudo: Buffer };
+    const b = bits.conteudo.subarray(1);
+    for (let i = 0; i < b.length * 8; i++) if (b[i >> 3] & (0x80 >> (i & 7))) return i;
+    return -1;
+  };
+  const md5 = seq(inteiro(1), seq(seq(oid('1.2.840.113549.2.5'), tlv(TAG.NULL, Buffer.alloc(0))), octetos(Buffer.alloc(16))));
+  assert.equal(bit((await carimbar(md5)).corpo), FALHA.badAlg);
+  const v2 = seq(inteiro(2), seq(seq(oid(OID_TSA.sha256)), octetos(Buffer.alloc(32))));
+  assert.equal(bit((await carimbar(v2)).corpo), FALHA.badRequest);
+  const { r, corpo } = await carimbar(Buffer.concat([montarPedido(Buffer.alloc(32), OID_TSA.sha256), Buffer.alloc(9_000)]));
+  assert.equal(r.status, 200);
+  assert.equal(bit(corpo), FALHA.badDataFormat);
+  // DER aninhado fundo (1 KB de SEQUENCEs vazias uma dentro da outra) é recusado, não estoura a pilha
+  let fundo = Buffer.alloc(0);
+  for (let i = 0; i < 400; i++) fundo = seq(fundo);
+  assert.equal(statusDe((await carimbar(fundo)).corpo), 2);
+});
+
+test('/_controle: escrita sem Content-Type application/json é recusada (o backend pode alcançar o fake pela rede)', async () => {
+  const semJson = await fetch(`${raiz}/_controle/reset`, { method: 'POST', headers: { 'Content-Type': 'application/timestamp-query' }, body: new Uint8Array([0x30, 0x00]) });
+  assert.equal(semJson.status, 415);
+  const comJson = await fetch(`${raiz}/_controle/reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  assert.equal(comJson.status, 200);
+  assert.equal((await fetch(`${raiz}/_controle/estado`)).status, 200, 'leitura continua livre');
 });
 
 test('DER malformado e hash de tamanho errado → status 2 com failInfo badDataFormat, nunca 5xx', async () => {
