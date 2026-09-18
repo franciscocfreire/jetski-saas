@@ -140,6 +140,34 @@ PagTesouro sintético → `emitir-documentos` → **1 crédito debitado** → **
 Mailpit, remetido pelo SMTP da EAMA nos dois casos**, com anexo → painel de emissões delegadas.
 Cada execução emite de verdade (debita 2 créditos).
 
+## Fase E6: a TSA sintética
+
+O padrão do produto para carimbo de tempo é a **freetsa.org** (`AssinaturaConfig.padrao()`), que o
+sumidouro afunda — até a E6 toda emissão do espelho degradava para "âncora interna" com um WARN,
+e os números da E5 foram medidos assim. Agora:
+
+- **`fakes-externos` responde RFC 3161** em `/tsa` (tabela acima; código em [`src/fakes/tsa.ts`](src/fakes/tsa.ts)
+  e [`der.ts`](src/fakes/der.ts), DER escrito à mão, sem dependências).
+- **O semeador configura `config/assinatura`** de cada empresa de emissão (`catalogo/e3b.json`,
+  chave `assinatura`): carimbo na TSA sintética; **PAdES-T ligado só na EAMA** (exercita o segundo
+  cliente de TSA do backend, o OpenPDF com SHA-1) e desligado nas delegadas (grupo de controle).
+  Confere o valor vivo e só grava se divergir.
+- **Pré-condição da prova:** espelho **quieto** (sem motor nem k6): os eventos do fake são globais, e a
+  prova exige a contagem **exata** de carimbos na janela e nenhum evento de outro cliente.
+- **Trava:** `semeador tokens` lê o `config/assinatura` de cada empresa de emissão e só grava
+  `fakesVerificados: true` se todas apontarem para `http://fakes-externos:…/tsa`.
+- **Prova:** `provar-emissao` exige os eventos `CARIMBO` — 3 na EAMA (auditoria do PDF do cliente,
+  da Marinha e o PAdES com SHA-1), 2 na delegada. Sem exigir o carimbo, uma TSA quebrada passaria
+  despercebida: o backend degrada em silêncio.
+- **Verificação por fora:** `test/tsa.test.ts` roda `openssl ts -verify` e `openssl cms -verify
+  -purpose timestampsign` contra o certificado do fake quando há `openssl` na máquina (verify OK,
+  documento adulterado FAILED). O token com certificado tem ~1,7 KB; o OpenPDF reserva
+  8192 + 4096 (estimativa do token) + 2048 bytes para o CMS inteiro da assinatura — com folga.
+
+Uma rodada smoke do k6 `emissao` com a TSA ligada (1 VU, 60 s): 27 emissões/min, jornada p95
+2,3 s. Não é comparável com a rodada da E5 (outro momento da VM); o custo do carimbo em si só
+sai de um A/B na mesma condição (`carimboTempo.ativo=false` × fake), que fica para a F4.
+
 ## Fase E2: `fakes-externos` — a Marinha e o PagTesouro sintéticos
 
 Serviço `fakes-externos` da camada `docker-compose.espelho.yml` (código em
@@ -151,6 +179,7 @@ o `GruClient` faz exatamente os mesmos passos que faz contra o governo.
 |---|---|
 | `/marinha/**` | [`GRU_HTTP_CONTRACT.md`](../GRU_HTTP_CONTRACT.md) passo a passo: sessão ASP **de uso único** (com o `Set-Cookie` malformado do site real), cascata obrigatória (o item `060;288  ;408` com os dois espaços), 302 com `id_gru`, página-ponte com **token por CPF**, bridge que responde "problema de autenticação" sem cookie/token, boleto (302 → 302 → PDF com o número extraível pelo pdfbox), consulta de nome por CPF |
 | `/pagtesouro/**` | `dados-pagamento`, `meios-pagamento/pix` (BR Code EMV com CRC válido + **QR PNG escaneável**, codificador próprio em [`qr.ts`](src/fakes/qr.ts)), `pix-stn/sonda` com máquina de estados: `C0008` pendente → objeto `CONCLUIDO` → `C0026` expirado |
+| `/tsa` | **TSA RFC 3161** (fase E6): `POST` de um `TimeStampReq` devolve um `TimeStampResp` com token CMS de verdade (TSTInfo, `signingCertificateV2`, certificado com EKU timeStamping, **assinatura RSA-2048 real**). Aceita sha1/sha256/sha384/sha512, ecoa `nonce`, inclui o certificado se `certReq`; pedido malformado → status 2 `badDataFormat`. `/tsa/cert.pem` e `/tsa/cert.der` publicam o certificado (gerado a cada boot). Evento `CARIMBO` com `ref=` = SHA-256(token)[0:16] — a "Referência" que a página de auditoria do PDF imprime |
 | `/_controle/**` | a alavanca dos cenários — abaixo |
 | `/metrics` | `fakes_requisicoes_total{etapa,status}`, `fakes_falhas_injetadas_total`, `fakes_latencia_injetada_seconds_*`, `fakes_pagamentos_total`, `fakes_grus{situacao}` — para separar "lentidão que o cenário pediu" de "lentidão do backend" |
 
@@ -184,7 +213,7 @@ curl -X POST $C/config -d '{
 
 | Chave | Padrão | Efeito |
 |---|---|---|
-| `falhas.<etapa>` | taxa 0 | etapas `marinha` (→ 503, `MARINHA_INDISPONIVEL`), `bridge` (→ página de autenticação, `BRIDGE_FALHOU`), `pagtesouro` (→ 500, `PAGTESOURO_FALHOU`). `modo: "pendurar"` segura a conexão até o timeout do backend (20 s) |
+| `falhas.<etapa>` | taxa 0 | etapas `marinha` (→ 503, `MARINHA_INDISPONIVEL`), `bridge` (→ página de autenticação, `BRIDGE_FALHOU`), `pagtesouro` (→ 500, `PAGTESOURO_FALHOU`), `tsa` (→ 200 com `status=2` + `failInfo`, fiel ao RFC: a página de auditoria degrada para "âncora interna"; o PAdES assina sem carimbo). `modo: "pendurar"` segura a conexão: na GRU até o timeout do backend (20 s, o fake solta aos 120 s); na TSA o fake solta aos **30 s** — a página de auditoria desiste aos 8 s, mas o cliente de TSA do PAdES (OpenPDF) **não tem timeout** e ficaria preso até o fake soltar |
 | `latenciaMs.<etapa>` | 0 | atraso fixo por chamada da etapa |
 | `bloqueioCpf` | **desligado**, limite 10 | o bloqueio por volume do site real (~8–10 GRUs/dia por CPF → bridge recusa só aquele CPF). Desligado por padrão (decisão da E2); ligar nos cenários de falha da E5 |
 | `autoPagarAposSeg` | `null` | se definido, todo PIX vira pago sozinho após N s — atalho para carga pura |
@@ -246,6 +275,20 @@ O teste de integração é o próprio espelho: a fase E3a foi validada rodando o
 `us-ashburn-1` e conferindo banco e auditoria.
 
 ## Armadilhas já pagas
+
+- **DER não sobrevive a UTF-8.** O servidor dos fakes convertia todo corpo para texto; o
+  `TimeStampReq` chegava corrompido e o backend degradava para âncora interna **sem erro**. O
+  `Pedido` tem `corpoBytes`, e a prova exige os eventos `CARIMBO`.
+- **Duas emissões foram à freetsa logo depois do `semear` — causa não identificada.** Não existe
+  cache de `Tenant` no backend (verificado). Eram de um motor esquecido rodando ao lado, na
+  delegada; a prova repetida com o espelho quieto teve zero avisos. Hipótese a checar se voltar:
+  emissão em voo iniciada antes do `PUT /config/assinatura`. Regra prática: rode a prova sem
+  motor/k6 e olhe o `tenant_id` do WARN.
+- **`Carimbo TSA falhou (…): null`** — o `null` é a mensagem de uma `ConnectException` (sumidouro,
+  conexão recusada); o log não mostra a classe da exceção, então não dá para distinguir de uma
+  rejeição do BouncyCastle sem olhar o fake. Pendência de produto registrada.
+- **`@timestamp` do log do backend é hora local com sufixo Z** (`05:45Z` = 08:45 UTC): ao cruzar
+  com o Prometheus (UTC de verdade), some 3 h.
 
 - **`@PreAuthorize` mente; o OPA decide por último.** Casos que o motor pisou: GERENTE **não** cria
   vendedor (`vendedor:create`) nem OPERADOR cancela reserva (`reserva:delete`), apesar da anotação

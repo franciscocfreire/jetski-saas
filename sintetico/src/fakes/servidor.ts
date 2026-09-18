@@ -15,6 +15,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { pathToFileURL } from 'node:url';
 import { boletoPdf, brCode, cpfValido, nomeSinteticoDoCpf, qrPng, tokenDoCpf } from './artefatos.ts';
 import { ETAPAS, Mundo, dataHoraBr, type Etapa, type Gru } from './mundo.ts';
+import { FALHA, PedidoInvalido, Tsa } from './tsa.ts';
 
 const CD_ORGAO = '89310';
 const ITEM_SERVICO = '060;288  ;408'; // os dois espaços são significativos (campo de largura fixa)
@@ -27,6 +28,8 @@ interface Pedido {
   consulta: URLSearchParams;
   cookie: string | undefined;
   corpo: string;
+  /** O corpo como veio: o TimeStampReq da TSA é DER, e UTF-8 o corromperia. */
+  corpoBytes: Buffer;
   form: URLSearchParams;
 }
 
@@ -50,6 +53,7 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const erroPagTesouro = (codigo: string, descricao: string) => [{ codigo, descricao }];
 
 function etapaDe(caminho: string): Etapa | undefined {
+  if (caminho === '/tsa') return 'tsa';
   if (caminho.startsWith('/pagtesouro/')) return 'pagtesouro';
   if (caminho === '/marinha/pagtesouro/index.php' || caminho.endsWith('/pagtesouro_form.asp')) return 'bridge';
   if (caminho.startsWith('/marinha/')) return 'marinha';
@@ -241,6 +245,40 @@ function pagtesouro(m: Mundo, p: Pedido): Resposta {
 
 const contribuinteDe = (g: Gru) => ({ tipoIdentificador: 'CPF', codigoIdentificador: g.cpf, nome: g.nome });
 
+// ---- TSA (RFC 3161) -----------------------------------------------------------------------------
+
+const TIMESTAMP_REPLY = { 'Content-Type': 'application/timestamp-reply' };
+
+function tsa(m: Mundo, p: Pedido): Resposta {
+  if (p.caminho === '/tsa/cert.pem' && p.metodo === 'GET') return { status: 200, cabecalhos: { 'Content-Type': 'application/x-pem-file' }, corpo: m.tsa.certPem };
+  if (p.caminho === '/tsa/cert.der' && p.metodo === 'GET') return { status: 200, cabecalhos: { 'Content-Type': 'application/pkix-cert' }, corpo: m.tsa.cert };
+  if (p.caminho === '/tsa' && p.metodo === 'GET') {
+    return html('<html><body><h1>TSA sintética (RFC 3161)</h1><p>POST um TimeStampReq (application/timestamp-query) aqui. Certificado: <a href="/tsa/cert.pem">/tsa/cert.pem</a>. Tudo SINTÉTICO — ambiente espelho do Meu Jet.</p></body></html>');
+  }
+  if (p.caminho !== '/tsa' || p.metodo !== 'POST') return { status: 404, corpo: 'nao encontrado' };
+  // Um TimeStampReq real tem < 200 bytes; 1 MB de DER aninhado custaria centenas de MB de heap.
+  const recusar = (msg: string, bit: number) => {
+    const motivo = (Object.entries(FALHA).find(([, b]) => b === bit) ?? ['outro'])[0];
+    m.contar('fakes_tsa_recusas_total', { motivo });
+    m.registrar({ tipo: 'TSA_RECUSADO', etapa: 'tsa', detalhe: `${motivo}: ${msg}` });
+    // Como uma TSA real: pedido inválido é resposta 200 com status=2 e o failInfo certo (RFC 3161 §2.4.2).
+    return { status: 200, cabecalhos: TIMESTAMP_REPLY, corpo: Tsa.recusa(msg, bit) } as Resposta;
+  };
+  if (p.corpoBytes.length > 8_192) return recusar(`pedido de ${p.corpoBytes.length} bytes (máximo 8192)`, FALHA.badDataFormat);
+  let pedido;
+  try {
+    pedido = Tsa.lerPedido(p.corpoBytes);
+  } catch (e) {
+    return recusar(e instanceof Error ? e.message : 'pedido inválido', e instanceof PedidoInvalido ? e.bit : FALHA.badDataFormat);
+  }
+  const c = m.tsa.carimbar(pedido, new Date(m.agora()));
+  const alg = pedido.hashOid === '1.3.14.3.2.26' ? 'sha1' : pedido.hashOid === '2.16.840.1.101.3.4.2.1' ? 'sha256' : pedido.hashOid;
+  m.contar('fakes_carimbos_total', { hash: alg, cert: String(pedido.certReq) });
+  // A referência é o elo com o PDF: a página de auditoria imprime SHA-256(token)[0:16].
+  m.registrar({ tipo: 'CARIMBO', etapa: 'tsa', detalhe: `ref=${c.referencia} hash=${alg} serial=${c.serial.toString(16)} nonce=${pedido.nonceDer ? 'sim' : 'nao'} cert=${pedido.certReq} bytes=${c.tamanho}` });
+  return { status: 200, cabecalhos: TIMESTAMP_REPLY, corpo: c.resposta };
+}
+
 // ---- /_controle -------------------------------------------------------------------------------
 
 function resumoGru(m: Mundo, g: Gru) {
@@ -301,8 +339,16 @@ function aplicarConfig(m: Mundo, novo: Record<string, unknown>): string | undefi
   return undefined;
 }
 
-function controle(m: Mundo, p: Pedido): Resposta {
+function controle(m: Mundo, p: Pedido, contentType: string): Resposta {
   const rota = p.caminho.slice('/_controle'.length) || '/';
+  // "Nunca exposto" vale para a Internet, não para o backend: um admin de empresa pode apontar o
+  // tsaUrl (ou as bases da GRU, por configuração) para http://fakes-externos:8080/_controle/reset.
+  // Esses clientes mandam DER/form/JSON próprios com outro Content-Type; quem controla o fake
+  // (semeador, motor, rodar.sh) manda application/json. Escrita só com JSON declarado.
+  if (p.metodo !== 'GET' && !contentType.toLowerCase().startsWith('application/json')) {
+    m.contar('fakes_controle_recusas_total', { motivo: 'content-type' });
+    return json(415, { erro: 'escrita no /_controle exige Content-Type: application/json' });
+  }
   const corpo = (): Record<string, unknown> | undefined => {
     try {
       const j = p.corpo ? JSON.parse(p.corpo) : {};
@@ -357,7 +403,7 @@ function controle(m: Mundo, p: Pedido): Resposta {
 
 // ---- servidor -----------------------------------------------------------------------------------
 
-async function lerCorpo(req: IncomingMessage): Promise<string> {
+async function lerCorpo(req: IncomingMessage): Promise<Buffer> {
   const partes: Buffer[] = [];
   let total = 0;
   for await (const parte of req) {
@@ -365,7 +411,7 @@ async function lerCorpo(req: IncomingMessage): Promise<string> {
     if (total > 1_000_000) throw new Error('corpo grande demais');
     partes.push(parte as Buffer);
   }
-  return Buffer.concat(partes).toString('utf8');
+  return Buffer.concat(partes);
 }
 
 const dormir = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
@@ -377,7 +423,8 @@ export function criarServidor(m: Mundo = new Mundo()): Server {
     const etapa = etapaDe(caminho);
     let resposta: Resposta;
     try {
-      const corpo = await lerCorpo(req);
+      const corpoBytes = await lerCorpo(req);
+      const corpo = corpoBytes.toString('utf8');
       const tipo = req.headers['content-type'] ?? '';
       const p: Pedido = {
         metodo: req.method ?? 'GET',
@@ -385,6 +432,7 @@ export function criarServidor(m: Mundo = new Mundo()): Server {
         consulta: url.searchParams,
         cookie: req.headers.cookie,
         corpo,
+        corpoBytes,
         form: new URLSearchParams(tipo.includes('x-www-form-urlencoded') ? corpo : ''),
       };
 
@@ -400,13 +448,18 @@ export function criarServidor(m: Mundo = new Mundo()): Server {
           m.contar('fakes_falhas_injetadas_total', { etapa, modo: falha.modo });
           m.registrar({ tipo: 'FALHA_INJETADA', etapa, detalhe: `${falha.modo} ${caminho}` });
           if (falha.modo === 'pendurar') {
-            await dormir(120_000);
+            // GRU: o backend desiste aos 20 s. TSA: a página de auditoria desiste aos 8 s, mas o cliente
+            // PAdES (OpenPDF) NÃO tem timeout — segurar 120 s prenderia a emissão inteira; 30 s bastam.
+            await dormir(etapa === 'tsa' ? 30_000 : 120_000);
             res.destroy();
             return;
           }
           // A falha típica de cada etapa, na taxonomia do GruClient.
           resposta =
-            etapa === 'marinha' ? { status: 503, corpo: 'Service Unavailable' } : etapa === 'bridge' ? html(AUTH_PROBLEMA) : json(500, erroPagTesouro('C0000', 'Erro interno.'));
+            etapa === 'marinha' ? { status: 503, corpo: 'Service Unavailable' }
+            : etapa === 'bridge' ? html(AUTH_PROBLEMA)
+            : etapa === 'tsa' ? { status: 200, cabecalhos: TIMESTAMP_REPLY, corpo: Tsa.recusa('falha injetada pelo /_controle') } // RFC 3161: status=2 + failInfo
+            : json(500, erroPagTesouro('C0000', 'Erro interno.'));
           m.contar('fakes_requisicoes_total', { etapa, status: String(resposta.status) });
           res.writeHead(resposta.status, resposta.cabecalhos);
           res.end(resposta.corpo);
@@ -416,9 +469,10 @@ export function criarServidor(m: Mundo = new Mundo()): Server {
 
       if (caminho === '/healthz') resposta = { status: 200, corpo: 'ok' };
       else if (caminho === '/metrics') resposta = { status: 200, cabecalhos: { 'Content-Type': 'text/plain; version=0.0.4' }, corpo: m.metricas() };
-      else if (caminho === '/_controle' || caminho.startsWith('/_controle/')) resposta = controle(m, p);
+      else if (caminho === '/_controle' || caminho.startsWith('/_controle/')) resposta = controle(m, p, tipo);
       else if (caminho.startsWith('/marinha/')) resposta = marinha(m, p);
       else if (caminho.startsWith('/pagtesouro/')) resposta = pagtesouro(m, p);
+      else if (caminho === '/tsa' || caminho.startsWith('/tsa/')) resposta = tsa(m, p);
       else resposta = { status: 404, corpo: 'nao encontrado' };
     } catch (e) {
       resposta = json(500, { erro: e instanceof Error ? e.message : String(e) });
@@ -432,7 +486,7 @@ export function criarServidor(m: Mundo = new Mundo()): Server {
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   const porta = Number(process.env.PORTA ?? 8080);
   const servidor = criarServidor();
-  servidor.listen(porta, '0.0.0.0', () => console.log(`fakes-externos (SINTETICO) ouvindo em :${porta} — /marinha /pagtesouro /_controle /metrics`));
+  servidor.listen(porta, '0.0.0.0', () => console.log(`fakes-externos (SINTETICO) ouvindo em :${porta} — /marinha /pagtesouro /tsa /_controle /metrics`));
   for (const sinal of ['SIGTERM', 'SIGINT'] as const) {
     process.on(sinal, () => {
       servidor.closeAllConnections();

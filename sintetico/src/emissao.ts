@@ -22,9 +22,10 @@ import type { Plataforma } from './lib/plataforma.ts';
 
 interface Instrutor { chave: string; nome: string; rg: string; orgaoEmissor: string; cha: string; dataEmissao: string }
 interface Membro { chave: string; email: string; nome: string; papeis: string[] }
+interface Assinatura { paginaAuditoria: boolean; carimboTempo: { ativo: boolean; tsaUrl: string }; otp: { ativo: boolean; canal: string }; pades: { cliente: boolean; marinha: boolean } }
 interface Empresa {
   chave: string; slug: string; razaoSocial: string; adminEmail: string; adminNome: string;
-  jetskis: number; creditos: number; geral: Record<string, unknown>;
+  jetskis: number; creditos: number; geral: Record<string, unknown>; assinatura: Assinatura;
 }
 interface Eama extends Empresa { eamaRegistro: string; eamaRegistroValidade: string; instrutores: Instrutor[] }
 interface Delegada extends Empresa { instrutorProprio?: Instrutor; equipe: Membro[] }
@@ -132,8 +133,26 @@ class Semeadura {
       this.salvar();
       log(`${e.slug}: habilitada como EAMA emissora pela operadora de plataforma`);
     }
+    await this.assinatura(p, e.assinatura);
     for (const i of e.instrutores) await this.instrutor(p, i);
     return p;
+  }
+
+  /**
+   * Carimbo de tempo na TSA SINTÉTICA. Sem isto o padrão do produto é a freetsa.org — que o
+   * sumidouro afunda, e a emissão degrada em silêncio para "âncora interna". Sempre confere o
+   * valor vivo (o config pode ter sido mexido pela tela) e só grava se divergir.
+   */
+  async assinatura(empresa: EstadoPersona, cfg: Assinatura): Promise<void> {
+    const { api, log } = this.c;
+    const token = await this.token(empresa);
+    const atual = await api.naEmpresa<Partial<Assinatura>>('GET', token, empresa.tenantId!, '/config/assinatura');
+    const igual = atual.carimboTempo?.ativo === cfg.carimboTempo.ativo && atual.carimboTempo?.tsaUrl === cfg.carimboTempo.tsaUrl
+      && atual.pades?.cliente === cfg.pades.cliente && atual.pades?.marinha === cfg.pades.marinha && atual.paginaAuditoria === cfg.paginaAuditoria;
+    if (igual) return;
+    const { _, ...corpo } = cfg as Assinatura & { _?: string };
+    await api.naEmpresa('PUT', token, empresa.tenantId!, '/config/assinatura', corpo);
+    log(`${empresa.slug}: carimbo de tempo → ${cfg.carimboTempo.tsaUrl}${cfg.pades.cliente ? ' + PAdES no PDF do cliente' : ''}`);
   }
 
   /** Cadastra o instrutor e o faz assinar pelo link único — a página pública, sem login. */
@@ -177,6 +196,7 @@ class Semeadura {
       p.geralConfigurada = true;
       this.salvar();
     }
+    await this.assinatura(p, d.assinatura);
 
     if (!p.vinculoAtivo) {
       // A operadora PEDE o vínculo; quem aceita o termo é a EAMA. Nunca o mesmo lado.
@@ -411,10 +431,25 @@ async function emitir(s: Semeadura, c: Contexto, cat: CatalogoEmissao, chaveEmpr
 
   const desde = new Date(Date.now() - 30_000);
   const antes = (await api.naEmpresa<{ saldo: number }>('GET', tokenAdmin, t, '/creditos/saldo')).saldo;
+  const carimbosAntes = await s.controle<{ seq: number }[]>('/eventos?tipo=CARIMBO');
+  const seqAntes = carimbosAntes.at(-1)?.seq ?? 0;
   const emissao = await api.naEmpresa<Record<string, unknown>>('POST', token, t, `/reservas/${reserva.id}/emitir-documentos`);
   log(`    resposta: ${JSON.stringify(emissao).slice(0, 500)}`);
   const depois = (await api.naEmpresa<{ saldo: number }>('GET', tokenAdmin, t, '/creditos/saldo')).saldo;
   exigir(depois === antes - 1, `1 crédito debitado de ${empresa.slug} (${antes} → ${depois})`);
+  // A TSA sintética carimba a página de auditoria dos dois PDFs (cliente e Marinha) e, com PAdES
+  // ligado, o PDF do cliente de novo (OpenPDF, SHA-1). Sem esses eventos, o backend degradou para
+  // "âncora interna" em silêncio — a prova tem de exigir o carimbo, não só a emissão.
+  const cfg = (chaveEmpresa === cat.eama.chave ? cat.eama : cat.delegadas.find((d) => d.chave === chaveEmpresa))!.assinatura;
+  const esperados = 2 + (cfg.pades.cliente ? 1 : 0) + (cfg.pades.marinha ? 1 : 0);
+  // Os eventos do fake são globais: a prova exige o espelho QUIETO (sem motor/k6) e conta exato.
+  const janela = await s.controle<{ seq: number; tipo: string; detalhe?: string }[]>(`/eventos?desde=${seqAntes}`);
+  const estranhos = janela.filter((e) => !['CARIMBO', 'CONSULTA_CPF', 'GRU_CRIADA', 'SESSAO_PAGTESOURO', 'PIX_GERADO', 'PAGAMENTO'].includes(e.tipo));
+  exigir(estranhos.length === 0, `nenhum evento estranho na janela da prova (${estranhos.map((e) => e.tipo).join(', ') || 'ok'}) — se houver, há outro cliente usando o fake`);
+  const carimbos = janela.filter((e) => e.tipo === 'CARIMBO');
+  const sha1 = carimbos.filter((c) => c.detalhe?.includes('hash=sha1')).length;
+  const sha256 = carimbos.filter((c) => c.detalhe?.includes('hash=sha256')).length;
+  exigir(carimbos.length === esperados && sha256 === 2 && sha1 === esperados - 2, `exatamente ${esperados} carimbo(s) na TSA sintética — ${sha256} sha256 + ${sha1} sha1: ${carimbos.map((c) => c.detalhe?.split(' ')[0]).join(', ')}`);
 
   const documentos = await api.naEmpresa<Documento[]>('GET', token, t, `/documentos?clienteId=${cliente.clienteId}`);
   exigir(documentos.length > 0, `${documentos.length} documento(s) emitido(s) na ficha da cliente`);

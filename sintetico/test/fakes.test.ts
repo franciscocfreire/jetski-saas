@@ -211,7 +211,7 @@ test('bloqueio por volume: desligado por padrão; ligado, recusa só aquele CPF'
 
 test('falha e latência injetadas aparecem no /metrics; config inválida é recusada', async () => {
   assert.equal((await controle('/config', { falhas: { marinha: { taxa: 2 } } })).status, 400);
-  assert.equal((await controle('/config', { falhas: { tsa: { taxa: 1 } } })).status, 400);
+  assert.equal((await controle('/config', { falhas: { correios: { taxa: 1 } } })).status, 400);
   assert.equal((await controle('/config', { falhas: { marinha: { taxa: 1 } }, latenciaMs: { pagtesouro: 20 } })).status, 200);
   assert.equal((await fetch(`${raiz}/marinha/scam/emitgruscam/solicitar_servico.asp`)).status, 503);
   assert.equal((await fetch(`${raiz}/pagtesouro/api/pagamentos/pix-stn/sonda?idSessao=x`)).status, 400);

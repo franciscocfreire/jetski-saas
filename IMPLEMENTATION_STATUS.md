@@ -218,6 +218,27 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
 - E-mail transacional dedicado (hoje: Gmail com fallback `PLATFORM_SMTP_*` já preparado —
   trocar de provedor é só configuração).
 - Validação server-side de upload presignado (content-type/tamanho).
+- **Doc/código — `tsaUrl` vazio NÃO é HMAC** (achado em 18/set/2026 na E6). O comentário de
+  `AssinaturaConfig.CarimboTempo` ("tsaUrl vazio → usa âncora própria (HMAC), sem custo") e a
+  spec do ecossistema diziam isso; o código (`tsaUrlOrDefault`, `padrao()`) cai na
+  `https://freetsa.org/tsr` com o carimbo **ativo** por padrão. Toda emissão de toda empresa vai
+  à freetsa, e sem rede ela degrada para "âncora interna" só com um WARN. A página de auditoria
+  do PDF diz qual âncora foi usada, mas isso não fica em `documento_emitido` nem aparece na
+  lista de documentos. Corrigir o comentário; persistir fonte/autoridade do carimbo e expor na
+  lista. O WARN loga só `e.getMessage()` (`null` numa `ConnectException`) — logar a classe da
+  exceção (idem em `PadesSignatureService`). Também: o `@timestamp` do log JSON é hora local com
+  sufixo `Z` (encoder sem fuso) — confunde qualquer cruzamento com o Prometheus.
+- **Risco — o cliente de TSA do PAdES não tem timeout** (achado em 18/set/2026 na revisão da E6).
+  `PadesSignatureService` usa `new TSAClientBouncyCastle(tsaUrl)` do OpenPDF 1.3.35, cujo
+  `getTSAResponse` abre `URLConnection` sem `setConnectTimeout`/`setReadTimeout`, e o `JAVA_OPTS`
+  não define `sun.net.client.defaultConnectTimeout`/`defaultReadTimeout`. Com `pades.cliente=true`
+  e a TSA pendurada (freetsa fora do ar sem recusar), a thread da emissão fica presa sem limite —
+  o fallback "assina sem carimbo" só roda depois de a chamada falhar. A página de auditoria
+  (`CarimboTempoService`) tem 5 s / 8 s e não sofre disso. Correção (mérito próprio, não "por
+  causa do espelho"): subclasse de `TSAClientBouncyCastle` sobrescrevendo `getTSAResponse` com os
+  mesmos 5 s / 8 s, ou `-Dsun.net.client.defaultConnectTimeout=5000
+  -Dsun.net.client.defaultReadTimeout=8000` no `JAVA_OPTS` como rede de segurança. No espelho, o
+  modo `pendurar` da etapa `tsa` solta aos 30 s para o cenário não prender a emissão.
 - **Capacidade — listas sem paginação crescem com os dados** (achado em 17/set/2026 no soak
   do espelho). `GET /v1/tenants/{t}/locacoes` e `GET /v1/tenants/{t}/clientes` devolvem todos
   os registros: com ~4.000 locações e ~8.400 clientes por empresa, `/locacoes` levou **p95 de

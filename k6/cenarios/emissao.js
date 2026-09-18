@@ -2,7 +2,7 @@
 //
 // Ficha do cliente com 3 documentos em base64 (~230 KB cada), reserva, habilitação EMA,
 // termo assinado, GRU na Marinha SINTÉTICA, PIX pago pelo PagTesouro sintético, documentos
-// emitidos (PDF, carimbo de tempo, MinIO, e-mail ao Mailpit). Cada iteração gasta 1 crédito.
+// emitidos (PDF, carimbo de tempo na TSA sintética — E6 —, MinIO, e-mail ao Mailpit). Cada iteração gasta 1 crédito.
 //
 //   ./k6/rodar.sh <ip> emissao [perfil]        (o runner liga o pagamento automático no fake)
 //

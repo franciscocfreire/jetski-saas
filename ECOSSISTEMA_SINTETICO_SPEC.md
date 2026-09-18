@@ -38,7 +38,7 @@ Levantado no código em 17/set/2026 (chamadas HTTP de saída, SMTP, navegador).
 |---|---|---|---|---|
 | **Marinha — SCAM** (`dpc1.marinha.mil.br`) | `GruClient` | gerar GRU (PIX e boleto), consultar nome por CPF | ✅ `jetski.gru.marinha-base` | **GRU real emitida**; bloqueio da Marinha por volume (~8–10/dia/CPF) |
 | **Tesouro — PagTesouro** (`pagtesouro.tesouro.gov.br`) | `GruClient` | dados do pagamento, gerar PIX, sondar pagamento | ✅ `jetski.gru.pagtesouro-base` | cobrança PIX real |
-| **Carimbo de tempo RFC 3161** (ex.: `freetsa.org`) | `CarimboTempoService` | carimbar assinaturas | ✅ por empresa (`AssinaturaConfig.tsaUrl`); vazio = âncora HMAC própria, sem chamada | carimbo real em TSA de terceiro |
+| **Carimbo de tempo RFC 3161** (padrão `https://freetsa.org/tsr`) | `CarimboTempoService` (página de auditoria, BouncyCastle) e `PadesSignatureService` (PAdES-T, OpenPDF) | carimbar cada PDF emitido | ✅ por empresa (`AssinaturaConfig.carimboTempo.tsaUrl`). **Atenção:** `tsaUrl` vazio **não** é HMAC — cai no padrão freetsa.org, e o carimbo nasce ativo (`AssinaturaConfig.padrao()`); só `ativo=false` desliga (então âncora interna). Corrigido aqui em 18/set/2026 (E6) | carimbo real em TSA de terceiro |
 | **SMTP da plataforma** | `SmtpEmailService` (15 serviços) | convite, aprovação, fatura, OTP de aceite, PIX de reserva, claim… | ✅ `PLATFORM_SMTP_*` | e-mail real a cliente |
 | **SMTP da empresa emissora** | `SmtpSenderFactory` | **ofício à Capitania** (anexo com dados do cliente) | ✅ por empresa; **AUTH sempre ligado**, STARTTLS por empresa | ofício real a uma Capitania |
 | **SMTP do Keycloak** | realm + SPI `meujet-email-code` | código de login do portal, reset de senha | ✅ realm | e-mail real |
@@ -86,8 +86,14 @@ estrutura**, marcado como sintético, QR PNG real do texto), `pix-stn/sonda` com
 **máquina de estados**: `PENDENTE` (array de erro `C0008`) → `CONCLUIDO` (objeto com
 `situacao`), `idSessao` consultável por horas, PIX com `dataExpiracao` curta.
 
-**TSA** — responde RFC 3161 com token assinado por uma CA sintética (ex.: `openssl ts`).
-Só é chamado por empresas-persona configuradas com `tsaUrl` apontando para o fake.
+**TSA** — `POST /tsa` responde RFC 3161 com um token CMS de verdade (TSTInfo, `signingCertificateV2`,
+certificado X.509 com EKU timeStamping e assinatura RSA-2048 real via `node:crypto` — a imagem
+`node:24-alpine` não tem `openssl`); a chave privada nasce a cada boot e nunca sai do processo do
+fake; o certificado vai dentro de cada token (e em `/tsa/cert.pem`), por isso tokens de boots
+anteriores continuam verificáveis;
+`/tsa/cert.pem` permite conferir o carimbo por fora (`openssl ts -verify`). O semeador aponta o
+`tsaUrl` das empresas-persona para o fake — sem isso o padrão do produto é a freetsa.org, que o
+sumidouro afunda e a emissão degrada para "âncora interna" em silêncio.
 
 **`/_controle`** — a alavanca dos cenários, usada pelo motor de personas e pelo k6.
 **Nunca exposta**: o espelho é público, então `/_controle` escuta só em `127.0.0.1` da VM,
@@ -187,7 +193,9 @@ arquivo, e cada rodada registra a semente para ser reproduzível.
 ## 5. Travas (falha fechada)
 
 1. **Preflight** (`infra/espelho/preflight.sh`) reprova se `jetski.gru.*-base` não apontar
-   para `fakes-externos`, ou se alguma empresa-persona tiver `tsaUrl` fora do fake.
+   para `fakes-externos`. A trava do `tsaUrl` das empresas-persona vive no **semeador** (o
+   preflight roda antes de existir banco): `semeador tokens` lê `config/assinatura` de cada
+   empresa de emissão e só grava `fakesVerificados: true` se todas apontarem para o fake.
 2. **Sumidouro de DNS no backend do espelho** (`extra_hosts`): `dpc1.marinha.mil.br`,
    `pagtesouro.tesouro.gov.br` e `freetsa.org` resolvem para `127.0.0.1` **dentro do
    container do backend**, onde nada escuta. Se a configuração falhar e o código usar o
@@ -212,7 +220,8 @@ arquivo, e cada rodada registra a semente para ser reproduzível.
 | **E3b** ✅ | demais personas ([`sintetico/src/emissao.ts`](sintetico/README.md)): EAMA habilitada, 2 delegadas + vínculo, instrutores (link único, aprovação), equipe, créditos comprados, clientes de portal e balcão; prova `semeador provar-emissao` (própria + delegada até o ofício) | espelho populado a cada `terraform apply` |
 | **E4** ✅ | motor de comportamento ([`sintetico/src/motor.ts`](sintetico/README.md), `sintetico/motor.sh`): jornadas de portal, balcão (CHA/EMA), manutenção, telas e fechamento, com relógio 12×, funil em [`catalogo/e4-sabado.json`](sintetico/catalogo/e4-sabado.json), semente e relatório por passo | "um sábado sintético" |
 | **E5** ✅ | k6 por persona ([`k6/README.md`](k6/README.md): portal, emissão com fakes, plataforma) + `resiliencia` com falha injetada pelo `/_controle` + `rodar.sh`/`soak.sh` + limites do nginx afrouxados só no espelho + `/metrics` dos fakes no Prometheus; limites medidos em [`CAPACIDADE_E_LIMITES.md`](CAPACIDADE_E_LIMITES.md) | capacidade **e** resiliência |
-| **E6** | TSA fake; IdP Google fake (opcional) | reforço jurídico e login social no espelho |
+| **E6** ✅ | TSA sintética ([`sintetico/src/fakes/tsa.ts`](sintetico/README.md)) + `config/assinatura` das personas pelo semeador (PAdES só na EAMA) + prova por eventos `CARIMBO` | reforço jurídico no espelho: emissão com carimbo real |
+| **E7** | IdP Google sintético: o Keycloak do espelho como IdP de si mesmo (realm sintético, alias `google` com `providerId: oidc`), walker do broker, prova do gate de CPF e da unificação por OTP | login social no espelho |
 
 E0 vem primeiro por segurança. **E3a vem logo depois** porque resolve a dor imediata
 (aprovar empresa de carga à mão) sem depender de nada. E1–E2 são a fundação do resto: sem
@@ -266,6 +275,15 @@ os fakes nenhuma persona pode emitir; sem o e-mail do Keycloak o cliente não en
 | Falhas externas | **Marinha fora do ar** e **PagTesouro lento/pendurado**; o bloqueio por CPF fica para depois |
 | Busca do limite | **Rodar o stress agora** e registrar no CAPACIDADE_E_LIMITES.md |
 | Soak | **Perfil entregue + 1 h de prova**; a madrugada inteira fica com um comando (`k6/soak.sh <ip> 480`) |
+
+### Decisões da E6 (18/set/2026)
+
+| Tema | Decisão |
+|---|---|
+| Escopo | **Só a TSA**; o IdP Google sintético vira **E7** (é exercício do nosso brokering, não muda métrica) |
+| Token | **Assinatura RSA real** (chave gerada no boot do fake, nunca no repositório) — verificável por fora |
+| PAdES | **Ligado na EAMA** (cobre o segundo cliente de TSA, OpenPDF/SHA-1); **delegadas sem PAdES** como grupo de controle |
+| Trava do `tsaUrl` | **No semeador**, por persona (configura e confere ao gerar tokens) — o preflight roda sem banco |
 
 ## 8. Fora de escopo
 
