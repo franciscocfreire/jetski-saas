@@ -48,7 +48,18 @@ function ehProducao(url) {
   return host === 'meujet.com.br' || host.endsWith('.meujet.com.br');
 }
 
-export function validarAlvo(credenciais) {
+/**
+ * Slugs que os cenários podem atingir. `carga-*` são as empresas de carga (E3a). As `sintetico-*`
+ * (EAMA e delegadas, E3b) EMITEM documentos e GRU — só valem quando o tokens.json prova que o
+ * backend fala com a Marinha SINTÉTICA (`fakesVerificados`, gravado pelo semeador dentro da VM).
+ */
+function slugPermitido(slug, credenciais) {
+  if (slug.startsWith('carga-')) return true;
+  return slug.startsWith('sintetico-') && credenciais && credenciais.fakesVerificados === true;
+}
+
+/** `tipo`: a persona que o cenário usa (padrão carga) — só as credenciais dela são conferidas. */
+export function validarAlvo(credenciais, tipo) {
   if ((ehProducao(BASE_URL) || ehProducao(ISSUER)) && __ENV.PERMITIR_PRODUCAO !== LIBERACAO_PRODUCAO) {
     throw new Error(
       `Recusando: ${BASE_URL} é PRODUÇÃO. Teste de carga roda no espelho ` +
@@ -57,16 +68,20 @@ export function validarAlvo(credenciais) {
     );
   }
   // Cada credencial é conferida: todas têm de apontar para tenant de carga.
-  const alvos = (credenciais ? credenciais.usuarios : [{}]).map((u) => ({
+  const usuarios = credenciais ? credenciais.usuarios.filter((u) => (u.tipo || 'carga') === (tipo || 'carga')) : [{}];
+  if (usuarios.length === 0) throw new Error(`tokens.json sem credenciais do tipo "${tipo || 'carga'}" — rode ./k6/gerar-tokens.sh de novo.`);
+  const alvos = usuarios.map((u) => ({
     id: u.tenantId || TENANT_ID,
     slug: u.tenantSlug || TENANT_SLUG,
+    tipo: u.tipo || 'carga',
   }));
   for (const alvo of alvos) {
-    if (!alvo.id) {
+    if (alvo.tipo === 'plataforma') continue; // o console não tem empresa
+    if (!alvo.id && alvo.tipo !== 'portal') {
       throw new Error('Sem tenant: gere o tokens.json com o semeador (sintetico/README.md) ou passe -e TENANT_ID.');
     }
     const liberado = __ENV.PERMITIR_TENANT === alvo.id;
-    if (!alvo.slug.startsWith('carga-') && !liberado) {
+    if (!slugPermitido(alvo.slug, credenciais) && !liberado) {
       throw new Error(
         `Recusando rodar contra o tenant ${alvo.id} (slug "${alvo.slug}"): ` +
         'não parece ser um tenant de carga. Se for intencional, passe ' +
@@ -101,6 +116,17 @@ export const LIMITES = {
   jornada: {
     'jornada_balcao_completa': ['p(95)<8000'],
   },
+  publico: {
+    // Anônimo, cacheável, o que o marketing traz: tem de ser rápido.
+    'http_req_failed{tipo:publico}': ['rate<0.01'],
+    'http_req_duration{tipo:publico}': ['p(95)<500', 'p(99)<1500'],
+  },
+  emissao: {
+    // Documentos em base64 + PDF + MinIO + e-mail: o caminho mais pesado do produto.
+    'http_req_failed{tipo:emissao}': ['rate<0.01'],
+    'http_req_duration{tipo:emissao}': ['p(95)<4000', 'p(99)<8000'],
+    'jornada_emissao_completa': ['p(95)<20000'],
+  },
 };
 
 /** Cabeçalhos padrão de uma chamada autenticada ao backoffice. */
@@ -119,8 +145,12 @@ export function headers(token, tenantId) {
  *
  * - /emissoes, /gru            → emite documento REAL na Marinha. Há bloqueio
  *                                por volume (~8–10 GRUs/dia/CPF) e a conta é
- *                                de crédito de verdade.
+ *                                de crédito de verdade. EXCEÇÃO: o cenário
+ *                                `emissao` (E5), que só roda com `fakesVerificados`
+ *                                no tokens.json — a Marinha é a sintética do espelho.
  * - /enviar-pix-email, convites → dispara e-mail real (cota do Gmail: 500/dia).
  * - /v1/platform/**             → console da plataforma, fora do escopo do tenant.
+ *                                EXCEÇÃO: `plataforma` (E5), só leitura, com a
+ *                                credencial da operadora sintética.
  */
 export const PROIBIDOS = ['/emissoes', '/gru', '/enviar-pix-email', '/convites', '/v1/platform/'];

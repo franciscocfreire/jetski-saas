@@ -218,6 +218,32 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
 - E-mail transacional dedicado (hoje: Gmail com fallback `PLATFORM_SMTP_*` já preparado —
   trocar de provedor é só configuração).
 - Validação server-side de upload presignado (content-type/tamanho).
+- **Capacidade — listas sem paginação crescem com os dados** (achado em 17/set/2026 no soak
+  do espelho). `GET /v1/tenants/{t}/clientes` e `GET .../locacoes/controle-do-dia` devolvem
+  todos os registros: com 8.400 clientes e 4.000 locações por empresa, cada abertura de tela
+  baixa ~2,3 MB e leva 9 s pelo túnel (o servidor gasta ~300 ms). É o limite que uma loja
+  movimentada atinge em meses, antes de qualquer limite de req/s. Correção: paginação
+  server-side (page/size + busca) nas duas rotas e nos frontends que as consomem; a agenda e
+  a lista de jetskis (20–40 ms) não têm o problema. Ver CAPACIDADE_E_LIMITES.md §6.5.
+- **Autorização — check-in/check-out viram `locacao:create` no OPA** (achado em 17/set/2026
+  no espelho, pelo log do backend: 36.861 × `action=locacao:create`, zero `locacao:checkin`).
+  O `ActionExtractor` reconhece `checkin`/`checkout` sem hífen, mas as rotas reais são
+  `/locacoes/check-in/walk-in`, `/check-in/reserva` e `/locacoes/{id}/check-out` → fallback
+  `create`. Efeitos: as permissões finas `locacao:checkin`/`checkout` do `rbac.rego` são
+  letra morta (qualquer papel com `locacao:create` opera o pier) e a janela de horário do
+  `context.rego` (PR #64) nunca se aplicou ao tráfego real. Correção: mapear `check-in`,
+  `check-out` (e `walk-in`/`reserva` sob `check-in`) para `checkin`/`checkout` no extractor,
+  com teste; depois decidir se a janela de horário deve mesmo existir (ela passaria a valer).
+- **Bug — deadlock no check-in concorrente do mesmo jetski → 500** (achado em 17/set/2026 pelo
+  stress do balcão no espelho: 137 × HTTP 500 em `POST .../locacoes/check-in/walk-in`,
+  `CannotAcquireLockException: deadlock detected … while locking tuple in relation "jetski"`).
+  Duas transações fazem check-in do mesmo jetski: a validação de disponibilidade lê sem
+  travar, as duas inserem a `locacao` (o FK toma lock compartilhado na linha do jetski) e as
+  duas tentam o `UPDATE jetski SET status` — cada uma espera a outra; o Postgres mata uma e o
+  operador vê 500 em vez de "jetski indisponível". Correção sugerida: travar a linha do
+  jetski ao validar (`SELECT … FOR UPDATE` / `@Lock(PESSIMISTIC_WRITE)` no `findById` do
+  check-in, walk-in e por reserva) — a segunda transação enxerga `LOCADO` e recebe o 400
+  de negócio. Mesmo padrão em `alocar-jetski`.
 - **Bug — nome com parênteses quebra a ativação de conta** (achado em 17/set/2026 pelo
   semeador do espelho). `POST /v1/signup/tenant` aceita um nome como "Maria (sócia)", mas a
   ativação (`/v1/signup/magic-activate`) devolve **500 "Falha ao provisionar usuário no

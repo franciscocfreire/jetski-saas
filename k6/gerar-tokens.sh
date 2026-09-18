@@ -2,15 +2,18 @@
 # =============================================================================
 # Gera o k6/.auth/tokens.json a partir das personas do espelho.
 #
-# As empresas de carga e seus admins são criados pelo semeador (sintetico/), dentro
-# da VM, no provisionamento. Aqui só buscamos o estado das personas por SSH e
-# fazemos o login de cada admin — pelo MESMO código de login do semeador — para
-# obter os refresh tokens que os cenários usam. Vale ~12 h (sessão SSO do realm).
+# O semeador (sintetico/) roda DENTRO da VM — é lá que estão o estado das personas, o
+# Mailpit (o cliente do portal entra pelo código do e-mail) e o /_controle dos fakes (prova
+# de que o backend fala com a Marinha SINTÉTICA, sem a qual os cenários de emissão se
+# recusam a rodar). Só o tokens.json volta para cá. Vale ~12 h (sessão SSO do realm).
+#
+# Credenciais por tipo: carga (admins das empresas de carga), emissao (atendentes da EAMA e
+# das delegadas + instrutor), portal (clientes recorrentes) e plataforma (operadora, console).
 #
 # Uso:
 #   ./k6/gerar-tokens.sh <ip-do-espelho> [dominio]        (domínio padrão: jetsave.com.br)
 #
-# Requer: ssh para ubuntu@<ip> e Docker (roda o Node 24 em container; nada a instalar).
+# Requer: ssh para ubuntu@<ip>. O código do semeador é o do checkout da VM (~/jetski).
 # =============================================================================
 set -euo pipefail
 IP="${1:?uso: $0 <ip-do-espelho> [dominio]}"
@@ -22,16 +25,17 @@ case "$DOMINIO" in
 esac
 
 umask 077
-TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT   # o estado tem senhas e segredos TOTP: não fica em disco
 mkdir -p "$RAIZ/k6/.auth"
-ssh -o BatchMode=yes "ubuntu@$IP" 'sudo cat /var/lib/meujet-espelho/personas.json' > "$TMP/personas.json"
+ssh -o BatchMode=yes "ubuntu@$IP" "set -e
+  sudo docker run --rm --network host -v /home/ubuntu/jetski/sintetico:/app:ro -v /var/lib/meujet-espelho:/estado \
+    -e DOMINIO='$DOMINIO' -e ESTADO=/estado/personas.json -e SAIDA=/estado/tokens.json \
+    node:24-alpine node /app/src/semeador.ts tokens >&2
+  sudo cat /var/lib/meujet-espelho/tokens.json && sudo rm -f /var/lib/meujet-espelho/tokens.json" > "$RAIZ/k6/.auth/tokens.json"
 
-docker run --rm -u "$(id -u):$(id -g)" \
-  -v "$RAIZ/sintetico:/app:ro" -v "$TMP:/estado" -v "$RAIZ/k6/.auth:/saida" \
-  -e DOMINIO="$DOMINIO" -e ESTADO=/estado/personas.json -e SAIDA=/saida/tokens.json \
-  node:24-alpine node /app/src/semeador.ts tokens
-
-echo
-echo "Pronto. Para rodar:"
-echo "  export BASE_URL=https://www.$DOMINIO/api ISSUER=https://sso.$DOMINIO/realms/jetski-saas"
-echo "  k6 run -e PERFIL=smoke k6/cenarios/leitura.js"
+python3 - "$RAIZ/k6/.auth/tokens.json" <<'PY'
+import json, sys, collections
+d = json.load(open(sys.argv[1]))
+n = collections.Counter(u.get("tipo", "carga") for u in d["usuarios"])
+print(f"tokens.json: {dict(n)}; fakes verificados: {d.get('fakesVerificados')}")
+PY
+echo "Pronto. Para rodar:  ./k6/rodar.sh $IP <leitura|balcao|portal|emissao|plataforma|resiliencia> [perfil]"

@@ -10,9 +10,11 @@ dentro de um **tenant isolado** provisionado pelo fluxo de signup real.
 1. **Só contra tenant de carga.** `lib/config.js` recusa rodar se o slug não
    começar com `carga-`. Para forçar (ex.: tenant de dev), passe
    `-e PERMITIR_TENANT=<id>` conscientemente.
-2. **Nenhum cenário emite documento.** `/emissoes` e `/gru` estão fora: emitir
-   gera **GRU real na Marinha**, que bloqueia por volume (~8–10 por dia por CPF)
-   e consome crédito de verdade. Testar emissão exige stub — é trabalho à parte.
+2. **Emissão só contra a Marinha SINTÉTICA.** Emitir gera **GRU real na Marinha**
+   (bloqueio por volume, crédito de verdade). Os cenários `emissao` e `resiliencia`
+   só rodam com `fakesVerificados: true` no `tokens.json` — prova, feita dentro da
+   VM pelo semeador, de que o backend fala com os fakes do espelho (`fakes-externos`).
+   Os demais cenários continuam sem tocar `/emissoes` e `/gru`.
 3. **Nenhum cenário dispara e-mail.** `/enviar-pix-email` e convites estão fora;
    a cota do Gmail é de 500/dia e é compartilhada com a operação.
 4. **Dados sintéticos e rastreáveis.** Todo registro criado leva a marca
@@ -37,9 +39,15 @@ Só falta obter os tokens:
 ./k6/gerar-tokens.sh <ip-do-espelho>          # gera k6/.auth/tokens.json (~12 h de validade)
 ```
 
-O arquivo traz um refresh token por admin **e o tenant de cada um**: a carga se espalha
-por várias empresas ao mesmo tempo, que é como o SaaS opera de verdade (cada VU opera a
-sua). `lib/config.js` confere que **todas** são `carga-*` antes de começar.
+O arquivo traz um refresh token por persona, **com tipo**: `carga` (admins das empresas de
+carga, com o tenant de cada um), `emissao` (atendentes da EAMA e das delegadas, com o
+instrutor que usam), `portal` (clientes recorrentes, client do portal) e `plataforma` (a
+operadora, client do console). A carga se espalha por várias empresas ao mesmo tempo, que é
+como o SaaS opera de verdade (cada VU opera a sua). O semeador roda **dentro da VM** — é lá
+que estão o Mailpit (o cliente entra pelo código do e-mail) e o `/_controle` dos fakes — e
+grava `fakesVerificados: true` só depois de provar que o backend fala com a **Marinha
+sintética** (registra um nome no fake e pergunta ao backend). `lib/config.js` só deixa os
+cenários de emissão tocarem as empresas `sintetico-*` com essa prova.
 
 **Por que o login não é um simples POST:** nenhum client que a API aceita tem ROPC, e a
 tela de login é React (sem `<form>` no HTML). O login de verdade — authorization_code +
@@ -51,6 +59,19 @@ troca refresh por access token.
 > `jornadas_abortadas_sem_jetski` acusa quando falta.
 
 ## Rodar
+
+O jeito curto, que cuida dos fakes e grava o resumo em `k6/resultados/`:
+
+```bash
+./k6/rodar.sh <ip> leitura            # smoke (padrão)
+./k6/rodar.sh <ip> balcao load
+./k6/rodar.sh <ip> portal stress
+./k6/rodar.sh <ip> emissao load       # liga o pagamento automático no PagTesouro sintético
+./k6/rodar.sh <ip> resiliencia --modo marinha-fora
+./k6/soak.sh <ip> 60                  # motor em tempo real + k6 leve; compara a JVM antes/depois
+```
+
+À mão:
 
 ```bash
 export BASE_URL=https://www.<dominio-do-espelho>/api
@@ -92,6 +113,22 @@ executa o contexto de init e imprime as opções resolvidas.
 |---|---|---|
 | `cenarios/leitura.js` | o dia do operador: controle do dia, agenda, frota, lista de clientes | saturação de pool e de threads sob leitura concorrente |
 | `cenarios/balcao.js` | atendimento presencial: cadastro → check-in walk-in → check-out → extrato | contenção em escrita, custo do cálculo de cobrança (RN01) |
+| `cenarios/portal.js` | o cliente final: vitrine/modelos/disponibilidade **sem login** + reserva online com sinal e comprovante | o tráfego exposto a anônimos; o único que o nginx limita por IP |
+| `cenarios/emissao.js` | EMA completa: ficha com 3 documentos (~230 KB cada) → habilitação → termo → GRU na Marinha sintética → PIX pago → documentos emitidos | memória (base64→PDF), MinIO, threads presas na "Marinha", e-mail assíncrono. Gasta 1 crédito por iteração (o `setup` recarrega por cortesia) |
+| `cenarios/plataforma.js` | a operadora no console: dashboard consolidado, empresas, créditos, trilha, saúde | consultas **cross-tenant** que crescem com o volume de todas as lojas |
+| `cenarios/resiliencia.js` | emissão + "tráfego inocente" ao mesmo tempo, com falha externa injetada (`--modo`) | se a Marinha caída ou o PagTesouro pendurado derrubam quem não depende deles (threads do Tomcat presas no timeout de 20 s) |
+
+**Resiliência** — os modos são injetados pelo runner no `/_controle` dos fakes e desfeitos ao
+sair: `nenhum` (controle), `marinha-fora` (503 em tudo → a emissão tem de cair no fluxo manual:
+`emissoes_fallback_manual > 0`, sem 5xx), `pagtesouro-lento` (8 s) e `pagtesouro-pendurado`
+(conexão presa até o timeout do backend). O threshold que importa é o do inocente: mesma meta
+de leitura de sempre, com o mundo lá fora quebrado.
+
+**Limites por IP do nginx.** Rodando de uma máquina, todas as VUs partem do mesmo IP. Por
+isso o espelho sobe com os limites **afrouxados** (×50; `infra/espelho/nginx-limites.sh`,
+`ESPELHO_LIMITES=frouxos`, decisão nº 5 da spec) — mede-se a aplicação. Para validar a
+proteção, `ESPELHO_LIMITES=reais` + `deploy.sh` e rode `portal`: o contador `respostas_429`
+deve subir a partir de ~2 req/s no público.
 
 ### Perfis
 
@@ -134,10 +171,9 @@ há RLS e ordem de FK.
 
 ## O que ainda não está aqui
 
-- **Upload de fotos no check-in** — a operação mais cara do sistema e a hipótese
-  nº 5 da linha de base. Merece cenário e perfil próprios; misturar com o balcão
-  produz um P95 que não explica nada (por isso o check-out vai com
-  `skipPhotos: true`).
-- **Portal do cliente e marketplace** — tráfego público, sem login, com outro
-  perfil de cache.
-- **Emissão com stub** — exige desarmar a integração com a Marinha primeiro.
+- **Upload de fotos no check-in/check-out** pelo fluxo de fotos (presigned + confirm) — a
+  operação mais cara do sistema. O cenário de emissão já sobe ~700 KB de documentos por
+  iteração pelo caminho dos anexos; o fluxo de fotos da locação merece cenário próprio
+  (por isso o check-out vai com `skipPhotos: true`).
+- **Marketplace** (vitrine multi-loja) — o portal cobre a vitrine de uma loja.
+- **k6 com muitos IPs** (carga distribuída) — hoje o limite por IP é afrouxado no espelho.

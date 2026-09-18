@@ -29,6 +29,14 @@ services:
       # carga, um convite podia sumir antes de ser lido.
       MP_MAX_MESSAGES: "20000"
 
+  # Limites por IP AFROUXADOS (decisão nº 5 da spec): um teste de carga sai de uma máquina só e
+  # cairia inteiro num único balde do nginx. O arquivo é GERADO do nginx.conf de produção por
+  # infra/espelho/nginx-limites.sh (ESPELHO_LIMITES=frouxos|reais), que o deploy.sh chama antes
+  # de subir o nginx — produção não muda; só rate/burst diferem, e o script confere isso.
+  nginx:
+    volumes: !override
+      - ./infra/espelho/nginx.espelho.conf:/etc/nginx/nginx.conf:ro
+
   # A Marinha (SCAM) e o PagTesouro sintéticos — fase E2 do ECOSSISTEMA_SINTETICO_SPEC.md.
   # Código em sintetico/src/fakes (TypeScript sem dependências: a imagem oficial do Node
   # roda o fonte direto, sem build nem npm install). Fora do nginx e do túnel: o backend

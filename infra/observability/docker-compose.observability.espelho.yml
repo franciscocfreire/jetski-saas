@@ -1,0 +1,9 @@
+# Camada do ESPELHO sobre a observabilidade de produção:
+#   docker compose --env-file .env -f infra/observability/docker-compose.observability.yml \
+#                  -f infra/observability/docker-compose.observability.espelho.yml up -d
+# Só acrescenta o alvo dos fakes (fakes-externos:8080/metrics) ao job 'extras' do Prometheus,
+# via file_sd — o prometheus-prod.yml não muda. O provisionamento do espelho usa esta camada.
+services:
+  prometheus:
+    volumes:
+      - ./prometheus/alvos-extras.espelho:/etc/prometheus/alvos-extras:ro

@@ -217,6 +217,106 @@ depois, em prod em janela combinada:
 - dashboard "Capacidade" com o consumo por tenant e a projeção de estouro;
 - revisão trimestral da linha de base (a carga cresce, o número envelhece).
 
+## 6. Limites medidos no espelho (17/set/2026)
+
+Fase E5 do ecossistema sintético: k6 de fora da VM contra o espelho (`us-ashburn-1`, A1.Flex
+2 OCPU / 12 GB, a mesma stack de produção, limites por IP do nginx afrouxados). Números do
+Prometheus do espelho, por minuto, cruzados com o resumo do k6 (`k6/resultados/`).
+
+### 6.1 O joelho da curva: ~100 req/s, e é CPU
+
+| Cenário (stress, rampa até 150 it/s) | Abaixo do joelho | No joelho | Platô |
+|---|---|---|---|
+| **Balcão** (cadastro → check-in → check-out → extrato) | 95 req/s, p95 **120 ms**, CPU 88% | 107 req/s, p95 1,2 s, CPU 99,7% | ~120 req/s, **12 locações/s**, p95 3,8–4,0 s |
+| **Portal** (vitrine pública + reserva online + comprovante) | 114 req/s, p95 **156 ms**, CPU 88% | 124 req/s, p95 2,0 s, CPU 99,7% | ~135 req/s, 13 reservas/s, p95 3,6 s |
+
+O que acontece no joelho, nos dois casos e na mesma ordem: a **CPU do host chega a 100%**
+(o backend fica com ~40% dela; o resto é Postgres, Keycloak, nginx e os Next.js), o **pool
+do Hikari (10) vira fila** (~190 conexões esperando), as **200 threads do Tomcat ocupam** e
+a latência sobe uma ordem de grandeza sem a vazão subir junto. A heap nunca passou de 390 MB
+(teto 750 MB) e o GC não apareceu — a hipótese nº 3 da §3 **não se confirma**; a nº 2 (sem
+`cpus:`, tudo disputa as 2 OCPUs) **se confirma como o gargalo real**; a nº 1/nº 4 (pool) é
+**sintoma**: com a CPU saturada, aumentar o pool só muda onde a fila se forma.
+
+**Folga em relação a hoje:** produção faz 0,30 req/s de média e 3,6 de pico
+(`LINHA_DE_BASE.md`); o "sábado sintético" de três lojas de emissão (motor da E4, §sintetico)
+custa 0,3 req/s e 6% de CPU. O joelho está **~300× acima da média** e **~30× acima do pico**
+atuais. Na VM atual, em ordem de grandeza, cabem **dezenas a poucas centenas de lojas
+operando ao mesmo tempo** antes de a latência sair da meta — o número exato depende do mix
+(emissão custa 10× mais que leitura) e é o que a F4 vai afinar.
+
+### 6.2 Emissão: o caminho caro
+
+| | |
+|---|---|
+| 1 VU | 20 emissões/min; jornada completa (3 documentos de 230 KB + habilitação + termo + GRU + PIX + PDF + e-mail) **p95 3,2 s** |
+| 4 VUs + 6 de leitura | 1,6 emissões/s; CPU do host **81–97%** |
+
+Uma emissão custa, em CPU, o que ~10 leituras de tela custam. É o cenário que dimensiona a
+VM se a emissão delegada crescer; PDF, carimbo de tempo e base64 são os suspeitos (perfilar
+na F4).
+
+### 6.3 Resiliência: a Marinha caída não derruba o resto
+
+`k6/cenarios/resiliencia.js` — 4 VUs emitindo + 6 VUs de "tráfego inocente" (outras
+empresas, telas do balcão), 3 min por modo, falha injetada no `/_controle` dos fakes:
+
+| Modo | Emissão | Tráfego inocente (meta p95 < 800 ms) |
+|---|---|---|
+| controle (sem falha) | 293 concluídas, jornada p95 2,9 s | p95 **253 ms** |
+| **Marinha fora** (503 em tudo) | 619 caíram no **fluxo manual**, 0 concluídas, **0 × 5xx** | p95 **200 ms** |
+| **PagTesouro lento** (8 s por chamada) | 28 concluídas, jornada 26 s | p95 **404 ms** |
+| **PagTesouro pendurado** (timeout de 20 s) | 36 fallbacks | p95 **194 ms** |
+
+Veredito: o monolito **não** deixa a integração externa contaminar quem não depende dela —
+as threads presas na "Marinha" (até 20 s cada) não esgotaram o Tomcat nesta intensidade. Em
+volume maior de emissão simultânea isso muda (200 threads / 20 s = 10 emissões/s presas
+bastam); um pool ou timeout dedicado à GRU é o endurecimento óbvio.
+
+### 6.4 Defeitos que só a carga mostrou
+
+1. **Reserva do portal respondia 500 sob saturação** — `TaskRejectedException` do executor
+   `@Async` (fila de 500, `AbortPolicy`): uma métrica assíncrona derrubava a reserva.
+   9.540 × 500 no stress do portal. **Corrigido no PR #66** (`CallerRunsPolicy`).
+2. **Deadlock no check-in concorrente do mesmo jetski → 500** (137 × no stress do balcão):
+   duas transações validam disponibilidade sem travar, inserem a locação (lock compartilhado
+   do FK) e disputam o `UPDATE jetski`. Correção sugerida nas pendências do
+   `IMPLEMENTATION_STATUS.md` (lock pessimista na validação).
+3. **Check-in/check-out chegam ao OPA como `locacao:create`** (rotas com hífen não casam com
+   o `ActionExtractor`): o RBAC fino do pier e a janela de horário do `context.rego` são
+   letra morta. Pendência registrada.
+
+### 6.5 Soak (1 h): motor em tempo real + k6 leve
+
+`k6/soak.sh <ip> 60 3`: o motor de personas em tempo real (5 chegadas/h, com emissão, GRU,
+manutenção) + 3 VUs de leitura por 60 min, logo depois dos dois stress.
+
+| | antes | depois |
+|---|---|---|
+| heap do backend | 170 MB | 144 MB |
+| threads da JVM | 48 | 49 |
+| Hikari ativas / esperando | 0 / 0 | 0 / 0 |
+| pausa de GC (5 min) | 0 | 0 |
+
+**Sem sinal de vazamento.** Mas o soak achou o limite que chega primeiro na vida real, e
+ele não é req/s: **o crescimento dos dados em listas sem paginação**. Depois do stress, cada
+empresa de carga tinha ~8.400 clientes e ~4.000 locações; `GET /clientes` e
+`GET /locacoes/controle-do-dia` devolvem **tudo**. Com 3 VUs: **2,3 MB por request**,
+7,8 GB em uma hora, p95 de **8,9 s** medido pelo k6 — enquanto o servidor gastava ~300 ms
+(o resto é transferência pelo túnel). Uma loja movimentada acumula isso em um ano de
+operação. Pendência registrada: paginar (ou filtrar por padrão) as duas rotas. Os SLOs de
+leitura precisam ser medidos com volume de dados realista, não só com tráfego.
+
+### 6.6 O que fazer com isso (entra na F4)
+
+1. `cpus:` por container e medir a fatia do **Postgres** na CPU sob o stress do balcão — é o
+   primeiro suspeito dos 60% que não são do backend.
+2. Repetir o stress com Hikari 20 e 30 **depois** de tratar a CPU; hoje o pool é sintoma.
+3. Corrigir os defeitos 2 e 3 acima; reavaliar a janela de horário do pier quando ela passar
+   a valer de verdade.
+4. Pool/timeout dedicado às chamadas de GRU (§6.3) antes de a emissão delegada escalar.
+5. Perfilar a emissão (§6.2): onde vão os ~2,5 s de CPU por documento.
+
 ## 5. Por onde começar
 
 ~~1. Extrair a linha de base do Prometheus (F0).~~ ✅ feito — `LINHA_DE_BASE.md`.

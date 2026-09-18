@@ -18,7 +18,7 @@
 import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { cpfAleatorio, provarEmissao, semearEmissao, type Contexto } from './emissao.ts';
+import { cpfAleatorio, lerCatalogoEmissao, provarEmissao, semearEmissao, type Contexto } from './emissao.ts';
 import { ArquivoDeEstado, type EstadoPersona } from './lib/estado.ts';
 import { ErroHttp, pedir } from './lib/http.ts';
 import { login, seguirLinkDeAcao, type ResultadoDeLogin } from './lib/keycloak.ts';
@@ -259,17 +259,80 @@ function resumo(): void {
  */
 async function gerarTokens(): Promise<void> {
   const saida = process.env.SAIDA ?? './tokens.json';
-  const usuarios = [];
+  const emissao = lerCatalogoEmissao();
+  const persona = (chave: string): EstadoPersona => {
+    const p = arquivo.estado.personas[chave];
+    if (!p?.senha || !p.tenantId) throw new Error(`${chave} ainda não foi semeada — rode "semear" no espelho.`);
+    return p;
+  };
+  type Credencial = { tipo: 'carga' | 'emissao' | 'portal' | 'plataforma'; usuario: string; clientId: string; refreshToken: string; tenantId?: string; tenantSlug?: string; instrutorId?: string };
+  const usuarios: Credencial[] = [];
+
+  // Empresas de carga: os admins, para `leitura` e `balcao`.
   for (const e of catalogo.empresasDeCarga) {
-    const p = arquivo.estado.personas[e.chave];
-    if (!p?.senha || !p.tenantId) throw new Error(`${e.chave} ainda não foi semeada — rode "semear" no espelho.`);
+    const p = persona(e.chave);
     const { tokens } = await entrar(p, 'backoffice');
-    usuarios.push({ usuario: p.email, refreshToken: tokens.refreshToken, tenantId: p.tenantId, tenantSlug: p.slug });
+    usuarios.push({ tipo: 'carga', usuario: p.email, clientId: 'jetski-backoffice', refreshToken: tokens.refreshToken, tenantId: p.tenantId, tenantSlug: p.slug });
   }
+
+  // Emissão: quem atende o balcão em cada loja (EAMA = admin; delegadas = o OPERADOR da equipe) + o instrutor que ela usa.
+  const eama = persona(emissao.eama.chave);
+  const atendentes = [
+    { p: eama, instrutorId: Object.values(eama.instrutores ?? {})[0]?.id },
+    ...emissao.delegadas.map((d) => ({ p: persona(d.equipe.find((m) => m.papeis.includes('OPERADOR'))?.chave ?? d.chave), instrutorId: undefined as string | undefined })),
+  ];
+  for (const { p, instrutorId } of atendentes) {
+    const { tokens } = await entrar(p, 'backoffice');
+    let instrutor = instrutorId;
+    if (!instrutor) {
+      const elegiveis = await api.naEmpresa<{ id: string; origem: string }[]>('GET', tokens.accessToken, p.tenantId!, '/vinculos-emissao/instrutores-parceiro');
+      instrutor = (elegiveis.find((i) => i.origem === 'EAMA') ?? elegiveis[0])?.id;
+    }
+    usuarios.push({ tipo: 'emissao', usuario: p.email, clientId: 'jetski-backoffice', refreshToken: tokens.refreshToken, tenantId: p.tenantId, tenantSlug: p.slug, instrutorId: instrutor });
+  }
+
+  // Portal: os clientes recorrentes entram pelo código do e-mail (client do portal).
+  for (const c of emissao.clientesPortal) {
+    const p = arquivo.estado.personas[c.chave];
+    if (!p?.perfilCompleto) continue;
+    const r = await login({
+      issuer: ISSUER,
+      clientId: 'jetski-customer-portal',
+      redirectUri: `https://cliente.${DOMINIO}/api/auth/callback/keycloak`,
+      usuario: c.email,
+      senha: '',
+      obterCodigoPorEmail: (pedidoEm) => esperarNoEmail(MAILPIT, c.email, pedidoEm, (texto) => lerCodigo(texto), 'código de login'),
+    });
+    usuarios.push({ tipo: 'portal', usuario: c.email, clientId: 'jetski-customer-portal', refreshToken: r.tokens.refreshToken, tenantSlug: emissao.delegadas[0].slug });
+  }
+
+  // Plataforma: a operadora sintética, pelo console (TOTP).
+  const op = persona(catalogo.operadorPlataforma.chave);
+  const console_ = await entrar(op, 'console');
+  usuarios.push({ tipo: 'plataforma', usuario: op.email, clientId: 'jetski-platform-console', refreshToken: console_.tokens.refreshToken });
+
+  // Prova de que o backend fala com a MARINHA SINTÉTICA — e não com a real: registra um CPF no fake
+  // com um nome que só ele conhece e pergunta ao backend. Sem essa prova, os cenários de emissão
+  // (que geram GRU) se recusam a rodar.
+  let fakesVerificados = false;
+  try {
+    const cpfProva = cpfAleatorio();
+    const nomeProva = `PROVA FAKES ${Date.now()}`;
+    const r = await pedir(`${FAKES}/_controle/contribuintes`, { metodo: 'POST', json: { cpf: cpfProva, nome: nomeProva } });
+    if (r.status < 300) {
+      const t = (await entrar(persona(catalogo.empresasDeCarga[0].chave), 'backoffice')).tokens.accessToken;
+      const c = await api.naEmpresa<{ nome?: string }>('GET', t, persona(catalogo.empresasDeCarga[0].chave).tenantId!, `/clientes/consulta-marinha?cpf=${cpfProva}`);
+      fakesVerificados = c.nome === nomeProva;
+    }
+  } catch (e) {
+    log(`fakes NÃO verificados: ${e instanceof Error ? e.message.split('\n')[0] : e}`);
+  }
+
   mkdirSync(dirname(saida), { recursive: true });
-  writeFileSync(saida, `${JSON.stringify({ geradoEm: new Date().toISOString(), issuer: ISSUER, clientId: 'jetski-backoffice', usuarios }, null, 2)}\n`, { mode: 0o600 });
+  writeFileSync(saida, `${JSON.stringify({ geradoEm: new Date().toISOString(), issuer: ISSUER, ambiente: 'espelho', dominio: DOMINIO, fakesVerificados, clientId: 'jetski-backoffice', usuarios }, null, 2)}\n`, { mode: 0o600 });
   chmodSync(saida, 0o600);
-  log(`${usuarios.length} tokens gravados em ${saida} (valem ~12 h).`);
+  const porTipo = usuarios.reduce<Record<string, number>>((acc, u) => ({ ...acc, [u.tipo]: (acc[u.tipo] ?? 0) + 1 }), {});
+  log(`${usuarios.length} tokens gravados em ${saida} (valem ~12 h): ${JSON.stringify(porTipo)}; fakes verificados: ${fakesVerificados}`);
 }
 
 // ---- E2: prova de vida da emissão de GRU ---------------------------------------------------------

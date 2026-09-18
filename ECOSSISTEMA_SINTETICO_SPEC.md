@@ -211,7 +211,7 @@ arquivo, e cada rodada registra a semente para ser reproduzível.
 | **E2** ✅ | `fakes-externos` ([`sintetico/src/fakes/`](sintetico/README.md)): Marinha + PagTesouro + `/_controle` + métricas; **teste de contrato** com um robô que repete o `GruClient` (os HARs não foram versionados — CPF real), incluindo nomes acentuados; prova de vida `semeador provar-gru` no provisionamento. Pendente para a E5: scrape do `/metrics` pelo Prometheus do espelho; o charset real das páginas ASP segue na checagem manual | emissão de ponta a ponta no espelho |
 | **E3b** ✅ | demais personas ([`sintetico/src/emissao.ts`](sintetico/README.md)): EAMA habilitada, 2 delegadas + vínculo, instrutores (link único, aprovação), equipe, créditos comprados, clientes de portal e balcão; prova `semeador provar-emissao` (própria + delegada até o ofício) | espelho populado a cada `terraform apply` |
 | **E4** ✅ | motor de comportamento ([`sintetico/src/motor.ts`](sintetico/README.md), `sintetico/motor.sh`): jornadas de portal, balcão (CHA/EMA), manutenção, telas e fechamento, com relógio 12×, funil em [`catalogo/e4-sabado.json`](sintetico/catalogo/e4-sabado.json), semente e relatório por passo | "um sábado sintético" |
-| **E5** | k6 por persona + cenários de falha externa (Marinha fora, PagTesouro lento) | capacidade **e** resiliência |
+| **E5** ✅ | k6 por persona ([`k6/README.md`](k6/README.md): portal, emissão com fakes, plataforma) + `resiliencia` com falha injetada pelo `/_controle` + `rodar.sh`/`soak.sh` + limites do nginx afrouxados só no espelho + `/metrics` dos fakes no Prometheus; limites medidos em [`CAPACIDADE_E_LIMITES.md`](CAPACIDADE_E_LIMITES.md) | capacidade **e** resiliência |
 | **E6** | TSA fake; IdP Google fake (opcional) | reforço jurídico e login social no espelho |
 
 E0 vem primeiro por segurança. **E3a vem logo depois** porque resolve a dor imediata
@@ -257,6 +257,15 @@ os fakes nenhuma persona pode emitir; sem o e-mail do Keycloak o cliente não en
 | Onde roda o motor | **De fora, por túnel SSH** (`sintetico/motor.sh`), como a §3.3 previa |
 | Compressão | **12×** — o sábado (09h–18h) em ~45 min; fator é parâmetro |
 | Clientes | **Fixos + novos durante o dia** (cadastro no portal e no balcão em plena operação) |
+
+### Decisões da E5 (17/set/2026)
+
+| Tema | Decisão |
+|---|---|
+| Personas no k6 | **Portal, emissão EMA (com fakes) e operadora de plataforma**, além de leitura e balcão |
+| Falhas externas | **Marinha fora do ar** e **PagTesouro lento/pendurado**; o bloqueio por CPF fica para depois |
+| Busca do limite | **Rodar o stress agora** e registrar no CAPACIDADE_E_LIMITES.md |
+| Soak | **Perfil entregue + 1 h de prova**; a madrugada inteira fica com um comando (`k6/soak.sh <ip> 480`) |
 
 ## 8. Fora de escopo
 
