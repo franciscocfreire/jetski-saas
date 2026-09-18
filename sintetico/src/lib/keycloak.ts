@@ -36,6 +36,13 @@ export interface PedidoDeLogin {
    * Chamada depois de o código ser pedido; devolve os 6 dígitos (lidos no Mailpit).
    */
   obterCodigoPorEmail?: (pedidoEm: Date) => Promise<string>;
+  /**
+   * Entrar por um provedor externo ("Entrar com Google"): o walker segue o broker até o realm
+   * do provedor (no espelho, o realm sintético do próprio Keycloak), entra lá com usuário/senha
+   * e volta. `obterLinkDeVinculo` lê no Mailpit o e-mail "confirme o acesso com Google" que o
+   * Keycloak manda quando o e-mail já pertence a uma conta (vínculo explícito, nunca JIT).
+   */
+  idp?: { alias: string; usuario: string; senha: string; nome?: string; sobrenome?: string; obterLinkDeVinculo?: (desde: Date) => Promise<string>; confiarDispositivo?: boolean };
 }
 
 export interface ResultadoDeLogin {
@@ -71,6 +78,16 @@ export function telaDe(html: string): string | undefined {
   return campoTexto(html, 'pageId')?.replace(/\.ftl$/, '');
 }
 
+/**
+ * Action do <form id="kc-form-login"> do tema PADRÃO do Keycloak (o realm do provedor sintético
+ * usa esse tema, sem kcContext). Devolve undefined se a página não é esse formulário.
+ */
+export function acaoDoFormPadrao(html: string): string | undefined {
+  if (!/id="kc-form-login"/.test(html)) return undefined;
+  const m = /id="kc-form-login"[^>]*action="([^"]+)"/.exec(html) ?? /action="([^"]+)"[^>]*id="kc-form-login"/.exec(html);
+  return m?.[1].replace(/&amp;/g, '&');
+}
+
 function politicaDe(html: string): PoliticaTotp {
   const bloco = html.slice(html.indexOf('"totp"'));
   const alg = (campoTexto(bloco, 'algorithm') ?? 'HmacSHA1').toLowerCase().replace('hmac', '');
@@ -83,7 +100,22 @@ function politicaDe(html: string): PoliticaTotp {
 
 // ---------------------------------------------------------------- fluxo
 
-const MAX_TELAS = 8;
+const MAX_TELAS = 24; // iterações (telas 200 + redirects); o login social com vínculo por e-mail, 2FA e reinício chega perto de 20
+
+// O Keycloak (desde o 20, política `otpPolicyCodeReusable=false`) recusa REUSAR um código TOTP no
+// mesmo período: dois logins seguidos da mesma persona (o de referência e o pelo Google) cairiam
+// nisso em menos de 30 s. Guarda preventivo, por segredo — não foi observado ao vivo.
+const otpUsadoNoPeriodo = new Map<string, number>();
+export async function codigoTotpInedito(segredo: string, politica: PoliticaTotp): Promise<string> {
+  const periodo = politica.periodoSegundos * 1000;
+  let agora = Date.now();
+  if (otpUsadoNoPeriodo.get(segredo) === Math.floor(agora / periodo)) {
+    await new Promise((ok) => setTimeout(ok, periodo - (agora % periodo) + 500));
+    agora = Date.now();
+  }
+  otpUsadoNoPeriodo.set(segredo, Math.floor(agora / periodo));
+  return totp(Buffer.from(segredo, 'utf8'), agora, politica);
+}
 
 /**
  * Faz o login e devolve os tokens. Atravessa, conforme o Keycloak pedir:
@@ -101,6 +133,7 @@ export async function login(p: PedidoDeLogin): Promise<ResultadoDeLogin> {
     scope: 'openid',
     code_challenge: challenge,
     code_challenge_method: 'S256',
+    ...(p.idp ? { kc_idp_hint: p.idp.alias } : {}), // o botão "Entrar com Google" faz exatamente isto
   }).toString();
 
   const saida: Omit<ResultadoDeLogin, 'tokens'> = { telas: [] };
@@ -108,6 +141,9 @@ export async function login(p: PedidoDeLogin): Promise<ResultadoDeLogin> {
   let politica = POLITICA_PADRAO;
   let codigoPedidoEm: Date | undefined;
   let reenviou = false;
+  let desdeVinculo = new Date();
+  let continuarAposVinculo: string | undefined; // loginAction da tela "confira seu e-mail" (= "clique aqui para continuar")
+  const hostSso = new URL(p.issuer).host;
   let r = await pedir(auth.toString(), { pote });
 
   for (let i = 0; i < MAX_TELAS; i++) {
@@ -120,15 +156,49 @@ export async function login(p: PedidoDeLogin): Promise<ResultadoDeLogin> {
         if (!code) throw new Error(`Keycloak recusou o login de ${p.usuario}: ${u.searchParams.get('error_description') ?? r.location}`);
         return { ...saida, tokens: await trocarCodigo(p, code, verifier) };
       }
+      // Trava: o broker só pode levar a persona para dentro do SSO do espelho. Um alias `google`
+      // apontando para accounts.google.com (produção) pararia AQUI, sem mandar nada para fora.
+      if (new URL(r.location).host !== hostSso) throw new Error(`login de ${p.usuario} saiu do SSO do espelho: ${r.location}`);
       r = await pedir(r.location, { pote });
       continue;
     }
     if (r.status !== 200) throw new ErroHttp(`login de ${p.usuario}`, r);
 
+    // O realm do provedor sintético usa o tema PADRÃO do Keycloak: sem kcContext, com <form>.
+    const realmExterno = /\/realms\/([^/]+)\//.exec(new URL(r.url).pathname)?.[1];
+    const acaoForm = p.idp && realmExterno && realmExterno !== new URL(p.issuer).pathname.split('/').pop() ? acaoDoFormPadrao(r.corpo) : undefined;
+    if (p.idp && realmExterno && acaoForm) {
+      const telaExterna = `${realmExterno}:login`;
+      saida.telas.push(telaExterna);
+      if (/id="input-error"/.test(r.corpo) && saida.telas.filter((t) => t === telaExterna).length > 1) {
+        throw new Error(`o provedor ${realmExterno} recusou ${p.idp.usuario} (senha errada?)`);
+      }
+      // Mesma trava dos redirects: a senha da conta "Google" só vai para o SSO do espelho.
+      if (new URL(acaoForm, r.url).host !== hostSso) throw new Error(`o form do provedor ${realmExterno} aponta para fora do SSO do espelho: ${acaoForm}`);
+      r = await pedir(acaoForm, { pote, formulario: { username: p.idp.usuario, password: p.idp.senha, credentialId: '' } });
+      continue;
+    }
+
     const tela = telaDe(r.corpo);
     const acao = campoTexto(r.corpo, 'loginAction');
     saida.telas.push(tela ?? '?');
+    if (tela === 'info' && continuarAposVinculo) {
+      // O link de vínculo foi confirmado e o Keycloak parou num aviso. Dois desfechos legítimos:
+      //  1. "volte ao navegador original": a sessão de autenticação segue viva → "clique aqui
+      //     para continuar" na aba de origem (GET no loginAction daquela tela);
+      //  2. "sua conta foi atualizada": o vínculo já foi feito e a sessão ENCERRADA → a pessoa
+      //     entra de novo; agora a identidade está vinculada e nenhum e-mail é pedido.
+      const volta = await pedir(continuarAposVinculo, { pote });
+      continuarAposVinculo = undefined;
+      const seguiu = (volta.status >= 300 && volta.status < 400 && !!volta.location && !(volta.location.startsWith(p.redirectUri) && new URL(volta.location).searchParams.has('error')))
+        || (volta.status === 200 && !!telaDe(volta.corpo) && telaDe(volta.corpo) !== 'error' && !/"type":\s*"error"/.test(volta.corpo));
+      if (seguiu) { r = volta; continue; }
+      saida.telas.push('reinicio');
+      r = await pedir(auth.toString(), { pote });
+      continue;
+    }
     if (!tela || !acao) throw new ErroHttp(`página sem kcContext reconhecível (login de ${p.usuario})`, r);
+    if (tela === 'info') throw new Error(`Keycloak parou numa página de aviso no login de ${p.usuario}: ${campoTexto(r.corpo, 'summary') ?? '?'}`);
 
     // Mensagem de erro da tela anterior (senha errada, código inválido…).
     const erro = /"type":\s*"error"/.test(r.corpo) ? campoTexto(r.corpo, 'summary') : undefined;
@@ -206,7 +276,39 @@ export async function login(p: PedidoDeLogin): Promise<ResultadoDeLogin> {
 
       case 'login-otp':
         if (!segredo) throw new Error(`${p.usuario} tem 2FA e nenhum totpSegredo foi informado.`);
-        r = await pedir(acao, { pote, formulario: { otp: totp(Buffer.from(segredo, 'utf8'), Date.now(), politica) } });
+        r = await pedir(acao, { pote, formulario: { otp: await codigoTotpInedito(segredo, politica) } });
+        break;
+
+      // ---- login social (fase E7): first broker login do Keycloak ----
+      case 'login-idp-link-confirm':
+        // O e-mail do provedor já pertence a uma conta: a pessoa escolhe "vincular". O Keycloak manda
+        // então um e-mail de confirmação — a marca de tempo tem de ser tirada ANTES do POST.
+        desdeVinculo = new Date(Date.now() - 5_000);
+        r = await pedir(acao, { pote, formulario: { submitAction: 'linkAccount' } });
+        break;
+
+      case 'login-idp-link-email': {
+        if (!p.idp?.obterLinkDeVinculo) throw new Error(`${p.usuario}: o Keycloak pede confirmação por e-mail do vínculo e nenhum obterLinkDeVinculo foi informado.`);
+        if (saida.telas.filter((t) => t === 'login-idp-link-email').length > 1) throw new Error(`${p.usuario}: o link de vínculo não concluiu (a tela voltou)`);
+        // O link é um action token: aberto com o MESMO pote (a sessão de autenticação vive no
+        // cookie), como a pessoa abrindo o e-mail no mesmo navegador. O que vem depois (2º fator,
+        // aviso, reinício) é tratado pelo laço — ver `continuarAposVinculo`.
+        continuarAposVinculo = acao;
+        const link = await p.idp.obterLinkDeVinculo(desdeVinculo);
+        if (new URL(link).host !== hostSso) throw new Error(`o link de vínculo de ${p.usuario} não é do SSO do espelho: ${link}`);
+        r = await pedir(link, { pote });
+        break;
+      }
+
+      case 'idp-review-user-profile':
+        // Rede de segurança: o provedor não mandou nome/sobrenome. Preenche como a pessoa faria.
+        r = await pedir(acao, { pote, formulario: { username: p.idp?.usuario ?? p.usuario, email: p.idp?.usuario ?? p.usuario, firstName: p.idp?.nome ?? 'Persona', lastName: p.idp?.sobrenome ?? 'Sintética' } });
+        break;
+
+      case 'trusted-device-enroll':
+        // Depois do 2FA o Keycloak oferece "confiar neste navegador". A prova NÃO confia, senão a
+        // rodada seguinte pularia o 2º fator e deixaria de exercitá-lo.
+        r = await pedir(acao, { pote, formulario: p.idp?.confiarDispositivo ? { trustDevice: 'on' } : {} });
         break;
 
       default:

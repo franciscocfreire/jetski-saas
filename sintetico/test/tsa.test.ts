@@ -116,7 +116,7 @@ test('rejeições com o failInfo certo: badAlg para hash desconhecido, badReques
   assert.equal(r.status, 200);
   assert.equal(bit(corpo), FALHA.badDataFormat);
   // DER aninhado fundo (1 KB de SEQUENCEs vazias uma dentro da outra) é recusado, não estoura a pilha
-  let fundo = Buffer.alloc(0);
+  let fundo = seq();
   for (let i = 0; i < 400; i++) fundo = seq(fundo);
   assert.equal(statusDe((await carimbar(fundo)).corpo), 2);
 });

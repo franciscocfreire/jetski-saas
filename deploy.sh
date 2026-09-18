@@ -238,6 +238,9 @@ if aguardar_keycloak 40; then
   # por não haver credencial). É o que faz chegar o código de login do portal.
   if [ "$AMBIENTE" = "espelho" ]; then
     bash infra/espelho/configure-keycloak-smtp.sh || warn "config de SMTP do Keycloak (espelho) falhou"
+    # Google SINTÉTICO (fase E7): o alias `google` vira um IdP OIDC para o realm google-sintetico
+    # deste Keycloak. Depois do 2FA acima, que re-PUTa o alias com o post-broker-2fa.
+    bash infra/espelho/configure-keycloak-google-fake.sh || warn "config do Google sintético (espelho) falhou"
   fi
 else
   warn "Keycloak realm não respondeu — pulei a config do client/SMTP (rode os scripts em infra/prod/ depois)"

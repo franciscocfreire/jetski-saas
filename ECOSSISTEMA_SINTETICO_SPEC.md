@@ -42,7 +42,7 @@ Levantado no código em 17/set/2026 (chamadas HTTP de saída, SMTP, navegador).
 | **SMTP da plataforma** | `SmtpEmailService` (15 serviços) | convite, aprovação, fatura, OTP de aceite, PIX de reserva, claim… | ✅ `PLATFORM_SMTP_*` | e-mail real a cliente |
 | **SMTP da empresa emissora** | `SmtpSenderFactory` | **ofício à Capitania** (anexo com dados do cliente) | ✅ por empresa; **AUTH sempre ligado**, STARTTLS por empresa | ofício real a uma Capitania |
 | **SMTP do Keycloak** | realm + SPI `meujet-email-code` | código de login do portal, reset de senha | ✅ realm | e-mail real |
-| Google (IdP) | Keycloak broker | "Entrar com Google" | ✅ realm | login real no Google |
+| Google (IdP) | Keycloak broker | "Entrar com Google" | ✅ realm (alias `google`) — no espelho o alias aponta para o realm `google-sintetico` do próprio Keycloak (E7) | login real no Google |
 
 Não há API de WhatsApp: o OTP por WhatsApp é um link `wa.me` montado pelo backend.
 PIX de reserva e compra de créditos geram BR Code **localmente** e a confirmação é manual
@@ -221,7 +221,7 @@ arquivo, e cada rodada registra a semente para ser reproduzível.
 | **E4** ✅ | motor de comportamento ([`sintetico/src/motor.ts`](sintetico/README.md), `sintetico/motor.sh`): jornadas de portal, balcão (CHA/EMA), manutenção, telas e fechamento, com relógio 12×, funil em [`catalogo/e4-sabado.json`](sintetico/catalogo/e4-sabado.json), semente e relatório por passo | "um sábado sintético" |
 | **E5** ✅ | k6 por persona ([`k6/README.md`](k6/README.md): portal, emissão com fakes, plataforma) + `resiliencia` com falha injetada pelo `/_controle` + `rodar.sh`/`soak.sh` + limites do nginx afrouxados só no espelho + `/metrics` dos fakes no Prometheus; limites medidos em [`CAPACIDADE_E_LIMITES.md`](CAPACIDADE_E_LIMITES.md) | capacidade **e** resiliência |
 | **E6** ✅ | TSA sintética ([`sintetico/src/fakes/tsa.ts`](sintetico/README.md)) + `config/assinatura` das personas pelo semeador (PAdES só na EAMA) + prova por eventos `CARIMBO` | reforço jurídico no espelho: emissão com carimbo real |
-| **E7** | IdP Google sintético: o Keycloak do espelho como IdP de si mesmo (realm sintético, alias `google` com `providerId: oidc`), walker do broker, prova do gate de CPF e da unificação por OTP | login social no espelho |
+| **E7** ✅ | IdP Google sintético ([`infra/espelho/configure-keycloak-google-fake.sh`](infra/espelho/configure-keycloak-google-fake.sh)): o Keycloak do espelho como IdP de si mesmo (realm `google-sintetico`, alias `google` com `providerId: oidc`), walker do broker em [`sintetico/src/lib/keycloak.ts`](sintetico/README.md), contas "Google" pela Admin API do realm sintético, prova `semeador provar-google` (cliente novo + gate de CPF, colisão de CPF → unificação por OTP, staff e operadora entrando pelo Google com vínculo por e-mail e 2º fator). Achou o bug da unificação (FK do perfil → 500), PR #71 | login social no espelho |
 
 E0 vem primeiro por segurança. **E3a vem logo depois** porque resolve a dor imediata
 (aprovar empresa de carga à mão) sem depender de nada. E1–E2 são a fundação do resto: sem
@@ -284,6 +284,15 @@ os fakes nenhuma persona pode emitir; sem o e-mail do Keycloak o cliente não en
 | Token | **Assinatura RSA real** (chave gerada no boot do fake, nunca no repositório) — verificável por fora |
 | PAdES | **Ligado na EAMA** (cobre o segundo cliente de TSA, OpenPDF/SHA-1); **delegadas sem PAdES** como grupo de controle |
 | Trava do `tsaUrl` | **No semeador**, por persona (configura e confere ao gerar tokens) — o preflight roda sem banco |
+
+### Decisões da E7 (18/set/2026)
+
+| Tema | Decisão |
+|---|---|
+| Provedor | **O Keycloak do espelho como IdP de si mesmo**: realm `google-sintetico` + alias `google` com `providerId: oidc` (o provider `google` nativo tem endpoints fixos). Para o realm da aplicação é um provedor OIDC como o Google real: mesmos flows (first broker login, vínculo por e-mail, post-broker 2FA, dispositivo confiável). Nada muda em produção |
+| Casos provados | **Cliente novo pelo Google no portal (gate de CPF)**, **colisão de CPF → unificação por OTP** e **staff existente entrando pelo Google** (vendedor no backoffice sem fator; operadora no console com TOTP) |
+| Contas "Google" | **O semeador cria no realm sintético**, pela Admin API, com um client de serviço (`semeador-contas`) que só tem `manage-users`/`view-users` DESSE realm — nunca a senha master, nunca o realm da aplicação |
+| Segredos | Dois, gerados pelo `gerar-env.sh` (`GOOGLE_SINTETICO_BROKER_SECRET`, `GOOGLE_SINTETICO_SEMEADOR_SECRET`); o preflight exige ambos e distintos; o Google real continua proibido (`GOOGLE_CLIENT_ID` vazio) |
 
 ## 8. Fora de escopo
 

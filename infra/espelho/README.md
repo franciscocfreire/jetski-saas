@@ -24,7 +24,7 @@ o stack de observabilidade — que é o instrumento do teste.
 | Túnel Cloudflare | túnel de produção | túnel **novo** |
 | E-mail | Gmail | **Mailpit** (nada sai da máquina) |
 | Backup | diário + off-site | **nenhum** |
-| Login Google | configurável | desligado |
+| Login Google | Google real (`GOOGLE_CLIENT_*`) | **Google sintético**: o próprio Keycloak, realm `google-sintetico` ([`configure-keycloak-google-fake.sh`](configure-keycloak-google-fake.sh)) |
 | Dados | reais | **só sintéticos** |
 | Deploy | CD automático na `main` | manual (`./deploy.sh`) |
 
@@ -205,6 +205,16 @@ curl -X POST http://127.0.0.1:8089/_controle/gru/<idSessao>/pagar
 
 Depois, no balcão, "Verificar pagamento do PIX" passa a responder pago. O mesmo
 `/_controle` injeta falha e latência por etapa (Marinha fora, PagTesouro lento).
+
+### "Entrar com Google" no espelho
+
+O botão leva ao realm `google-sintetico` do **próprio Keycloak do espelho** (tema padrão),
+não ao Google ([`sintetico/README.md`](../../sintetico/README.md#fase-e7-o-google-sintético--login-social)).
+Qualquer conta desse realm serve; as das personas estão no `personas.json` (chaves
+`e7-google-*`). Para criar outra, use o client `semeador-contas` (segredo
+`GOOGLE_SINTETICO_SEMEADOR_SECRET` do `.env`) ou o console de administração do Keycloak.
+`ROLLBACK=1 bash infra/espelho/configure-keycloak-google-fake.sh` desliga (apaga o realm e
+as contas); o `deploy.sh` religa no próximo deploy.
 
 ### 6. Testes
 

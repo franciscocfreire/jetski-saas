@@ -128,12 +128,21 @@ if command -v rclone >/dev/null 2>&1 && [ -n "$(rclone listremotes 2>/dev/null)"
   avisa "há remotos rclone configurados nesta máquina ($(rclone listremotes | tr '\n' ' ')) — config copiada de produção? Remova."
 fi
 
-# --- 6. Login social desligado -----------------------------------------------
+# --- 6. Login social: Google real desligado, Google sintético com segredos próprios --
 if [ "${GOOGLE_IDP_ENABLED:-false}" = "true" ] || [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
   reprova "login Google configurado — o client OAuth é de produção e o redirect URI não é deste domínio"
 else
-  ok "login Google desligado"
+  ok "login Google real desligado"
 fi
+# O alias `google` do espelho aponta para o realm google-sintetico do próprio Keycloak
+# (fase E7). Sem os segredos, o deploy pularia a config e o login social ficaria no
+# Google nativo desabilitado — as provas do semeador falhariam tarde e de forma confusa.
+for var in GOOGLE_SINTETICO_BROKER_SECRET GOOGLE_SINTETICO_SEMEADOR_SECRET; do
+  [ -n "${!var:-}" ] || reprova "$var vazio — o Google sintético do espelho precisa dele (openssl rand -base64 32 | tr -d '=+/')"
+done
+[ "${GOOGLE_SINTETICO_BROKER_SECRET:-a}" != "${GOOGLE_SINTETICO_SEMEADOR_SECRET:-b}" ] \
+  && ok "segredos do Google sintético presentes e distintos" \
+  || reprova "GOOGLE_SINTETICO_BROKER_SECRET e GOOGLE_SINTETICO_SEMEADOR_SECRET iguais — o semeador não pode ser o broker"
 
 # --- 7. Sistemas externos: fakes + sumidouro de DNS ---------------------------
 # Um CPF sintético de DV válido pode ser de uma pessoa real (não existe faixa de

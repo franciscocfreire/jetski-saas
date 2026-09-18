@@ -56,10 +56,14 @@ OPERADORA_SINTETICA=$(sed -n '/"operadorPlataforma"/,/}/s/.*"email": *"\([^"]*\)
 : "${OPERADORA_SINTETICA:?não achei o e-mail da operadora em sintetico/catalogo/e3a.json}"
 NODE_IMAGEM=node:24-alpine   # Node 24 roda TypeScript direto; o semeador não tem dependências
 
-semeador() { # semeador <comando>  — container efêmero, rede do host (Mailpit em 127.0.0.1)
+semeador() { # semeador <comando>  — container efêmero, rede do host (Mailpit, fakes e Keycloak em 127.0.0.1)
+  # GOOGLE_SINTETICO_SEMEADOR_SECRET sai do .env gerado (fase E7): o semeador cria as contas "Google"
+  # pela Admin API do realm sintético, com um client de serviço restrito a esse realm.
   docker run --rm --network host \
     -v "$REPO/sintetico:/app:ro" -v "$ESTADO:/estado" \
-    -e DOMINIO="$DOMINIO" "$NODE_IMAGEM" node /app/src/semeador.ts "$1"
+    -e DOMINIO="$DOMINIO" -e KEYCLOAK_URL=http://127.0.0.1:8080 \
+    -e GOOGLE_SINTETICO_SEMEADOR_SECRET="$(sed -n 's/^GOOGLE_SINTETICO_SEMEADOR_SECRET=//p' "$REPO/.env")" \
+    "$NODE_IMAGEM" node /app/src/semeador.ts "$1"
 }
 
 # ---------------------------------------------------------------------------
@@ -142,6 +146,9 @@ semeador semear
 semeador provar-gru
 # Prova da E3b: uma emissão PRÓPRIA (EAMA) e uma DELEGADA, até o ofício à Capitania no Mailpit.
 semeador provar-emissao
+# Prova da E7: login social pelo "Google" sintético — cliente novo (gate de CPF), unificação de
+# CPF por OTP, e membro/operadora existentes entrando pelo Google (vínculo por e-mail, 2º fator).
+semeador provar-google
 semeador resumo
 
 printf 'commit=%s\nquando=%s\ndominio=%s\n' \
