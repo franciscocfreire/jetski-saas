@@ -24,6 +24,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -56,6 +57,7 @@ class CustomerCpfMergeIntegrationTest extends AbstractIntegrationTest {
     // Pessoas (identidade única, F4) determinísticas do teste
     private static final UUID USUARIO_GOOGLE = UUID.fromString("dada0000-0000-0000-0000-0000000000aa");
     private static final UUID USUARIO_OWNER = UUID.fromString("dada0000-0000-0000-0000-0000000000ab");
+    private static final UUID USUARIO_DUP = UUID.fromString("dada0000-0000-0000-0000-0000000000ac");
     private static final String CPF_OWNER_DIGITS = "11144477735";
     private static final FederatedIdentity FED_GOOGLE =
         new FederatedIdentity("google", "g-123", "pessoa@gmail.com");
@@ -231,6 +233,7 @@ class CustomerCpfMergeIntegrationTest extends AbstractIntegrationTest {
         enviarElegivel();
         when(provisioning.transferFederatedIdentity(SUB_GOOGLE, SUB_OWNER, "google")).thenReturn(true);
         when(provisioning.deleteUser(SUB_GOOGLE)).thenReturn(true);
+        UUID dupUsuario = usuarioDaDuplicata();
 
         mockMvc.perform(post("/v1/customers/self/cpf-merge/verificar")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -244,13 +247,13 @@ class CustomerCpfMergeIntegrationTest extends AbstractIntegrationTest {
         verify(provisioning).deleteUser(SUB_GOOGLE);
 
         // perfil global da duplicata descartado (criado no obter() do enviar);
-        // a PESSOA da duplicata também morre (F3/D7) — mapping some junto
-        Integer dupProfiles = jdbc.queryForObject(
-            "SELECT count(*) FROM customer_profile WHERE usuario_id IN "
-            + "(SELECT usuario_id FROM usuario_identity_provider "
-            + " WHERE provider = 'keycloak' AND provider_user_id = ?)",
-            Integer.class, SUB_GOOGLE);
-        assertThat(dupProfiles).isZero();
+        // a PESSOA da duplicata também morre (F3/D7) — mapping some junto, por
+        // isso o usuario_id foi capturado ANTES (uma subquery pelo mapping seria vácua)
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM customer_profile WHERE usuario_id = ?",
+            Integer.class, dupUsuario)).as("perfil da duplicata").isZero();
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM usuario_identity_provider WHERE provider = 'keycloak' AND provider_user_id = ?",
+            Integer.class, SUB_GOOGLE)).as("mapping da duplicata").isZero();
 
         // OTP consumido
         assertThat(redis.opsForValue().get("otp:cpfmerge:code:" + SUB_GOOGLE)).isNull();
@@ -263,22 +266,53 @@ class CustomerCpfMergeIntegrationTest extends AbstractIntegrationTest {
             .doesNotContain(CPF_OWNER_DIGITS); // CPF só mascarado na trilha
     }
 
+    /** Pessoa da duplicata já existente (semeada por SQL): o obter() do enviar() só liga o perfil a ela,
+     *  sem provisionar — logo sem o evento PESSOA_PROVISIONADA, cujo listener é @Async e escreveria a
+     *  trilha em corrida com o teste. */
+    private void semearPessoaDaDuplicata() {
+        // Sobras de outros testes (pessoa provisionada pelo enviar(), COM trilha) trocariam o
+        // ramo do descarte: apaga qualquer outra pessoa com este e-mail/sub antes de semear.
+        jdbc.update("DELETE FROM customer_profile WHERE usuario_id IN "
+            + "(SELECT id FROM usuario WHERE email = 'merge-dup@test.com' AND id <> ?)", USUARIO_DUP);
+        jdbc.update("DELETE FROM usuario_identity_provider WHERE (provider = 'keycloak' AND provider_user_id = ? "
+            + "AND usuario_id <> ?) OR usuario_id IN (SELECT id FROM usuario WHERE email = 'merge-dup@test.com' AND id <> ?)",
+            SUB_GOOGLE, USUARIO_DUP, USUARIO_DUP);
+        jdbc.update("DELETE FROM usuario WHERE email = 'merge-dup@test.com' AND id <> ?", USUARIO_DUP);
+        jdbc.update("INSERT INTO usuario (id, email, nome, ativo) VALUES (?, 'merge-dup@test.com', "
+            + "'Duplicata', TRUE) ON CONFLICT DO NOTHING", USUARIO_DUP);
+        jdbc.update("INSERT INTO usuario_identity_provider (usuario_id, provider, provider_user_id) "
+            + "SELECT ?, 'keycloak', ? WHERE NOT EXISTS "
+            + "(SELECT 1 FROM usuario_identity_provider WHERE provider = 'keycloak' AND provider_user_id = ?)",
+            USUARIO_DUP, SUB_GOOGLE, SUB_GOOGLE);
+        // nunca provisionada por evento: não há listener assíncrono em corrida com esta limpeza
+        jdbc.update("DELETE FROM auditoria WHERE usuario_id = ?", USUARIO_DUP);
+    }
+
+    private UUID usuarioDaDuplicata() {
+        return jdbc.queryForObject(
+            "SELECT usuario_id FROM usuario_identity_provider WHERE provider = 'keycloak' AND provider_user_id = ?",
+            UUID.class, SUB_GOOGLE);
+    }
+
     @Test
     @DisplayName("merge apaga a PESSOA da duplicata com o perfil do gate ainda pendente (FK customer_profile.usuario_id)")
     void testMergeDescartaPessoaComPerfilDoGate() throws Exception {
-        // Achado do espelho (E7, login pelo Google sintético): a duplicata tem o perfil global
-        // criado no gate de CPF; o descarte da pessoa é JDBC (DELETE FROM usuario) e rodava
-        // com o DELETE JPA do perfil ainda pendente → violação de FK → 500, com a identidade
-        // Google já transferida no provedor. Aqui a pessoa NÃO tem trilha, para o descarte
-        // seguir pelo DELETE (e não pelo tombstone), como acontece no portal.
+        // Achado do espelho (E7, login pelo Google sintético): o descarte da pessoa é JDBC
+        // (DELETE FROM usuario) e rodava com o DELETE JPA do perfil ainda pendente →
+        // violação de FK → 500. Por que testMergeCompleto não pegava: a suíte roda como
+        // superuser e ENXERGA a trilha PESSOA_PROVISIONADA da duplicata (usuario_id) —
+        // descartarPessoaSemPapeis cai no ramo tombstone (UPDATE, sem FK). Em produção o
+        // backend é jetski_app, `auditoria` tem FORCE RLS e a linha global (tenant NULL) só
+        // aparece com app.unrestricted: a contagem dá 0 e o ramo é o DELETE. Aqui a pessoa
+        // é semeada sem trilha, para o teste passar pelo mesmo caminho que a produção.
+        semearPessoaDaDuplicata();
         enviarElegivel();
         when(provisioning.transferFederatedIdentity(SUB_GOOGLE, SUB_OWNER, "google")).thenReturn(true);
         when(provisioning.deleteUser(SUB_GOOGLE)).thenReturn(true);
 
-        UUID dupUsuario = jdbc.queryForObject(
-            "SELECT usuario_id FROM usuario_identity_provider WHERE provider = 'keycloak' AND provider_user_id = ?",
-            UUID.class, SUB_GOOGLE);
-        jdbc.update("DELETE FROM auditoria WHERE usuario_id = ?", dupUsuario);
+        UUID dupUsuario = usuarioDaDuplicata();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM auditoria WHERE usuario_id = ?",
+            Integer.class, dupUsuario)).as("sem trilha: ramo DELETE, como em produção").isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM customer_profile WHERE usuario_id = ?",
             Integer.class, dupUsuario)).as("perfil do gate existe antes do merge").isEqualTo(1);
 
@@ -293,6 +327,58 @@ class CustomerCpfMergeIntegrationTest extends AbstractIntegrationTest {
             Integer.class, dupUsuario)).as("perfil da duplicata").isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM usuario WHERE id = ?",
             Integer.class, dupUsuario)).as("pessoa da duplicata (apagada, não tombstone)").isZero();
+    }
+
+    @Test
+    @DisplayName("duplicata com papel de plataforma: merge recusado (400) sem tocar no provedor — antes apagava a conta Keycloak")
+    void testMergeRecusaPessoaComPapeis() throws Exception {
+        semearPessoaDaDuplicata();
+        enviarElegivel();
+        UUID dup = usuarioDaDuplicata();
+        jdbc.update("INSERT INTO usuario_global_roles (usuario_id, roles, unrestricted_access) "
+            + "VALUES (?, '{PLATFORM_LEITURA}', FALSE) ON CONFLICT DO NOTHING", dup);
+        try {
+            mockMvc.perform(post("/v1/customers/self/cpf-merge/verificar")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"cpf\":\"" + CPF_OWNER + "\",\"codigo\":\"" + codigoNoRedis() + "\"}")
+                    .with(cliente(SUB_GOOGLE, "merge-dup@test.com")))
+                .andExpect(status().isBadRequest());
+
+            verify(provisioning, never()).transferFederatedIdentity(anyString(), anyString(), anyString());
+            verify(provisioning, never()).deleteUser(anyString());
+            // transação revertida: perfil e pessoa continuam como estavam
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM customer_profile WHERE usuario_id = ?",
+                Integer.class, dup)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM usuario WHERE id = ? AND ativo",
+                Integer.class, dup)).isEqualTo(1);
+        } finally {
+            jdbc.update("DELETE FROM usuario_global_roles WHERE usuario_id = ?", dup);
+        }
+    }
+
+    @Test
+    @DisplayName("duplicata referenciada por uma habilitação (FK): merge recusado (400), nada transferido — antes era 500 com o Google já transferido")
+    void testMergeRecusaPessoaReferenciadaPorFk() throws Exception {
+        semearPessoaDaDuplicata();
+        enviarElegivel();
+        UUID dup = usuarioDaDuplicata();
+        jdbc.update("INSERT INTO customer_habilitacao (cpf, gru_numero, emitida_em, valida_ate, usuario_id) "
+            + "VALUES ('99988877766', 'GRU-MERGE-FK-TESTE', now(), current_date + 365, ?) "
+            + "ON CONFLICT (gru_numero) DO UPDATE SET usuario_id = EXCLUDED.usuario_id", dup);
+        try {
+            mockMvc.perform(post("/v1/customers/self/cpf-merge/verificar")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"cpf\":\"" + CPF_OWNER + "\",\"codigo\":\"" + codigoNoRedis() + "\"}")
+                    .with(cliente(SUB_GOOGLE, "merge-dup@test.com")))
+                .andExpect(status().isBadRequest());
+
+            verify(provisioning, never()).transferFederatedIdentity(anyString(), anyString(), anyString());
+            verify(provisioning, never()).deleteUser(anyString());
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM customer_profile WHERE usuario_id = ?",
+                Integer.class, dup)).as("rollback devolveu o perfil").isEqualTo(1);
+        } finally {
+            jdbc.update("DELETE FROM customer_habilitacao WHERE gru_numero = 'GRU-MERGE-FK-TESTE'");
+        }
     }
 
     @Test

@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +45,9 @@ public class CustomerCpfMergeService {
     private static final Duration TTL_CODE = Duration.ofMinutes(10);
     private static final Duration TTL_COOLDOWN = Duration.ofSeconds(60);
     private static final int MAX_TENTATIVAS = 5;
+    private static final String MSG_NAO_DESCARTAVEL =
+        "Sua conta atual tem vínculos (equipe, plataforma ou histórico) e não pode ser descartada — "
+        + "entre com a conta que já usa este CPF ou fale com o suporte.";
 
     private final CustomerProfileRepository repository;
     private final CustomerProfileService customerProfileService;
@@ -179,16 +183,16 @@ public class CustomerCpfMergeService {
             throw new BusinessException("A situação da conta mudou — recomece o processo.");
         }
 
-        if (!userProvisioningService.transferFederatedIdentity(sub, ownerSub, idpAlias)) {
-            throw new InternalServerException(
-                "Não foi possível unificar as contas agora — tente novamente em instantes.");
-        }
+        // BANCO PRIMEIRO, provedor por último (achado do espelho, E7): o que acontece no
+        // Keycloak fica fora da transação — se a transferência viesse antes e qualquer
+        // escrita abaixo falhasse, o rollback deixaria a duplicata órfã no banco com o
+        // Google já na conta dona (irrecuperável pelo cliente). Nesta ordem, qualquer
+        // falha reverte perfil, pessoa e mapping, e o Google segue na duplicata.
 
         // Perfil global da duplicata (criado no gate, sem CPF) não serve mais.
         // flush(): o descarte da pessoa logo abaixo é JDBC (DELETE FROM usuario) —
         // o DELETE do perfil, pendente no contexto de persistência, tem de chegar ao
-        // banco ANTES, senão a FK customer_profile.usuario_id derruba o merge (500)
-        // com a identidade Google JÁ transferida no provedor (achado do espelho, E7).
+        // banco ANTES, senão a FK customer_profile.usuario_id derruba o merge (500).
         identityProviderMappingService.tryResolveUsuarioId(PROVIDER, sub)
             .flatMap(repository::findByUsuarioId)
             .ifPresent(perfil -> {
@@ -198,9 +202,26 @@ public class CustomerCpfMergeService {
 
         // Identidade única (F3/D7): descarta a PESSOA da duplicata (usuario +
         // mapping) — sem isto o e-mail dela ficaria ocupado por um usuario
-        // órfão de conta. Só remove se não houver papéis/fichas (por construção
-        // do merge: duplicata sem vínculos).
-        pessoaProvisioningService.descartarPessoaSemPapeis(sub);
+        // órfão de conta. Pessoa com papéis (equipe/plataforma) NÃO é descartável —
+        // e o merge então não acontece: antes, a conta Keycloak dela era apagada
+        // mesmo assim. Outras referências (habilitação, histórico de ex-equipe…)
+        // chegam como violação de FK no DELETE: mesma recusa, transação revertida.
+        boolean descartada;
+        try {
+            descartada = pessoaProvisioningService.descartarPessoaSemPapeis(sub);
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Merge por CPF recusado: a pessoa da duplicata ainda é referenciada (sub={}): {}",
+                sub, e.getMostSpecificCause().getMessage());
+            throw new BusinessException(MSG_NAO_DESCARTAVEL);
+        }
+        if (!descartada) {
+            throw new BusinessException(MSG_NAO_DESCARTAVEL);
+        }
+
+        if (!userProvisioningService.transferFederatedIdentity(sub, ownerSub, idpAlias)) {
+            throw new InternalServerException(
+                "Não foi possível unificar as contas agora — tente novamente em instantes.");
+        }
 
         // Best-effort: conta órfã sem link Google é inócua (sem senha Google e
         // sem vínculos); não aborta o merge já concluído.
