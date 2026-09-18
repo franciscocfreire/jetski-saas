@@ -45,6 +45,18 @@ test('praia fora do ar: avisa uma vez, não lança, e encerrar() desiste depois 
   }
 });
 
+test('hora simulada: carimbada em cada evento quando o relógio do dia está ligado', async () => {
+  const lotes: EventoPraia[][] = [];
+  const p = new Praia('http://localhost:7331', { intervaloMs: 1, enviar: async (l) => { lotes.push(l); } });
+  p.emitir(passo(1)); // antes de o dia abrir não há hora simulada
+  p.horaSim = () => '11:42';
+  p.emitir(passo(2));
+  await p.encerrar();
+  const todos = lotes.flat();
+  assert.equal(todos[0].horaSim, undefined);
+  assert.equal(todos[1].horaSim, '11:42');
+});
+
 test('nome pelo e-mail sintético', () => {
   assert.equal(nomePeloEmail('gerente.delegada-atol@exemplo.invalid'), 'gerente delegada-atol');
 });
