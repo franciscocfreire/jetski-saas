@@ -36,6 +36,10 @@ esac
 
 KC="${KC_URL:-http://127.0.0.1:8080}"          # host → Keycloak
 KC_INTERNO="${KC_INTERNO_URL:-http://keycloak:8080}"   # Keycloak → Keycloak (mesmo nome que o backend usa)
+# A senha master vai para $KC e o broker vai buscar tokens/JWKS em $KC_INTERNO: nenhum dos dois
+# pode ser um host qualquer herdado do ambiente (mesma trava do infra/keycloak-setup/add-idp-teste-dev.sh).
+case "$KC" in http://127.0.0.1:*|http://localhost:*) ;; *) echo "ERRO: KC_URL='$KC' — tem de ser o loopback do Keycloak do espelho." >&2; exit 1 ;; esac
+case "$KC_INTERNO" in http://keycloak:*) ;; *) echo "ERRO: KC_INTERNO_URL='$KC_INTERNO' — tem de ser o nome interno do Keycloak na rede do compose." >&2; exit 1 ;; esac
 SSO="${SSO_PUBLIC_URL%/}"                         # navegador → Keycloak
 REALM_APP="${KC_REALM:-jetski-saas}"
 REALM_IDP="google-sintetico"
@@ -59,14 +63,23 @@ exigir() { # exigir <codigo-obtido> <esperado...> <mensagem>
 
 # --- rollback ------------------------------------------------------------------------------
 if [ "${ROLLBACK:-0}" = "1" ]; then
-  http -X DELETE "$api/$REALM_APP/identity-provider/instances/$ALIAS" "${auth[@]}" >/dev/null || true
-  http -X DELETE "$api/$REALM_IDP" "${auth[@]}" >/dev/null || true
+  # Falha fechada como o resto do script: cada passo exige o código certo (404 = já não existia) e
+  # o fim confere o estado — um rollback que "deu certo" pela metade deixaria o login social quebrado.
+  exigir "$(http -X DELETE "$api/$REALM_APP/identity-provider/instances/$ALIAS" "${auth[@]}")" 204 404 "DELETE idp $ALIAS"
+  exigir "$(http -X DELETE "$api/$REALM_IDP" "${auth[@]}")" 204 404 "DELETE realm $REALM_IDP"
   # recria o alias como o import o deixa: Google nativo, desabilitado
-  printf '%s' '{"alias":"google","displayName":"Google","providerId":"google","enabled":false,"trustEmail":true,"storeToken":false,"addReadTokenRoleOnCreate":false,"authenticateByDefault":false,"linkOnly":false,"hideOnLogin":false,"firstBrokerLoginFlowAlias":"first broker login","postBrokerLoginFlowAlias":"post-broker-2fa","config":{"clientId":"nao-configurado.apps.googleusercontent.com","clientSecret":"nao-configurado","syncMode":"IMPORT","useJwksUrl":"true"}}' \
-    | curl -s -o /dev/null -w ">> POST idp google (nativo, desabilitado) http=%{http_code}\n" -X POST "$api/$REALM_APP/identity-provider/instances" "${auth[@]}" "${json[@]}" -d @-
-  curl -s -o /dev/null -X POST "$api/$REALM_APP/identity-provider/instances/$ALIAS/mappers" "${auth[@]}" "${json[@]}" \
-    -d '{"name":"google-role-cliente","identityProviderAlias":"google","identityProviderMapper":"oidc-hardcoded-role-idp-mapper","config":{"syncMode":"INHERIT","role":"CLIENTE"}}'
-  echo ">> espelho: Google sintético removido; alias google voltou ao estado do import."
+  exigir "$(printf '%s' '{"alias":"google","displayName":"Google","providerId":"google","enabled":false,"trustEmail":true,"storeToken":false,"addReadTokenRoleOnCreate":false,"authenticateByDefault":false,"linkOnly":false,"hideOnLogin":false,"firstBrokerLoginFlowAlias":"first broker login","postBrokerLoginFlowAlias":"post-broker-2fa","config":{"clientId":"nao-configurado.apps.googleusercontent.com","clientSecret":"nao-configurado","syncMode":"IMPORT","useJwksUrl":"true"}}' \
+    | http -X POST "$api/$REALM_APP/identity-provider/instances" "${auth[@]}" "${json[@]}" -d @-)" 201 "POST idp $ALIAS (nativo, desabilitado)"
+  exigir "$(http -X POST "$api/$REALM_APP/identity-provider/instances/$ALIAS/mappers" "${auth[@]}" "${json[@]}" \
+    -d '{"name":"google-role-cliente","identityProviderAlias":"google","identityProviderMapper":"oidc-hardcoded-role-idp-mapper","config":{"syncMode":"INHERIT","role":"CLIENTE"}}')" 201 "POST mapper google-role-cliente"
+  curl -s "$api/$REALM_APP/identity-provider/instances/$ALIAS" "${auth[@]}" | python3 -c '
+import sys, json
+i = json.load(sys.stdin)
+falhas = [k for k, v in {"providerId=google": i.get("providerId") == "google", "enabled=false": i.get("enabled") is False,
+  "hideOnLogin=false": i.get("hideOnLogin") is False, "postBrokerLoginFlowAlias=post-broker-2fa": i.get("postBrokerLoginFlowAlias") == "post-broker-2fa"}.items() if not v]
+if falhas: print("ERRO: rollback incompleto — idp google: " + ", ".join(falhas), file=sys.stderr); sys.exit(1)'
+  [ "$(http "$api/$REALM_IDP" "${auth[@]}")" = "404" ] || { echo "ERRO: rollback incompleto — o realm $REALM_IDP ainda existe" >&2; exit 1; }
+  echo ">> espelho: Google sintético removido; alias google voltou ao estado do import (nativo, desabilitado)."
   exit 0
 fi
 

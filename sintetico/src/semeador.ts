@@ -254,7 +254,8 @@ function contextoSocial(): ContextoSocial {
   const segredo = process.env.GOOGLE_SINTETICO_SEMEADOR_SECRET ?? '';
   if (!segredo || segredo === '__GERADO__') throw new Error('Defina GOOGLE_SINTETICO_SEMEADOR_SECRET (o .env do espelho tem o valor gerado pelo deploy).');
   const keycloakUrl = process.env.KEYCLOAK_URL ?? 'http://127.0.0.1:8080';
-  if (!/^http:\/\/(127\.0\.0\.1|localhost|keycloak)(:\d+)?\/?$/.test(keycloakUrl)) throw new Error(`KEYCLOAK_URL tem de ser a porta interna do Keycloak do espelho, não ${keycloakUrl}.`);
+  // Só loopback: o semeador roda com --network host na VM (o nome `keycloak` do compose não resolve ali).
+  if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(keycloakUrl)) throw new Error(`KEYCLOAK_URL tem de ser o loopback do Keycloak do espelho (http://127.0.0.1:8080), não ${keycloakUrl}.`);
   return { ...contexto, dominio: DOMINIO, keycloakUrl, segredoSemeadorContas: segredo };
 }
 

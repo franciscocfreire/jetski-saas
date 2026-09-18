@@ -102,8 +102,9 @@ function politicaDe(html: string): PoliticaTotp {
 
 const MAX_TELAS = 24; // iterações (telas 200 + redirects); o login social com vínculo por e-mail, 2FA e reinício chega perto de 20
 
-// O Keycloak (≥ 21) recusa REUSAR um código TOTP no mesmo período: dois logins seguidos da mesma
-// persona (o de referência e o pelo Google, por exemplo) esperariam o próximo período. Por segredo.
+// O Keycloak (desde o 20, política `otpPolicyCodeReusable=false`) recusa REUSAR um código TOTP no
+// mesmo período: dois logins seguidos da mesma persona (o de referência e o pelo Google) cairiam
+// nisso em menos de 30 s. Guarda preventivo, por segredo — não foi observado ao vivo.
 const otpUsadoNoPeriodo = new Map<string, number>();
 export async function codigoTotpInedito(segredo: string, politica: PoliticaTotp): Promise<string> {
   const periodo = politica.periodoSegundos * 1000;
@@ -172,6 +173,8 @@ export async function login(p: PedidoDeLogin): Promise<ResultadoDeLogin> {
       if (/id="input-error"/.test(r.corpo) && saida.telas.filter((t) => t === telaExterna).length > 1) {
         throw new Error(`o provedor ${realmExterno} recusou ${p.idp.usuario} (senha errada?)`);
       }
+      // Mesma trava dos redirects: a senha da conta "Google" só vai para o SSO do espelho.
+      if (new URL(acaoForm, r.url).host !== hostSso) throw new Error(`o form do provedor ${realmExterno} aponta para fora do SSO do espelho: ${acaoForm}`);
       r = await pedir(acaoForm, { pote, formulario: { username: p.idp.usuario, password: p.idp.senha, credentialId: '' } });
       continue;
     }

@@ -319,9 +319,10 @@ O teste de integração é o próprio espelho: a fase E3a foi validada rodando o
 
 ## Armadilhas já pagas
 
-- **O Keycloak recusa REUSAR um código TOTP no mesmo período** (≥ 21, `otpPolicyCodeReusable=false`).
-  Dois logins seguidos da mesma persona (o de referência e o pelo Google) davam "código inválido";
-  o walker guarda o período usado por segredo e espera o próximo (`codigoTotpInedito`).
+- **O Keycloak recusa REUSAR um código TOTP no mesmo período** (desde o 20, `otpPolicyCodeReusable=false`).
+  Dois logins seguidos da mesma persona (o de referência e o pelo Google) cairiam nisso em menos de
+  30 s; o walker guarda o período usado por segredo e espera o próximo (`codigoTotpInedito`) — guarda
+  preventivo, entrou antes da prova rodar.
 - **O link de vínculo por e-mail tem de ser aberto no MESMO pote de cookies.** É um action token
   preso à sessão de autenticação; noutro "navegador" o Keycloak responde "volte ao navegador
   original". Aberto no mesmo pote, o flow continuou direto (sem página de aviso) nas rodadas do

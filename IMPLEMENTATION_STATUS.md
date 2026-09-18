@@ -233,8 +233,20 @@ Produção: `www.meujet.com.br` (site + marketplace) · `app.meujet.com.br` (bac
   `DELETE` JPA do perfil da duplicata ficava pendente enquanto o descarte da pessoa ia por JDBC
   (`DELETE FROM usuario`) → FK `customer_profile.usuario_id`; a identidade Google já tinha sido
   transferida no Keycloak (fora da transação), a duplicata ficava órfã e a trilha
-  `CONTA_CPF_MERGE` não era escrita. Correção (`flush()`) + teste que força o ramo DELETE no
-  PR #71. Lição: o teste existente só cobria o ramo tombstone (pessoa com trilha).
+  `CONTA_CPF_MERGE` não era escrita. PR #71: `flush()`, banco antes do provedor (o rollback
+  restaura tudo), merge recusado (400) quando a pessoa tem papéis ou é referenciada por FK —
+  antes a conta Keycloak de um membro era apagada mesmo com a pessoa mantida. Por que o teste
+  não pegava: a suíte roda como superuser e enxerga a trilha `PESSOA_PROVISIONADA` da
+  duplicata → ramo tombstone; em produção (`jetski_app`, `auditoria` com FORCE RLS) a linha
+  global só aparece com `app.unrestricted` → contagem 0 → ramo DELETE.
+- **Código morto/frágil no descarte de pessoa** (revisão da E7, 18/set/2026):
+  `PessoaProvisioningService.descartarPessoaSemPapeis` conta `auditoria.usuario_id` para decidir
+  entre tombstone e DELETE, mas fora do escopo de plataforma a RLS esconde as linhas globais —
+  em produção o tombstone nunca acontece e a trilha perde o vínculo (`ON DELETE SET NULL`).
+  E o DELETE só é protegido pelas FKs (customer_habilitacao, convite, abastecimento,
+  despesa_operacional, fechamento_*, pagamento/presenca_vendedor, cliente.capturado_por,
+  sessao_suporte…): o merge hoje recusa com mensagem genérica; decidir se essas referências
+  viram `SET NULL`/tombstone de verdade.
 - **Risco — o cliente de TSA do PAdES não tem timeout** (achado em 18/set/2026 na revisão da E6).
   `PadesSignatureService` usa `new TSAClientBouncyCastle(tsaUrl)` do OpenPDF 1.3.35, cujo
   `getTSAResponse` abre `URLConnection` sem `setConnectTimeout`/`setReadTimeout`, e o `JAVA_OPTS`
