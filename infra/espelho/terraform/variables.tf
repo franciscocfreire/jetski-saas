@@ -57,6 +57,17 @@ variable "dominio" {
   }
 }
 
+variable "rotas_extras" {
+  description = "Subdomínio → serviço na rede do espelho, fora do nginx (ex.: a Praia Sintética). Cada um vira rota no túnel e CNAME."
+  type        = map(string)
+  default     = { praia = "http://praia:7331" }
+
+  validation {
+    condition     = alltrue([for sub, s in var.rotas_extras : !contains(["www", "app", "cliente", "admin", "sso"], sub) && can(regex("^http://[a-z0-9-]+:[0-9]+$", s))])
+    error_message = "Rota extra não pode repetir um hostname do nginx e o serviço é http://<container>:<porta> na rede do espelho."
+  }
+}
+
 variable "nome_tunel" {
   description = "Nome do túnel Cloudflare do espelho."
   type        = string

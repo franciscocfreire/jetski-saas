@@ -28,6 +28,11 @@ locals {
   # nulo e SPF no apex (domínio sem e-mail), com que um CNAME conflitaria, e o
   # apex só redirecionaria para www.
   hostnames = [for sub in ["www", "app", "cliente", "admin", "sso"] : "${sub}.${var.dominio}"]
+
+  # Rotas que NÃO passam pelo nginx: vão direto a outro container da rede do espelho
+  # (o cloudflared está em jetski_jetski-network). Ex.: a Praia Sintética, a visualização
+  # das personas (projeto separado), atrás de senha própria.
+  rotas_extras = { for sub, servico in var.rotas_extras : "${sub}.${var.dominio}" => servico }
 }
 
 resource "random_bytes" "segredo_tunel" {
@@ -49,6 +54,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "espelho" {
     # Mesmo destino de produção: tudo para o nginx, que roteia por hostname.
     ingress = concat(
       [for h in local.hostnames : { hostname = h, service = "http://nginx:80" }],
+      [for h, servico in local.rotas_extras : { hostname = h, service = servico }],
       [{ service = "http_status:404" }],
     )
   }
@@ -67,7 +73,8 @@ data "cloudflare_zero_trust_tunnel_cloudflared_token" "espelho" {
 }
 
 resource "cloudflare_dns_record" "espelho" {
-  for_each = toset(local.hostnames)
+  # Mesmas chaves de antes para os hostnames do nginx (nenhum registro existente é recriado).
+  for_each = toset(concat(local.hostnames, keys(local.rotas_extras)))
 
   zone_id = data.cloudflare_zone.espelho.id
   name    = each.value
