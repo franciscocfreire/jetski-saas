@@ -1,9 +1,19 @@
 # Camada do ESPELHO sobre a observabilidade de produção:
 #   docker compose --env-file .env -f infra/observability/docker-compose.observability.yml \
 #                  -f infra/observability/docker-compose.observability.espelho.yml up -d
-# Só acrescenta o alvo dos fakes (fakes-externos:8080/metrics) ao job 'extras' do Prometheus,
-# via file_sd (glob /etc/prometheus/alvos-extras-*.json) — o prometheus-prod.yml não muda. O provisionamento do espelho usa esta camada.
+# Só acrescenta, sem mudar nada da produção:
+# - alvos do job 'extras' do Prometheus via file_sd (glob /etc/prometheus/alvos-extras-*.json):
+#   os fakes (fakes-externos:8080/metrics) e a Praia Sintética (praia:7331/api/metricas — a rota
+#   só responde na rede interna; pela Cloudflare é 404);
+# - o painel e os alertas da praia no Grafana (arquivos montados por cima dos diretórios de
+#   provisionamento de produção: em produção eles não existem, então não geram "sem dados").
+# O provisionamento do espelho usa esta camada.
 services:
   prometheus:
     volumes:
       - ./prometheus/alvos-extras.espelho/fakes.json:/etc/prometheus/alvos-extras-fakes.json:ro
+      - ./prometheus/alvos-extras.espelho/praia.json:/etc/prometheus/alvos-extras-praia.json:ro
+  grafana:
+    volumes:
+      - ./grafana/espelho/dashboards/praia-sintetica.json:/var/lib/grafana/dashboards/praia-sintetica.json:ro
+      - ./grafana/espelho/alerting/praia.yml:/etc/grafana/provisioning/alerting/praia.yml:ro
