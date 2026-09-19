@@ -1,0 +1,6 @@
+[
+  {
+    "targets": ["praia:7331"],
+    "labels": { "job": "praia", "ambiente": "espelho", "__metrics_path__": "/api/metricas" }
+  }
+]
